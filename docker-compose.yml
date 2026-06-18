@@ -34,6 +34,19 @@ services:
     networks:
       - loop-network
 
+  nginx:
+    image: nginx:latest
+    container_name: loop-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+    depends_on:
+      - spring
+    networks:
+      - loop-network
+
 networks:
   loop-network:
     driver: bridge
