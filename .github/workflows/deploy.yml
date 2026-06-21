@@ -23,6 +23,7 @@ on:
 
 jobs:
   deploy:
+    if: github.repository == 'ManaP0tion/Loop_Backend'
     runs-on: ubuntu-latest
 
     steps:
