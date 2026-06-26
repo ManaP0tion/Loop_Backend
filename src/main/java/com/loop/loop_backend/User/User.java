@@ -7,7 +7,8 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "users")
+@Table(name = "users",
+        uniqueConstraints = @UniqueConstraint(name = "uq_provider", columnNames = {"auth_provider", "provider_id"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -15,28 +16,37 @@ public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
-    private Integer id;
+    private Long id;
 
-    @Column(name = "user_id", nullable = false, length = 50, unique = true)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_provider", nullable = false, length = 10)
+    private AuthProvider authProvider;
+
+    @Column(name = "user_id", length = 50, unique = true)
     private String userId;
 
-    @Column(name = "password", nullable = false, length = 255)
+    @Column(name = "password", length = 255)
     private String password;
 
-    @Column(name = "name", nullable = false, length = 50)
-    private String name;
+    @Column(name = "provider_id", length = 255)
+    private String providerId;
 
-    @Column(name = "email", length = 100)
+    @Column(name = "email", length = 255)
     private String email;
 
-    @Column(name = "phone", length = 20)
-    private String phone;
+    @Column(name = "nickname", nullable = false, length = 50)
+    private String nickname;
 
-    // Enum 타입
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", length = 20)
-    private UserStatus status;
+    @Column(name = "gender", nullable = false, length = 10)
+    private Gender gender;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "age_group", nullable = false, length = 10)
+    private AgeGroup ageGroup;
+
+    @Column(name = "onboarding_completed", nullable = false)
+    private boolean onboardingCompleted = false;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -45,5 +55,4 @@ public class User {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
-
 }

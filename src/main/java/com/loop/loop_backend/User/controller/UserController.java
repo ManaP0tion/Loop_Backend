@@ -1,0 +1,98 @@
+package com.loop.loop_backend.User.controller;
+
+import com.loop.loop_backend.User.dto.*;
+import com.loop.loop_backend.User.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/users")
+@RequiredArgsConstructor
+@Tag(name = "User", description = "사용자 관리 API")
+public class UserController {
+
+    private final UserService userService;
+
+    @PostMapping("/register")
+    @Operation(summary = "이메일 회원가입", description = "이메일 계정으로 회원가입합니다")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "회원가입 성공"),
+            @ApiResponse(responseCode = "400", description = "유효성 검사 실패 또는 중복 아이디/이메일")
+    })
+    public ResponseEntity<UserResponseDto> registerEmail(@Valid @RequestBody UserRegisterRequestDto requestDto) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(userService.registerEmail(requestDto));
+    }
+
+    @PostMapping("/kakao")
+    @Operation(summary = "카카오 회원가입", description = "카카오 OAuth로 회원가입합니다")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "회원가입 성공"),
+            @ApiResponse(responseCode = "400", description = "유효성 검사 실패 또는 중복 계정")
+    })
+    public ResponseEntity<UserResponseDto> registerKakao(@Valid @RequestBody KakaoRegisterRequestDto requestDto) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(userService.registerKakao(requestDto));
+    }
+
+    @GetMapping
+    @Operation(summary = "전체 사용자 조회", description = "모든 사용자 목록을 반환합니다")
+    @ApiResponse(responseCode = "200", description = "조회 성공")
+    public ResponseEntity<List<UserResponseDto>> getAllUsers() {
+        return ResponseEntity.ok(userService.getAllUsers());
+    }
+
+    @GetMapping("/{id}")
+    @Operation(summary = "사용자 조회 (PK)", description = "PK로 사용자를 조회합니다")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "400", description = "사용자 없음")
+    })
+    public ResponseEntity<UserResponseDto> getUserById(
+            @Parameter(description = "사용자 PK") @PathVariable Long id) {
+        return ResponseEntity.ok(userService.getUserById(id));
+    }
+
+    @GetMapping("/search")
+    @Operation(summary = "사용자 조회 (아이디)", description = "로그인 아이디로 이메일 사용자를 조회합니다")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "400", description = "사용자 없음")
+    })
+    public ResponseEntity<UserResponseDto> getUserByUserId(
+            @Parameter(description = "로그인 아이디") @RequestParam String userId) {
+        return ResponseEntity.ok(userService.getUserByUserId(userId));
+    }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "사용자 정보 수정", description = "닉네임, 이메일, 성별, 연령대, 비밀번호(선택)를 수정합니다")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "수정 성공"),
+            @ApiResponse(responseCode = "400", description = "유효성 검사 실패 또는 사용자 없음")
+    })
+    public ResponseEntity<UserResponseDto> updateUser(
+            @Parameter(description = "사용자 PK") @PathVariable Long id,
+            @Valid @RequestBody UserUpdateRequestDto requestDto) {
+        return ResponseEntity.ok(userService.updateUser(id, requestDto));
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "사용자 삭제", description = "사용자를 삭제합니다")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "삭제 성공"),
+            @ApiResponse(responseCode = "400", description = "사용자 없음")
+    })
+    public ResponseEntity<Void> deleteUser(
+            @Parameter(description = "사용자 PK") @PathVariable Long id) {
+        userService.deleteUser(id);
+        return ResponseEntity.noContent().build();
+    }
+}
