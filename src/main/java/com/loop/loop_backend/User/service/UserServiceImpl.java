@@ -1,8 +1,8 @@
 package com.loop.loop_backend.User.service;
 
-import com.loop.loop_backend.User.AuthProvider;
-import com.loop.loop_backend.User.User;
-import com.loop.loop_backend.User.UserRepository;
+import com.loop.loop_backend.User.domain.AuthProvider;
+import com.loop.loop_backend.User.domain.User;
+import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.User.dto.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;

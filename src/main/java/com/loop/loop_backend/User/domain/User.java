@@ -1,4 +1,4 @@
-package com.loop.loop_backend.User;
+package com.loop.loop_backend.User.domain;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -44,6 +44,10 @@ public class User {
     @Enumerated(EnumType.STRING)
     @Column(name = "age_group", nullable = false, length = 10)
     private AgeGroup ageGroup;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name="status", nullable = false, length = 10)
+    private Status status;
 
     @Column(name = "onboarding_completed", nullable = false)
     private boolean onboardingCompleted = false;

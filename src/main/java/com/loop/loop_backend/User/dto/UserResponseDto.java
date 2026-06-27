@@ -1,9 +1,9 @@
 package com.loop.loop_backend.User.dto;
 
-import com.loop.loop_backend.User.AgeGroup;
-import com.loop.loop_backend.User.AuthProvider;
-import com.loop.loop_backend.User.Gender;
-import com.loop.loop_backend.User.User;
+import com.loop.loop_backend.User.domain.AgeGroup;
+import com.loop.loop_backend.User.domain.AuthProvider;
+import com.loop.loop_backend.User.domain.Gender;
+import com.loop.loop_backend.User.domain.User;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 

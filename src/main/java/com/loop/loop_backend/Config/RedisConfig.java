@@ -1,4 +1,4 @@
-package com.loop.loop_backend.config;
+package com.loop.loop_backend.Config;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;

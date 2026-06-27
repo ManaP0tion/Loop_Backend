@@ -1,4 +1,4 @@
-package com.loop.loop_backend.config;
+package com.loop.loop_backend.Config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,10 +22,20 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**",
-                                "/api/users/**"
+                                "/api/users/**",
+                                "/auth/google",
+                                "/auth/kakao",
+                                "/auth/naver",
+                                "/login"
                         ).permitAll()
                         .anyRequest().authenticated()
+                )
+
+                .formLogin(formLogin -> formLogin
+                        .loginPage("/login")
+                        .permitAll()
                 );
+
         return http.build();
     }
 

@@ -1,7 +1,7 @@
 package com.loop.loop_backend.User.dto;
 
-import com.loop.loop_backend.User.AgeGroup;
-import com.loop.loop_backend.User.Gender;
+import com.loop.loop_backend.User.domain.AgeGroup;
+import com.loop.loop_backend.User.domain.Gender;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.Getter;

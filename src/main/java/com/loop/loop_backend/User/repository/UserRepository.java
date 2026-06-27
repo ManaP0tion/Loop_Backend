@@ -1,5 +1,7 @@
-package com.loop.loop_backend.User;
+package com.loop.loop_backend.User.repository;
 
+import com.loop.loop_backend.User.domain.AuthProvider;
+import com.loop.loop_backend.User.domain.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
