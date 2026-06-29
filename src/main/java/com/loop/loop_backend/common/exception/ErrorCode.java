@@ -22,6 +22,11 @@ public enum ErrorCode {
     PASSWORD_CONFIRM_MISMATCH(400, "새 비밀번호가 일치하지 않습니다."),
     SOCIAL_LOGIN_NO_PASSWORD(400, "소셜 로그인 사용자는 비밀번호를 변경할 수 없습니다."),
 
+    //auth
+    LOGIN_LOCKED(429, "로그인 시도가 너무 많아 잠시 후 다시 시도해주세요."),
+    INVALID_CREDENTIALS(401, "아이디 또는 비밀번호가 올바르지 않습니다."),
+    INVALID_REFRESH_TOKEN(401, "유효하지 않은 Refresh Token입니다."),
+
     // CompanionPost 도메인
     COMPANION_POST_NOT_FOUND(404, "동행 모집글을 찾을 수 없습니다."),
     COMPANION_POST_ALREADY_CLOSED(409, "이미 마감된 모집글입니다."),
@@ -32,6 +37,7 @@ public enum ErrorCode {
     CHAT_ROOM_ALREADY_EXISTS(409, "이미 존재하는 채팅방입니다."),
     NOT_CHAT_PARTICIPANT(403, "채팅방 참여자가 아닙니다."),
     ALREADY_LEFT_CHAT(400, "이미 나간 채팅방입니다."),
+
 
     // Report/Block 도메인
     BLOCKED_USER(403, "차단된 사용자입니다."),

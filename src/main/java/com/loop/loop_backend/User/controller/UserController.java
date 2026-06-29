@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -41,6 +42,16 @@ public class UserController {
     })
     public ResponseEntity<UserResponseDto> registerKakao(@Valid @RequestBody KakaoRegisterRequestDto requestDto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.registerKakao(requestDto));
+    }
+
+    @GetMapping("/me")
+    @Operation(summary = "내 정보 조회", description = "Access Token으로 현재 로그인한 사용자 정보를 조회합니다")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "401", description = "인증 필요")
+    })
+    public ResponseEntity<UserResponseDto> getMe(@AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(userService.getUserById(userId));
     }
 
     @GetMapping

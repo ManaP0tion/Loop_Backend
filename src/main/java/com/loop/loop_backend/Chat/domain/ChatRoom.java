@@ -1,6 +1,5 @@
 package com.loop.loop_backend.Chat.domain;
 
-import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -19,9 +18,9 @@ public class ChatRoom {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "post_id", nullable = false)
-    private CompanionPost post;
+//    @ManyToOne(fetch = FetchType.LAZY)
+//    @JoinColumn(name = "post_id", nullable = false)
+//    private CompanionPost post;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false)
