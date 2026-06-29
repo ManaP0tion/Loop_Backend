@@ -4,6 +4,8 @@ import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.User.dto.*;
+import com.loop.loop_backend.common.exception.BusinessException;
+import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -24,21 +26,20 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserResponseDto registerEmail(UserRegisterRequestDto requestDto) {
         if (userRepository.existsByUserId(requestDto.getUserId())) {
-            throw new IllegalArgumentException("이미 사용 중인 아이디입니다: " + requestDto.getUserId());
+            throw new BusinessException(ErrorCode.DUPLICATE_USER_ID);
         }
         if (requestDto.getEmail() != null && userRepository.existsByEmail(requestDto.getEmail())) {
-            throw new IllegalArgumentException("이미 사용 중인 이메일입니다: " + requestDto.getEmail());
+            throw new BusinessException(ErrorCode.DUPLICATE_EMAIL);
         }
 
-        User user = new User();
-        user.setAuthProvider(AuthProvider.EMAIL);
-        user.setUserId(requestDto.getUserId());
-        user.setPassword(passwordEncoder.encode(requestDto.getPassword()));
-        user.setEmail(requestDto.getEmail());
-        user.setNickname(requestDto.getNickname());
-        user.setGender(requestDto.getGender());
-        user.setAgeGroup(requestDto.getAgeGroup());
-        user.setOnboardingCompleted(true);
+        User user = User.registerEmail(
+                requestDto.getUserId(),
+                passwordEncoder.encode(requestDto.getPassword()),
+                requestDto.getEmail(),
+                requestDto.getNickname(),
+                requestDto.getGender(),
+                requestDto.getAgeGroup()
+        );
 
         return new UserResponseDto(userRepository.save(user));
     }
@@ -47,20 +48,19 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserResponseDto registerKakao(KakaoRegisterRequestDto requestDto) {
         if (userRepository.existsByAuthProviderAndProviderId(AuthProvider.KAKAO, requestDto.getProviderId())) {
-            throw new IllegalArgumentException("이미 가입된 카카오 계정입니다.");
+            throw new BusinessException(ErrorCode.DUPLICATE_SOCIAL_ACCOUNT);
         }
         if (requestDto.getEmail() != null && userRepository.existsByEmail(requestDto.getEmail())) {
-            throw new IllegalArgumentException("이미 사용 중인 이메일입니다: " + requestDto.getEmail());
+            throw new BusinessException(ErrorCode.DUPLICATE_EMAIL);
         }
 
-        User user = new User();
-        user.setAuthProvider(AuthProvider.KAKAO);
-        user.setProviderId(requestDto.getProviderId());
-        user.setEmail(requestDto.getEmail());
-        user.setNickname(requestDto.getNickname());
-        user.setGender(requestDto.getGender());
-        user.setAgeGroup(requestDto.getAgeGroup());
-        user.setOnboardingCompleted(true);
+        User user = User.registerKakao(
+                requestDto.getProviderId(),
+                requestDto.getEmail(),
+                requestDto.getNickname(),
+                requestDto.getGender(),
+                requestDto.getAgeGroup()
+        );
 
         return new UserResponseDto(userRepository.save(user));
     }
@@ -73,7 +73,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserResponseDto getUserByUserId(String userId) {
         User user = userRepository.findByUserId(userId)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다. userId: " + userId));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         return new UserResponseDto(user);
     }
 
@@ -86,32 +86,43 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public UserResponseDto updateUser(Long id, UserUpdateRequestDto requestDto) {
+    public UserResponseDto updateProfile(Long id, UserUpdateRequestDto requestDto) {
         User user = findUserOrThrow(id);
-
-        user.setNickname(requestDto.getNickname());
-        user.setEmail(requestDto.getEmail());
-        user.setGender(requestDto.getGender());
-        user.setAgeGroup(requestDto.getAgeGroup());
-
-        if (user.getAuthProvider() == AuthProvider.EMAIL
-                && requestDto.getPassword() != null
-                && !requestDto.getPassword().isBlank()) {
-            user.setPassword(passwordEncoder.encode(requestDto.getPassword()));
-        }
-
+        user.updateProfile(requestDto.getNickname(), requestDto.getEmail(),
+                requestDto.getGender(), requestDto.getAgeGroup());
         return new UserResponseDto(user);
     }
 
     @Override
     @Transactional
-    public void deleteUser(Long id) {
+    public void changePassword(Long id, PasswordChangeRequestDto requestDto) {
         User user = findUserOrThrow(id);
-        userRepository.delete(user);
+
+        if (user.getAuthProvider() != AuthProvider.EMAIL) {
+            throw new BusinessException(ErrorCode.SOCIAL_LOGIN_NO_PASSWORD);
+        }
+        if (!passwordEncoder.matches(requestDto.getCurrentPassword(), user.getPassword())) {
+            throw new BusinessException(ErrorCode.INVALID_PASSWORD);
+        }
+        if (!requestDto.getNewPassword().equals(requestDto.getNewPasswordConfirm())) {
+            throw new BusinessException(ErrorCode.PASSWORD_CONFIRM_MISMATCH);
+        }
+        if (passwordEncoder.matches(requestDto.getNewPassword(), user.getPassword())) {
+            throw new BusinessException(ErrorCode.SAME_AS_CURRENT_PASSWORD);
+        }
+
+        user.changePassword(passwordEncoder.encode(requestDto.getNewPassword()));
+    }
+
+    @Override
+    @Transactional
+    public void withdrawUser(Long id) {
+        User user = findUserOrThrow(id);
+        user.withdraw();
     }
 
     private User findUserOrThrow(Long id) {
         return userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다. id: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
     }
 }

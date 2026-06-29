@@ -4,14 +4,14 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "users",
         uniqueConstraints = @UniqueConstraint(name = "uq_provider", columnNames = {"auth_provider", "provider_id"}))
 @Getter
-@Setter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User {
 
     @Id
@@ -46,8 +46,8 @@ public class User {
     private AgeGroup ageGroup;
 
     @Enumerated(EnumType.STRING)
-    @Column(name="status", nullable = false, length = 10)
-    private Status status;
+    @Column(name = "status", nullable = false, length = 10)
+    private Status status = Status.ACTIVE;
 
     @Column(name = "onboarding_completed", nullable = false)
     private boolean onboardingCompleted = false;
@@ -59,4 +59,63 @@ public class User {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    public static User registerEmail(
+            String userId,
+            String encodedPassword,
+            String email,
+            String nickname,
+            Gender gender,
+            AgeGroup ageGroup
+    ) {
+        User user = new User();
+
+        user.authProvider = AuthProvider.EMAIL;
+        user.userId = userId;
+        user.password = encodedPassword;
+        user.email = email;
+        user.nickname = nickname;
+        user.gender = gender;
+        user.ageGroup = ageGroup;
+        user.status = Status.ACTIVE;
+        user.onboardingCompleted = true;
+
+        return user;
+    }
+
+    public static User registerKakao(
+            String providerId,
+            String email,
+            String nickname,
+            Gender gender,
+            AgeGroup ageGroup
+    ) {
+        User user = new User();
+
+        user.authProvider = AuthProvider.KAKAO;
+        user.providerId = providerId;
+        user.email = email;
+        user.nickname = nickname;
+        user.gender = gender;
+        user.ageGroup = ageGroup;
+        user.status = Status.ACTIVE;
+        user.onboardingCompleted = true;
+
+        return user;
+    }
+
+    public void updateProfile(String nickname, String email, Gender gender, AgeGroup ageGroup) {
+        this.nickname = nickname;
+        this.email = email;
+        this.gender = gender;
+        this.ageGroup = ageGroup;
+    }
+
+    public void changePassword(String encodedPassword) {
+        this.password = encodedPassword;
+    }
+
+    public void withdraw() {
+        this.status = Status.WITHDRAWN;
+    }
 }

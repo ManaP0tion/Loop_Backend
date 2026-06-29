@@ -29,8 +29,4 @@ public class UserUpdateRequestDto {
     @NotNull(message = "연령대는 필수입니다")
     @Schema(description = "연령대", example = "AGE_30S")
     private AgeGroup ageGroup;
-
-    @Size(min = 8, message = "비밀번호는 8자 이상이어야 합니다")
-    @Schema(description = "변경할 비밀번호 (이메일 계정만, 선택)", example = "newpassword456!")
-    private String password;
 }
