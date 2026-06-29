@@ -1,6 +1,9 @@
 package com.loop.loop_backend.auth;
 
 import com.loop.loop_backend.auth.domain.SocialLoginType;
+import com.loop.loop_backend.auth.service.GoogleOauth;
+import com.loop.loop_backend.auth.service.KakaoOauth;
+import com.loop.loop_backend.auth.service.NaverOauth;
 
 public interface SocialOauth {
     String getOauthRedirectURL();

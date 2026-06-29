@@ -2,17 +2,17 @@ package com.loop.loop_backend.auth.service;
 
 import com.loop.loop_backend.auth.SocialOauth;
 import lombok.RequiredArgsConstructor;
-import lombok.Value;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Component;
+// import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-@Component
+// @Component // OAuth 기능 비활성화
 @RequiredArgsConstructor
 public class GoogleOauth implements SocialOauth {
     @Value("${sns.google.url}")

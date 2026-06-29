@@ -1,6 +1,7 @@
 package com.loop.loop_backend.User.service;
 
 import com.loop.loop_backend.User.domain.AuthProvider;
+import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.User.dto.*;
@@ -38,6 +39,7 @@ public class UserServiceImpl implements UserService {
         user.setNickname(requestDto.getNickname());
         user.setGender(requestDto.getGender());
         user.setAgeGroup(requestDto.getAgeGroup());
+        user.setStatus(Status.ACTIVE);
         user.setOnboardingCompleted(true);
 
         return new UserResponseDto(userRepository.save(user));
@@ -60,6 +62,7 @@ public class UserServiceImpl implements UserService {
         user.setNickname(requestDto.getNickname());
         user.setGender(requestDto.getGender());
         user.setAgeGroup(requestDto.getAgeGroup());
+        user.setStatus(Status.ACTIVE);
         user.setOnboardingCompleted(true);
 
         return new UserResponseDto(userRepository.save(user));

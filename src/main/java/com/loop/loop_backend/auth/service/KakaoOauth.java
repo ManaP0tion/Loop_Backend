@@ -1,9 +1,9 @@
 package com.loop.loop_backend.auth.service;
 
 import com.loop.loop_backend.auth.SocialOauth;
-import org.springframework.stereotype.Component;
+// import org.springframework.stereotype.Component;
 
-@Component
+// @Component // OAuth 기능 비활성화
 public class KakaoOauth implements SocialOauth {
     @Override
     public String getOauthRedirectURL() {

@@ -1,13 +1,17 @@
 package com.loop.loop_backend.auth.service;
 
+import com.loop.loop_backend.auth.SocialOauth;
 import com.loop.loop_backend.auth.domain.SocialLoginType;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
+// import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.util.List;
 
-@Service
+// @Service // OAuth 기능 비활성화
+@Slf4j
 @RequiredArgsConstructor
 public class OauthService {
     private final List<SocialOauth> socialOauthList;
@@ -19,7 +23,7 @@ public class OauthService {
         try {
             response.sendRedirect(redirectURL);
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("OAuth 리다이렉트 실패: {}", e.getMessage(), e);
         }
     }
 

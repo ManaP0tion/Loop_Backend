@@ -23,10 +23,13 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**",
                                 "/api/users/**",
+                                "/api/chat/**",
                                 "/auth/google",
                                 "/auth/kakao",
                                 "/auth/naver",
-                                "/login"
+                                "/login",
+                                "/ws/chat/**",
+                                "/chat-test.html"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

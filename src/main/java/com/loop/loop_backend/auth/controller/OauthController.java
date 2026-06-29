@@ -6,8 +6,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
-@RestController
-@CrossOrigin
+// @RestController // OAuth 기능 비활성화
+// @CrossOrigin
 @RequiredArgsConstructor
 @RequestMapping(value = "/auth")
 @Slf4j
