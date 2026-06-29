@@ -12,11 +12,15 @@ public enum ErrorCode {
     INVALID_INPUT(400, "잘못된 요청입니다."),
     UNAUTHORIZED(401, "인증이 필요합니다."),
 
-
     // User 도메인
     USER_NOT_FOUND(404, "사용자를 찾을 수 없습니다."),
     DUPLICATE_USER_ID(409, "이미 사용 중인 아이디입니다."),
     DUPLICATE_EMAIL(409, "이미 사용 중인 이메일입니다."),
+    DUPLICATE_SOCIAL_ACCOUNT(409, "이미 가입된 소셜 계정입니다."),
+    INVALID_PASSWORD(401, "현재 비밀번호가 올바르지 않습니다."),
+    SAME_AS_CURRENT_PASSWORD(400, "현재 비밀번호와 동일합니다."),
+    PASSWORD_CONFIRM_MISMATCH(400, "새 비밀번호가 일치하지 않습니다."),
+    SOCIAL_LOGIN_NO_PASSWORD(400, "소셜 로그인 사용자는 비밀번호를 변경할 수 없습니다."),
 
     // CompanionPost 도메인
     COMPANION_POST_NOT_FOUND(404, "동행 모집글을 찾을 수 없습니다."),
