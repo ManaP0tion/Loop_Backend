@@ -3,6 +3,8 @@ package com.loop.loop_backend.Chat.domain;
 import com.loop.loop_backend.User.domain.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -13,7 +15,9 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "chat_participants")
 @Getter
+@Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class ChatParticipant {
 
     @Id
@@ -42,4 +46,14 @@ public class ChatParticipant {
 
     @Column(name = "left_at")
     private LocalDateTime leftAt;
+
+    public void leave() {
+        this.status = ParticipantStatus.LEFT;
+        this.leftAt = LocalDateTime.now();
+    }
+
+    public void rejoin() {
+        this.status = ParticipantStatus.ACTIVE;
+        this.leftAt = null;
+    }
 }

@@ -47,7 +47,10 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/refresh",
                                 "/api/users/register",
-                                "/api/users/kakao"
+                                "/api/users/kakao",
+                                "/api/chat/**",
+                                "/ws/chat/**",
+                                "/chat-test.html"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
