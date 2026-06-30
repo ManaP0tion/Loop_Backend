@@ -9,8 +9,12 @@ public enum ErrorCode {
     //임의로 예외 생성해놨습니다! 수정, 생성 해서 사용하시면 됩니다!
 
     // 공통
-    INVALID_INPUT(400, "잘못된 요청입니다."),
+    INVALID_INPUT(400, "입력값이 올바르지 않습니다."),
+    INVALID_REQUEST_FORMAT(400, "요청 형식이 올바르지 않습니다."),
+    DATA_INTEGRITY_VIOLATION(400, "요청 데이터가 올바르지 않습니다."),
+    INTERNAL_SERVER_ERROR(500, "서버 오류가 발생했습니다."),
     UNAUTHORIZED(401, "인증이 필요합니다."),
+    FORBIDDEN(403, "접근 권한이 없습니다."),
 
     // User 도메인
     USER_NOT_FOUND(404, "사용자를 찾을 수 없습니다."),
