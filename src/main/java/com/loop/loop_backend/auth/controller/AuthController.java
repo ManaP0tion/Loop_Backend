@@ -4,6 +4,7 @@ import com.loop.loop_backend.auth.dto.LoginRequestDto;
 import com.loop.loop_backend.auth.dto.RefreshRequestDto;
 import com.loop.loop_backend.auth.dto.TokenResponseDto;
 import com.loop.loop_backend.auth.service.AuthService;
+import com.loop.loop_backend.common.exception.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -29,8 +30,9 @@ public class AuthController {
             @ApiResponse(responseCode = "401", description = "아이디 또는 비밀번호가 올바르지 않음"),
             @ApiResponse(responseCode = "429", description = "로그인 실패 횟수 초과로 잠금")
     })
-    public ResponseEntity<TokenResponseDto> login(@Valid @RequestBody LoginRequestDto requestDto) {
-        return ResponseEntity.ok(authService.login(requestDto));
+    public ResponseEntity<CommonResponse<TokenResponseDto>> login(
+            @Valid @RequestBody LoginRequestDto requestDto) {
+        return ResponseEntity.ok(CommonResponse.success(authService.login(requestDto)));
     }
 
     @PostMapping("/refresh")
@@ -39,8 +41,9 @@ public class AuthController {
             @ApiResponse(responseCode = "200", description = "재발급 성공"),
             @ApiResponse(responseCode = "401", description = "유효하지 않은 Refresh Token")
     })
-    public ResponseEntity<TokenResponseDto> refresh(@Valid @RequestBody RefreshRequestDto requestDto) {
-        return ResponseEntity.ok(authService.reissue(requestDto));
+    public ResponseEntity<CommonResponse<TokenResponseDto>> refresh(
+            @Valid @RequestBody RefreshRequestDto requestDto) {
+        return ResponseEntity.ok(CommonResponse.success(authService.reissue(requestDto)));
     }
 
     @PostMapping("/logout")
