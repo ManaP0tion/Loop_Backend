@@ -1,12 +1,10 @@
 package com.loop.loop_backend.auth.service;
 
-import com.loop.loop_backend.User.domain.AgeGroup;
 import com.loop.loop_backend.User.domain.AuthProvider;
-import com.loop.loop_backend.User.domain.Gender;
+import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.auth.dto.LoginRequestDto;
-import com.loop.loop_backend.auth.dto.RefreshRequestDto;
 import com.loop.loop_backend.auth.dto.TokenResponseDto;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
@@ -43,13 +41,22 @@ class AuthServiceTest {
     private static final String ENCODED_PASSWORD = "encoded_password";
 
     private User emailUser() {
-        return User.registerEmail(USER_ID, ENCODED_PASSWORD, "test@email.com",
-                "닉네임", Gender.MALE, AgeGroup.AGE_20S);
+        User user = User.builder()
+                .authProvider(AuthProvider.EMAIL)
+                .status(Status.ACTIVE)
+                .onboardingCompleted(true)
+                .build();
+        user.changePassword(ENCODED_PASSWORD);
+        return user;
     }
 
     private User kakaoUser() {
-        return User.registerKakao("kakao-id", "test@email.com",
-                "닉네임", Gender.MALE, AgeGroup.AGE_20S);
+        return User.builder()
+                .authProvider(AuthProvider.KAKAO)
+                .providerId("kakao-id")
+                .status(Status.ACTIVE)
+                .onboardingCompleted(true)
+                .build();
     }
 
     // ── login ──────────────────────────────────────────────────────────────────
@@ -131,9 +138,7 @@ class AuthServiceTest {
     void 유효하지_않은_Refresh_Token이면_INVALID_REFRESH_TOKEN_예외를_던진다() {
         when(jwtTokenProvider.validateToken("bad-token")).thenReturn(false);
 
-        RefreshRequestDto dto = mockRefreshRequest("bad-token");
-
-        assertThatThrownBy(() -> authService.reissue(dto))
+        assertThatThrownBy(() -> authService.reissue("bad-token"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_REFRESH_TOKEN);
@@ -145,9 +150,7 @@ class AuthServiceTest {
         when(jwtTokenProvider.getUserId("old-token")).thenReturn(1L);
         when(refreshTokenService.isValid(1L, "old-token")).thenReturn(false);
 
-        RefreshRequestDto dto = mockRefreshRequest("old-token");
-
-        assertThatThrownBy(() -> authService.reissue(dto))
+        assertThatThrownBy(() -> authService.reissue("old-token"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_REFRESH_TOKEN);
@@ -161,8 +164,7 @@ class AuthServiceTest {
         when(jwtTokenProvider.createAccessToken(1L)).thenReturn("new-access");
         when(jwtTokenProvider.createRefreshToken(1L)).thenReturn("new-refresh");
 
-        RefreshRequestDto dto = mockRefreshRequest("valid-token");
-        TokenResponseDto result = authService.reissue(dto);
+        TokenResponseDto result = authService.reissue("valid-token");
 
         assertThat(result.getAccessToken()).isEqualTo("new-access");
         assertThat(result.getRefreshToken()).isEqualTo("new-refresh");
@@ -184,12 +186,6 @@ class AuthServiceTest {
         LoginRequestDto dto = mock(LoginRequestDto.class);
         when(dto.getUserId()).thenReturn(userId);
         when(dto.getPassword()).thenReturn(password);
-        return dto;
-    }
-
-    private RefreshRequestDto mockRefreshRequest(String token) {
-        RefreshRequestDto dto = mock(RefreshRequestDto.class);
-        when(dto.getRefreshToken()).thenReturn(token);
         return dto;
     }
 }
