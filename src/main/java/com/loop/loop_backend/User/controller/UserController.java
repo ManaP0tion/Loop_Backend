@@ -25,29 +25,18 @@ public class UserController {
 
     private final UserService userService;
 
-    @PostMapping("/register")
-    @Operation(summary = "이메일 회원가입", description = "이메일 계정으로 회원가입합니다")
-    @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "회원가입 성공"),
-            @ApiResponse(responseCode = "400", description = "유효성 검사 실패 또는 중복 아이디/이메일")
-    })
-    public ResponseEntity<CommonResponse<UserResponseDto>> registerEmail(
-            @Valid @RequestBody UserRegisterRequestDto requestDto) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(CommonResponse.success(userService.registerEmail(requestDto)));
-    }
+//    @PostMapping("/register")
+//    @Operation(summary = "이메일 회원가입", description = "이메일 계정으로 회원가입합니다")
+//    @ApiResponses({
+//            @ApiResponse(responseCode = "201", description = "회원가입 성공"),
+//            @ApiResponse(responseCode = "400", description = "유효성 검사 실패 또는 중복 아이디/이메일")
+//    })
+//    public ResponseEntity<CommonResponse<UserResponseDto>> registerEmail(
+//            @Valid @RequestBody UserRegisterRequestDto requestDto) {
+//        return ResponseEntity.status(HttpStatus.CREATED)
+//                .body(CommonResponse.success(userService.registerEmail(requestDto)));
+//    }
 
-    @PostMapping("/kakao")
-    @Operation(summary = "카카오 회원가입", description = "카카오 OAuth로 회원가입합니다")
-    @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "회원가입 성공"),
-            @ApiResponse(responseCode = "400", description = "유효성 검사 실패 또는 중복 계정")
-    })
-    public ResponseEntity<CommonResponse<UserResponseDto>> registerKakao(
-            @Valid @RequestBody KakaoRegisterRequestDto requestDto) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(CommonResponse.success(userService.registerKakao(requestDto)));
-    }
 
     @GetMapping("/me")
     @Operation(summary = "내 정보 조회", description = "Access Token으로 현재 로그인한 사용자 정보를 조회합니다")
@@ -77,19 +66,19 @@ public class UserController {
         return ResponseEntity.ok(CommonResponse.success(userService.getUserById(id)));
     }
 
-    @GetMapping("/search")
-    @Operation(summary = "사용자 조회 (아이디)", description = "로그인 아이디로 이메일 사용자를 조회합니다")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 성공"),
-            @ApiResponse(responseCode = "404", description = "사용자 없음")
-    })
-    public ResponseEntity<CommonResponse<UserResponseDto>> getUserByUserId(
-            @Parameter(description = "로그인 아이디") @RequestParam String userId) {
-        return ResponseEntity.ok(CommonResponse.success(userService.getUserByUserId(userId)));
-    }
+//    @GetMapping("/search")
+//    @Operation(summary = "사용자 조회 (아이디)", description = "로그인 아이디로 이메일 사용자를 조회합니다")
+//    @ApiResponses({
+//            @ApiResponse(responseCode = "200", description = "조회 성공"),
+//            @ApiResponse(responseCode = "404", description = "사용자 없음")
+//    })
+//    public ResponseEntity<CommonResponse<UserResponseDto>> getUserByUserId(
+//            @Parameter(description = "로그인 아이디") @RequestParam String userId) {
+//        return ResponseEntity.ok(CommonResponse.success(userService.getUserByUserId(userId)));
+//    }
 
     @PutMapping("/{id}/profile")
-    @Operation(summary = "프로필 수정", description = "닉네임, 이메일, 성별, 연령대를 수정합니다")
+    @Operation(summary = "프로필 수정", description = "닉네임, 프로필 이미지를 수정합니다")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수정 성공"),
             @ApiResponse(responseCode = "400", description = "유효성 검사 실패"),
@@ -101,20 +90,60 @@ public class UserController {
         return ResponseEntity.ok(CommonResponse.success(userService.updateProfile(id, requestDto)));
     }
 
-    @PatchMapping("/{id}/password")
-    @Operation(summary = "비밀번호 변경", description = "현재 비밀번호 확인 후 새 비밀번호로 변경합니다. 이메일 계정만 가능합니다.")
+    @PatchMapping("/{id}/onboarding")
+    @Operation(summary = "온보딩 완료", description = "생년월일, 성별을 입력받아 온보딩을 완료합니다")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "변경 성공"),
-            @ApiResponse(responseCode = "400", description = "유효성 검사 실패 또는 비밀번호 불일치"),
-            @ApiResponse(responseCode = "401", description = "현재 비밀번호 오류"),
+            @ApiResponse(responseCode = "200", description = "온보딩 완료"),
+            @ApiResponse(responseCode = "400", description = "유효성 검사 실패"),
             @ApiResponse(responseCode = "404", description = "사용자 없음")
     })
-    public ResponseEntity<Void> changePassword(
+    public ResponseEntity<CommonResponse<UserResponseDto>> completeOnboarding(
             @Parameter(description = "사용자 PK") @PathVariable Long id,
-            @Valid @RequestBody PasswordChangeRequestDto requestDto) {
-        userService.changePassword(id, requestDto);
-        return ResponseEntity.noContent().build();
+            @Valid @RequestBody OnboardingRequestDto requestDto) {
+        return ResponseEntity.ok(CommonResponse.success(userService.completeOnboarding(id, requestDto)));
     }
+
+    @PutMapping("/{id}/artists")
+    @Operation(summary = "관심 아티스트 수정", description = "관심 아티스트 목록을 수정합니다 (구현 예정)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "수정 성공"),
+            @ApiResponse(responseCode = "400", description = "유효성 검사 실패"),
+            @ApiResponse(responseCode = "404", description = "사용자 없음")
+    })
+    public ResponseEntity<CommonResponse<UserResponseDto>> updateArtists(
+            @Parameter(description = "사용자 PK") @PathVariable Long id,
+            @Valid @RequestBody ArtistUpdateRequestDto requestDto) {
+        return ResponseEntity.ok(CommonResponse.success(userService.updateArtists(id, requestDto)));
+    }
+
+    @PutMapping("/{id}/hashtags")
+    @Operation(summary = "관심 해시태그 수정", description = "관심 해시태그 목록을 수정합니다 (구현 예정)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "수정 성공"),
+            @ApiResponse(responseCode = "400", description = "유효성 검사 실패"),
+            @ApiResponse(responseCode = "404", description = "사용자 없음")
+    })
+    public ResponseEntity<CommonResponse<UserResponseDto>> updateHashtags(
+            @Parameter(description = "사용자 PK") @PathVariable Long id,
+            @Valid @RequestBody HashtagUpdateRequestDto requestDto) {
+        return ResponseEntity.ok(CommonResponse.success(userService.updateHashtags(id, requestDto)));
+    }
+
+
+//    @PatchMapping("/{id}/password")
+//    @Operation(summary = "비밀번호 변경", description = "현재 비밀번호 확인 후 새 비밀번호로 변경합니다. 이메일 계정만 가능합니다.")
+//    @ApiResponses({
+//            @ApiResponse(responseCode = "204", description = "변경 성공"),
+//            @ApiResponse(responseCode = "400", description = "유효성 검사 실패 또는 비밀번호 불일치"),
+//            @ApiResponse(responseCode = "401", description = "현재 비밀번호 오류"),
+//            @ApiResponse(responseCode = "404", description = "사용자 없음")
+//    })
+//    public ResponseEntity<Void> changePassword(
+//            @Parameter(description = "사용자 PK") @PathVariable Long id,
+//            @Valid @RequestBody PasswordChangeRequestDto requestDto) {
+//        userService.changePassword(id, requestDto);
+//        return ResponseEntity.noContent().build();
+//    }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "회원 탈퇴", description = "사용자 상태를 WITHDRAWN으로 변경합니다")

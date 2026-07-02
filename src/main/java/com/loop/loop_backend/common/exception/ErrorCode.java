@@ -21,6 +21,7 @@ public enum ErrorCode {
     DUPLICATE_USER_ID(409, "이미 사용 중인 아이디입니다."),
     DUPLICATE_EMAIL(409, "이미 사용 중인 이메일입니다."),
     DUPLICATE_SOCIAL_ACCOUNT(409, "이미 가입된 소셜 계정입니다."),
+    DUPLICATE_NICKNAME(409, "이미 사용 중인 닉네임입니다."),
     INVALID_PASSWORD(401, "현재 비밀번호가 올바르지 않습니다."),
     SAME_AS_CURRENT_PASSWORD(400, "현재 비밀번호와 동일합니다."),
     PASSWORD_CONFIRM_MISMATCH(400, "새 비밀번호가 일치하지 않습니다."),

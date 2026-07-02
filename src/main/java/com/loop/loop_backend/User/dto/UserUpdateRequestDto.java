@@ -1,7 +1,5 @@
 package com.loop.loop_backend.User.dto;
 
-import com.loop.loop_backend.User.domain.AgeGroup;
-import com.loop.loop_backend.User.domain.Gender;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
@@ -13,20 +11,13 @@ import lombok.NoArgsConstructor;
 public class UserUpdateRequestDto {
 
     @NotBlank(message = "닉네임은 필수입니다")
-    @Size(max = 50, message = "닉네임은 50자 이하여야 합니다")
+    @Size(max = 5, message = "닉네임은 5자 이하여야 합니다")
+    @Pattern(regexp = "^[a-zA-Z0-9가-힣]+$", message = "닉네임에 특수문자를 사용할 수 없습니다")
     @Schema(description = "닉네임", example = "새닉네임")
     private String nickname;
 
-    @Email(message = "이메일 형식이 올바르지 않습니다")
-    @Size(max = 255)
-    @Schema(description = "이메일", example = "new@example.com")
-    private String email;
+    @Schema(description = "프로필 이미지 url")
+    private String profileImageUrl;
 
-    @NotNull(message = "성별은 필수입니다")
-    @Schema(description = "성별", example = "MALE")
-    private Gender gender;
 
-    @NotNull(message = "연령대는 필수입니다")
-    @Schema(description = "연령대", example = "AGE_30S")
-    private AgeGroup ageGroup;
 }
