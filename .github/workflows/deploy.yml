@@ -30,7 +30,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # GitHub Actions에서 빌드 (EC2 메모리 부담 없앰)
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -40,7 +39,6 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build -x test --no-daemon
 
-      # 빌드된 jar를 EC2로 전송
       - name: Copy jar to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -51,7 +49,6 @@ jobs:
           target: "~/Loop_Backend/build/libs/"
           strip_components: 2
 
-      # EC2에서는 실행만
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1
         with:
@@ -60,5 +57,6 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ~/Loop_Backend
+            mkdir -p build/libs
             git pull upstream dev
-            docker compose up -d --build
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
