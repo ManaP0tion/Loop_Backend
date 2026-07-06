@@ -8,6 +8,7 @@ import lombok.Getter;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Schema(description = "사용자 응답 DTO")
@@ -37,13 +38,16 @@ public class UserResponseDto {
     @Schema(description = "온보딩 완료 여부", example = "true")
     private final boolean onboardingCompleted;
 
+    @Schema(description = "해시태그 목록")
+    private final List<HashtagSummary> hashtags;
+
     @Schema(description = "생성일시")
     private final LocalDateTime createdAt;
 
     @Schema(description = "수정일시")
     private final LocalDateTime updatedAt;
 
-    public UserResponseDto(User user) {
+    public UserResponseDto(User user, List<HashtagSummary> hashtags) {
         this.id = user.getId();
         this.authProvider = user.getAuthProvider();
         this.userId = user.getUserId();
@@ -52,7 +56,23 @@ public class UserResponseDto {
         this.gender = user.getGender();
         this.birthDate = user.getBirthDate();
         this.onboardingCompleted = user.isOnboardingCompleted();
+        this.hashtags = hashtags;
         this.createdAt = user.getCreatedAt();
         this.updatedAt = user.getUpdatedAt();
+    }
+
+    @Getter
+    @Schema(description = "해시태그 요약 정보")
+    public static class HashtagSummary {
+        @Schema(description = "해시태그 ID", example = "1")
+        private final Long id;
+
+        @Schema(description = "해시태그", example = "굿즈")
+        private final String tag;
+
+        public HashtagSummary(Long id, String tag) {
+            this.id = id;
+            this.tag = tag;
+        }
     }
 }

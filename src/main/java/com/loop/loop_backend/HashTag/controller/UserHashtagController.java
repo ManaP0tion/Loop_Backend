@@ -28,13 +28,13 @@ public class UserHashtagController {
 
     private final UserHashtagService userHashtagService;
 
-    @GetMapping("/me/hashtags")
-    @Operation(summary = "관심 해시태그 조회", description = "내 관심 해시태그 목록을 조회합니다")
-    @ApiResponse(responseCode = "200", description = "조회 성공")
-    public ResponseEntity<CommonResponse<List<HashtagResponseDto>>> getHashtags(
-            @AuthenticationPrincipal Long userId) {
-        return ResponseEntity.ok(CommonResponse.success(userHashtagService.getHashtags(userId)));
-    }
+//    @GetMapping("/me/hashtags")
+//    @Operation(summary = "관심 해시태그 조회", description = "내 관심 해시태그 목록을 조회합니다")
+//    @ApiResponse(responseCode = "200", description = "조회 성공")
+//    public ResponseEntity<CommonResponse<List<HashtagResponseDto>>> getHashtags(
+//            @AuthenticationPrincipal Long userId) {
+//        return ResponseEntity.ok(CommonResponse.success(userHashtagService.getHashtags(userId)));
+//    }
 
     @GetMapping("/{userId}/hashtags")
     @Operation(summary = "사용자 해시태그 조회", description = "사용자 PK로 관심 해시태그 목록을 조회합니다")
