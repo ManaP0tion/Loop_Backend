@@ -50,6 +50,7 @@ public class User {
     private String nickname;
 
     @Past(message = "생년월일은 과거 날짜여야 합니다.")
+    @Column(name = "birth_date")
     private LocalDate birthDate;
 
     @Enumerated(EnumType.STRING)
@@ -62,9 +63,6 @@ public class User {
     // 연관관계 연결 전
     @Column(name = "artist_id")
     private Long artistId;
-    // 연관관계 연결 전
-    @Column(name = "hashtag")
-    private String hashtag;
     // 연관관계 연결 전
     @Column(name = "blocked_user_id")
     private Long blockedUserId;

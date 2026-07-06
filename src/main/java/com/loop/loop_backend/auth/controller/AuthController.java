@@ -9,6 +9,8 @@ import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.common.util.CookieUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -48,7 +50,9 @@ public class AuthController {
     @Operation(summary = "토큰 재발급", description = "쿠키의 Refresh Token으로 Access/Refresh Token을 재발급하여 쿠키로 내려줍니다")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "재발급 성공"),
-            @ApiResponse(responseCode = "401", description = "유효하지 않은 Refresh Token")
+            @ApiResponse(responseCode = "401", description = "유효하지 않은 Refresh Token",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"유효하지 않은 Refresh Token입니다.\",\"code\":401}")))
     })
     public ResponseEntity<CommonResponse<Void>> refresh(
             @Parameter(hidden = true)
