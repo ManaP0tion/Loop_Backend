@@ -94,13 +94,6 @@ public class UserServiceImpl implements UserService {
         return new UserResponseDto(user);
     }
 
-    @Override
-    @Transactional
-    public UserResponseDto updateHashtags(Long id, HashtagUpdateRequestDto requestDto) {
-        // TODO: Hashtag 연관관계 연결 후 실제 저장 로직 구현
-        User user = findUserOrThrow(id);
-        return new UserResponseDto(user);
-    }
 
     @Override
     @Transactional
