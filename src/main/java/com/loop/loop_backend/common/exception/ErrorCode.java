@@ -32,6 +32,12 @@ public enum ErrorCode {
     INVALID_CREDENTIALS(401, "아이디 또는 비밀번호가 올바르지 않습니다."),
     INVALID_REFRESH_TOKEN(401, "유효하지 않은 Refresh Token입니다."),
 
+    // Artist 도메인
+    ARTIST_NOT_FOUND(404, "아티스트를 찾을 수 없습니다."),
+
+    // Concert 도메인
+    CONCERT_NOT_FOUND(404, "콘서트를 찾을 수 없습니다."),
+
     // CompanionPost 도메인
     COMPANION_POST_NOT_FOUND(404, "동행 모집글을 찾을 수 없습니다."),
     COMPANION_POST_ALREADY_CLOSED(409, "이미 마감된 모집글입니다."),
