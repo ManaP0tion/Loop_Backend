@@ -11,9 +11,8 @@ import com.loop.loop_backend.Chat.dto.StartDirectChatRequestDto;
 import com.loop.loop_backend.Chat.repository.ChatParticipantRepository;
 import com.loop.loop_backend.Chat.repository.ChatRoomRepository;
 import com.loop.loop_backend.Chat.repository.MessageRepository;
+import com.loop.loop_backend.Block.repository.BlockRepository;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
-import com.loop.loop_backend.Report.domain.ReportType;
-import com.loop.loop_backend.Report.repository.ReportRepository;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -35,7 +34,7 @@ public class ChatServiceImpl implements ChatService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatParticipantRepository chatParticipantRepository;
     private final MessageRepository messageRepository;
-    private final ReportRepository reportRepository;
+    private final BlockRepository blockRepository;
     private final UserRepository userRepository;
     private final RedisTemplate<String, Object> redisTemplate;
     private final EntityManager em;
@@ -177,6 +176,6 @@ public class ChatServiceImpl implements ChatService {
             return true;
         }
 
-        return !reportRepository.existsBlockBetween(senderId, otherIds, ReportType.BLOCK);
+        return !blockRepository.existsBlockBetween(senderId, otherIds);
     }
 }

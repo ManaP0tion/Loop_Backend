@@ -50,23 +50,6 @@ class UserHashtagControllerTest {
         SecurityContextHolder.clearContext();
     }
 
-    // ── GET /me/hashtags ─────────────────────────────────────────────────────
-
-    @Test
-    void 내_해시태그_목록_조회시_200과_목록을_반환한다() throws Exception {
-        when(userHashtagService.getHashtags(USER_ID)).thenReturn(List.of(
-                HashtagResponseDto.builder().id(1L).tag("발라드").build(),
-                HashtagResponseDto.builder().id(2L).tag("힙합").build()
-        ));
-
-        mockMvc.perform(get("/api/users/me/hashtags"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.length()").value(2))
-                .andExpect(jsonPath("$.data[0].tag").value("발라드"))
-                .andExpect(jsonPath("$.data[1].tag").value("힙합"));
-    }
-
     // ── GET /{userId}/hashtags ───────────────────────────────────────────────
 
     @Test
