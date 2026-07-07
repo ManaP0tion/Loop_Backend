@@ -99,6 +99,10 @@ public class User {
         this.password = encodedPassword;
     }
 
+    public AgeGroup getAgeGroup() {
+        return AgeGroup.from(this.birthDate);
+    }
+
     public void withdraw() {
         this.status = Status.WITHDRAWN;
     }

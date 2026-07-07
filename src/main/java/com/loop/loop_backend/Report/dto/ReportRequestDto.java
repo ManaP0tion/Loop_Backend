@@ -1,0 +1,22 @@
+package com.loop.loop_backend.Report.dto;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+@Getter
+@NoArgsConstructor
+@Schema(description = "신고 요청 DTO")
+public class ReportRequestDto {
+
+    @NotNull(message = "신고할 사용자 ID는 필수입니다")
+    @Schema(description = "신고할 사용자 PK", example = "2")
+    private Long targetUserId;
+
+    @Schema(description = "신고 사유", example = "부적절한 프로필 사진")
+    private String reason;
+
+    @Schema(description = "신고와 함께 차단할지 여부", example = "true")
+    private boolean blockToo;
+}
