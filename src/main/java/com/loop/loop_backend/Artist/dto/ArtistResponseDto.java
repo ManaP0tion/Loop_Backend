@@ -12,6 +12,9 @@ public class ArtistResponseDto {
 
     private final Long id;
     private final String name;
+    private final String baseName;
+    private final String nameKo;
+    private final String nameAlias;
     private final String imageUrl;
     private final LocalDateTime createdAt;
 
@@ -19,6 +22,9 @@ public class ArtistResponseDto {
         return ArtistResponseDto.builder()
                 .id(artist.getId())
                 .name(artist.getName())
+                .baseName(artist.getBaseName())
+                .nameKo(artist.getNameKo())
+                .nameAlias(artist.getNameAlias())
                 .imageUrl(artist.getImageUrl())
                 .createdAt(artist.getCreatedAt())
                 .build();

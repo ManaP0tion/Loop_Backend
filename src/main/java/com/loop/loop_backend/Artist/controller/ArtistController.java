@@ -80,13 +80,10 @@ public class ArtistController {
     }
 
     @GetMapping("/search")
-    @Operation(summary = "아티스트 조회 (이름)", description = "이름으로 아티스트를 조회합니다")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 성공"),
-            @ApiResponse(responseCode = "404", description = "아티스트 없음")
-    })
-    public ResponseEntity<CommonResponse<ArtistResponseDto>> getArtistByName(
-            @Parameter(description = "아티스트 이름") @RequestParam String name) {
-        return ResponseEntity.ok(CommonResponse.success(artistService.getArtistByName(name)));
+    @Operation(summary = "아티스트 검색", description = "이름(서비스명/기본명칭/한국어/별칭) 통합 검색")
+    @ApiResponse(responseCode = "200", description = "검색 성공")
+    public ResponseEntity<CommonResponse<List<ArtistResponseDto>>> searchArtists(
+            @Parameter(description = "검색어") @RequestParam String query) {
+        return ResponseEntity.ok(CommonResponse.success(artistService.searchArtists(query)));
     }
 }

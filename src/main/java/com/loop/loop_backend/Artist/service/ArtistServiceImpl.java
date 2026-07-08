@@ -25,6 +25,9 @@ public class ArtistServiceImpl implements ArtistService {
     public ArtistResponseDto createArtist(ArtistRequestDto requestDto) {
         Artist artist = Artist.builder()
                 .name(requestDto.getName())
+                .baseName(requestDto.getBaseName())
+                .nameKo(requestDto.getNameKo())
+                .nameAlias(requestDto.getNameAlias())
                 .imageUrl(requestDto.getImageUrl())
                 .build();
         return ArtistResponseDto.from(artistRepository.save(artist));
@@ -34,7 +37,7 @@ public class ArtistServiceImpl implements ArtistService {
     @Transactional
     public ArtistResponseDto updateArtist(Long id, ArtistRequestDto requestDto) {
         Artist artist = findArtistOrThrow(id);
-        artist.update(requestDto.getName(), requestDto.getImageUrl());
+        artist.update(requestDto.getName(), requestDto.getBaseName(), requestDto.getNameKo(), requestDto.getNameAlias(), requestDto.getImageUrl());
         return ArtistResponseDto.from(artist);
     }
 
@@ -59,6 +62,13 @@ public class ArtistServiceImpl implements ArtistService {
     @Override
     public List<ArtistResponseDto> getAllArtists() {
         return artistRepository.findAll().stream()
+                .map(ArtistResponseDto::from)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<ArtistResponseDto> searchArtists(String query) {
+        return artistRepository.searchByAllNames(query).stream()
                 .map(ArtistResponseDto::from)
                 .collect(Collectors.toList());
     }

@@ -21,6 +21,15 @@ public class Artist {
     @Column(name = "name", length = 100, nullable = false)
     private String name;
 
+    @Column(name = "base_name", length = 100)
+    private String baseName;
+
+    @Column(name = "name_ko", length = 200)
+    private String nameKo;
+
+    @Column(name = "name_alias", length = 200)
+    private String nameAlias;
+
     @Column(name = "image_url", length = 500)
     private String imageUrl;
 
@@ -32,8 +41,11 @@ public class Artist {
         createdAt = LocalDateTime.now();
     }
 
-    public void update(String name, String imageUrl) {
+    public void update(String name, String baseName, String nameKo, String nameAlias, String imageUrl) {
         this.name = name;
+        this.baseName = baseName;
+        this.nameKo = nameKo;
+        this.nameAlias = nameAlias;
         this.imageUrl = imageUrl;
     }
 }
