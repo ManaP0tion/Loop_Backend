@@ -98,7 +98,7 @@ public class UserController {
     }
 
     @PatchMapping("/me/onboarding")
-    @Operation(summary = "온보딩 완료", description = "로그인한 본인의 생년월일, 성별을 입력받아 온보딩을 완료합니다")
+    @Operation(summary = "온보딩", description = "로그인한 본인의 생년월일, 성별을 입력받아 온보딩을 완료합니다")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "온보딩 완료"),
             @ApiResponse(responseCode = "400", description = "유효성 검사 실패",
@@ -106,7 +106,10 @@ public class UserController {
                             value = "{\"success\":false,\"message\":\"입력값이 올바르지 않습니다.\",\"code\":400}"))),
             @ApiResponse(responseCode = "404", description = "사용자 없음",
                     content = @Content(examples = @ExampleObject(
-                            value = "{\"success\":false,\"message\":\"사용자를 찾을 수 없습니다.\",\"code\":404}")))
+                            value = "{\"success\":false,\"message\":\"사용자를 찾을 수 없습니다.\",\"code\":404}"))),
+            @ApiResponse(responseCode = "409", description = "이미 온보딩을 완료",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"이미 온보딩을 완료했습니다.\",\"code\":409}")))
     })
     public ResponseEntity<CommonResponse<UserResponseDto>> completeOnboarding(
             @AuthenticationPrincipal Long userId,
