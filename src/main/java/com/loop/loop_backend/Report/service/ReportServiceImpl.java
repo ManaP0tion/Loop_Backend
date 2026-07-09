@@ -3,15 +3,21 @@ package com.loop.loop_backend.Report.service;
 import com.loop.loop_backend.Block.repository.BlockRepository;
 import com.loop.loop_backend.Block.service.BlockService;
 import com.loop.loop_backend.Report.domain.Report;
+import com.loop.loop_backend.Report.domain.ReportImage;
+import com.loop.loop_backend.Report.event.ReportCreatedEvent;
+import com.loop.loop_backend.Report.repository.ReportImageRepository;
 import com.loop.loop_backend.Report.repository.ReportRepository;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -19,13 +25,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReportServiceImpl implements ReportService {
 
     private final ReportRepository reportRepository;
+    private final ReportImageRepository reportImageRepository;
     private final BlockRepository blockRepository;
     private final UserRepository userRepository;
     private final BlockService blockService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
-    public void report(Long userId, Long targetUserId, String reason, boolean blockToo) {
+    public void report(Long userId, Long targetUserId, String reason, boolean blockToo, List<String> imageUrls) {
         if (userId.equals(targetUserId)) {
             throw new BusinessException(ErrorCode.SELF_REPORT_NOT_ALLOWED);
         }
@@ -37,8 +45,9 @@ public class ReportServiceImpl implements ReportService {
             throw new BusinessException(ErrorCode.ALREADY_REPORTED);
         }
 
+        Report report;
         try {
-            reportRepository.saveAndFlush(Report.builder()
+            report = reportRepository.saveAndFlush(Report.builder()
                     .reporter(me)
                     .targetUser(target)
                     .reason(reason)
@@ -46,6 +55,13 @@ public class ReportServiceImpl implements ReportService {
         } catch (DataIntegrityViolationException e) {
             // 사전 존재 체크와 저장 사이의 동시 요청 레이스 - DB 유니크 제약이 최종 방어선
             throw new BusinessException(ErrorCode.ALREADY_REPORTED);
+        }
+
+        List<String> urls = imageUrls == null ? List.of() : imageUrls;
+        if (!urls.isEmpty()) {
+            reportImageRepository.saveAll(urls.stream()
+                    .map(url -> ReportImage.builder().report(report).imageUrl(url).build())
+                    .toList());
         }
 
         if (blockToo && !blockRepository.existsByBlockerAndBlocked(me, target)) {
@@ -59,7 +75,7 @@ public class ReportServiceImpl implements ReportService {
             }
         }
 
-        // TODO: 관리자 메일 알림 발송 (SMTP 설정 필요 - 별도 MailService로 분리 예정)
+        eventPublisher.publishEvent(new ReportCreatedEvent(report.getId(), me.getNickname(), target.getNickname(), reason, urls));
     }
 
     private User getUser(Long userId) {

@@ -40,7 +40,8 @@ public class ReportController {
     public ResponseEntity<CommonResponse<Void>> report(
             @AuthenticationPrincipal Long userId,
             @Valid @RequestBody ReportRequestDto requestDto) {
-        reportService.report(userId, requestDto.getTargetUserId(), requestDto.getReason(), requestDto.isBlockToo());
+        reportService.report(userId, requestDto.getTargetUserId(), requestDto.getReason(),
+                requestDto.isBlockToo(), requestDto.getImageUrls());
         return ResponseEntity.ok(CommonResponse.success("신고가 접수되었습니다.", null));
     }
 }

@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Getter
 @NoArgsConstructor
 @Schema(description = "신고 요청 DTO")
@@ -19,4 +21,7 @@ public class ReportRequestDto {
 
     @Schema(description = "신고와 함께 차단할지 여부", example = "true")
     private boolean blockToo;
+
+    @Schema(description = "신고 증빙 이미지 URL 목록 (업로드 자체는 별도 API로 대체 예정)")
+    private List<String> imageUrls;
 }
