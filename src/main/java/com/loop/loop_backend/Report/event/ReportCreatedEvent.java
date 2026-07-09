@@ -7,6 +7,7 @@ public record ReportCreatedEvent(
         String reporterNickname,
         String targetNickname,
         String reason,
+        String detail,
         List<String> imageUrls
 ) {
 }

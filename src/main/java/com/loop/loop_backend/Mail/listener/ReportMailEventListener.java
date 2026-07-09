@@ -22,6 +22,7 @@ public class ReportMailEventListener {
                 event.reporterNickname(),
                 event.targetNickname(),
                 event.reason(),
+                event.detail(),
                 event.imageUrls());
     }
 }

@@ -27,12 +27,13 @@ public class MailServiceImpl implements MailService {
 
     @Override
     public void sendReportNotification(Long reportId, String reporterNickname, String targetNickname,
-                                        String reason, List<String> imageUrls) {
+                                        String reason, String detail, List<String> imageUrls) {
         Context context = new Context();
         context.setVariable("reportId", reportId);
         context.setVariable("reporterNickname", reporterNickname);
         context.setVariable("targetNickname", targetNickname);
         context.setVariable("reason", reason);
+        context.setVariable("detail", detail);
         context.setVariable("imageUrls", imageUrls == null ? List.of() : imageUrls);
 
         String html = templateEngine.process("mail/report-notification", context);

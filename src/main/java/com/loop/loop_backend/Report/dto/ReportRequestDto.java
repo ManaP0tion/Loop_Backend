@@ -19,6 +19,9 @@ public class ReportRequestDto {
     @Schema(description = "신고 사유", example = "부적절한 프로필 사진")
     private String reason;
 
+    @Schema(description = "상세 설명", example = "채팅에서 지속적으로 욕설을 사용했습니다.")
+    private String detail;
+
     @Schema(description = "신고와 함께 차단할지 여부", example = "true")
     private boolean blockToo;
 
