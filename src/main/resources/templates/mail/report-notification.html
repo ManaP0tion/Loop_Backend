@@ -10,6 +10,7 @@
     <p>신고자: <strong th:text="${reporterNickname}"></strong></p>
     <p>피신고자: <strong th:text="${targetNickname}"></strong></p>
     <p>사유: <strong th:text="${reason != null and !reason.isBlank()} ? ${reason} : '사유 미입력'"></strong></p>
+    <p>상세 설명: <strong th:text="${detail}"></strong></p>
 
     <div th:if="${!imageUrls.isEmpty()}">
         <p>첨부 이미지 (<span th:text="${imageUrls.size()}"></span>장)</p>

@@ -26,6 +26,7 @@ public enum ErrorCode {
     SAME_AS_CURRENT_PASSWORD(400, "현재 비밀번호와 동일합니다."),
     PASSWORD_CONFIRM_MISMATCH(400, "새 비밀번호가 일치하지 않습니다."),
     SOCIAL_LOGIN_NO_PASSWORD(400, "소셜 로그인 사용자는 비밀번호를 변경할 수 없습니다."),
+    ONBOARDING_ALREADY_COMPLETED(409, "이미 온보딩을 완료했습니다."),
 
     // Hashtag
     DUPLICATE_HASHTAG(409,"이미 사용중인 해시태그입니다."),

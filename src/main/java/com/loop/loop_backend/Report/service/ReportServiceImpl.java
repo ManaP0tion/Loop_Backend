@@ -33,7 +33,7 @@ public class ReportServiceImpl implements ReportService {
 
     @Override
     @Transactional
-    public void report(Long userId, Long targetUserId, String reason, boolean blockToo, List<String> imageUrls) {
+    public void report(Long userId, Long targetUserId, String reason, String detail, boolean blockToo, List<String> imageUrls) {
         if (userId.equals(targetUserId)) {
             throw new BusinessException(ErrorCode.SELF_REPORT_NOT_ALLOWED);
         }
@@ -51,6 +51,7 @@ public class ReportServiceImpl implements ReportService {
                     .reporter(me)
                     .targetUser(target)
                     .reason(reason)
+                    .detail(detail)
                     .build());
         } catch (DataIntegrityViolationException e) {
             // 사전 존재 체크와 저장 사이의 동시 요청 레이스 - DB 유니크 제약이 최종 방어선
@@ -75,7 +76,7 @@ public class ReportServiceImpl implements ReportService {
             }
         }
 
-        eventPublisher.publishEvent(new ReportCreatedEvent(report.getId(), me.getNickname(), target.getNickname(), reason, urls));
+        eventPublisher.publishEvent(new ReportCreatedEvent(report.getId(), me.getNickname(), target.getNickname(), reason, detail, urls));
     }
 
     private User getUser(Long userId) {

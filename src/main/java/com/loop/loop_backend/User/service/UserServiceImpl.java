@@ -77,6 +77,11 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserResponseDto completeOnboarding(Long id, OnboardingRequestDto requestDto) {
         User user = findUserOrThrow(id);
+
+        if (user.isOnboardingCompleted()) {
+            throw new BusinessException(ErrorCode.ONBOARDING_ALREADY_COMPLETED);
+        }
+
         checkNicknameAvailable(user, requestDto.getNickname());
         user.completeOnboarding(requestDto.getNickname(), requestDto.getBirthDate(), requestDto.getGender());
         return toResponseDto(user);

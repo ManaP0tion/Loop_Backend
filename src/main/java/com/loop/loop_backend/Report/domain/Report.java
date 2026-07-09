@@ -32,14 +32,18 @@ public class Report {
     @Column(name = "reason", columnDefinition = "TEXT")
     private String reason;
 
+    @Column(name = "detail", columnDefinition = "TEXT")
+    private String detail;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Builder
-    private Report(User reporter, User targetUser, String reason) {
+    private Report(User reporter, User targetUser, String reason, String detail) {
         this.reporter = reporter;
         this.targetUser = targetUser;
         this.reason = reason;
+        this.detail = detail;
     }
 }
