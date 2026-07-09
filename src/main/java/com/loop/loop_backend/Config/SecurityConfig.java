@@ -61,6 +61,7 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/users/register",
                                 "/api/users/kakao",
+                                "/api/test/**",
                                 "/api/chat/**",
                                 "/ws/chat/**",
                                 "/chat-test.html"

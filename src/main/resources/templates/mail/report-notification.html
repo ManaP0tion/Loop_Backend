@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+</head>
+<body style="font-family: sans-serif; line-height: 1.6;">
+    <h2>[Loop] 신고 접수 알림</h2>
+
+    <p>신고 ID: <strong th:text="${reportId}"></strong></p>
+    <p>신고자: <strong th:text="${reporterNickname}"></strong></p>
+    <p>피신고자: <strong th:text="${targetNickname}"></strong></p>
+    <p>사유: <strong th:text="${reason != null and !reason.isBlank()} ? ${reason} : '사유 미입력'"></strong></p>
+
+    <div th:if="${!imageUrls.isEmpty()}">
+        <p>첨부 이미지 (<span th:text="${imageUrls.size()}"></span>장)</p>
+        <div th:each="url : ${imageUrls}">
+            <img th:src="${url}" alt="신고 이미지" style="max-width: 400px; margin-bottom: 8px; display: block;"/>
+        </div>
+    </div>
+</body>
+</html>
