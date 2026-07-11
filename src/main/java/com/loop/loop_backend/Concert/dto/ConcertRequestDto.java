@@ -3,7 +3,7 @@ package com.loop.loop_backend.Concert.dto;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Getter
 public class ConcertRequestDto {
@@ -15,5 +15,6 @@ public class ConcertRequestDto {
 
     private String posterUrl;
     private String venue;
-    private LocalDateTime performedAt;
+    private LocalDate startDate;
+    private LocalDate endDate;
 }

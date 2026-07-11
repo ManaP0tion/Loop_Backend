@@ -2,6 +2,7 @@ package com.loop.loop_backend.Concert.controller;
 
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
+import com.loop.loop_backend.Concert.kopis.KopisSyncService;
 import com.loop.loop_backend.Concert.service.ConcertService;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,6 +25,7 @@ import java.util.List;
 public class ConcertController {
 
     private final ConcertService concertService;
+    private final KopisSyncService kopisSyncService;
 
     @PostMapping
     @Operation(summary = "콘서트 등록", description = "새 콘서트를 등록합니다")
@@ -96,5 +98,13 @@ public class ConcertController {
     public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> getConcertsByArtist(
             @Parameter(description = "아티스트 PK") @PathVariable Long artistId) {
         return ResponseEntity.ok(CommonResponse.success(concertService.getConcertsByArtist(artistId)));
+    }
+
+    @PostMapping("/sync")
+    @Operation(summary = "KOPIS 동기화 수동 트리거", description = "DB의 모든 아티스트를 대상으로 KOPIS 공연 정보를 즉시 동기화합니다")
+    @ApiResponse(responseCode = "200", description = "동기화 완료")
+    public ResponseEntity<CommonResponse<String>> syncFromKopis() {
+        kopisSyncService.syncAll();
+        return ResponseEntity.ok(CommonResponse.success("KOPIS 동기화 완료"));
     }
 }

@@ -4,10 +4,13 @@ import com.loop.loop_backend.Artist.domain.Artist;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Entity
-@Table(name = "concerts")
+@Table(
+    name = "concerts",
+    uniqueConstraints = @UniqueConstraint(columnNames = {"kopis_id", "artist_id"})
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Builder
@@ -23,6 +26,9 @@ public class Concert {
     @JoinColumn(name = "artist_id")
     private Artist artist;
 
+    @Column(name = "kopis_id", length = 20)
+    private String kopisId;
+
     @Column(name = "title", length = 255, nullable = false)
     private String title;
 
@@ -32,14 +38,26 @@ public class Concert {
     @Column(name = "venue", length = 255)
     private String venue;
 
-    @Column(name = "performed_at")
-    private LocalDateTime performedAt;
+    @Column(name = "start_date")
+    private LocalDate startDate;
 
-    public void update(Artist artist, String title, String posterUrl, String venue, LocalDateTime performedAt) {
+    @Column(name = "end_date")
+    private LocalDate endDate;
+
+    public void update(Artist artist, String title, String posterUrl, String venue, LocalDate startDate, LocalDate endDate) {
         this.artist = artist;
         this.title = title;
         this.posterUrl = posterUrl;
         this.venue = venue;
-        this.performedAt = performedAt;
+        this.startDate = startDate;
+        this.endDate = endDate;
+    }
+
+    public void updateFromKopis(String title, String posterUrl, String venue, LocalDate startDate, LocalDate endDate) {
+        this.title = title;
+        this.posterUrl = posterUrl;
+        this.venue = venue;
+        this.startDate = startDate;
+        this.endDate = endDate;
     }
 }

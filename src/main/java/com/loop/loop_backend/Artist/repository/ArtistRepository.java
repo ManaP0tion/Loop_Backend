@@ -10,6 +10,7 @@ import java.util.Optional;
 
 public interface ArtistRepository extends JpaRepository<Artist, Long> {
     Optional<Artist> findByName(String name);
+    List<Artist> findByAutoFetchConcertsTrue();
 
     @Query("SELECT a FROM Artist a WHERE " +
             "LOWER(a.name) LIKE LOWER(CONCAT('%', :q, '%')) OR " +

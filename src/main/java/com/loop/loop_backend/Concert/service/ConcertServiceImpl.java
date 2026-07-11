@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -32,7 +33,8 @@ public class ConcertServiceImpl implements ConcertService {
                 .title(requestDto.getTitle())
                 .posterUrl(requestDto.getPosterUrl())
                 .venue(requestDto.getVenue())
-                .performedAt(requestDto.getPerformedAt())
+                .startDate(requestDto.getStartDate())
+                .endDate(requestDto.getEndDate())
                 .build();
         return ConcertResponseDto.from(concertRepository.save(concert));
     }
@@ -43,7 +45,7 @@ public class ConcertServiceImpl implements ConcertService {
         Concert concert = findConcertOrThrow(id);
         Artist artist = resolveArtist(requestDto.getArtistId());
         concert.update(artist, requestDto.getTitle(), requestDto.getPosterUrl(),
-                requestDto.getVenue(), requestDto.getPerformedAt());
+                requestDto.getVenue(), requestDto.getStartDate(), requestDto.getEndDate());
         return ConcertResponseDto.from(concert);
     }
 
@@ -67,21 +69,21 @@ public class ConcertServiceImpl implements ConcertService {
 
     @Override
     public List<ConcertResponseDto> searchConcertsByTitle(String title) {
-        return concertRepository.findByTitleContaining(title).stream()
+        return concertRepository.findByTitleContainingAndStartDateGreaterThanEqualOrderByStartDateAsc(title, LocalDate.now()).stream()
                 .map(ConcertResponseDto::from)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<ConcertResponseDto> getAllConcerts() {
-        return concertRepository.findAll().stream()
+        return concertRepository.findByStartDateGreaterThanEqualOrderByStartDateAsc(LocalDate.now()).stream()
                 .map(ConcertResponseDto::from)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<ConcertResponseDto> getConcertsByArtist(Long artistId) {
-        return concertRepository.findByArtistId(artistId).stream()
+        return concertRepository.findByArtistIdAndStartDateGreaterThanEqualOrderByStartDateAsc(artistId, LocalDate.now()).stream()
                 .map(ConcertResponseDto::from)
                 .collect(Collectors.toList());
     }

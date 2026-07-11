@@ -33,6 +33,9 @@ public class Artist {
     @Column(name = "image_url", length = 500)
     private String imageUrl;
 
+    @Column(name = "auto_fetch_concerts", nullable = false)
+    private boolean autoFetchConcerts;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -47,5 +50,9 @@ public class Artist {
         this.nameKo = nameKo;
         this.nameAlias = nameAlias;
         this.imageUrl = imageUrl;
+    }
+
+    public void updateAutoFetch(boolean autoFetchConcerts) {
+        this.autoFetchConcerts = autoFetchConcerts;
     }
 }

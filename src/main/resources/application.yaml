@@ -40,3 +40,6 @@ kakao:
 
 frontend:
   url: ${FRONTEND_URL}
+
+kopis:
+  api-key: ${KOPIS_API_KEY}
