@@ -49,5 +49,18 @@ jwt:
   secret: local-secret-key-for-testing-only-12345678
   expiration: 86400000
 
+kakao:
+  client-id: local-kakao-client-id
+  redirect-uri: http://localhost:8080/api/auth/kakao/callback
+  client-secret: local-kakao-client-secret
+  auth-url: https://kauth.kakao.com
+  api-url: https://kapi.kakao.com
+
+frontend:
+  url: http://localhost:3000
+
+kopis:
+  api-key: YOUR_KOPIS_API_KEY_HERE
+
 report:
   admin-email: your-admin-email@example.com
