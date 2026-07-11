@@ -4,7 +4,6 @@ import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.auth.dto.LoginRequestDto;
-import com.loop.loop_backend.auth.dto.RefreshRequestDto;
 import com.loop.loop_backend.auth.dto.TokenResponseDto;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
@@ -51,9 +50,7 @@ public class AuthService {
         return new TokenResponseDto(accessToken, refreshToken);
     }
 
-    public TokenResponseDto reissue(RefreshRequestDto requestDto) {
-        String refreshToken = requestDto.getRefreshToken();
-
+    public TokenResponseDto reissue(String refreshToken) {
         if (!jwtTokenProvider.validateToken(refreshToken)) {
             throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
         }

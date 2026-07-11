@@ -56,3 +56,6 @@ logs/
 # 임시 파일
 temp/
 tmp/
+가
+# claude
+.claude/

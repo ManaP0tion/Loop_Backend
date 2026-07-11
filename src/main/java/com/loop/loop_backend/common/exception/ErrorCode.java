@@ -21,15 +21,28 @@ public enum ErrorCode {
     DUPLICATE_USER_ID(409, "이미 사용 중인 아이디입니다."),
     DUPLICATE_EMAIL(409, "이미 사용 중인 이메일입니다."),
     DUPLICATE_SOCIAL_ACCOUNT(409, "이미 가입된 소셜 계정입니다."),
+    DUPLICATE_NICKNAME(409, "이미 사용 중인 닉네임입니다."),
     INVALID_PASSWORD(401, "현재 비밀번호가 올바르지 않습니다."),
     SAME_AS_CURRENT_PASSWORD(400, "현재 비밀번호와 동일합니다."),
     PASSWORD_CONFIRM_MISMATCH(400, "새 비밀번호가 일치하지 않습니다."),
     SOCIAL_LOGIN_NO_PASSWORD(400, "소셜 로그인 사용자는 비밀번호를 변경할 수 없습니다."),
+    ONBOARDING_ALREADY_COMPLETED(409, "이미 온보딩을 완료했습니다."),
+
+    // Hashtag
+    DUPLICATE_HASHTAG(409,"이미 사용중인 해시태그입니다."),
+    LIMIT_HASHTAG(409, "해시태그는 최대 3개까지 등록할 수 있습니다."),
+    HASHTAG_NOT_FOUND(404, "해시태그를 찾을 수 없습니다."),
 
     //auth
     LOGIN_LOCKED(429, "로그인 시도가 너무 많아 잠시 후 다시 시도해주세요."),
     INVALID_CREDENTIALS(401, "아이디 또는 비밀번호가 올바르지 않습니다."),
     INVALID_REFRESH_TOKEN(401, "유효하지 않은 Refresh Token입니다."),
+
+    // Artist 도메인
+    ARTIST_NOT_FOUND(404, "아티스트를 찾을 수 없습니다."),
+
+    // Concert 도메인
+    CONCERT_NOT_FOUND(404, "콘서트를 찾을 수 없습니다."),
 
     // CompanionPost 도메인
     COMPANION_POST_NOT_FOUND(404, "동행 모집글을 찾을 수 없습니다."),
