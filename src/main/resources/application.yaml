@@ -18,6 +18,21 @@ spring:
       ddl-auto: update
     show-sql: false
 
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
 springdoc:
   api-docs:
     path: /v3/api-docs
@@ -43,3 +58,6 @@ frontend:
 
 kopis:
   api-key: ${KOPIS_API_KEY}
+
+report:
+  admin-email: ${REPORT_ADMIN_EMAIL}

@@ -25,6 +25,18 @@ spring:
       hibernate:
         format_sql: true
 
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: your-gmail-address@gmail.com
+    password: your-gmail-app-password
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
 springdoc:
   api-docs:
     path: /v3/api-docs
@@ -49,3 +61,6 @@ frontend:
 
 kopis:
   api-key: YOUR_KOPIS_API_KEY_HERE
+
+report:
+  admin-email: your-admin-email@example.com

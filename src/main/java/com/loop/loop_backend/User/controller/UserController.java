@@ -5,12 +5,13 @@ import com.loop.loop_backend.User.service.UserService;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -42,11 +43,11 @@ public class UserController {
     @Operation(summary = "내 정보 조회", description = "Access Token으로 현재 로그인한 사용자 정보를 조회합니다")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
-            @ApiResponse(responseCode = "401", description = "인증 필요")
     })
     public ResponseEntity<CommonResponse<UserResponseDto>> getMe(@AuthenticationPrincipal Long userId) {
         return ResponseEntity.ok(CommonResponse.success(userService.getUserById(userId)));
     }
+
 
     @GetMapping
     @Operation(summary = "전체 사용자 조회", description = "모든 사용자 목록을 반환합니다")
@@ -59,7 +60,9 @@ public class UserController {
     @Operation(summary = "사용자 조회 (PK)", description = "PK로 사용자를 조회합니다")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
-            @ApiResponse(responseCode = "404", description = "사용자 없음")
+            @ApiResponse(responseCode = "404", description = "사용자 없음",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"사용자를 찾을 수 없습니다.\",\"code\":404}")))
     })
     public ResponseEntity<CommonResponse<UserResponseDto>> getUserById(
             @Parameter(description = "사용자 PK") @PathVariable Long id) {
@@ -77,58 +80,59 @@ public class UserController {
 //        return ResponseEntity.ok(CommonResponse.success(userService.getUserByUserId(userId)));
 //    }
 
-    @PutMapping("/{id}/profile")
-    @Operation(summary = "프로필 수정", description = "닉네임, 프로필 이미지를 수정합니다")
+    @PutMapping("/me/profile")
+    @Operation(summary = "프로필 수정", description = "로그인한 본인의 닉네임, 프로필 이미지를 수정합니다")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수정 성공"),
-            @ApiResponse(responseCode = "400", description = "유효성 검사 실패"),
-            @ApiResponse(responseCode = "404", description = "사용자 없음")
+            @ApiResponse(responseCode = "400", description = "유효성 검사 실패",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"입력값이 올바르지 않습니다.\",\"code\":400}"))),
+            @ApiResponse(responseCode = "404", description = "사용자 없음",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"사용자를 찾을 수 없습니다.\",\"code\":404}")))
     })
     public ResponseEntity<CommonResponse<UserResponseDto>> updateProfile(
-            @Parameter(description = "사용자 PK") @PathVariable Long id,
+            @AuthenticationPrincipal Long userId,
             @Valid @RequestBody UserUpdateRequestDto requestDto) {
-        return ResponseEntity.ok(CommonResponse.success(userService.updateProfile(id, requestDto)));
+        return ResponseEntity.ok(CommonResponse.success(userService.updateProfile(userId, requestDto)));
     }
 
-    @PatchMapping("/{id}/onboarding")
-    @Operation(summary = "온보딩 완료", description = "생년월일, 성별을 입력받아 온보딩을 완료합니다")
+    @PatchMapping("/me/onboarding")
+    @Operation(summary = "온보딩", description = "로그인한 본인의 생년월일, 성별을 입력받아 온보딩을 완료합니다")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "온보딩 완료"),
-            @ApiResponse(responseCode = "400", description = "유효성 검사 실패"),
-            @ApiResponse(responseCode = "404", description = "사용자 없음")
+            @ApiResponse(responseCode = "400", description = "유효성 검사 실패",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"입력값이 올바르지 않습니다.\",\"code\":400}"))),
+            @ApiResponse(responseCode = "404", description = "사용자 없음",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"사용자를 찾을 수 없습니다.\",\"code\":404}"))),
+            @ApiResponse(responseCode = "409", description = "이미 온보딩을 완료",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"이미 온보딩을 완료했습니다.\",\"code\":409}")))
     })
     public ResponseEntity<CommonResponse<UserResponseDto>> completeOnboarding(
-            @Parameter(description = "사용자 PK") @PathVariable Long id,
+            @AuthenticationPrincipal Long userId,
             @Valid @RequestBody OnboardingRequestDto requestDto) {
-        return ResponseEntity.ok(CommonResponse.success(userService.completeOnboarding(id, requestDto)));
+        return ResponseEntity.ok(CommonResponse.success(userService.completeOnboarding(userId, requestDto)));
     }
 
     @PutMapping("/{id}/artists")
     @Operation(summary = "관심 아티스트 수정", description = "관심 아티스트 목록을 수정합니다 (구현 예정)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수정 성공"),
-            @ApiResponse(responseCode = "400", description = "유효성 검사 실패"),
-            @ApiResponse(responseCode = "404", description = "사용자 없음")
+            @ApiResponse(responseCode = "400", description = "유효성 검사 실패",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"입력값이 올바르지 않습니다.\",\"code\":400}"))),
+            @ApiResponse(responseCode = "404", description = "사용자 없음",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"사용자를 찾을 수 없습니다.\",\"code\":404}")))
     })
     public ResponseEntity<CommonResponse<UserResponseDto>> updateArtists(
             @Parameter(description = "사용자 PK") @PathVariable Long id,
             @Valid @RequestBody ArtistUpdateRequestDto requestDto) {
         return ResponseEntity.ok(CommonResponse.success(userService.updateArtists(id, requestDto)));
     }
-
-    @PutMapping("/{id}/hashtags")
-    @Operation(summary = "관심 해시태그 수정", description = "관심 해시태그 목록을 수정합니다 (구현 예정)")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "수정 성공"),
-            @ApiResponse(responseCode = "400", description = "유효성 검사 실패"),
-            @ApiResponse(responseCode = "404", description = "사용자 없음")
-    })
-    public ResponseEntity<CommonResponse<UserResponseDto>> updateHashtags(
-            @Parameter(description = "사용자 PK") @PathVariable Long id,
-            @Valid @RequestBody HashtagUpdateRequestDto requestDto) {
-        return ResponseEntity.ok(CommonResponse.success(userService.updateHashtags(id, requestDto)));
-    }
-
 
 //    @PatchMapping("/{id}/password")
 //    @Operation(summary = "비밀번호 변경", description = "현재 비밀번호 확인 후 새 비밀번호로 변경합니다. 이메일 계정만 가능합니다.")
@@ -148,12 +152,14 @@ public class UserController {
     @DeleteMapping("/{id}")
     @Operation(summary = "회원 탈퇴", description = "사용자 상태를 WITHDRAWN으로 변경합니다")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "탈퇴 성공"),
-            @ApiResponse(responseCode = "404", description = "사용자 없음")
+            @ApiResponse(responseCode = "200", description = "탈퇴 성공"),
+            @ApiResponse(responseCode = "404", description = "사용자 없음",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"사용자를 찾을 수 없습니다.\",\"code\":404}")))
     })
-    public ResponseEntity<Void> withdrawUser(
+    public ResponseEntity<CommonResponse<Void>> withdrawUser(
             @Parameter(description = "사용자 PK") @PathVariable Long id) {
         userService.withdrawUser(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(CommonResponse.success("탈퇴성공", null));
     }
 }

@@ -19,7 +19,7 @@ public class OnboardingRequestDto {
     @NotNull(message = "닉네임은 필수입니다")
     @Size(max = 5, message = "닉네임은 5자 이하여야 합니다.")
     @Pattern(regexp = "^[a-zA-Z0-9가-힣]+$", message = "닉네임에 특수문자를 사용할 수 없습니다.")
-    @Schema(description = "닉네임", example = "nickname")
+    @Schema(description = "닉네임", example = "nick")
     private String nickname;
 
     @NotNull(message = "생년월일은 필수입니다")

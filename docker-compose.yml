@@ -15,6 +15,11 @@ services:
       KAKAO_REDIRECT_URI: ${KAKAO_REDIRECT_URI}
       KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET}
       FRONTEND_URL: ${FRONTEND_URL}
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      REPORT_ADMIN_EMAIL: ${REPORT_ADMIN_EMAIL}
     depends_on:
       mysql:
         condition: service_healthy

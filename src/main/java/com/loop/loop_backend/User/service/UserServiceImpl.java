@@ -1,5 +1,6 @@
 package com.loop.loop_backend.User.service;
 
+import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
@@ -21,6 +22,7 @@ import java.util.stream.Collectors;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final UserHashtagRepository userHashtagRepository;
     private final PasswordEncoder passwordEncoder;
 
 //    @Override
@@ -45,20 +47,20 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserResponseDto getUserById(Long id) {
-        return new UserResponseDto(findUserOrThrow(id));
+        return toResponseDto(findUserOrThrow(id));
     }
 
     @Override
     public UserResponseDto getUserByUserId(String userId) {
         User user = userRepository.findByUserId(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-        return new UserResponseDto(user);
+        return toResponseDto(user);
     }
 
     @Override
     public List<UserResponseDto> getAllUsers() {
         return userRepository.findAll().stream()
-                .map(UserResponseDto::new)
+                .map(this::toResponseDto)
                 .collect(Collectors.toList());
     }
 
@@ -68,16 +70,21 @@ public class UserServiceImpl implements UserService {
         User user = findUserOrThrow(id);
         checkNicknameAvailable(user, requestDto.getNickname());
         user.updateUserProfile(requestDto.getNickname(), requestDto.getProfileImageUrl());
-        return new UserResponseDto(user);
+        return toResponseDto(user);
     }
 
     @Override
     @Transactional
     public UserResponseDto completeOnboarding(Long id, OnboardingRequestDto requestDto) {
         User user = findUserOrThrow(id);
+
+        if (user.isOnboardingCompleted()) {
+            throw new BusinessException(ErrorCode.ONBOARDING_ALREADY_COMPLETED);
+        }
+
         checkNicknameAvailable(user, requestDto.getNickname());
         user.completeOnboarding(requestDto.getNickname(), requestDto.getBirthDate(), requestDto.getGender());
-        return new UserResponseDto(user);
+        return toResponseDto(user);
     }
 
     private void checkNicknameAvailable(User user, String nickname) {
@@ -91,16 +98,16 @@ public class UserServiceImpl implements UserService {
     public UserResponseDto updateArtists(Long id, ArtistUpdateRequestDto requestDto) {
         // TODO: Artist 연관관계 연결 후 실제 저장 로직 구현
         User user = findUserOrThrow(id);
-        return new UserResponseDto(user);
+        return toResponseDto(user);
     }
 
-    @Override
-    @Transactional
-    public UserResponseDto updateHashtags(Long id, HashtagUpdateRequestDto requestDto) {
-        // TODO: Hashtag 연관관계 연결 후 실제 저장 로직 구현
-        User user = findUserOrThrow(id);
-        return new UserResponseDto(user);
+    private UserResponseDto toResponseDto(User user) {
+        List<UserResponseDto.HashtagSummary> hashtags = userHashtagRepository.findAllByUser(user).stream()
+                .map(tag -> new UserResponseDto.HashtagSummary(tag.getId(), tag.getTag()))
+                .toList();
+        return new UserResponseDto(user, hashtags);
     }
+
 
     @Override
     @Transactional

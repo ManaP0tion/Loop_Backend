@@ -1,23 +1,31 @@
 package com.loop.loop_backend.Config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loop.loop_backend.common.exception.CommonResponse;
+import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.common.jwt.JwtAuthenticationFilter;
 import com.loop.loop_backend.common.jwt.JwtTokenProvider;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.io.IOException;
 import java.util.List;
 
 @Configuration
@@ -27,6 +35,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final ObjectMapper objectMapper;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -39,6 +48,9 @@ public class SecurityConfig {
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(authenticationEntryPoint())
+                        .accessDeniedHandler(accessDeniedHandler()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/swagger-ui/**",
@@ -49,6 +61,7 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/users/register",
                                 "/api/users/kakao",
+                                "/api/test/**",
                                 "/api/chat/**",
                                 "/ws/chat/**",
                                 "/chat-test.html",
@@ -63,6 +76,21 @@ public class SecurityConfig {
                 );
 
         return http.build();
+    }
+
+    private AuthenticationEntryPoint authenticationEntryPoint() {
+        return (request, response, authException) -> writeErrorResponse(response, ErrorCode.UNAUTHORIZED);
+    }
+
+    private AccessDeniedHandler accessDeniedHandler() {
+        return (request, response, accessDeniedException) -> writeErrorResponse(response, ErrorCode.FORBIDDEN);
+    }
+
+    private void writeErrorResponse(HttpServletResponse response, ErrorCode errorCode) throws IOException {
+        response.setStatus(errorCode.getStatus());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding("UTF-8");
+        response.getWriter().write(objectMapper.writeValueAsString(CommonResponse.fail(errorCode)));
     }
 
     @Bean
