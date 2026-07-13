@@ -150,8 +150,16 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public List<?> getMessages(Long roomId) {
-        return messageRepository.findByChatRoom_IdOrderByCreatedAtAsc(roomId);
+    public List<ChatMessageDto> getMessages(Long roomId) {
+        return messageRepository.findByChatRoom_IdOrderByCreatedAtAsc(roomId).stream()
+                .map(m -> ChatMessageDto.builder()
+                        .type(ChatMessageDto.MessageType.TALK)
+                        .roomId(m.getChatRoom().getId())
+                        .senderId(m.getSender().getId())
+                        .content(m.getContent())
+                        .createdAt(m.getCreatedAt())
+                        .build())
+                .collect(Collectors.toList());
     }
 
     @Override

@@ -20,10 +20,10 @@ public class ChatController {
 
     @MessageMapping("/chat/message")
     public void sendMessage(ChatMessageDto message) {
-        if (!chatService.canChat(message.getSenderId(), message.getRoomId())) {
+        /*if (!chatService.canChat(message.getSenderId(), message.getRoomId())) {
             log.warn("채팅 차단: senderId={}, roomId={}", message.getSenderId(), message.getRoomId());
             return;
-        }
+        }*/
 
         message = message.toBuilder().createdAt(LocalDateTime.now()).build();
 
