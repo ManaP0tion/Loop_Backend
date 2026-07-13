@@ -133,12 +133,12 @@ class BlockServiceImplTest {
     }
 
     @Test
-    void 생년월일이_없는_사용자는_차단_목록에서_나이대가_null이다() {
+    void 생년월일이_없는_사용자는_차단_목록에서_나이가_null이다() {
         blockService.block(1L, 2L);
 
         BlockedUserResponseDto dto = blockService.getBlockedUsers(1L).get(0);
 
-        assertThat(dto.getAgeGroup()).isNull();
+        assertThat(dto.getAge()).isNull();
     }
 
     // ── 예외 케이스 ────────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 
 @Entity
 @Table(name = "users",
@@ -101,6 +102,12 @@ public class User {
 
     public AgeGroup getAgeGroup() {
         return AgeGroup.from(this.birthDate);
+    }
+
+    public Integer getAge() {
+        return this.birthDate != null
+                ? Period.between(this.birthDate, LocalDate.now()).getYears()
+                : null;
     }
 
     public void withdraw() {
