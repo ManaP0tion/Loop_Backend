@@ -2,9 +2,11 @@ package com.loop.loop_backend.Chat.service;
 
 import com.loop.loop_backend.Chat.domain.ChatParticipant;
 import com.loop.loop_backend.Chat.domain.ChatRoom;
+import com.loop.loop_backend.Chat.domain.Message;
 import com.loop.loop_backend.Chat.domain.ParticipantRole;
 import com.loop.loop_backend.Chat.domain.ParticipantStatus;
 import com.loop.loop_backend.Chat.domain.ChatRoomType;
+import com.loop.loop_backend.Chat.dto.ChatMessageDto;
 import com.loop.loop_backend.Chat.dto.ChatRoomResponseDto;
 import com.loop.loop_backend.Chat.dto.CreateChatRoomRequestDto;
 import com.loop.loop_backend.Chat.dto.StartDirectChatRequestDto;
@@ -19,7 +21,6 @@ import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,7 +37,6 @@ public class ChatServiceImpl implements ChatService {
     private final MessageRepository messageRepository;
     private final BlockRepository blockRepository;
     private final UserRepository userRepository;
-    private final RedisTemplate<String, Object> redisTemplate;
     private final EntityManager em;
 
     @Override
@@ -151,12 +151,19 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public List<?> getMessages(Long roomId) {
-        String cacheKey = "chat:room:" + roomId + ":messages";
-        List<Object> cached = redisTemplate.opsForList().range(cacheKey, 0, -1);
-        if (cached != null && !cached.isEmpty()) {
-            return cached;
-        }
         return messageRepository.findByChatRoom_IdOrderByCreatedAtAsc(roomId);
+    }
+
+    @Override
+    @Transactional
+    public void saveMessage(ChatMessageDto dto) {
+        ChatRoom chatRoom = em.getReference(ChatRoom.class, dto.getRoomId());
+        User sender = em.getReference(User.class, dto.getSenderId());
+        messageRepository.save(Message.builder()
+                .chatRoom(chatRoom)
+                .sender(sender)
+                .content(dto.getContent())
+                .build());
     }
 
     @Override

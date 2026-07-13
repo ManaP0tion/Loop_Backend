@@ -64,7 +64,9 @@ public class SecurityConfig {
                                 "/api/test/**",
                                 "/api/chat/**",
                                 "/ws/chat/**",
-                                "/chat-test.html"
+                                "/chat-test.html",
+                                "/api/artists/**",
+                                "/api/concerts/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

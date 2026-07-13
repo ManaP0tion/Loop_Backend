@@ -20,6 +20,7 @@ services:
       MAIL_USERNAME: ${MAIL_USERNAME}
       MAIL_PASSWORD: ${MAIL_PASSWORD}
       REPORT_ADMIN_EMAIL: ${REPORT_ADMIN_EMAIL}
+      KOPIS_API_KEY: ${KOPIS_API_KEY}
     depends_on:
       mysql:
         condition: service_healthy
