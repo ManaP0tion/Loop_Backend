@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Chat.controller;
 
+import com.loop.loop_backend.Chat.dto.ChatMessageDto;
 import com.loop.loop_backend.Chat.dto.ChatRoomResponseDto;
 import com.loop.loop_backend.Chat.dto.CreateChatRoomRequestDto;
 import com.loop.loop_backend.Chat.dto.StartDirectChatRequestDto;
@@ -65,7 +66,7 @@ public class ChatRoomController {
 
     @GetMapping("/rooms/{roomId}/messages")
     @Operation(summary = "채팅 메시지 조회", description = "Redis 캐시 우선 조회, 없으면 DB 조회")
-    public ResponseEntity<CommonResponse<List<?>>> getMessages(@PathVariable Long roomId) {
+    public ResponseEntity<CommonResponse<List<ChatMessageDto>>> getMessages(@PathVariable Long roomId) {
         return ResponseEntity.ok(CommonResponse.success(chatService.getMessages(roomId)));
     }
 }

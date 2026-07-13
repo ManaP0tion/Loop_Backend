@@ -19,7 +19,7 @@ public interface ChatService {
 
     List<ChatRoomResponseDto> getRoomsByUser(Long userId);
 
-    List<?> getMessages(Long roomId);
+    List<ChatMessageDto> getMessages(Long roomId);
 
     boolean canChat(Long senderId, Long roomId);
 

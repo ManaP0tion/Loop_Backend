@@ -60,6 +60,19 @@
     <script>
         let stompClient = null;
 
+        function loadPreviousMessages(roomId) {
+            fetch('/api/chat/rooms/' + roomId + '/messages')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.data && data.data.length > 0) {
+                        log('시스템', '--- 이전 메시지 ---');
+                        data.data.forEach(msg => appendMessage(msg));
+                        log('시스템', '--- 여기부터 실시간 ---');
+                    }
+                })
+                .catch(err => log('에러', '이전 메시지 로드 실패: ' + err));
+        }
+
         function connect() {
             const roomId = document.getElementById('roomId').value;
             const socket = new SockJS('/ws/chat');
@@ -68,6 +81,7 @@
 
             stompClient.connect({}, function () {
                 setStatus(true);
+                loadPreviousMessages(roomId);
                 stompClient.subscribe('/sub/chat/room/' + roomId, function (frame) {
                     const msg = JSON.parse(frame.body);
                     appendMessage(msg);
