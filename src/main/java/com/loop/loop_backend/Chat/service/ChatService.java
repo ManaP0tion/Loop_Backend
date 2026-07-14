@@ -24,4 +24,6 @@ public interface ChatService {
     boolean canChat(Long senderId, Long roomId);
 
     void saveMessage(ChatMessageDto dto);
+
+    void markAsRead(Long roomId, Long userId);
 }
