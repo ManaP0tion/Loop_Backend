@@ -18,7 +18,7 @@ import java.util.Set;
 public class CompanionResponseDto {
 
     @Schema(description = "동행 프로필 PK", example = "1")
-    private final Long id;
+    private final Long companionId;
 
     @Schema(description = "작성자 PK", example = "10")
     private final Long userId;
@@ -54,13 +54,13 @@ public class CompanionResponseDto {
     private final LocalDateTime createdAt;
 
     public CompanionResponseDto(CompanionPost post) {
-        this.id = post.getId();
+        this.companionId = post.getId();
         this.userId = post.getUser().getId();
         this.nickname = post.getUser().getNickname();
         this.concertId = post.getConcertId();
         this.watchDay = post.getWatchDay();
         this.preferredGender = post.getPreferredGender();
-        this.preferredAgeGroups = post.getPreferredAgeGroups();
+        this.preferredAgeGroups = Set.copyOf(post.getPreferredAgeGroups());
         this.activities = post.getActivities().stream()
                 .map(activity -> new EnumLabelDto(activity.name(), activity.getLabel()))
                 .toList();

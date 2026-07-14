@@ -3,6 +3,7 @@ package com.loop.loop_backend.CompanionPost.domain;
 import com.loop.loop_backend.User.domain.User;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -16,7 +17,10 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "companion_posts")
+@Table(name = "companion_posts",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_user_concert_watch_day",
+                columnNames = {"user_id", "concert_id", "watch_day"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CompanionPost {
@@ -67,6 +71,7 @@ public class CompanionPost {
     private WatchStyle watchStyle;
 
     @Column(name = "message_to_companion", length = 200)
+    @Size(max = 200)
     private String messageToCompanion;
 
     @Column(name = "visible", nullable = false)
@@ -98,6 +103,15 @@ public class CompanionPost {
 
     public void toggleVisible(boolean visible){
         this.visible = visible;
+    }
+
+    public void update(PreferredGender preferredGender, Set<PreferredAgeGroup> preferredAgeGroups,
+                        Set<CompanionActivity> activities, WatchStyle watchStyle, String messageToCompanion) {
+        this.preferredGender = preferredGender;
+        this.preferredAgeGroups = preferredAgeGroups;
+        this.activities = activities;
+        this.watchStyle = watchStyle;
+        this.messageToCompanion = messageToCompanion;
     }
 
 
