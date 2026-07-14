@@ -33,7 +33,7 @@ public class BlockedUserResponseDto {
     // private final String ageGroup;
 
     @Schema(description = "차단된 사용자 성별", example = "남")
-    private Gender gender;
+    private final Gender gender;
 
     @Schema(description = "차단 일시")
     private final LocalDateTime blockedAt;
