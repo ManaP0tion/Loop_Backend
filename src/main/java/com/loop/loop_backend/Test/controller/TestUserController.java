@@ -46,6 +46,6 @@ public class TestUserController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookieUtil.createAccessTokenCookie(accessToken).toString())
                 .header(HttpHeaders.SET_COOKIE, cookieUtil.createRefreshTokenCookie(refreshToken).toString())
-                .body(CommonResponse.success("테스트 사용자가 생성되었습니다.", new TestUserResponseDto(user)));
+                .body(CommonResponse.success("테스트 사용자가 생성되었습니다.", new TestUserResponseDto(user, accessToken)));
     }
 }

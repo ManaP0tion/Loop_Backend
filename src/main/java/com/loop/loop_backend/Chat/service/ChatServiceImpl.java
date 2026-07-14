@@ -143,10 +143,28 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public List<ChatRoomResponseDto> getRoomsByUser(Long userId) {
-        List<ChatRoom> rooms = (userId == null)
-                ? chatRoomRepository.findAll()
-                : chatRoomRepository.findActiveRoomsByUserId(userId);
-        return rooms.stream().map(ChatRoomResponseDto::from).collect(Collectors.toList());
+        if (userId == null) {
+            return chatRoomRepository.findAll().stream()
+                    .map(ChatRoomResponseDto::from)
+                    .collect(Collectors.toList());
+        }
+
+        return chatRoomRepository.findActiveRoomsByUserId(userId).stream()
+                .map(room -> {
+                    User otherUser = chatParticipantRepository
+                            .findByChatRoom_IdAndStatus(room.getId(), ParticipantStatus.ACTIVE).stream()
+                            .filter(p -> !p.getUser().getId().equals(userId))
+                            .map(ChatParticipant::getUser)
+                            .findFirst()
+                            .orElse(null);
+                    Message lastMessage = messageRepository
+                            .findTopByChatRoom_IdOrderByCreatedAtDesc(room.getId())
+                            .orElse(null);
+                    long unreadCount = messageRepository
+                            .countByChatRoom_IdAndSender_IdNotAndIsReadFalse(room.getId(), userId);
+                    return ChatRoomResponseDto.forList(room, otherUser, lastMessage, unreadCount);
+                })
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -160,6 +178,16 @@ public class ChatServiceImpl implements ChatService {
                         .createdAt(m.getCreatedAt())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void markAsRead(Long roomId, Long userId) {
+        if (!chatParticipantRepository.existsByChatRoom_IdAndUser_IdAndStatus(
+                roomId, userId, ParticipantStatus.ACTIVE)) {
+            throw new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT);
+        }
+        messageRepository.markAllAsRead(roomId, userId);
     }
 
     @Override

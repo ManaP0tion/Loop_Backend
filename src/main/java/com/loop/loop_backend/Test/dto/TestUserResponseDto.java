@@ -14,8 +14,12 @@ public class TestUserResponseDto {
     @Schema(description = "생성된 사용자 닉네임", example = "t1234")
     private final String nickname;
 
-    public TestUserResponseDto(User user) {
+    @Schema(description = "발급된 액세스 토큰 (테스트 전용 - 운영 제거 예정)")
+    private final String accessToken;
+
+    public TestUserResponseDto(User user, String accessToken) {
         this.userId = user.getId();
         this.nickname = user.getNickname();
+        this.accessToken = accessToken;
     }
 }

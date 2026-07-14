@@ -56,6 +56,14 @@ public class ChatRoomController {
         return ResponseEntity.ok(CommonResponse.success(chatService.getRoomsByUser(userId)));
     }
 
+    @PatchMapping("/rooms/{roomId}/read")
+    @Operation(summary = "메시지 읽음 처리", description = "해당 채팅방에서 상대방이 보낸 안읽은 메시지를 모두 읽음으로 처리")
+    public ResponseEntity<CommonResponse<Void>> markAsRead(
+            @PathVariable Long roomId, @RequestParam Long userId) {
+        chatService.markAsRead(roomId, userId);
+        return ResponseEntity.ok(CommonResponse.success(null));
+    }
+
     @PatchMapping("/rooms/{roomId}/leave")
     @Operation(summary = "채팅방 나가기")
     public ResponseEntity<CommonResponse<Void>> leaveRoom(
@@ -65,7 +73,7 @@ public class ChatRoomController {
     }
 
     @GetMapping("/rooms/{roomId}/messages")
-    @Operation(summary = "채팅 메시지 조회", description = "Redis 캐시 우선 조회, 없으면 DB 조회")
+    @Operation(summary = "채팅 메시지 조회")
     public ResponseEntity<CommonResponse<List<ChatMessageDto>>> getMessages(@PathVariable Long roomId) {
         return ResponseEntity.ok(CommonResponse.success(chatService.getMessages(roomId)));
     }
