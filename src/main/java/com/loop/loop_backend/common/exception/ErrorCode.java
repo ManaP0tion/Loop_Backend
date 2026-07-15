@@ -56,6 +56,8 @@ public enum ErrorCode {
     CHAT_ROOM_ALREADY_EXISTS(409, "이미 존재하는 채팅방입니다."),
     NOT_CHAT_PARTICIPANT(403, "채팅방 참여자가 아닙니다."),
     ALREADY_LEFT_CHAT(400, "이미 나간 채팅방입니다."),
+    CHAT_ROOM_ACCESS_DENIED(403, "해당 채팅방에 접근할 권한이 없습니다."),
+    MESSAGE_CONTENT_INVALID(400, "메시지 내용이 올바르지 않습니다."),
 
 
     // Report/Block 도메인

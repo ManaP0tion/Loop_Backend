@@ -4,24 +4,26 @@ import com.loop.loop_backend.Chat.dto.ChatMessageDto;
 import com.loop.loop_backend.Chat.dto.ChatRoomResponseDto;
 import com.loop.loop_backend.Chat.dto.CreateChatRoomRequestDto;
 import com.loop.loop_backend.Chat.dto.StartDirectChatRequestDto;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 
 import java.util.List;
 
 public interface ChatService {
 
-    ChatRoomResponseDto createRoom(CreateChatRoomRequestDto request);
+    ChatRoomResponseDto createRoom(Long requesterId, CreateChatRoomRequestDto request);
 
-    ChatRoomResponseDto startDirectChat(StartDirectChatRequestDto request);
+    ChatRoomResponseDto startDirectChat(Long myUserId, StartDirectChatRequestDto request);
 
     ChatRoomResponseDto joinRoom(Long roomId, Long userId);
 
     void leaveRoom(Long roomId, Long userId);
 
-    List<ChatRoomResponseDto> getRoomsByUser(Long userId);
+    List<ChatRoomResponseDto> getMyRooms(Long userId);
 
-    List<ChatMessageDto> getMessages(Long roomId);
+    Slice<ChatMessageDto> getMessages(Long roomId, Long userId, Pageable pageable);
 
-    boolean canChat(Long senderId, Long roomId);
+    ChatMessageDto saveMessage(Long roomId, Long senderId, String rawContent);
 
-    void saveMessage(ChatMessageDto dto);
+    void markAsRead(Long roomId, Long userId);
 }

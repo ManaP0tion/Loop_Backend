@@ -2,6 +2,7 @@ package com.loop.loop_backend.Chat.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.Getter;
 
 @Getter
@@ -9,10 +10,7 @@ import lombok.Getter;
 public class StartDirectChatRequestDto {
 
     @NotNull
-    @Schema(description = "채팅을 시작하는 유저 ID")
-    private Long myUserId;
-
-    @NotNull
+    @Positive
     @Schema(description = "채팅 상대 유저 ID")
     private Long targetUserId;
 }
