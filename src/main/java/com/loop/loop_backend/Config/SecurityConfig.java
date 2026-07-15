@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -37,9 +39,28 @@ public class SecurityConfig {
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 개발/로컬 프로파일에서만 활성화되는 체인.
+     * /api/test/**(테스트 유저 생성) 와 /dev/**(chat-test.html 등 개발 페이지)를 permitAll 처리.
+     * prod 환경에서는 등록되지 않아 자동 차단됨.
+     */
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    @Order(1)
+    @Profile({"local", "dev"})
+    public SecurityFilterChain devToolsFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/api/test/**", "/dev/**")
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        return http.build();
+    }
 
+    @Bean
+    @Order(2)
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -61,10 +82,7 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/users/register",
                                 "/api/users/kakao",
-                                "/api/test/**",
-                                "/api/chat/**",
                                 "/ws/chat/**",
-                                "/chat-test.html",
                                 "/api/artists/**",
                                 "/api/concerts/**"
                         ).permitAll()
