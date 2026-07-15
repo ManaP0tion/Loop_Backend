@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Artist.dto;
 
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 
@@ -13,4 +14,5 @@ public class ArtistRequestDto {
     private String nameKo;
     private String nameAlias;
     private String imageUrl;
+    private ConcertCategory category;
 }

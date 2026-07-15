@@ -44,20 +44,28 @@ public class Concert {
     @Column(name = "end_date")
     private LocalDate endDate;
 
-    public void update(Artist artist, String title, String posterUrl, String venue, LocalDate startDate, LocalDate endDate) {
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", length = 30, nullable = false)
+    private ConcertCategory category;
+
+    public void update(Artist artist, String title, String posterUrl, String venue,
+                       LocalDate startDate, LocalDate endDate, ConcertCategory category) {
         this.artist = artist;
         this.title = title;
         this.posterUrl = posterUrl;
         this.venue = venue;
         this.startDate = startDate;
         this.endDate = endDate;
+        this.category = category;
     }
 
-    public void updateFromKopis(String title, String posterUrl, String venue, LocalDate startDate, LocalDate endDate) {
+    public void updateFromKopis(String title, String posterUrl, String venue,
+                                LocalDate startDate, LocalDate endDate, ConcertCategory category) {
         this.title = title;
         this.posterUrl = posterUrl;
         this.venue = venue;
         this.startDate = startDate;
         this.endDate = endDate;
+        this.category = category;
     }
 }

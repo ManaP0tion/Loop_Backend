@@ -1,5 +1,7 @@
 package com.loop.loop_backend.Concert.controller;
 
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.Concert.dto.ConcertCategoryDto;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
 import com.loop.loop_backend.Concert.kopis.KopisSyncService;
@@ -16,7 +18,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/concerts")
@@ -64,10 +68,25 @@ public class ConcertController {
     }
 
     @GetMapping
-    @Operation(summary = "전체 콘서트 조회", description = "모든 콘서트 목록을 반환합니다")
+    @Operation(summary = "콘서트 목록 조회", description = "카테고리 파라미터가 있으면 카테고리로 필터링, 없으면 전체를 반환합니다")
     @ApiResponse(responseCode = "200", description = "조회 성공")
-    public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> getAllConcerts() {
-        return ResponseEntity.ok(CommonResponse.success(concertService.getAllConcerts()));
+    public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> getConcerts(
+            @Parameter(description = "콘서트 카테고리 (J_POP_ARTIST / DOMESTIC_ARTIST / JAPAN_FESTIVAL / DOMESTIC_FESTIVAL)")
+            @RequestParam(required = false) ConcertCategory category) {
+        List<ConcertResponseDto> concerts = (category != null)
+                ? concertService.getConcertsByCategory(category)
+                : concertService.getAllConcerts();
+        return ResponseEntity.ok(CommonResponse.success(concerts));
+    }
+
+    @GetMapping("/categories")
+    @Operation(summary = "콘서트 카테고리 목록", description = "선택 가능한 콘서트 카테고리 enum을 반환합니다")
+    @ApiResponse(responseCode = "200", description = "조회 성공")
+    public ResponseEntity<CommonResponse<List<ConcertCategoryDto>>> getCategories() {
+        List<ConcertCategoryDto> categories = Arrays.stream(ConcertCategory.values())
+                .map(ConcertCategoryDto::from)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(CommonResponse.success(categories));
     }
 
     @GetMapping("/{id}")
