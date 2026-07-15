@@ -21,21 +21,16 @@ public class CompanionRequestDto {
     @Schema(description = "관람 일차", example = "DAY1")
     private WatchDay watchDay;
 
-    @Schema(description = "선호하는 동행자 성별", example = "ANY")
-    private PreferredGender preferredGender;
-
-    @NotNull(message = "선호하는 동행자 나이대는 필수입니다")
-    @Schema(description = "선호하는 동행자 나이대 목록", example = "[\"TWENTY_FIVE_TO_TWENTY_NINE\", \"THIRTY_TO_THIRTY_FOUR\"]")
-    private Set<PreferredAgeGroup> preferredAgeGroups;
-
     @NotNull(message = "함께 하고 싶은 활동은 필수입니다")
     @Schema(description = "함께 하고 싶은 활동 목록", example = "[\"MEAL\", \"PHOTO\"]")
     private Set<CompanionActivity> activities;
 
-    @NotNull(message = "관람 스타일은 필수입니다")
-    @Schema(description = "관람 스타일", example = "NORMAL")
+    @Schema(description = "관람 스타일 (함께하고 싶은 것에 공연 관람을 선택했을 때만 의미 있음)", example = "NORMAL")
     private WatchStyle watchStyle;
 
     @Schema(description = "동행에게 남기는 메시지", example = "같이 즐겁게 봐요!")
     private String messageToCompanion;
+
+    @Schema(description = "같은 성별에게만 연락받기", example = "false")
+    private boolean sameGenderOnly;
 }

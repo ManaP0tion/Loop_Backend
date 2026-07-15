@@ -1,12 +1,12 @@
 package com.loop.loop_backend.CompanionPost.controller;
 
-import com.loop.loop_backend.CompanionPost.domain.PreferredAgeGroup;
-import com.loop.loop_backend.CompanionPost.domain.PreferredGender;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
 import com.loop.loop_backend.CompanionPost.dto.CompanionDetailResponseDto;
 import com.loop.loop_backend.CompanionPost.dto.CompanionRequestDto;
 import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
+import com.loop.loop_backend.User.domain.AgeGroup;
+import com.loop.loop_backend.User.domain.Gender;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -42,10 +42,9 @@ public class CompanionController {
             | 필드 | 값 (enum) | 설명 |
             |---|---|---|
             | watchDay | DAY1, DAY2, DAY3, DAY4 | 관람 일차 |
-            | preferredGender | MALE, FEMALE, ANY | 선호하는 동행자 성별 |
-            | preferredAgeGroups | NINETEEN_TO_TWENTY_FOUR, TWENTY_FIVE_TO_TWENTY_NINE, THIRTY_TO_THIRTY_FOUR, THIRTY_FIVE_TO_THIRTY_NINE, FORTY_PLUS, ANY | 선호하는 동행자 나이대 (복수 선택) |
             | activities | CONCERT(공연 관람), MEAL(식사), PHOTO(사진), GOODS(굿즈), TALK(대화) | 함께 하고 싶은 활동 (복수 선택) |
             | watchStyle | ENTHUSIASTIC(뗴창 열심히), NORMAL(보통), QUIET(조용히 관람) | 관람 스타일 |
+            | sameGenderOnly | true, false | 같은 성별에게만 연락받기 |
             """)
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "동행 프로필 생성"),
@@ -69,32 +68,41 @@ public class CompanionController {
     }
 
 
-    //동행 프로필 전체 조회 공연관람 O (콘서트, day별, 필터는 성별, 나이)
+    //동행 프로필 전체 조회 공연관람 O (콘서트, day별)
     @Operation(summary = "공연 관람 동행 프로필 전체 조회",
-            description = "콘서트/관람일 기준으로 공연을 관람하는 동행 프로필 목록을 조회하고, 성별/나이대로 필터링합니다. " +
-                    "스크롤용 페이지네이션(page, size)을 지원하며 size 기본값은 20입니다.")
+            description = """
+                    콘서트/관람일 기준으로 공연을 관람하는 동행 프로필 목록을 조회합니다. \
+                    작성자의 성별/나이대로 필터링할 수 있습니다. 스크롤용 페이지네이션(page, size)을 지원하며 size 기본값은 20입니다.
+
+                    정렬 기준은 내 상태에 따라 다릅니다.
+                    - 내 프로필이 있고 공연 관람을 선택했으면: 관람 스타일이 같은 사람 우선 + 그 안에서 공통 활동 많은 순
+                    - 내 프로필이 있고 공연 관람을 선택 안 했으면: 공통 활동 많은 순
+                    - 내 프로필이 없으면: 등록일자 최신순
+                    """)
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping("watching")
     public ResponseEntity<CommonResponse<List<CompanionResponseDto>>> getWatchingCompanions(
+            @AuthenticationPrincipal Long userId,
             @Parameter(description = "콘서트 PK")
             @RequestParam Long concertId,
             @Parameter(description = "관람 일차", schema = @Schema(allowableValues = {"DAY1", "DAY2", "DAY3", "DAY4"}))
             @RequestParam WatchDay watchDay,
-            @Parameter(description = "성별 필터", schema = @Schema(allowableValues = {"MALE", "FEMALE", "ANY"}))
-            @RequestParam(required = false) PreferredGender preferredGender,
-            @Parameter(description = "나이대 필터 (다중 선택)",
+            @Parameter(description = "작성자 성별 필터", schema = @Schema(allowableValues = {"MALE", "FEMALE", "OTHER"}))
+            @RequestParam(required = false) Gender gender,
+            @Parameter(description = "작성자 나이대 필터 (다중 선택)",
                     array = @ArraySchema(schema = @Schema(allowableValues = {
-                            "NINETEEN_TO_TWENTY_FOUR", "TWENTY_FIVE_TO_TWENTY_NINE", "THIRTY_TO_THIRTY_FOUR",
-                            "THIRTY_FIVE_TO_THIRTY_NINE", "FORTY_PLUS", "ANY"})))
-            @RequestParam(required = false) List<PreferredAgeGroup> preferredAgeGroups,
+                            "TEENS", "EARLY_TWENTIES", "LATE_TWENTIES", "EARLY_THIRTIES", "LATE_THIRTIES",
+                            "EARLY_FORTIES", "LATE_FORTIES", "FIFTIES_OVER"})))
+            @RequestParam(required = false) List<AgeGroup> ageGroups,
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        return ResponseEntity.ok(CommonResponse.success(List.of()));
+        return ResponseEntity.ok(CommonResponse.success(
+                companionService.getWatchingCompanions(userId, concertId, watchDay, gender, ageGroups, pageable)));
     }
 
-    //동행 프로필 전체 조회 공연관람 X (콘서트, day별, 필터는 성별, 나이)
+    //동행 프로필 전체 조회 공연관람 X (콘서트, day별)
     @Operation(summary = "공연 미관람 동행 프로필 전체 조회",
-            description = "콘서트/관람일 기준으로 공연 관람을 안하는 동행 프로필 목록을 조회하고, 성별/나이대로 필터링합니다. " +
+            description = "콘서트/관람일 기준으로 공연 관람을 안하는 동행 프로필 목록을 조회합니다. " +
                     "스크롤용 페이지네이션(page, size)을 지원하며 size 기본값은 20입니다.")
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping("/not-watching")
@@ -103,13 +111,6 @@ public class CompanionController {
             @RequestParam Long concertId,
             @Parameter(description = "관람 일차", schema = @Schema(allowableValues = {"DAY1", "DAY2", "DAY3", "DAY4"}))
             @RequestParam WatchDay watchDay,
-            @Parameter(description = "성별 필터", schema = @Schema(allowableValues = {"MALE", "FEMALE", "ANY"}))
-            @RequestParam(required = false) PreferredGender preferredGender,
-            @Parameter(description = "나이대 필터 (다중 선택)",
-                    array = @ArraySchema(schema = @Schema(allowableValues = {
-                            "NINETEEN_TO_TWENTY_FOUR", "TWENTY_FIVE_TO_TWENTY_NINE", "THIRTY_TO_THIRTY_FOUR",
-                            "THIRTY_FIVE_TO_THIRTY_NINE", "FORTY_PLUS", "ANY"})))
-            @RequestParam(required = false) List<PreferredAgeGroup> preferredAgeGroups,
             @PageableDefault(size = 20) Pageable pageable
     ) {
         return ResponseEntity.ok(CommonResponse.success(List.of()));
@@ -200,11 +201,9 @@ public class CompanionController {
 
             | 필드 | 값 (enum) | 설명 |
             |---|---|---|
-            | watchDay | DAY1, DAY2, DAY3, DAY4 | 관람 일차 |
-            | preferredGender | MALE, FEMALE, ANY | 선호하는 동행자 성별 |
-            | preferredAgeGroups | NINETEEN_TO_TWENTY_FOUR, TWENTY_FIVE_TO_TWENTY_NINE, THIRTY_TO_THIRTY_FOUR, THIRTY_FIVE_TO_THIRTY_NINE, FORTY_PLUS, ANY | 선호하는 동행자 나이대 (복수 선택) |
             | activities | CONCERT(공연 관람), MEAL(식사), PHOTO(사진), GOODS(굿즈), TALK(대화) | 함께 하고 싶은 활동 (복수 선택) |
             | watchStyle | ENTHUSIASTIC(뗴창 열심히), NORMAL(보통), QUIET(조용히 관람) | 관람 스타일 |
+            | sameGenderOnly | true, false | 같은 성별에게만 연락받기 |
             """)
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수정 성공"),

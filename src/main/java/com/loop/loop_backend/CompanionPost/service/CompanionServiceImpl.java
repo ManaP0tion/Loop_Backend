@@ -1,22 +1,32 @@
 package com.loop.loop_backend.CompanionPost.service;
 
+import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
+import com.loop.loop_backend.CompanionPost.domain.WatchDay;
+import com.loop.loop_backend.CompanionPost.domain.WatchStyle;
 import com.loop.loop_backend.CompanionPost.dto.CompanionDetailResponseDto;
 import com.loop.loop_backend.CompanionPost.dto.CompanionRequestDto;
 import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
+import com.loop.loop_backend.CompanionPost.repository.CompanionPostSpecifications;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
+import com.loop.loop_backend.User.domain.AgeGroup;
+import com.loop.loop_backend.User.domain.Gender;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -48,16 +58,63 @@ public class CompanionServiceImpl implements CompanionService {
                     .user(user)
                     .concertId(requestDto.getConcertId())
                     .watchDay(requestDto.getWatchDay())
-                    .preferredGender(requestDto.getPreferredGender())
-                    .preferredAgeGroups(requestDto.getPreferredAgeGroups())
                     .activities(requestDto.getActivities())
                     .watchStyle(requestDto.getWatchStyle())
                     .messageToCompanion(requestDto.getMessageToCompanion())
+                    .sameGenderOnly(requestDto.isSameGenderOnly())
                     .build());
         } catch (DataIntegrityViolationException e) {
             // 사전 존재 체크와 저장 사이의 동시 요청 레이스 - DB 유니크 제약이 최종 방어선
             throw new BusinessException(ErrorCode.COMPANION_POST_ALREADY_EXISTS);
         }
+    }
+
+    @Override
+    public List<CompanionResponseDto> getWatchingCompanions(Long userId, Long concertId, WatchDay watchDay,
+                                                              Gender gender, List<AgeGroup> ageGroups, Pageable pageable) {
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concertId),
+                CompanionPostSpecifications.watchDayEquals(watchDay),
+                CompanionPostSpecifications.hasActivity(CompanionActivity.CONCERT),
+                CompanionPostSpecifications.userIdNotEquals(userId),
+                CompanionPostSpecifications.genderEquals(gender),
+                CompanionPostSpecifications.ageGroupIn(ageGroups));
+
+        List<CompanionPost> filtered = companionPostRepository.findAll(spec);
+
+        CompanionPost myPost = companionPostRepository
+                .findByUser_IdAndConcertIdAndWatchDay(userId, concertId, watchDay)
+                .orElse(null);
+
+        Comparator<CompanionPost> comparator;
+        if (myPost != null && myPost.getActivities().contains(CompanionActivity.CONCERT)) {
+            WatchStyle myStyle = myPost.getWatchStyle();
+            Set<CompanionActivity> myActivities = myPost.getActivities();
+            comparator = Comparator
+                    .comparing((CompanionPost post) -> post.getWatchStyle() == myStyle ? 0 : 1)
+                    .thenComparing((CompanionPost post) -> -commonActivityCount(post.getActivities(), myActivities))
+                    .thenComparing(CompanionPost::getCreatedAt, Comparator.reverseOrder());
+        } else if (myPost != null) {
+            Set<CompanionActivity> myActivities = myPost.getActivities();
+            comparator = Comparator
+                    .<CompanionPost>comparingInt(post -> -commonActivityCount(post.getActivities(), myActivities))
+                    .thenComparing(CompanionPost::getCreatedAt, Comparator.reverseOrder());
+        } else {
+            comparator = Comparator.comparing(CompanionPost::getCreatedAt, Comparator.reverseOrder());
+        }
+
+        List<CompanionPost> sorted = filtered.stream().sorted(comparator).toList();
+
+        int start = Math.min((int) pageable.getOffset(), sorted.size());
+        int end = Math.min(start + pageable.getPageSize(), sorted.size());
+
+        return sorted.subList(start, end).stream()
+                .map(CompanionResponseDto::new)
+                .toList();
+    }
+
+    private int commonActivityCount(Set<CompanionActivity> a, Set<CompanionActivity> b) {
+        return (int) a.stream().filter(b::contains).count();
     }
 
     @Override
@@ -87,8 +144,8 @@ public class CompanionServiceImpl implements CompanionService {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
-        post.update(requestDto.getPreferredGender(), requestDto.getPreferredAgeGroups(),
-                requestDto.getActivities(), requestDto.getWatchStyle(), requestDto.getMessageToCompanion());
+        post.update(requestDto.getActivities(), requestDto.getWatchStyle(), requestDto.getMessageToCompanion(),
+                requestDto.isSameGenderOnly());
 
         return new CompanionResponseDto(post);
     }
