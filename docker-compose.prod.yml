@@ -1,0 +1,5 @@
+services:
+  spring:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod  # prod용 Dockerfile 사용 (미리 빌드된 jar 사용)

@@ -1,0 +1,6 @@
+certbot/
+.git
+.gradle
+build/*
+!build/libs
+*.md
