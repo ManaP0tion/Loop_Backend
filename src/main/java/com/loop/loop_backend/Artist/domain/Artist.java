@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Artist.domain;
 
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -36,20 +37,27 @@ public class Artist {
     @Column(name = "auto_fetch_concerts", nullable = false)
     private boolean autoFetchConcerts;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", length = 30, nullable = false)
+    private ConcertCategory category;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
+        if (category == null) category = ConcertCategory.J_POP_ARTIST;
     }
 
-    public void update(String name, String baseName, String nameKo, String nameAlias, String imageUrl) {
+    public void update(String name, String baseName, String nameKo, String nameAlias,
+                       String imageUrl, ConcertCategory category) {
         this.name = name;
         this.baseName = baseName;
         this.nameKo = nameKo;
         this.nameAlias = nameAlias;
         this.imageUrl = imageUrl;
+        if (category != null) this.category = category;
     }
 
     public void updateAutoFetch(boolean autoFetchConcerts) {

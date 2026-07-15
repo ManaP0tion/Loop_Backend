@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Concert.dto;
 
 import com.loop.loop_backend.Concert.domain.Concert;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -19,8 +20,11 @@ public class ConcertResponseDto {
     private final String venue;
     private final LocalDate startDate;
     private final LocalDate endDate;
+    private final ConcertCategory category;
+    private final String categoryDisplayName;
 
     public static ConcertResponseDto from(Concert concert) {
+        ConcertCategory category = concert.getCategory();
         return ConcertResponseDto.builder()
                 .id(concert.getId())
                 .artistId(concert.getArtist() != null ? concert.getArtist().getId() : null)
@@ -31,6 +35,8 @@ public class ConcertResponseDto {
                 .venue(concert.getVenue())
                 .startDate(concert.getStartDate())
                 .endDate(concert.getEndDate())
+                .category(category)
+                .categoryDisplayName(category != null ? category.getDisplayName() : null)
                 .build();
     }
 }

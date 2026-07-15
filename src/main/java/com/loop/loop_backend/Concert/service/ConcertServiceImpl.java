@@ -3,6 +3,7 @@ package com.loop.loop_backend.Concert.service;
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
@@ -35,6 +36,7 @@ public class ConcertServiceImpl implements ConcertService {
                 .venue(requestDto.getVenue())
                 .startDate(requestDto.getStartDate())
                 .endDate(requestDto.getEndDate())
+                .category(requestDto.getCategory())
                 .build();
         return ConcertResponseDto.from(concertRepository.save(concert));
     }
@@ -45,7 +47,8 @@ public class ConcertServiceImpl implements ConcertService {
         Concert concert = findConcertOrThrow(id);
         Artist artist = resolveArtist(requestDto.getArtistId());
         concert.update(artist, requestDto.getTitle(), requestDto.getPosterUrl(),
-                requestDto.getVenue(), requestDto.getStartDate(), requestDto.getEndDate());
+                requestDto.getVenue(), requestDto.getStartDate(), requestDto.getEndDate(),
+                requestDto.getCategory());
         return ConcertResponseDto.from(concert);
     }
 
@@ -69,21 +72,28 @@ public class ConcertServiceImpl implements ConcertService {
 
     @Override
     public List<ConcertResponseDto> searchConcertsByTitle(String title) {
-        return concertRepository.findByTitleContainingAndStartDateGreaterThanEqualOrderByStartDateAsc(title, LocalDate.now()).stream()
+        return concertRepository.searchUpcomingOrUndatedByTitle(title, LocalDate.now()).stream()
                 .map(ConcertResponseDto::from)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<ConcertResponseDto> getAllConcerts() {
-        return concertRepository.findByStartDateGreaterThanEqualOrderByStartDateAsc(LocalDate.now()).stream()
+        return concertRepository.findUpcomingOrUndated(LocalDate.now()).stream()
+                .map(ConcertResponseDto::from)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<ConcertResponseDto> getConcertsByCategory(ConcertCategory category) {
+        return concertRepository.findUpcomingOrUndatedByCategory(category, LocalDate.now()).stream()
                 .map(ConcertResponseDto::from)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<ConcertResponseDto> getConcertsByArtist(Long artistId) {
-        return concertRepository.findByArtistIdAndStartDateGreaterThanEqualOrderByStartDateAsc(artistId, LocalDate.now()).stream()
+        return concertRepository.findUpcomingOrUndatedByArtistId(artistId, LocalDate.now()).stream()
                 .map(ConcertResponseDto::from)
                 .collect(Collectors.toList());
     }

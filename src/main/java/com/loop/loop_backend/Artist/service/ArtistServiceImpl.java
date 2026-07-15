@@ -4,6 +4,7 @@ import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.dto.ArtistRequestDto;
 import com.loop.loop_backend.Artist.dto.ArtistResponseDto;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ public class ArtistServiceImpl implements ArtistService {
                 .nameKo(requestDto.getNameKo())
                 .nameAlias(requestDto.getNameAlias())
                 .imageUrl(requestDto.getImageUrl())
+                .category(requestDto.getCategory() != null ? requestDto.getCategory() : ConcertCategory.J_POP_ARTIST)
                 .build();
         return ArtistResponseDto.from(artistRepository.save(artist));
     }
@@ -37,7 +39,8 @@ public class ArtistServiceImpl implements ArtistService {
     @Transactional
     public ArtistResponseDto updateArtist(Long id, ArtistRequestDto requestDto) {
         Artist artist = findArtistOrThrow(id);
-        artist.update(requestDto.getName(), requestDto.getBaseName(), requestDto.getNameKo(), requestDto.getNameAlias(), requestDto.getImageUrl());
+        artist.update(requestDto.getName(), requestDto.getBaseName(), requestDto.getNameKo(),
+                requestDto.getNameAlias(), requestDto.getImageUrl(), requestDto.getCategory());
         return ArtistResponseDto.from(artist);
     }
 

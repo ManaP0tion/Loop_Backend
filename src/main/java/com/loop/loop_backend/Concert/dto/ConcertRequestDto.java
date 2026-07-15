@@ -1,6 +1,8 @@
 package com.loop.loop_backend.Concert.dto;
 
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 
 import java.time.LocalDate;
@@ -17,4 +19,7 @@ public class ConcertRequestDto {
     private String venue;
     private LocalDate startDate;
     private LocalDate endDate;
+
+    @NotNull(message = "카테고리는 필수입니다.")
+    private ConcertCategory category;
 }

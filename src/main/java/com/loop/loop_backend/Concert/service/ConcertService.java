@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Concert.service;
 
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
 
@@ -14,5 +15,6 @@ public interface ConcertService {
     ConcertResponseDto getConcertByTitle(String title);
     List<ConcertResponseDto> searchConcertsByTitle(String title);
     List<ConcertResponseDto> getAllConcerts();
+    List<ConcertResponseDto> getConcertsByCategory(ConcertCategory category);
     List<ConcertResponseDto> getConcertsByArtist(Long artistId);
 }

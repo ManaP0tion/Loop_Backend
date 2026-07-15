@@ -3,6 +3,7 @@ package com.loop.loop_backend.Concert.kopis;
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,11 +60,14 @@ public class KopisSyncService {
     }
 
     private void upsert(Artist artist, KopisPerformance perf) {
+        ConcertCategory category = artist.getCategory() != null
+                ? artist.getCategory()
+                : ConcertCategory.J_POP_ARTIST;
         concertRepository.findByKopisIdAndArtistId(perf.getKopisId(), artist.getId())
                 .ifPresentOrElse(
                         existing -> existing.updateFromKopis(
                                 perf.getTitle(), perf.getPosterUrl(), perf.getVenue(),
-                                perf.getStartDate(), perf.getEndDate()),
+                                perf.getStartDate(), perf.getEndDate(), category),
                         () -> concertRepository.save(Concert.builder()
                                 .artist(artist)
                                 .kopisId(perf.getKopisId())
@@ -72,6 +76,7 @@ public class KopisSyncService {
                                 .venue(perf.getVenue())
                                 .startDate(perf.getStartDate())
                                 .endDate(perf.getEndDate())
+                                .category(category)
                                 .build())
                 );
     }
