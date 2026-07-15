@@ -7,22 +7,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class CookieUtil {
 
-    @Value("${jwt.access-token-expiration}")
-    private long accessTokenExpiration;
-
     @Value("${jwt.refresh-token-expiration}")
     private long refreshTokenExpiration;
 
-    public ResponseCookie createAccessTokenCookie(String accessToken) {
-        return buildCookie("accessToken", accessToken, accessTokenExpiration / 1000);
-    }
-
     public ResponseCookie createRefreshTokenCookie(String refreshToken) {
         return buildCookie("refreshToken", refreshToken, refreshTokenExpiration / 1000);
-    }
-
-    public ResponseCookie expireAccessTokenCookie() {
-        return buildCookie("accessToken", "", 0);
     }
 
     public ResponseCookie expireRefreshTokenCookie() {

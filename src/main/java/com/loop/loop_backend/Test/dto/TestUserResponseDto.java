@@ -14,8 +14,12 @@ public class TestUserResponseDto {
     @Schema(description = "생성된 사용자 닉네임", example = "t1234")
     private final String nickname;
 
-    public TestUserResponseDto(User user) {
+    @Schema(description = "Access Token (Swagger Authorize에 Bearer로 입력)")
+    private final String accessToken;
+
+    public TestUserResponseDto(User user, String accessToken) {
         this.userId = user.getId();
         this.nickname = user.getNickname();
+        this.accessToken = accessToken;
     }
 }
