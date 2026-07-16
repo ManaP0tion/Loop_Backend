@@ -19,6 +19,8 @@ import java.util.stream.Collectors;
 @Slf4j
 public class KopisSyncService {
 
+    private static final int ALIAS_MIN_LENGTH = 4;
+
     private final ArtistRepository artistRepository;
     private final ConcertRepository concertRepository;
     private final KopisClient kopisClient;
@@ -40,17 +42,24 @@ public class KopisSyncService {
 
     @Transactional
     public void processPerformance(KopisPerformance perf, List<Artist> artists) {
+        // 0단계: 일본 페스티벌 자동 인식 → artist=null, JAPAN_FESTIVAL로 저장
+        if (JapanFestivalMatcher.isJapanFestival(perf.getTitle())) {
+            upsertJapanFestival(perf);
+            return;
+        }
+
         // 1단계: 타이틀에서 아티스트 매칭 (API 추가 호출 없음)
         List<Artist> matched = artists.stream()
                 .filter(a -> nameContainedInTitle(perf.getTitle(), a))
                 .collect(Collectors.toList());
 
         if (matched.isEmpty()) {
-            // 2단계: 타이틀 미매칭 → 출연진(prfcast) 정확 일치 확인
+            // 2단계: 타이틀 미매칭 + 일본/투어 신호가 있을 때만 상세 API로 출연진 확인
+            if (!shouldFetchCast(perf.getTitle())) return;
             String cast = kopisClient.getPerformanceCast(perf.getKopisId());
             if (cast == null) return;
             matched = artists.stream()
-                    .filter(a -> castExactlyMatchesOfficialName(cast, a))
+                    .filter(a -> castMatches(cast, a))
                     .collect(Collectors.toList());
         }
 
@@ -81,9 +90,29 @@ public class KopisSyncService {
                 );
     }
 
+    private void upsertJapanFestival(KopisPerformance perf) {
+        concertRepository.findByKopisIdAndArtistIsNull(perf.getKopisId())
+                .ifPresentOrElse(
+                        existing -> existing.updateFromKopis(
+                                perf.getTitle(), perf.getPosterUrl(), perf.getVenue(),
+                                perf.getStartDate(), perf.getEndDate(),
+                                ConcertCategory.JAPAN_FESTIVAL),
+                        () -> concertRepository.save(Concert.builder()
+                                .artist(null)
+                                .kopisId(perf.getKopisId())
+                                .title(perf.getTitle())
+                                .posterUrl(perf.getPosterUrl())
+                                .venue(perf.getVenue())
+                                .startDate(perf.getStartDate())
+                                .endDate(perf.getEndDate())
+                                .category(ConcertCategory.JAPAN_FESTIVAL)
+                                .build())
+                );
+    }
+
     /**
-     * 타이틀에 아티스트 name / nameKo가 단어 단위로 포함되면 true.
-     * alias는 사용하지 않음 — "미세스" 같이 일반 단어와 겹치는 alias가 오탐을 유발하기 때문.
+     * 타이틀에 아티스트 name / nameKo / 4자 이상의 nameAlias가 단어 단위로 포함되면 true.
+     * 3자 이하의 짧은 alias(예: "미세스")는 일반 단어와 충돌해 오탐을 유발하므로 배제한다.
      */
     private boolean nameContainedInTitle(String title, Artist artist) {
         if (title == null) return false;
@@ -91,10 +120,16 @@ public class KopisSyncService {
         if (wordBoundaryMatch(title, artist.getName())) return true;
 
         if (artist.getNameKo() != null) {
-            return Arrays.stream(artist.getNameKo().split(" / "))
+            boolean koHit = Arrays.stream(artist.getNameKo().split(" / "))
                     .map(String::trim)
                     .filter(s -> !s.isEmpty())
                     .anyMatch(ko -> wordBoundaryMatch(title, ko));
+            if (koHit) return true;
+        }
+
+        String alias = artist.getNameAlias();
+        if (alias != null && alias.length() >= ALIAS_MIN_LENGTH) {
+            return wordBoundaryMatch(title, alias);
         }
 
         return false;
@@ -120,14 +155,58 @@ public class KopisSyncService {
     }
 
     /**
-     * 출연진(prfcast)을 쉼표로 분리해 공식 영문명(name)과 정확히 일치하는 항목이 있으면 true.
-     * 예) cast = "ZUTOMAYO, Eve, LiSA" → artist.getName() = "Eve" → true
+     * cast(콤마 구분)의 각 토큰이 아티스트 name / nameKo / nameAlias 중 하나와
+     * 공백·특수문자를 무시한 lowercase 상태에서 정확 일치하면 true.
      */
-    private boolean castExactlyMatchesOfficialName(String cast, Artist artist) {
-        if (cast == null || artist.getName() == null) return false;
-        String officialName = artist.getName().toLowerCase();
-        return Arrays.stream(cast.split(","))
-                .map(String::trim)
-                .anyMatch(token -> token.toLowerCase().equals(officialName));
+    private boolean castMatches(String cast, Artist artist) {
+        if (cast == null) return false;
+        String[] tokens = cast.split(",");
+        for (String rawToken : tokens) {
+            String token = normalize(rawToken);
+            if (token.isEmpty()) continue;
+            if (token.equals(normalize(artist.getName()))) return true;
+            if (artist.getNameKo() != null) {
+                for (String ko : artist.getNameKo().split(" / ")) {
+                    if (token.equals(normalize(ko))) return true;
+                }
+            }
+            if (artist.getNameAlias() != null && token.equals(normalize(artist.getNameAlias()))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 문자·숫자만 남기고 lowercase 반환. null 안전. */
+    private String normalize(String s) {
+        if (s == null) return "";
+        return s.replaceAll("[^\\p{L}\\p{N}]", "").toLowerCase();
+    }
+
+    /**
+     * 타이틀에 일본/투어 관련 신호가 있을 때만 상세 API(prfcast)를 조회한다.
+     * KOPIS 상세 응답의 cast 필드는 대부분 공백이라 무분별한 조회는 낭비이므로,
+     * 국내 아티스트가 명확한 공연은 스킵한다.
+     */
+    private boolean shouldFetchCast(String title) {
+        if (title == null) return false;
+        String upper = title.toUpperCase();
+        if (upper.contains("JAPAN") || upper.contains("ASIA TOUR")) return true;
+        if (title.contains("일본") || title.contains("재팬")
+                || title.contains("아시아 투어") || title.contains("내한")) return true;
+        return containsJapaneseChar(title);
+    }
+
+    /** 히라가나·카타카나·한자 유니코드 블록 중 하나라도 포함되면 true. */
+    private boolean containsJapaneseChar(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            Character.UnicodeBlock block = Character.UnicodeBlock.of(text.charAt(i));
+            if (block == Character.UnicodeBlock.HIRAGANA
+                    || block == Character.UnicodeBlock.KATAKANA
+                    || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS) {
+                return true;
+            }
+        }
+        return false;
     }
 }
