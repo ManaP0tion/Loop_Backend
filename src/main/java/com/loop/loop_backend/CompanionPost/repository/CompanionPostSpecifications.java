@@ -30,8 +30,25 @@ public final class CompanionPostSpecifications {
         return (root, query, cb) -> cb.isMember(activity, root.get("activities"));
     }
 
+    public static Specification<CompanionPost> doesNotHaveActivity(CompanionActivity activity) {
+        return (root, query, cb) -> cb.isNotMember(activity, root.get("activities"));
+    }
+
     public static Specification<CompanionPost> userIdNotEquals(Long userId) {
         return (root, query, cb) -> cb.notEqual(root.get("user").get("id"), userId);
+    }
+
+    // sameGenderOnly=true인 프로필은 작성자와 같은 성별의 조회자에게만 노출 (목록 조회 전용, 상세 조회는 그대로 접근 가능)
+    public static Specification<CompanionPost> visibleToViewerGender(Gender viewerGender) {
+        return (root, query, cb) -> {
+            Predicate notSameGenderOnly = cb.isFalse(root.get("sameGenderOnly"));
+            if (viewerGender == null) {
+                return notSameGenderOnly;
+            }
+            Join<CompanionPost, User> user = root.join("user");
+            Predicate sameGenderAsViewer = cb.equal(user.get("gender"), viewerGender);
+            return cb.or(notSameGenderOnly, sameGenderAsViewer);
+        };
     }
 
     public static Specification<CompanionPost> genderEquals(Gender gender) {

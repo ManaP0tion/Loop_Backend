@@ -72,11 +72,16 @@ public class CompanionServiceImpl implements CompanionService {
     @Override
     public List<CompanionResponseDto> getWatchingCompanions(Long userId, Long concertId, WatchDay watchDay,
                                                               Gender gender, List<AgeGroup> ageGroups, Pageable pageable) {
+        Gender viewerGender = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
+                .getGender();
+
         Specification<CompanionPost> spec = Specification.allOf(
                 CompanionPostSpecifications.concertIdEquals(concertId),
                 CompanionPostSpecifications.watchDayEquals(watchDay),
                 CompanionPostSpecifications.hasActivity(CompanionActivity.CONCERT),
                 CompanionPostSpecifications.userIdNotEquals(userId),
+                CompanionPostSpecifications.visibleToViewerGender(viewerGender),
                 CompanionPostSpecifications.genderEquals(gender),
                 CompanionPostSpecifications.ageGroupIn(ageGroups));
 
@@ -94,16 +99,56 @@ public class CompanionServiceImpl implements CompanionService {
                     .comparing((CompanionPost post) -> post.getWatchStyle() == myStyle ? 0 : 1)
                     .thenComparing((CompanionPost post) -> -commonActivityCount(post.getActivities(), myActivities))
                     .thenComparing(CompanionPost::getCreatedAt, Comparator.reverseOrder());
-        } else if (myPost != null) {
-            Set<CompanionActivity> myActivities = myPost.getActivities();
-            comparator = Comparator
-                    .<CompanionPost>comparingInt(post -> -commonActivityCount(post.getActivities(), myActivities))
-                    .thenComparing(CompanionPost::getCreatedAt, Comparator.reverseOrder());
         } else {
-            comparator = Comparator.comparing(CompanionPost::getCreatedAt, Comparator.reverseOrder());
+            comparator = defaultComparator(myPost);
         }
 
-        List<CompanionPost> sorted = filtered.stream().sorted(comparator).toList();
+        return paginate(filtered, comparator, pageable);
+    }
+
+    @Override
+    public List<CompanionResponseDto> getNotWatchingCompanions(Long userId, Long concertId, WatchDay watchDay,
+                                                                 Gender gender, List<AgeGroup> ageGroups, Pageable pageable) {
+        Gender viewerGender = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
+                .getGender();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concertId),
+                CompanionPostSpecifications.watchDayEquals(watchDay),
+                CompanionPostSpecifications.doesNotHaveActivity(CompanionActivity.CONCERT),
+                CompanionPostSpecifications.userIdNotEquals(userId),
+                CompanionPostSpecifications.visibleToViewerGender(viewerGender),
+                CompanionPostSpecifications.genderEquals(gender),
+                CompanionPostSpecifications.ageGroupIn(ageGroups));
+
+        List<CompanionPost> filtered = companionPostRepository.findAll(spec);
+
+        CompanionPost myPost = companionPostRepository
+                .findByUser_IdAndConcertIdAndWatchDay(userId, concertId, watchDay)
+                .orElse(null);
+
+        return paginate(filtered, defaultComparator(myPost), pageable);
+    }
+
+    // 관람 스타일 우선순위가 적용되지 않는 기본 정렬: 내 프로필이 있으면 공통 활동 많은 순, 없으면 등록일자 최신순
+    private Comparator<CompanionPost> defaultComparator(CompanionPost myPost) {
+        if (myPost != null) {
+            Set<CompanionActivity> myActivities = myPost.getActivities();
+            return Comparator
+                    .<CompanionPost>comparingInt(post -> -commonActivityCount(post.getActivities(), myActivities))
+                    .thenComparing(CompanionPost::getCreatedAt, Comparator.reverseOrder());
+        }
+        return Comparator.comparing(CompanionPost::getCreatedAt, Comparator.reverseOrder());
+    }
+
+    private int commonActivityCount(Set<CompanionActivity> a, Set<CompanionActivity> b) {
+        return (int) a.stream().filter(b::contains).count();
+    }
+
+    private List<CompanionResponseDto> paginate(List<CompanionPost> posts, Comparator<CompanionPost> comparator,
+                                                 Pageable pageable) {
+        List<CompanionPost> sorted = posts.stream().sorted(comparator).toList();
 
         int start = Math.min((int) pageable.getOffset(), sorted.size());
         int end = Math.min(start + pageable.getPageSize(), sorted.size());
@@ -111,10 +156,6 @@ public class CompanionServiceImpl implements CompanionService {
         return sorted.subList(start, end).stream()
                 .map(CompanionResponseDto::new)
                 .toList();
-    }
-
-    private int commonActivityCount(Set<CompanionActivity> a, Set<CompanionActivity> b) {
-        return (int) a.stream().filter(b::contains).count();
     }
 
     @Override

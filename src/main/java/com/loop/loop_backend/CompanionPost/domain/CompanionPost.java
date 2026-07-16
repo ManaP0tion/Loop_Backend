@@ -8,6 +8,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -49,6 +50,7 @@ public class CompanionPost {
     @Enumerated(EnumType.STRING)
     @Column(name = "activity")
     @NotNull
+    @BatchSize(size = 20)
     private Set<CompanionActivity> activities = new HashSet<>();
 
     // 함께하고 싶은 것에 공연 관람(CONCERT)을 선택했을 때만 의미 있는 값 - 그 외엔 null 허용

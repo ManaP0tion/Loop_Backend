@@ -43,12 +43,76 @@ class CompanionPostRepositoryTest {
     }
 
     private void persistCompanionPost(User owner) {
+        persistCompanionPost(owner, Set.of(CompanionActivity.CONCERT));
+    }
+
+    private void persistCompanionPost(User owner, Set<CompanionActivity> activities) {
+        persistCompanionPost(owner, activities, false);
+    }
+
+    private void persistCompanionPost(User owner, Set<CompanionActivity> activities, boolean sameGenderOnly) {
         entityManager.persist(CompanionPost.builder()
                 .user(owner)
                 .concertId(10L)
                 .watchDay(WatchDay.DAY1)
-                .activities(Set.of(CompanionActivity.CONCERT))
+                .activities(activities)
+                .sameGenderOnly(sameGenderOnly)
                 .build());
+    }
+
+    @Test
+    void 공연관람을_선택하지_않은_프로필만_조회된다() {
+        User watcher = persistUser("watch", Gender.MALE, 25);
+        User nonWatcher = persistUser("non", Gender.MALE, 25);
+        persistCompanionPost(watcher, Set.of(CompanionActivity.CONCERT));
+        persistCompanionPost(nonWatcher, Set.of(CompanionActivity.MEAL, CompanionActivity.PHOTO));
+        entityManager.flush();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
+                CompanionPostSpecifications.doesNotHaveActivity(CompanionActivity.CONCERT));
+
+        List<CompanionPost> result = companionPostRepository.findAll(spec);
+
+        assertThat(result).extracting(post -> post.getUser().getProviderId())
+                .containsExactly("non");
+    }
+
+    @Test
+    void sameGenderOnly인_프로필은_이성_조회자에게_숨겨진다() {
+        User sameGenderOnlyMale = persistUser("sgo", Gender.MALE, 25);
+        User openFemale = persistUser("open", Gender.FEMALE, 25);
+        persistCompanionPost(sameGenderOnlyMale, Set.of(CompanionActivity.CONCERT), true);
+        persistCompanionPost(openFemale, Set.of(CompanionActivity.CONCERT), false);
+        entityManager.flush();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
+                CompanionPostSpecifications.visibleToViewerGender(Gender.FEMALE));
+
+        List<CompanionPost> result = companionPostRepository.findAll(spec);
+
+        assertThat(result).extracting(post -> post.getUser().getProviderId())
+                .containsExactly("open");
+    }
+
+    @Test
+    void sameGenderOnly인_프로필도_동성_조회자에게는_보인다() {
+        User sameGenderOnlyMale = persistUser("sgo2", Gender.MALE, 25);
+        persistCompanionPost(sameGenderOnlyMale, Set.of(CompanionActivity.CONCERT), true);
+        entityManager.flush();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
+                CompanionPostSpecifications.visibleToViewerGender(Gender.MALE));
+
+        List<CompanionPost> result = companionPostRepository.findAll(spec);
+
+        assertThat(result).extracting(post -> post.getUser().getProviderId())
+                .containsExactly("sgo2");
     }
 
     @Test
@@ -87,6 +151,28 @@ class CompanionPostRepositoryTest {
 
         assertThat(result).extracting(post -> post.getUser().getProviderId())
                 .containsExactly("thirties");
+    }
+
+    @Test
+    void 나이대_다중선택시_선택되지_않은_중간_구간은_제외된다() {
+        User twenties = persistUser("t25", Gender.MALE, 27);
+        User thirties = persistUser("t32", Gender.MALE, 32);
+        User late30s = persistUser("t37", Gender.MALE, 37);
+        persistCompanionPost(twenties);
+        persistCompanionPost(thirties);
+        persistCompanionPost(late30s);
+        entityManager.flush();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
+                CompanionPostSpecifications.ageGroupIn(
+                        List.of(AgeGroup.TWENTY_FIVE_TO_TWENTY_NINE, AgeGroup.THIRTY_FIVE_TO_THIRTY_NINE)));
+
+        List<CompanionPost> result = companionPostRepository.findAll(spec);
+
+        assertThat(result).extracting(post -> post.getUser().getProviderId())
+                .containsExactlyInAnyOrder("t25", "t37");
     }
 
     @Test
