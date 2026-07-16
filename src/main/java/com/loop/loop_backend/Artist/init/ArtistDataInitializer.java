@@ -81,6 +81,10 @@ public class ArtistDataInitializer implements ApplicationRunner {
                 jpop("SCANDAL", "스캔들", null, true),
                 jpop("린토시테시구레", null, "Ling Tosite Sigure", true),
                 jpop("TK(린토시테시구레)", null, null, true),
+                jpop("ヒトリエ", "히토리에", "HITORIE", true),
+                jpop("ASH DA HERO", "애쉬 다 히어로", null, true),
+                jpop("Regallily", "리갈릴리", null, true),
+                jpop("HANABIE.", "하나비", null, true),
 
                 // ===== J-POP 아티스트 (autoFetchConcerts = false) =====
                 jpop("DOES", "도즈", null, false),
@@ -123,10 +127,10 @@ public class ArtistDataInitializer implements ApplicationRunner {
                 domestic("오이스터", null, null),
                 domestic("다브다", null, null),
                 domestic("오월오일", null, null),
-                domestic("잔나비", null, null),
-                domestic("혁오", null, null),
-                domestic("실리카겔", null, null),
-                domestic("검정치마", null, null),
+                domestic("잔나비", null, "JANNABI"),
+                domestic("혁오", null, "HYUKOH"),
+                domestic("실리카겔", null, "Silica Gel"),
+                domestic("검정치마", null, "The Black Skirts"),
                 domestic("wave to earth", "웨이브투어스", null),
                 domestic("터치드", null, null),
                 domestic("The Volunteers", "더 볼런티어스", null),
@@ -143,8 +147,8 @@ public class ArtistDataInitializer implements ApplicationRunner {
                 domestic("KARDI", "카디", null),
                 domestic("유다빈밴드", null, null),
                 domestic("10cm", "십센치", null),
-                domestic("자우림", null, null),
-                domestic("크라잉넛", null, null)
+                domestic("자우림", null, "JAURIM"),
+                domestic("크라잉넛", null, "Crying Nut")
         );
 
         artistRepository.saveAll(artists);
