@@ -8,6 +8,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -40,21 +41,6 @@ public class CompanionPost {
     @Column(name = "watch_day", nullable = false)
     private WatchDay watchDay;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "preferred_gender")
-    private PreferredGender preferredGender;
-
-    //선호하는 동행자 나이대, 다중선택 별도 테이블
-    @ElementCollection(fetch = FetchType.LAZY)
-    @CollectionTable(
-            name = "companion_post_preferred_age_groups",
-            joinColumns = @JoinColumn(name = "companion_post_id")
-    )
-    @Enumerated(EnumType.STRING)
-    @Column(name = "preferred_age_group")
-    @NotNull
-    private Set<PreferredAgeGroup> preferredAgeGroups = new HashSet<>();
-
     //함께 하고 싶은 것, 다중선택 별도 테이블
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(
@@ -64,10 +50,12 @@ public class CompanionPost {
     @Enumerated(EnumType.STRING)
     @Column(name = "activity")
     @NotNull
+    @BatchSize(size = 20)
     private Set<CompanionActivity> activities = new HashSet<>();
 
+    // 함께하고 싶은 것에 공연 관람(CONCERT)을 선택했을 때만 의미 있는 값 - 그 외엔 null 허용
     @Enumerated(EnumType.STRING)
-    @Column(name = "watch_style", nullable = false)
+    @Column(name = "watch_style")
     private WatchStyle watchStyle;
 
     @Column(name = "message_to_companion", length = 200)
@@ -76,6 +64,9 @@ public class CompanionPost {
 
     @Column(name = "visible", nullable = false)
     private boolean visible;
+
+    @Column(name = "same_gender_only", nullable = false)
+    private boolean sameGenderOnly;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -86,18 +77,17 @@ public class CompanionPost {
     private LocalDateTime updatedAt;
 
     @Builder
-    private CompanionPost(User user, Long concertId, WatchDay watchDay, PreferredGender preferredGender,
-                          Set<PreferredAgeGroup> preferredAgeGroups, Set<CompanionActivity> activities,
-                          WatchStyle watchStyle, String messageToCompanion){
+    private CompanionPost(User user, Long concertId, WatchDay watchDay,
+                          Set<CompanionActivity> activities,
+                          WatchStyle watchStyle, String messageToCompanion, boolean sameGenderOnly){
         this.user = user;
         this.concertId = concertId;
         this.watchDay = watchDay;
-        this.preferredGender = preferredGender;
-        this.preferredAgeGroups = preferredAgeGroups;
         this.activities = activities;
         this.watchStyle = watchStyle;
         this.messageToCompanion = messageToCompanion;
         this.visible = true;
+        this.sameGenderOnly = sameGenderOnly;
     }
 
 
@@ -105,13 +95,12 @@ public class CompanionPost {
         this.visible = visible;
     }
 
-    public void update(PreferredGender preferredGender, Set<PreferredAgeGroup> preferredAgeGroups,
-                        Set<CompanionActivity> activities, WatchStyle watchStyle, String messageToCompanion) {
-        this.preferredGender = preferredGender;
-        this.preferredAgeGroups = preferredAgeGroups;
+    public void update(Set<CompanionActivity> activities, WatchStyle watchStyle, String messageToCompanion,
+                        boolean sameGenderOnly) {
         this.activities = activities;
         this.watchStyle = watchStyle;
         this.messageToCompanion = messageToCompanion;
+        this.sameGenderOnly = sameGenderOnly;
     }
 
 
