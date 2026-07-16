@@ -17,4 +17,7 @@ public interface CompanionPostRepository extends JpaRepository<CompanionPost, Lo
     List<CompanionPost> findAllByUser(User user);
 
     Optional<CompanionPost> findByUser_IdAndConcertIdAndWatchDay(Long userId, Long concertId, WatchDay watchDay);
+
+    //concert 조회시 해당 콘서트에 등록된 동행 수
+    long countByConcertId(Long concertId);
 }
