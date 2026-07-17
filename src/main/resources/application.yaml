@@ -56,6 +56,9 @@ kakao:
 frontend:
   url: ${FRONTEND_URL}
 
+chat:
+  allowed-origins: ${CHAT_ALLOWED_ORIGINS:${FRONTEND_URL}}
+
 kopis:
   api-key: ${KOPIS_API_KEY}
 

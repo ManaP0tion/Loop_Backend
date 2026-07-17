@@ -2,13 +2,15 @@ package com.loop.loop_backend.Chat.controller;
 
 import com.loop.loop_backend.Chat.dto.ChatMessageDto;
 import com.loop.loop_backend.Chat.service.ChatService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDateTime;
+import java.security.Principal;
 
 @RestController
 @RequiredArgsConstructor
@@ -19,15 +21,13 @@ public class ChatController {
     private final ChatService chatService;
 
     @MessageMapping("/chat/message")
-    public void sendMessage(ChatMessageDto message) {
-        if (!chatService.canChat(message.getSenderId(), message.getRoomId())) {
-            log.warn("채팅 차단: senderId={}, roomId={}", message.getSenderId(), message.getRoomId());
+    public void sendMessage(@Payload @Valid ChatMessageDto message, Principal principal) {
+        if (principal == null) {
+            log.warn("인증되지 않은 STOMP SEND 시도");
             return;
         }
-
-        message = message.toBuilder().createdAt(LocalDateTime.now()).build();
-
-        chatService.saveMessage(message);
-        messagingTemplate.convertAndSend("/sub/chat/room/" + message.getRoomId(), message);
+        Long senderId = Long.parseLong(principal.getName());
+        ChatMessageDto persisted = chatService.saveMessage(message.getRoomId(), senderId, message.getContent());
+        messagingTemplate.convertAndSend("/sub/chat/room/" + persisted.getRoomId(), persisted);
     }
 }

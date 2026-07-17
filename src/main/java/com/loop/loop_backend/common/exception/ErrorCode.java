@@ -37,6 +37,7 @@ public enum ErrorCode {
     LOGIN_LOCKED(429, "로그인 시도가 너무 많아 잠시 후 다시 시도해주세요."),
     INVALID_CREDENTIALS(401, "아이디 또는 비밀번호가 올바르지 않습니다."),
     INVALID_REFRESH_TOKEN(401, "유효하지 않은 Refresh Token입니다."),
+    INVALID_KAKAO_CODE(400, "유효하지 않거나 만료된 카카오 인가 코드입니다."),
 
     // Artist 도메인
     ARTIST_NOT_FOUND(404, "아티스트를 찾을 수 없습니다."),
@@ -47,6 +48,7 @@ public enum ErrorCode {
     // CompanionPost 도메인
     COMPANION_POST_NOT_FOUND(404, "동행 모집글을 찾을 수 없습니다."),
     COMPANION_POST_ALREADY_CLOSED(409, "이미 마감된 모집글입니다."),
+    COMPANION_POST_ALREADY_EXISTS(409, "이미 해당 콘서트에 동행 프로필이 존재합니다."),
     SELF_CHAT_NOT_ALLOWED(400, "본인 게시글에는 채팅 신청을 할 수 없습니다."),
 
     // Chat 도메인
@@ -54,6 +56,8 @@ public enum ErrorCode {
     CHAT_ROOM_ALREADY_EXISTS(409, "이미 존재하는 채팅방입니다."),
     NOT_CHAT_PARTICIPANT(403, "채팅방 참여자가 아닙니다."),
     ALREADY_LEFT_CHAT(400, "이미 나간 채팅방입니다."),
+    CHAT_ROOM_ACCESS_DENIED(403, "해당 채팅방에 접근할 권한이 없습니다."),
+    MESSAGE_CONTENT_INVALID(400, "메시지 내용이 올바르지 않습니다."),
 
 
     // Report/Block 도메인

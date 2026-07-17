@@ -31,8 +31,9 @@ public class TestUserController {
 
     @PostMapping("/users")
     @Operation(summary = "테스트 사용자 생성 + 로그인",
-            description = "온보딩이 완료된 테스트 사용자를 즉시 생성하고 로그인 쿠키(accessToken/refreshToken)를 발급합니다. " +
-                    "Swagger에서 이 API를 먼저 호출한 뒤 다른 API를 바로 테스트하면 됩니다. 닉네임 미입력 시 랜덤 생성됩니다.")
+            description = "온보딩이 완료된 테스트 사용자를 즉시 생성하고 로그인 처리합니다. " +
+                    "refreshToken은 쿠키로 내려주고, accessToken은 응답 바디로 반환하니 Swagger 우측 상단 Authorize에 " +
+                    "\"Bearer {accessToken}\" 형태로 입력한 뒤 다른 API를 바로 테스트하면 됩니다. 닉네임 미입력 시 랜덤 생성됩니다.")
     public ResponseEntity<CommonResponse<TestUserResponseDto>> createTestUser(
             @Parameter(description = "테스트 사용자 닉네임 (5자 이하, 미입력 시 랜덤 생성)")
             @RequestParam(required = false) String nickname) {
@@ -44,8 +45,7 @@ public class TestUserController {
         refreshTokenService.save(user.getId(), refreshToken);
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, cookieUtil.createAccessTokenCookie(accessToken).toString())
                 .header(HttpHeaders.SET_COOKIE, cookieUtil.createRefreshTokenCookie(refreshToken).toString())
-                .body(CommonResponse.success("테스트 사용자가 생성되었습니다.", new TestUserResponseDto(user)));
+                .body(CommonResponse.success("테스트 사용자가 생성되었습니다.", new TestUserResponseDto(user, accessToken)));
     }
 }

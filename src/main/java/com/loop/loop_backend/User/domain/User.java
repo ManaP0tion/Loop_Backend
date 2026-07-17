@@ -3,17 +3,20 @@ package com.loop.loop_backend.User.domain;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 
 @Entity
 @Table(name = "users",
         uniqueConstraints = @UniqueConstraint(name = "uq_provider", columnNames = {"auth_provider", "provider_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@BatchSize(size = 20)
 public class User {
 
     @Id
@@ -101,6 +104,12 @@ public class User {
 
     public AgeGroup getAgeGroup() {
         return AgeGroup.from(this.birthDate);
+    }
+
+    public Integer getAge() {
+        return this.birthDate != null
+                ? Period.between(this.birthDate, LocalDate.now()).getYears()
+                : null;
     }
 
     public void withdraw() {

@@ -6,15 +6,20 @@ import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.auth.dto.KakaoTokenResponseDto;
 import com.loop.loop_backend.auth.dto.KakaoUserInfoDto;
 import com.loop.loop_backend.auth.dto.TokenResponseDto;
+import com.loop.loop_backend.common.exception.BusinessException;
+import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.common.jwt.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class KakaoAuthService {
@@ -75,13 +80,18 @@ public class KakaoAuthService {
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
 
-        ResponseEntity<KakaoTokenResponseDto> response = restTemplate.postForEntity(
-                authUrl + "/oauth/token",
-                request,
-                KakaoTokenResponseDto.class
-        );
-
-        return response.getBody();
+        try {
+            ResponseEntity<KakaoTokenResponseDto> response = restTemplate.postForEntity(
+                    authUrl + "/oauth/token",
+                    request,
+                    KakaoTokenResponseDto.class
+            );
+            return response.getBody();
+        } catch (HttpClientErrorException e) {
+            // 잘못되었거나 이미 사용된/만료된 인가 코드
+            log.warn("카카오 토큰 발급 실패: {}", e.getResponseBodyAsString());
+            throw new BusinessException(ErrorCode.INVALID_KAKAO_CODE);
+        }
     }
 
     private KakaoUserInfoDto getKakaoUserInfo(String kakaoAccessToken) {

@@ -29,6 +29,9 @@ public class UserResponseDto {
     @Schema(description = "닉네임", example = "루퍼123")
     private final String nickname;
 
+    @Schema(description = "프로필 이미지 URL")
+    private final String profileImageUrl;
+
     @Schema(description = "성별", example = "MALE")
     private final Gender gender;
 
@@ -40,6 +43,9 @@ public class UserResponseDto {
 
     @Schema(description = "해시태그 목록")
     private final List<HashtagSummary> hashtags;
+
+    @Schema(description = "관심 아티스트 ID 목록 (아직 연관관계 미구현으로 항상 빈 배열)")
+    private final List<String> preferredArtistIds;
 
     @Schema(description = "생성일시")
     private final LocalDateTime createdAt;
@@ -53,10 +59,12 @@ public class UserResponseDto {
         this.userId = user.getUserId();
         this.email = user.getEmail();
         this.nickname = user.getNickname();
+        this.profileImageUrl = user.getProfileImageUrl();
         this.gender = user.getGender();
         this.birthDate = user.getBirthDate();
         this.onboardingCompleted = user.isOnboardingCompleted();
         this.hashtags = hashtags;
+        this.preferredArtistIds = List.of();
         this.createdAt = user.getCreatedAt();
         this.updatedAt = user.getUpdatedAt();
     }
