@@ -68,4 +68,8 @@ public class Concert {
         this.endDate = endDate;
         this.category = category;
     }
+
+    public void updatePosterUrl(String posterUrl) {
+        this.posterUrl = posterUrl;
+    }
 }

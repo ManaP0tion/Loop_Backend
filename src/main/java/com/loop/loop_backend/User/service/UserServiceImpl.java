@@ -1,6 +1,8 @@
 package com.loop.loop_backend.User.service;
 
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
+import com.loop.loop_backend.Storage.dto.ImageUploadResponseDto;
+import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
@@ -12,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -24,6 +27,7 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final UserHashtagRepository userHashtagRepository;
     private final PasswordEncoder passwordEncoder;
+    private final S3StorageService s3StorageService;
 
 //    @Override
 //    @Transactional
@@ -140,5 +144,12 @@ public class UserServiceImpl implements UserService {
     private User findUserOrThrow(Long id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+    }
+
+    @Override
+    public ImageUploadResponseDto uploadProfileImage(Long id, MultipartFile file) {
+        findUserOrThrow(id);
+        String url = s3StorageService.uploadPublic("profiles", id, file);
+        return new ImageUploadResponseDto(url);
     }
 }

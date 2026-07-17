@@ -33,6 +33,11 @@ spring:
           timeout: 5000
           writetimeout: 5000
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+
 springdoc:
   api-docs:
     path: /v3/api-docs
@@ -64,3 +69,9 @@ kopis:
 
 report:
   admin-email: ${REPORT_ADMIN_EMAIL}
+
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
+  s3:
+    public-bucket: ${AWS_S3_PUBLIC_BUCKET:loop-public-storage}
+    private-bucket: ${AWS_S3_PRIVATE_BUCKET:loop-private-storage}

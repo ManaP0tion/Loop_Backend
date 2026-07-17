@@ -7,6 +7,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @Slf4j
 @RestControllerAdvice
@@ -34,6 +35,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<CommonResponse<Void>> handleIllegalArgument(IllegalArgumentException e) {
         log.warn("IllegalArgumentException: {}", e.getMessage());
         return respond(ErrorCode.INVALID_INPUT);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<CommonResponse<Void>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException e) {
+        log.warn("업로드 파일 크기 초과: {}", e.getMessage());
+        return respond(ErrorCode.FILE_TOO_LARGE);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

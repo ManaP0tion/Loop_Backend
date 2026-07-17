@@ -7,6 +7,7 @@ import com.loop.loop_backend.Report.domain.ReportImage;
 import com.loop.loop_backend.Report.event.ReportCreatedEvent;
 import com.loop.loop_backend.Report.repository.ReportImageRepository;
 import com.loop.loop_backend.Report.repository.ReportRepository;
+import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -16,6 +17,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -30,10 +32,12 @@ public class ReportServiceImpl implements ReportService {
     private final UserRepository userRepository;
     private final BlockService blockService;
     private final ApplicationEventPublisher eventPublisher;
+    private final S3StorageService s3StorageService;
 
     @Override
     @Transactional
-    public void report(Long userId, Long targetUserId, String reason, String detail, boolean blockToo, List<String> imageUrls) {
+    public void report(Long userId, Long targetUserId, String reason, String detail, boolean blockToo,
+                        List<MultipartFile> images) {
         if (userId.equals(targetUserId)) {
             throw new BusinessException(ErrorCode.SELF_REPORT_NOT_ALLOWED);
         }
@@ -58,12 +62,7 @@ public class ReportServiceImpl implements ReportService {
             throw new BusinessException(ErrorCode.ALREADY_REPORTED);
         }
 
-        List<String> urls = imageUrls == null ? List.of() : imageUrls;
-        if (!urls.isEmpty()) {
-            reportImageRepository.saveAll(urls.stream()
-                    .map(url -> ReportImage.builder().report(report).imageUrl(url).build())
-                    .toList());
-        }
+        List<String> imageKeys = uploadReportImages(userId, report, images);
 
         if (blockToo && !blockRepository.existsByBlockerAndBlocked(me, target)) {
             try {
@@ -76,7 +75,24 @@ public class ReportServiceImpl implements ReportService {
             }
         }
 
-        eventPublisher.publishEvent(new ReportCreatedEvent(report.getId(), me.getNickname(), target.getNickname(), reason, detail, urls));
+        eventPublisher.publishEvent(new ReportCreatedEvent(report.getId(), me.getNickname(), target.getNickname(), reason, detail, imageKeys));
+    }
+
+    private List<String> uploadReportImages(Long userId, Report report, List<MultipartFile> images) {
+        if (images == null || images.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> keys = images.stream()
+                .filter(image -> !image.isEmpty())
+                .map(image -> s3StorageService.uploadPrivate("reports", userId, image))
+                .toList();
+
+        reportImageRepository.saveAll(keys.stream()
+                .map(key -> ReportImage.builder().report(report).imageUrl(key).build())
+                .toList());
+
+        return keys;
     }
 
     private User getUser(Long userId) {
