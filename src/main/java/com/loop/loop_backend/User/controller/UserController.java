@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -99,7 +100,7 @@ public class UserController {
         return ResponseEntity.ok(CommonResponse.success(userService.updateProfile(userId, requestDto)));
     }
 
-    @PostMapping("/me/profile-image")
+    @PostMapping(value = "/me/profile-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "프로필 이미지 업로드", description = "이미지를 공개 버킷에 업로드하고 URL을 반환합니다. " +
             "반환된 URL을 PUT /api/users/me/profile 요청의 profileImageUrl에 담아 보내야 실제 프로필에 반영됩니다.")
     @ApiResponses({
