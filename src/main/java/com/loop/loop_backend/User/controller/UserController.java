@@ -1,5 +1,6 @@
 package com.loop.loop_backend.User.controller;
 
+import com.loop.loop_backend.Storage.dto.ImageUploadResponseDto;
 import com.loop.loop_backend.User.dto.*;
 import com.loop.loop_backend.User.service.UserService;
 import com.loop.loop_backend.common.exception.CommonResponse;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -95,6 +97,21 @@ public class UserController {
             @AuthenticationPrincipal Long userId,
             @Valid @RequestBody UserUpdateRequestDto requestDto) {
         return ResponseEntity.ok(CommonResponse.success(userService.updateProfile(userId, requestDto)));
+    }
+
+    @PostMapping("/me/profile-image")
+    @Operation(summary = "프로필 이미지 업로드", description = "이미지를 공개 버킷에 업로드하고 URL을 반환합니다. " +
+            "반환된 URL을 PUT /api/users/me/profile 요청의 profileImageUrl에 담아 보내야 실제 프로필에 반영됩니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "업로드 성공"),
+            @ApiResponse(responseCode = "400", description = "허용되지 않는 파일 형식 또는 크기 초과",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"허용되지 않는 파일 형식입니다. (jpg, jpeg, png, webp만 가능)\",\"code\":400}")))
+    })
+    public ResponseEntity<CommonResponse<ImageUploadResponseDto>> uploadProfileImage(
+            @AuthenticationPrincipal Long userId,
+            @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(CommonResponse.success(userService.uploadProfileImage(userId, file)));
     }
 
     @PatchMapping("/me/onboarding")
