@@ -19,9 +19,10 @@ public class DiscordNotificationService {
 
     private final RestTemplate restTemplate;
 
-    // webhookUrl이 비어있으면(미설정) 조용히 스킵 - 디스코드 알림은 선택 기능
+    // webhookUrl이 비어있으면(미설정) 전송을 건너뜀 - 디스코드 알림은 선택 기능
     public void send(String webhookUrl, String content) {
         if (!StringUtils.hasText(webhookUrl)) {
+            log.warn("디스코드 웹훅 URL이 설정되지 않아 알림을 건너뜁니다.");
             return;
         }
 
