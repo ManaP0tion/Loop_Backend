@@ -75,3 +75,7 @@ aws:
   s3:
     public-bucket: ${AWS_S3_PUBLIC_BUCKET:loop-public-storage}
     private-bucket: ${AWS_S3_PRIVATE_BUCKET:loop-private-storage}
+
+discord:
+  webhook:
+    report: ${DISCORD_REPORT_WEBHOOK_URL:}
