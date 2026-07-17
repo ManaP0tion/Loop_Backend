@@ -7,6 +7,7 @@ import com.loop.loop_backend.Chat.domain.Message;
 import com.loop.loop_backend.Chat.domain.ParticipantRole;
 import com.loop.loop_backend.Chat.domain.ParticipantStatus;
 import com.loop.loop_backend.Chat.dto.ChatMessageDto;
+import com.loop.loop_backend.Chat.dto.ChatReadEventDto;
 import com.loop.loop_backend.Chat.dto.ChatRoomResponseDto;
 import com.loop.loop_backend.Chat.dto.CreateChatRoomRequestDto;
 import com.loop.loop_backend.Chat.dto.StartDirectChatRequestDto;
@@ -24,6 +25,7 @@ import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +44,7 @@ public class ChatServiceImpl implements ChatService {
     private final BlockRepository blockRepository;
     private final CompanionPostRepository companionPostRepository;
     private final EntityManager em;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Override
     @Transactional
@@ -184,6 +187,7 @@ public class ChatServiceImpl implements ChatService {
                         .senderId(m.getSender().getId())
                         .content(m.getContent())
                         .createdAt(m.getCreatedAt())
+                        .isRead(m.isRead())
                         .build());
     }
 
@@ -192,6 +196,14 @@ public class ChatServiceImpl implements ChatService {
     public void markAsRead(Long roomId, Long userId) {
         assertActiveParticipant(roomId, userId);
         messageRepository.markAllAsRead(roomId, userId);
+
+        ChatReadEventDto event = ChatReadEventDto.builder()
+                .type(ChatReadEventDto.Type.READ)
+                .roomId(roomId)
+                .readerId(userId)
+                .readAt(LocalDateTime.now())
+                .build();
+        messagingTemplate.convertAndSend("/sub/chat/room/" + roomId, event);
     }
 
     @Override
@@ -219,6 +231,7 @@ public class ChatServiceImpl implements ChatService {
                 .senderId(senderId)
                 .content(sanitized)
                 .createdAt(saved.getCreatedAt() != null ? saved.getCreatedAt() : LocalDateTime.now())
+                .isRead(false)
                 .build();
     }
 

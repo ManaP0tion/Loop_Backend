@@ -34,4 +34,7 @@ public class ChatMessageDto {
 
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private final LocalDateTime createdAt;
+
+    @JsonProperty(value = "isRead", access = JsonProperty.Access.READ_ONLY)
+    private final Boolean isRead;
 }
