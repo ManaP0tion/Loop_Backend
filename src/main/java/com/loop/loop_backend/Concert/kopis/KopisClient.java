@@ -54,9 +54,9 @@ public class KopisClient {
 
             try {
                 String xml = restTemplate.getForObject(uri, String.class);
-                List<KopisPerformance> batch = parseListXml(xml);
-                all.addAll(batch);
-                if (batch.size() < 100) break;
+                ParsedPage parsed = parseListXml(xml);
+                all.addAll(parsed.filtered);
+                if (parsed.rawCount < 100) break;
                 page++;
             } catch (Exception e) {
                 log.warn("KOPIS full scan failed at page {}: {}", page, e.getMessage());
@@ -85,15 +85,20 @@ public class KopisClient {
         }
     }
 
-    private List<KopisPerformance> parseListXml(String xml) {
-        if (xml == null || xml.isBlank()) return List.of();
+    /**
+     * KOPIS 목록 XML을 파싱한다. rawCount는 페이지네이션 종료 조건(다음 페이지 존재 여부)
+     * 판단용으로 XML의 db 태그 총 개수, filtered는 대중음악 장르만 남긴 결과.
+     */
+    private ParsedPage parseListXml(String xml) {
+        if (xml == null || xml.isBlank()) return new ParsedPage(0, List.of());
 
         try {
             Document doc = buildDocument(xml);
             NodeList items = doc.getElementsByTagName("db");
+            int rawCount = items.getLength();
             List<KopisPerformance> results = new ArrayList<>();
 
-            for (int i = 0; i < items.getLength(); i++) {
+            for (int i = 0; i < rawCount; i++) {
                 Element item = (Element) items.item(i);
 
                 String kopisId = text(item, "mt20id");
@@ -111,12 +116,14 @@ public class KopisClient {
                         .endDate(parseDate(text(item, "prfpdto")))
                         .build());
             }
-            return results;
+            return new ParsedPage(rawCount, results);
         } catch (Exception e) {
             log.warn("Failed to parse KOPIS list XML: {}", e.getMessage());
-            return List.of();
+            return new ParsedPage(0, List.of());
         }
     }
+
+    private record ParsedPage(int rawCount, List<KopisPerformance> filtered) {}
 
     private String parseCastFromDetail(String xml) {
         if (xml == null || xml.isBlank()) return null;

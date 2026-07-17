@@ -3,7 +3,6 @@ package com.loop.loop_backend.CompanionPost.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
-import com.loop.loop_backend.CompanionPost.domain.PreferredAgeGroup;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
 import com.loop.loop_backend.CompanionPost.domain.WatchStyle;
 import com.loop.loop_backend.CompanionPost.dto.CompanionDetailResponseDto;
@@ -28,8 +27,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -78,8 +80,6 @@ class CompanionServiceImplTest {
                 {
                     "concertId": %d,
                     "watchDay": "DAY1",
-                    "preferredGender": "ANY",
-                    "preferredAgeGroups": ["TWENTY_FIVE_TO_TWENTY_NINE"],
                     "activities": ["MEAL"],
                     "watchStyle": "NORMAL",
                     "messageToCompanion": "같이 즐겁게 봐요!"
@@ -93,7 +93,6 @@ class CompanionServiceImplTest {
                 .user(owner)
                 .concertId(concertId)
                 .watchDay(WatchDay.DAY1)
-                .preferredAgeGroups(Set.of(PreferredAgeGroup.TWENTY_FIVE_TO_TWENTY_NINE))
                 .activities(Set.of(CompanionActivity.MEAL))
                 .watchStyle(WatchStyle.NORMAL)
                 .build();
@@ -149,6 +148,146 @@ class CompanionServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.COMPANION_POST_ALREADY_EXISTS);
+    }
+
+    // ── getWatchingCompanions ─────────────────────────────────────────────────
+
+    private User buildUser(long id, String providerId) {
+        User u = User.builder()
+                .authProvider(AuthProvider.KAKAO)
+                .providerId(providerId)
+                .status(Status.ACTIVE)
+                .onboardingCompleted(true)
+                .build();
+        ReflectionTestUtils.setField(u, "id", id);
+        return u;
+    }
+
+    private CompanionPost buildWatchingPost(User owner, Set<CompanionActivity> activities, WatchStyle watchStyle,
+                                             LocalDateTime createdAt) {
+        CompanionPost post = CompanionPost.builder()
+                .user(owner)
+                .concertId(10L)
+                .watchDay(WatchDay.DAY1)
+                .activities(activities)
+                .watchStyle(watchStyle)
+                .build();
+        ReflectionTestUtils.setField(post, "createdAt", createdAt);
+        return post;
+    }
+
+    @Test
+    void 내_프로필이_없으면_등록일자_최신순으로_정렬된다() {
+        CompanionPost older = buildWatchingPost(buildUser(2L, "kakao-2"),
+                Set.of(CompanionActivity.CONCERT), WatchStyle.NORMAL, LocalDateTime.now().minusDays(1));
+        CompanionPost newer = buildWatchingPost(buildUser(3L, "kakao-3"),
+                Set.of(CompanionActivity.CONCERT), WatchStyle.NORMAL, LocalDateTime.now());
+
+        when(companionPostRepository.findAll(any(Specification.class)))
+                .thenReturn(List.of(older, newer));
+        when(companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(1L, 10L, WatchDay.DAY1))
+                .thenReturn(Optional.empty());
+
+        List<CompanionResponseDto> result = companionService.getWatchingCompanions(
+                1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
+
+        assertThat(result).extracting(CompanionResponseDto::getUserId)
+                .containsExactly(3L, 2L);
+    }
+
+    @Test
+    void 내_프로필이_있고_공연관람_미선택이면_공통활동_많은순으로_정렬된다() {
+        CompanionPost myPost = buildWatchingPost(user,
+                Set.of(CompanionActivity.MEAL, CompanionActivity.PHOTO), null, LocalDateTime.now());
+
+        CompanionPost lowMatch = buildWatchingPost(buildUser(2L, "kakao-2"),
+                Set.of(CompanionActivity.CONCERT, CompanionActivity.MEAL), WatchStyle.NORMAL, LocalDateTime.now());
+        CompanionPost highMatch = buildWatchingPost(buildUser(3L, "kakao-3"),
+                Set.of(CompanionActivity.CONCERT, CompanionActivity.MEAL, CompanionActivity.PHOTO),
+                WatchStyle.QUIET, LocalDateTime.now());
+
+        when(companionPostRepository.findAll(any(Specification.class)))
+                .thenReturn(List.of(lowMatch, highMatch));
+        when(companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(1L, 10L, WatchDay.DAY1))
+                .thenReturn(Optional.of(myPost));
+
+        List<CompanionResponseDto> result = companionService.getWatchingCompanions(
+                1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
+
+        assertThat(result).extracting(CompanionResponseDto::getUserId)
+                .containsExactly(3L, 2L);
+    }
+
+    @Test
+    void 내_프로필이_있고_공연관람_선택이면_관람스타일_동일_우선_공통활동_많은순으로_정렬된다() {
+        CompanionPost myPost = buildWatchingPost(user,
+                Set.of(CompanionActivity.CONCERT, CompanionActivity.MEAL), WatchStyle.QUIET, LocalDateTime.now());
+
+        // 스타일은 다르지만 공통 활동이 더 많음
+        CompanionPost differentStyleMoreCommon = buildWatchingPost(buildUser(2L, "kakao-2"),
+                Set.of(CompanionActivity.CONCERT, CompanionActivity.MEAL, CompanionActivity.PHOTO),
+                WatchStyle.NORMAL, LocalDateTime.now());
+        // 스타일은 같지만 공통 활동이 더 적음
+        CompanionPost sameStyleLessCommon = buildWatchingPost(buildUser(3L, "kakao-3"),
+                Set.of(CompanionActivity.CONCERT), WatchStyle.QUIET, LocalDateTime.now());
+
+        when(companionPostRepository.findAll(any(Specification.class)))
+                .thenReturn(List.of(differentStyleMoreCommon, sameStyleLessCommon));
+        when(companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(1L, 10L, WatchDay.DAY1))
+                .thenReturn(Optional.of(myPost));
+
+        List<CompanionResponseDto> result = companionService.getWatchingCompanions(
+                1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
+
+        assertThat(result).extracting(CompanionResponseDto::getUserId)
+                .containsExactly(3L, 2L);
+    }
+
+    // gender/ageGroup 필터링은 CompanionPostSpecifications를 통해 쿼리 조건으로 내려가므로
+    // 실제 필터링 동작 검증은 CompanionPostRepositoryTest(@DataJpaTest)에서 확인한다.
+
+    // ── getNotWatchingCompanions ─────────────────────────────────────────────
+
+    @Test
+    void 미관람_목록에서_내_프로필이_없으면_등록일자_최신순으로_정렬된다() {
+        CompanionPost older = buildWatchingPost(buildUser(2L, "kakao-2"),
+                Set.of(CompanionActivity.MEAL), null, LocalDateTime.now().minusDays(1));
+        CompanionPost newer = buildWatchingPost(buildUser(3L, "kakao-3"),
+                Set.of(CompanionActivity.MEAL), null, LocalDateTime.now());
+
+        when(companionPostRepository.findAll(any(Specification.class)))
+                .thenReturn(List.of(older, newer));
+        when(companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(1L, 10L, WatchDay.DAY1))
+                .thenReturn(Optional.empty());
+
+        List<CompanionResponseDto> result = companionService.getNotWatchingCompanions(
+                1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
+
+        assertThat(result).extracting(CompanionResponseDto::getUserId)
+                .containsExactly(3L, 2L);
+    }
+
+    @Test
+    void 미관람_목록에서_내_프로필이_있으면_관람스타일과_무관하게_공통활동_많은순으로_정렬된다() {
+        CompanionPost myPost = buildWatchingPost(user,
+                Set.of(CompanionActivity.MEAL, CompanionActivity.PHOTO), null, LocalDateTime.now());
+
+        // 관람스타일이 나와 같아도 미관람 목록에서는 정렬에 영향을 주지 않는다
+        CompanionPost sameStyleLessCommon = buildWatchingPost(buildUser(2L, "kakao-2"),
+                Set.of(CompanionActivity.MEAL), null, LocalDateTime.now());
+        CompanionPost highMatch = buildWatchingPost(buildUser(3L, "kakao-3"),
+                Set.of(CompanionActivity.MEAL, CompanionActivity.PHOTO), null, LocalDateTime.now());
+
+        when(companionPostRepository.findAll(any(Specification.class)))
+                .thenReturn(List.of(sameStyleLessCommon, highMatch));
+        when(companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(1L, 10L, WatchDay.DAY1))
+                .thenReturn(Optional.of(myPost));
+
+        List<CompanionResponseDto> result = companionService.getNotWatchingCompanions(
+                1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
+
+        assertThat(result).extracting(CompanionResponseDto::getUserId)
+                .containsExactly(3L, 2L);
     }
 
     // ── getCompanion ──────────────────────────────────────────────────────────
