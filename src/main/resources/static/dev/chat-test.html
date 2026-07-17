@@ -184,6 +184,7 @@
         .msg.me .bubble { background: var(--bubble-me); color: #fff; border-bottom-right-radius: 3px; }
         .msg.other .bubble { background: var(--bubble-other); color: var(--text); border-bottom-left-radius: 3px; }
         .bubble-time { font-size: 10px; color: var(--text-muted); padding: 0 4px; }
+        .read-mark { font-size: 10px; color: var(--accent); font-weight: 600; padding: 0 4px; }
 
         .system-msg {
             align-self: center; padding: 4px 10px;
@@ -535,7 +536,23 @@
     function subscribeRoom(roomId) {
         currentSub?.unsubscribe();
         currentSub = stompClient.subscribe('/sub/chat/room/' + roomId, frame => {
-            appendMessage(JSON.parse(frame.body));
+            const evt = JSON.parse(frame.body);
+            if (evt.type === 'READ') {
+                if (myUserId != null && Number(evt.readerId) === myUserId) return;
+                markMessagesReadUpTo(evt.readAt);
+                return;
+            }
+            appendMessage(evt);
+        });
+    }
+
+    function markMessagesReadUpTo(readAt) {
+        if (!readAt) return;
+        $('messages').querySelectorAll('.msg.me').forEach(row => {
+            const at = row.dataset.createdAt;
+            if (!at || at > readAt) return;
+            const mark = row.querySelector('.read-mark');
+            if (mark) mark.style.display = '';
         });
     }
 
@@ -619,6 +636,7 @@
         const isMe = myUserId != null && Number(msg.senderId) === myUserId;
         const row = document.createElement('div');
         row.className = 'msg ' + (isMe ? 'me' : 'other');
+        if (msg.createdAt) row.dataset.createdAt = msg.createdAt;
 
         const avatar = document.createElement('div');
         avatar.className = 'avatar';
@@ -642,6 +660,14 @@
         time.className = 'bubble-time';
         time.textContent = msg.createdAt ? fmtHm(msg.createdAt) : '';
         wrap.appendChild(time);
+
+        if (isMe) {
+            const readMark = document.createElement('div');
+            readMark.className = 'read-mark';
+            readMark.textContent = '읽음';
+            readMark.style.display = msg.isRead ? '' : 'none';
+            wrap.appendChild(readMark);
+        }
 
         row.append(avatar, wrap);
         area.appendChild(row);
