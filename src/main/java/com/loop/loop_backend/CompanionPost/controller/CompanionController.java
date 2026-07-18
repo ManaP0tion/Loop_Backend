@@ -188,7 +188,7 @@ public class CompanionController {
                     content = @Content(examples = @ExampleObject(
                             value = "{\"success\":false,\"message\":\"동행 모집글을 찾을 수 없습니다.\",\"code\":404}")))
     })
-    @GetMapping(value = "/me", params = "concertId")
+    @GetMapping("/me/current")
     public ResponseEntity<CommonResponse<CompanionResponseDto>> getMyCompanion(
             @AuthenticationPrincipal Long userId,
             @Parameter(description = "콘서트 PK") @RequestParam Long concertId,
