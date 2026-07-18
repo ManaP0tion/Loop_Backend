@@ -25,9 +25,12 @@ public class ReportDiscordNotificationListener {
                 **새 신고 접수** (ID: %d)
                 신고자: %s
                 대상: %s
-                사유: %s"""
+                사유: %s
+                상세: %s
+                """
                 .formatted(event.reportId(), event.reporterNickname(), event.targetNickname(),
-                        event.reason() == null ? "-" : event.reason());
+                        event.reason() == null ? "-" : event.reason(),
+                        event.detail() == null ? "-" : event.detail());
 
         discordNotificationService.send(webhookUrl, content);
     }
