@@ -224,9 +224,9 @@ public class CompanionServiceImpl implements CompanionService {
 
     @Override
     public CompanionResponseDto getMyCompanion(Long userId, Long concertId, WatchDay watchDay) {
-        return companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(userId, concertId, watchDay)
-                .map(CompanionResponseDto::new)
-                .orElse(null);
+        CompanionPost post = companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(userId, concertId, watchDay)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND));
+        return new CompanionResponseDto(post);
     }
 
     @Override

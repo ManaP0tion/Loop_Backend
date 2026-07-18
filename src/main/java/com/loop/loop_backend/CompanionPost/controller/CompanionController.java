@@ -181,8 +181,13 @@ public class CompanionController {
 
     //특정 콘서트/관람일의 내 동행 프로필 조회 (수정/삭제/공개토글 전 companionId 확인용)
     @Operation(summary = "특정 콘서트의 내 동행 프로필 조회",
-            description = "콘서트/관람일 기준으로 내 동행 프로필을 조회합니다. 등록한 적이 없으면 data는 null입니다.")
-    @ApiResponse(responseCode = "200", description = "조회 성공 (등록 여부와 무관하게 항상 200, 없으면 data: null)")
+            description = "콘서트/관람일 기준으로 내 동행 프로필을 조회합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "404", description = "등록한 동행 프로필 없음",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"동행 모집글을 찾을 수 없습니다.\",\"code\":404}")))
+    })
     @GetMapping(value = "/me", params = "concertId")
     public ResponseEntity<CommonResponse<CompanionResponseDto>> getMyCompanion(
             @AuthenticationPrincipal Long userId,
