@@ -15,6 +15,7 @@ import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
+import com.loop.loop_backend.common.dto.PageResponseDto;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
@@ -188,10 +189,10 @@ class CompanionServiceImplTest {
         when(companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(1L, 10L, WatchDay.DAY1))
                 .thenReturn(Optional.empty());
 
-        List<CompanionResponseDto> result = companionService.getWatchingCompanions(
+        PageResponseDto<CompanionResponseDto> result = companionService.getWatchingCompanions(
                 1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
 
-        assertThat(result).extracting(CompanionResponseDto::getUserId)
+        assertThat(result.getContent()).extracting(CompanionResponseDto::getUserId)
                 .containsExactly(3L, 2L);
     }
 
@@ -211,10 +212,10 @@ class CompanionServiceImplTest {
         when(companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(1L, 10L, WatchDay.DAY1))
                 .thenReturn(Optional.of(myPost));
 
-        List<CompanionResponseDto> result = companionService.getWatchingCompanions(
+        PageResponseDto<CompanionResponseDto> result = companionService.getWatchingCompanions(
                 1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
 
-        assertThat(result).extracting(CompanionResponseDto::getUserId)
+        assertThat(result.getContent()).extracting(CompanionResponseDto::getUserId)
                 .containsExactly(3L, 2L);
     }
 
@@ -236,10 +237,10 @@ class CompanionServiceImplTest {
         when(companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(1L, 10L, WatchDay.DAY1))
                 .thenReturn(Optional.of(myPost));
 
-        List<CompanionResponseDto> result = companionService.getWatchingCompanions(
+        PageResponseDto<CompanionResponseDto> result = companionService.getWatchingCompanions(
                 1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
 
-        assertThat(result).extracting(CompanionResponseDto::getUserId)
+        assertThat(result.getContent()).extracting(CompanionResponseDto::getUserId)
                 .containsExactly(3L, 2L);
     }
 
@@ -260,10 +261,10 @@ class CompanionServiceImplTest {
         when(companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(1L, 10L, WatchDay.DAY1))
                 .thenReturn(Optional.empty());
 
-        List<CompanionResponseDto> result = companionService.getNotWatchingCompanions(
+        PageResponseDto<CompanionResponseDto> result = companionService.getNotWatchingCompanions(
                 1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
 
-        assertThat(result).extracting(CompanionResponseDto::getUserId)
+        assertThat(result.getContent()).extracting(CompanionResponseDto::getUserId)
                 .containsExactly(3L, 2L);
     }
 
@@ -283,10 +284,10 @@ class CompanionServiceImplTest {
         when(companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(1L, 10L, WatchDay.DAY1))
                 .thenReturn(Optional.of(myPost));
 
-        List<CompanionResponseDto> result = companionService.getNotWatchingCompanions(
+        PageResponseDto<CompanionResponseDto> result = companionService.getNotWatchingCompanions(
                 1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
 
-        assertThat(result).extracting(CompanionResponseDto::getUserId)
+        assertThat(result.getContent()).extracting(CompanionResponseDto::getUserId)
                 .containsExactly(3L, 2L);
     }
 

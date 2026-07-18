@@ -7,9 +7,11 @@ import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
 import com.loop.loop_backend.User.domain.AgeGroup;
 import com.loop.loop_backend.User.domain.Gender;
+import com.loop.loop_backend.common.dto.PageResponseDto;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.Parameters;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -73,7 +75,9 @@ public class CompanionController {
             description = """
                     콘서트/관람일 기준으로 공연을 관람하는 동행 프로필 목록을 조회합니다. \
                     작성자의 성별/나이대로 필터링할 수 있습니다. 스크롤용 페이지네이션(page, size)을 지원하며 size 기본값은 20입니다. \
-                    작성자가 "같은 성별에게만 연락받기"를 켠 경우, 나와 성별이 다르면 이 목록에 노출되지 않습니다 (상세 조회는 별개입니다).
+                    작성자가 "같은 성별에게만 연락받기"를 켠 경우, 나와 성별이 다르면 이 목록에 노출되지 않습니다 (상세 조회는 별개입니다). \
+                    응답은 목록(content) 외에 전체 개수(totalElements), 다음 페이지 존재 여부(hasNext)를 함께 내려줍니다. \
+                    목록 각 항목에도 작성자의 프로필 이미지/성별/나이가 포함됩니다.
 
                     정렬 기준은 이 목록의 후보자가 아닌, 조회하는 내 프로필의 상태에 따라 다릅니다. (후보자는 공연 관람 선택 여부와 무관하게 이미 이 API로 필터링되어 있습니다)
                     - 내 프로필이 있고, 내 프로필의 활동에도 공연 관람이 포함되어 있으면: 관람 스타일이 나와 같은 사람 우선 + 그 안에서 공통 활동 많은 순
@@ -81,8 +85,9 @@ public class CompanionController {
                     - 내 프로필이 없으면: 등록일자 최신순
                     """)
     @ApiResponse(responseCode = "200", description = "조회 성공")
+    @Parameters(@Parameter(name = "sort", hidden = true))
     @GetMapping("watching")
-    public ResponseEntity<CommonResponse<List<CompanionResponseDto>>> getWatchingCompanions(
+    public ResponseEntity<CommonResponse<PageResponseDto<CompanionResponseDto>>> getWatchingCompanions(
             @AuthenticationPrincipal Long userId,
             @Parameter(description = "콘서트 PK")
             @RequestParam Long concertId,
@@ -106,15 +111,18 @@ public class CompanionController {
             description = """
                     콘서트/관람일 기준으로 공연 관람을 안하는 동행 프로필 목록을 조회합니다. \
                     작성자의 성별/나이대로 필터링할 수 있습니다. 스크롤용 페이지네이션(page, size)을 지원하며 size 기본값은 20입니다. \
-                    작성자가 "같은 성별에게만 연락받기"를 켠 경우, 나와 성별이 다르면 이 목록에 노출되지 않습니다 (상세 조회는 별개입니다).
+                    작성자가 "같은 성별에게만 연락받기"를 켠 경우, 나와 성별이 다르면 이 목록에 노출되지 않습니다 (상세 조회는 별개입니다). \
+                    응답은 목록(content) 외에 전체 개수(totalElements), 다음 페이지 존재 여부(hasNext)를 함께 내려줍니다. \
+                    목록 각 항목에도 작성자의 프로필 이미지/성별/나이가 포함됩니다.
 
                     정렬 기준은 내 상태에 따라 다릅니다. (이 목록은 같이 관람하지 않으므로 관람 스타일은 정렬에 반영되지 않습니다)
                     - 내 프로필이 있으면: 공통 활동 많은 순
                     - 내 프로필이 없으면: 등록일자 최신순
                     """)
     @ApiResponse(responseCode = "200", description = "조회 성공")
+    @Parameters(@Parameter(name = "sort", hidden = true))
     @GetMapping("/not-watching")
-    public ResponseEntity<CommonResponse<List<CompanionResponseDto>>> getNotWatchingCompanions(
+    public ResponseEntity<CommonResponse<PageResponseDto<CompanionResponseDto>>> getNotWatchingCompanions(
             @AuthenticationPrincipal Long userId,
             @Parameter(description = "콘서트 PK")
             @RequestParam Long concertId,
@@ -168,6 +176,26 @@ public class CompanionController {
             @AuthenticationPrincipal Long userId
     ) {
         return ResponseEntity.ok(CommonResponse.success(companionService.getMyCompanions(userId)));
+    }
+
+
+    //특정 콘서트/관람일의 내 동행 프로필 조회 (수정/삭제/공개토글 전 companionId 확인용)
+    @Operation(summary = "특정 콘서트의 내 동행 프로필 조회",
+            description = "콘서트/관람일 기준으로 내 동행 프로필을 조회합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "404", description = "등록한 동행 프로필 없음",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"동행 모집글을 찾을 수 없습니다.\",\"code\":404}")))
+    })
+    @GetMapping(value = "/me", params = "concertId")
+    public ResponseEntity<CommonResponse<CompanionResponseDto>> getMyCompanion(
+            @AuthenticationPrincipal Long userId,
+            @Parameter(description = "콘서트 PK") @RequestParam Long concertId,
+            @Parameter(description = "관람 일차", schema = @Schema(allowableValues = {"DAY1", "DAY2", "DAY3", "DAY4"}))
+            @RequestParam WatchDay watchDay
+    ) {
+        return ResponseEntity.ok(CommonResponse.success(companionService.getMyCompanion(userId, concertId, watchDay)));
     }
 
 
