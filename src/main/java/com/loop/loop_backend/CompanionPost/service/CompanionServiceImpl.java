@@ -15,6 +15,7 @@ import com.loop.loop_backend.User.domain.AgeGroup;
 import com.loop.loop_backend.User.domain.Gender;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
+import com.loop.loop_backend.common.dto.PageResponseDto;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -70,8 +71,8 @@ public class CompanionServiceImpl implements CompanionService {
     }
 
     @Override
-    public List<CompanionResponseDto> getWatchingCompanions(Long userId, Long concertId, WatchDay watchDay,
-                                                              Gender gender, List<AgeGroup> ageGroups, Pageable pageable) {
+    public PageResponseDto<CompanionResponseDto> getWatchingCompanions(Long userId, Long concertId, WatchDay watchDay,
+                                                                        Gender gender, List<AgeGroup> ageGroups, Pageable pageable) {
         Gender viewerGender = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
                 .getGender();
@@ -107,8 +108,8 @@ public class CompanionServiceImpl implements CompanionService {
     }
 
     @Override
-    public List<CompanionResponseDto> getNotWatchingCompanions(Long userId, Long concertId, WatchDay watchDay,
-                                                                 Gender gender, List<AgeGroup> ageGroups, Pageable pageable) {
+    public PageResponseDto<CompanionResponseDto> getNotWatchingCompanions(Long userId, Long concertId, WatchDay watchDay,
+                                                                           Gender gender, List<AgeGroup> ageGroups, Pageable pageable) {
         Gender viewerGender = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
                 .getGender();
@@ -146,16 +147,18 @@ public class CompanionServiceImpl implements CompanionService {
         return (int) a.stream().filter(b::contains).count();
     }
 
-    private List<CompanionResponseDto> paginate(List<CompanionPost> posts, Comparator<CompanionPost> comparator,
-                                                 Pageable pageable) {
+    private PageResponseDto<CompanionResponseDto> paginate(List<CompanionPost> posts, Comparator<CompanionPost> comparator,
+                                                            Pageable pageable) {
         List<CompanionPost> sorted = posts.stream().sorted(comparator).toList();
 
         int start = Math.min((int) pageable.getOffset(), sorted.size());
         int end = Math.min(start + pageable.getPageSize(), sorted.size());
 
-        return sorted.subList(start, end).stream()
+        List<CompanionResponseDto> content = sorted.subList(start, end).stream()
                 .map(CompanionResponseDto::new)
                 .toList();
+
+        return new PageResponseDto<>(content, sorted.size(), end < sorted.size());
     }
 
     @Override
@@ -217,6 +220,13 @@ public class CompanionServiceImpl implements CompanionService {
         return posts.stream()
                 .map(CompanionResponseDto::new)
                 .toList();
+    }
+
+    @Override
+    public CompanionResponseDto getMyCompanion(Long userId, Long concertId, WatchDay watchDay) {
+        return companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(userId, concertId, watchDay)
+                .map(CompanionResponseDto::new)
+                .orElse(null);
     }
 
     @Override
