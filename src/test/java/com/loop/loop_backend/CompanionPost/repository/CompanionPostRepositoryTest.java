@@ -1,5 +1,6 @@
 package com.loop.loop_backend.CompanionPost.repository;
 
+import com.loop.loop_backend.Block.domain.Block;
 import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
@@ -90,7 +91,7 @@ class CompanionPostRepositoryTest {
         Specification<CompanionPost> spec = Specification.allOf(
                 CompanionPostSpecifications.concertIdEquals(10L),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
-                CompanionPostSpecifications.visibleToViewerGender(Gender.FEMALE));
+                CompanionPostSpecifications.respectsSameGenderOnly(Gender.FEMALE));
 
         List<CompanionPost> result = companionPostRepository.findAll(spec);
 
@@ -107,12 +108,81 @@ class CompanionPostRepositoryTest {
         Specification<CompanionPost> spec = Specification.allOf(
                 CompanionPostSpecifications.concertIdEquals(10L),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
-                CompanionPostSpecifications.visibleToViewerGender(Gender.MALE));
+                CompanionPostSpecifications.respectsSameGenderOnly(Gender.MALE));
 
         List<CompanionPost> result = companionPostRepository.findAll(spec);
 
         assertThat(result).extracting(post -> post.getUser().getProviderId())
                 .containsExactly("sgo2");
+    }
+
+    @Test
+    void 비공개_프로필은_목록에서_제외된다() {
+        User visibleUser = persistUser("show", Gender.MALE, 25);
+        User hiddenUser = persistUser("hide", Gender.MALE, 25);
+        persistCompanionPost(visibleUser);
+
+        CompanionPost hiddenPost = CompanionPost.builder()
+                .user(hiddenUser)
+                .concertId(10L)
+                .watchDay(WatchDay.DAY1)
+                .activities(Set.of(CompanionActivity.CONCERT))
+                .build();
+        hiddenPost.toggleVisible(false);
+        entityManager.persist(hiddenPost);
+        entityManager.flush();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
+                CompanionPostSpecifications.isVisible());
+
+        List<CompanionPost> result = companionPostRepository.findAll(spec);
+
+        assertThat(result).extracting(post -> post.getUser().getProviderId())
+                .containsExactly("show");
+    }
+
+    @Test
+    void 내가_차단한_사용자의_프로필은_제외된다() {
+        User me = persistUser("me2", Gender.MALE, 25);
+        User blockedByMe = persistUser("blkme", Gender.MALE, 25);
+        User stranger = persistUser("stranger", Gender.MALE, 25);
+        persistCompanionPost(blockedByMe);
+        persistCompanionPost(stranger);
+        entityManager.persist(Block.builder().blocker(me).blocked(blockedByMe).build());
+        entityManager.flush();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
+                CompanionPostSpecifications.hasNoBlockRelationWith(me.getId()));
+
+        List<CompanionPost> result = companionPostRepository.findAll(spec);
+
+        assertThat(result).extracting(post -> post.getUser().getProviderId())
+                .containsExactly("stranger");
+    }
+
+    @Test
+    void 나를_차단한_사용자의_프로필도_제외된다() {
+        User me = persistUser("me3", Gender.MALE, 25);
+        User blockedMe = persistUser("blkedme", Gender.MALE, 25);
+        User stranger = persistUser("stranger2", Gender.MALE, 25);
+        persistCompanionPost(blockedMe);
+        persistCompanionPost(stranger);
+        entityManager.persist(Block.builder().blocker(blockedMe).blocked(me).build());
+        entityManager.flush();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
+                CompanionPostSpecifications.hasNoBlockRelationWith(me.getId()));
+
+        List<CompanionPost> result = companionPostRepository.findAll(spec);
+
+        assertThat(result).extracting(post -> post.getUser().getProviderId())
+                .containsExactly("stranger2");
     }
 
     @Test
@@ -126,7 +196,7 @@ class CompanionPostRepositoryTest {
         Specification<CompanionPost> spec = Specification.allOf(
                 CompanionPostSpecifications.concertIdEquals(10L),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
-                CompanionPostSpecifications.genderEquals(Gender.MALE));
+                CompanionPostSpecifications.authorGenderEquals(Gender.MALE));
 
         List<CompanionPost> result = companionPostRepository.findAll(spec);
 

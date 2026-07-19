@@ -1,5 +1,6 @@
 package com.loop.loop_backend.CompanionPost.service;
 
+import com.loop.loop_backend.Block.repository.BlockRepository;
 import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
@@ -38,6 +39,7 @@ public class CompanionServiceImpl implements CompanionService {
     private final UserRepository userRepository;
     private final ConcertRepository concertRepository;
     private final UserHashtagRepository userHashtagRepository;
+    private final BlockRepository blockRepository;
 
     @Override
     @Transactional
@@ -82,8 +84,10 @@ public class CompanionServiceImpl implements CompanionService {
                 CompanionPostSpecifications.watchDayEquals(watchDay),
                 CompanionPostSpecifications.hasActivity(CompanionActivity.CONCERT),
                 CompanionPostSpecifications.userIdNotEquals(userId),
-                CompanionPostSpecifications.visibleToViewerGender(viewerGender),
-                CompanionPostSpecifications.genderEquals(gender),
+                CompanionPostSpecifications.isVisible(),
+                CompanionPostSpecifications.hasNoBlockRelationWith(userId),
+                CompanionPostSpecifications.respectsSameGenderOnly(viewerGender),
+                CompanionPostSpecifications.authorGenderEquals(gender),
                 CompanionPostSpecifications.ageGroupIn(ageGroups));
 
         List<CompanionPost> filtered = companionPostRepository.findAll(spec);
@@ -119,8 +123,10 @@ public class CompanionServiceImpl implements CompanionService {
                 CompanionPostSpecifications.watchDayEquals(watchDay),
                 CompanionPostSpecifications.doesNotHaveActivity(CompanionActivity.CONCERT),
                 CompanionPostSpecifications.userIdNotEquals(userId),
-                CompanionPostSpecifications.visibleToViewerGender(viewerGender),
-                CompanionPostSpecifications.genderEquals(gender),
+                CompanionPostSpecifications.isVisible(),
+                CompanionPostSpecifications.hasNoBlockRelationWith(userId),
+                CompanionPostSpecifications.respectsSameGenderOnly(viewerGender),
+                CompanionPostSpecifications.authorGenderEquals(gender),
                 CompanionPostSpecifications.ageGroupIn(ageGroups));
 
         List<CompanionPost> filtered = companionPostRepository.findAll(spec);
@@ -142,6 +148,7 @@ public class CompanionServiceImpl implements CompanionService {
         }
         return Comparator.comparing(CompanionPost::getCreatedAt, Comparator.reverseOrder());
     }
+
 
     private int commonActivityCount(Set<CompanionActivity> a, Set<CompanionActivity> b) {
         return (int) a.stream().filter(b::contains).count();
@@ -166,7 +173,13 @@ public class CompanionServiceImpl implements CompanionService {
         CompanionPost post = companionPostRepository.findById(companionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND));
 
-        if (!post.isVisible() && !post.getUser().getId().equals(userId)) {
+        Long authorId = post.getUser().getId();
+
+        if (!userId.equals(authorId) && blockRepository.existsBlockBetween(userId, List.of(authorId))) {
+            throw new BusinessException(ErrorCode.BLOCKED_USER);
+        }
+
+        if (!post.isVisible() && !userId.equals(authorId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 

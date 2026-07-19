@@ -1,6 +1,7 @@
 package com.loop.loop_backend.CompanionPost.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loop.loop_backend.Block.repository.BlockRepository;
 import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
@@ -40,6 +41,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
@@ -51,6 +53,7 @@ class CompanionServiceImplTest {
     @Mock ConcertRepository concertRepository;
     @Mock CompanionPostRepository companionPostRepository;
     @Mock UserHashtagRepository userHashtagRepository;
+    @Mock BlockRepository blockRepository;
     @InjectMocks CompanionServiceImpl companionService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -295,6 +298,7 @@ class CompanionServiceImplTest {
 
     @Test
     void 공개_프로필은_소유자가_아니어도_조회된다() {
+        ReflectionTestUtils.setField(user, "id", 1L);
         CompanionPost post = buildPost(user, 10L);
         when(companionPostRepository.findById(1L)).thenReturn(Optional.of(post));
 
@@ -326,6 +330,31 @@ class CompanionServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    void 작성자와_차단_관계가_있으면_BLOCKED_USER_예외를_던진다() {
+        ReflectionTestUtils.setField(user, "id", 1L);
+        CompanionPost post = buildPost(user, 10L);
+        when(companionPostRepository.findById(1L)).thenReturn(Optional.of(post));
+        when(blockRepository.existsBlockBetween(2L, List.of(1L))).thenReturn(true);
+
+        assertThatThrownBy(() -> companionService.getCompanion(2L, 1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.BLOCKED_USER);
+    }
+
+    @Test
+    void 본인_프로필_조회시에는_차단_여부를_확인하지_않는다() {
+        ReflectionTestUtils.setField(user, "id", 1L);
+        CompanionPost post = buildPost(user, 10L);
+        when(companionPostRepository.findById(1L)).thenReturn(Optional.of(post));
+
+        CompanionResponseDto dto = companionService.getCompanion(1L, 1L);
+
+        assertThat(dto.getConcertId()).isEqualTo(10L);
+        verify(blockRepository, never()).existsBlockBetween(any(), any());
     }
 
     @Test
