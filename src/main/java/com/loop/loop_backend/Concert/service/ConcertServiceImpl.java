@@ -7,6 +7,7 @@ import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
+import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class ConcertServiceImpl implements ConcertService {
 
     private final ConcertRepository concertRepository;
     private final ArtistRepository artistRepository;
+    private final CompanionPostRepository companionPostRepository;
 
     @Override
     @Transactional
@@ -60,7 +62,9 @@ public class ConcertServiceImpl implements ConcertService {
 
     @Override
     public ConcertResponseDto getConcertById(Long id) {
-        return ConcertResponseDto.from(findConcertOrThrow(id));
+        Concert concert = findConcertOrThrow(id);
+        long companionCount = companionPostRepository.countByConcertId(id);
+        return ConcertResponseDto.from(concert, companionCount);
     }
 
     @Override
