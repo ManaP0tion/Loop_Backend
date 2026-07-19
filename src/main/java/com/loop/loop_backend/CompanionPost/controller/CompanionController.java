@@ -144,12 +144,17 @@ public class CompanionController {
 
     //동행 프로필 상세 조회
     @Operation(summary = "동행 프로필 상세 조회",
-            description = "동행 프로필 PK로 상세 정보를 조회합니다. 비공개 프로필은 작성자 본인만 조회할 수 있습니다.")
+            description = "동행 프로필 PK로 상세 정보를 조회합니다. 비공개 프로필은 작성자 본인만 조회할 수 있습니다. " +
+                    "작성자와 나 사이에 차단 관계가 있으면(어느 쪽이 차단했든) 조회할 수 없습니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
-            @ApiResponse(responseCode = "403", description = "비공개 프로필이며 본인이 아님",
-                    content = @Content(examples = @ExampleObject(
-                            value = "{\"success\":false,\"message\":\"접근 권한이 없습니다.\",\"code\":403}"))),
+            @ApiResponse(responseCode = "403", description = "비공개 프로필이며 본인이 아니거나, 차단 관계가 있음",
+                    content = @Content(examples = {
+                            @ExampleObject(name = "비공개 프로필",
+                                    value = "{\"success\":false,\"message\":\"접근 권한이 없습니다.\",\"code\":403}"),
+                            @ExampleObject(name = "차단 관계",
+                                    value = "{\"success\":false,\"message\":\"차단된 사용자입니다.\",\"code\":403}")
+                    })),
             @ApiResponse(responseCode = "404", description = "동행 프로필 없음",
                     content = @Content(examples = @ExampleObject(
                             value = "{\"success\":false,\"message\":\"동행 모집글을 찾을 수 없습니다.\",\"code\":404}")))
