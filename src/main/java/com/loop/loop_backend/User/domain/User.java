@@ -40,7 +40,7 @@ public class User {
     // 추후 확장 대비
     @Column(name = "password", length = 255)
     private String password;
-    // 추후 확장 대비
+    // 이메일 인증 완료 시 저장됨 (고객센터 문의 답변 등에 사용)
     @Column(name = "email", length = 255)
     private String email;
 
@@ -63,9 +63,6 @@ public class User {
     @Column(name = "profile_image_url")
     private String profileImageUrl;
 
-    // 연관관계 연결 전
-    @Column(name = "artist_id")
-    private Long artistId;
     // 연관관계 연결 전
     @Column(name = "blocked_user_id")
     private Long blockedUserId;
@@ -96,6 +93,10 @@ public class User {
         this.birthDate = birthDate;
         this.gender = gender;
         this.onboardingCompleted = true;
+    }
+
+    public void verifyEmail(String email) {
+        this.email = email;
     }
 
     public void changePassword(String encodedPassword) {

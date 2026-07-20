@@ -27,6 +27,8 @@ public enum ErrorCode {
     PASSWORD_CONFIRM_MISMATCH(400, "새 비밀번호가 일치하지 않습니다."),
     SOCIAL_LOGIN_NO_PASSWORD(400, "소셜 로그인 사용자는 비밀번호를 변경할 수 없습니다."),
     ONBOARDING_ALREADY_COMPLETED(409, "이미 온보딩을 완료했습니다."),
+    EMAIL_VERIFICATION_CODE_MISMATCH(400, "인증 코드가 올바르지 않거나 만료되었습니다."),
+    EMAIL_SEND_FAILED(500, "이메일 발송에 실패했습니다."),
 
     // Hashtag
     DUPLICATE_HASHTAG(409,"이미 사용중인 해시태그입니다."),
@@ -41,6 +43,9 @@ public enum ErrorCode {
 
     // Artist 도메인
     ARTIST_NOT_FOUND(404, "아티스트를 찾을 수 없습니다."),
+    DUPLICATE_FAVORITE_ARTIST(409, "이미 등록된 관심 아티스트입니다."),
+    LIMIT_FAVORITE_ARTIST(409, "관심 아티스트는 최대 3개까지 등록할 수 있습니다."),
+    FAVORITE_ARTIST_NOT_FOUND(404, "관심 아티스트를 찾을 수 없습니다."),
 
     // Concert 도메인
     CONCERT_NOT_FOUND(404, "콘서트를 찾을 수 없습니다."),
