@@ -18,6 +18,8 @@ import java.time.Duration;
 public class EmailVerificationServiceImpl implements EmailVerificationService {
 
     private static final Duration CODE_TTL = Duration.ofMinutes(3);
+    private static final int MAX_SEND_COUNT = 5;
+    private static final Duration SEND_LIMIT_WINDOW = Duration.ofHours(1);
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final StringRedisTemplate redisTemplate;
@@ -32,8 +34,22 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
         return "email_verify_email:" + userId;
     }
 
+    private String sendCountKey(Long userId) {
+        return "email_verify_send_count:" + userId;
+    }
+
     @Override
     public void sendCode(Long userId, String email) {
+        String countKey = sendCountKey(userId);
+        Long count = redisTemplate.opsForValue().increment(countKey);
+        if (count != null && count == 1L) {
+            // 첫 요청일 때만 TTL 설정 (이후 increment는 TTL 유지) - LoginAttemptService와 동일한 패턴
+            redisTemplate.expire(countKey, SEND_LIMIT_WINDOW);
+        }
+        if (count != null && count > MAX_SEND_COUNT) {
+            throw new BusinessException(ErrorCode.EMAIL_VERIFICATION_SEND_LIMIT_EXCEEDED);
+        }
+
         String code = String.format("%06d", RANDOM.nextInt(1_000_000));
 
         redisTemplate.opsForValue().set(codeKey(userId), code, CODE_TTL);
@@ -55,6 +71,12 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
 
         redisTemplate.delete(codeKey(userId));
         redisTemplate.delete(emailKey(userId));
+
+        userRepository.findByEmail(email)
+                .filter(existing -> !existing.getId().equals(userId))
+                .ifPresent(existing -> {
+                    throw new BusinessException(ErrorCode.DUPLICATE_EMAIL);
+                });
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
