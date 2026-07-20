@@ -6,12 +6,11 @@ import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
 import com.loop.loop_backend.Concert.kopis.KopisSyncService;
 import com.loop.loop_backend.Concert.service.ConcertService;
-import com.loop.loop_backend.Storage.dto.ImageUploadResponseDto;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Encoding;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -36,44 +35,39 @@ public class ConcertController {
     private final ConcertService concertService;
     private final KopisSyncService kopisSyncService;
 
-    @PostMapping
-    @Operation(summary = "콘서트 등록", description = "새 콘서트를 등록합니다")
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "콘서트 등록", description = "새 콘서트를 등록합니다. 포스터 이미지 파일을 함께 보내면 " +
+            "공개 버킷에 업로드 후 URL이 바로 반영됩니다 (이미지는 선택).")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "등록 성공"),
-            @ApiResponse(responseCode = "400", description = "유효성 검사 실패")
+            @ApiResponse(responseCode = "400", description = "유효성 검사 실패 또는 허용되지 않는 파일 형식/크기 초과")
     })
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                    encoding = @Encoding(name = "request", contentType = MediaType.APPLICATION_JSON_VALUE)))
     public ResponseEntity<CommonResponse<ConcertResponseDto>> createConcert(
-            @Valid @RequestBody ConcertRequestDto requestDto) {
+            @Valid @RequestPart("request") ConcertRequestDto requestDto,
+            @RequestPart(value = "image", required = false) MultipartFile image) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(CommonResponse.success(concertService.createConcert(requestDto)));
+                .body(CommonResponse.success(concertService.createConcert(requestDto, image)));
     }
 
-    @PutMapping("/{id}")
-    @Operation(summary = "콘서트 수정", description = "콘서트 정보를 수정합니다")
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "콘서트 수정", description = "콘서트 정보를 수정합니다. 포스터 이미지 파일을 함께 보내면 " +
+            "새로 업로드하여 교체하고, 보내지 않으면 기존 이미지가 유지됩니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수정 성공"),
+            @ApiResponse(responseCode = "400", description = "유효성 검사 실패 또는 허용되지 않는 파일 형식/크기 초과"),
             @ApiResponse(responseCode = "404", description = "콘서트 없음")
     })
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                    encoding = @Encoding(name = "request", contentType = MediaType.APPLICATION_JSON_VALUE)))
     public ResponseEntity<CommonResponse<ConcertResponseDto>> updateConcert(
             @Parameter(description = "콘서트 PK") @PathVariable Long id,
-            @Valid @RequestBody ConcertRequestDto requestDto) {
-        return ResponseEntity.ok(CommonResponse.success(concertService.updateConcert(id, requestDto)));
-    }
-
-    @PostMapping(value = "/{concertId}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "콘서트 이미지 url 반환", description = "이미지를 공개 버킷에 업로드하고 URL을 반환합니다. " +
-            "반환된 URL을 PUT /api/concerts/{id} 요청의 posterUrl에 담아 보내야 실제 콘서트에 반영됩니다.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "업로드 성공"),
-            @ApiResponse(responseCode = "400", description = "허용되지 않는 파일 형식 또는 크기 초과",
-                    content = @Content(examples = @ExampleObject(
-                            value = "{\"success\":false,\"message\":\"허용되지 않는 파일 형식입니다. (jpg, jpeg, png, webp만 가능)\",\"code\":400}"))),
-            @ApiResponse(responseCode = "404", description = "콘서트 없음")
-    })
-    public ResponseEntity<CommonResponse<ImageUploadResponseDto>> uploadConcertImage(
-            @Parameter(description = "콘서트 PK") @PathVariable Long concertId,
-            @RequestParam("file") MultipartFile file) {
-        return ResponseEntity.ok(CommonResponse.success(concertService.uploadConcertImage(concertId, file)));
+            @Valid @RequestPart("request") ConcertRequestDto requestDto,
+            @RequestPart(value = "image", required = false) MultipartFile image) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.updateConcert(id, requestDto, image)));
     }
 
     @DeleteMapping("/{id}")
