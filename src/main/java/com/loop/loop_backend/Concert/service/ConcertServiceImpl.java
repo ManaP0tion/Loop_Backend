@@ -7,11 +7,14 @@ import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
+import com.loop.loop_backend.Storage.dto.ImageUploadResponseDto;
+import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -24,6 +27,7 @@ public class ConcertServiceImpl implements ConcertService {
 
     private final ConcertRepository concertRepository;
     private final ArtistRepository artistRepository;
+    private final S3StorageService s3StorageService;
 
     @Override
     @Transactional
@@ -96,6 +100,16 @@ public class ConcertServiceImpl implements ConcertService {
         return concertRepository.findUpcomingOrUndatedByArtistId(artistId, LocalDate.now()).stream()
                 .map(ConcertResponseDto::from)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public ImageUploadResponseDto uploadConcertImage(Long id, MultipartFile file) {
+        // TODO: 운영자 권한 도입 후 인가 체크 추가 필요
+        if (!concertRepository.existsById(id)) {
+            throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
+        }
+        String url = s3StorageService.uploadPublic("concerts", id, file);
+        return new ImageUploadResponseDto(url);
     }
 
     private Concert findConcertOrThrow(Long id) {

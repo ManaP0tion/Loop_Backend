@@ -10,6 +10,7 @@ import com.loop.loop_backend.CompanionPost.dto.CompanionDetailResponseDto;
 import com.loop.loop_backend.CompanionPost.dto.CompanionRequestDto;
 import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
+import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.User.domain.AuthProvider;
@@ -59,6 +60,7 @@ class CompanionServiceImplTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private User user;
+    private Concert concert;
 
     @BeforeEach
     void setUp() {
@@ -69,14 +71,22 @@ class CompanionServiceImplTest {
                 .onboardingCompleted(true)
                 .build();
 
+        concert = stubConcert(10L);
+
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
-        when(concertRepository.existsById(10L)).thenReturn(true);
-        when(concertRepository.existsById(999L)).thenReturn(false);
+        when(concertRepository.findById(10L)).thenReturn(Optional.of(concert));
+        when(concertRepository.findById(999L)).thenReturn(Optional.empty());
 
         when(companionPostRepository.saveAndFlush(any(CompanionPost.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    private Concert stubConcert(long id) {
+        Concert c = Concert.builder().title("테스트 콘서트").build();
+        ReflectionTestUtils.setField(c, "id", id);
+        return c;
     }
 
     private CompanionRequestDto requestDto(long concertId) throws Exception {
@@ -95,7 +105,7 @@ class CompanionServiceImplTest {
     private CompanionPost buildPost(User owner, long concertId) {
         return CompanionPost.builder()
                 .user(owner)
-                .concertId(concertId)
+                .concert(stubConcert(concertId))
                 .watchDay(WatchDay.DAY1)
                 .activities(Set.of(CompanionActivity.MEAL))
                 .watchStyle(WatchStyle.NORMAL)
@@ -111,7 +121,7 @@ class CompanionServiceImplTest {
 
         CompanionPost saved = captor.getValue();
         assertThat(saved.getUser()).isEqualTo(user);
-        assertThat(saved.getConcertId()).isEqualTo(10L);
+        assertThat(saved.getConcert().getId()).isEqualTo(10L);
         assertThat(saved.getWatchDay().name()).isEqualTo("DAY1");
         assertThat(saved.getWatchStyle().name()).isEqualTo("NORMAL");
     }
@@ -134,7 +144,7 @@ class CompanionServiceImplTest {
 
     @Test
     void 같은_콘서트_같은_날짜에_이미_프로필이_있으면_COMPANION_POST_ALREADY_EXISTS_예외를_던진다() throws Exception {
-        when(companionPostRepository.existsByUserAndConcertIdAndWatchDay(any(), any(), any()))
+        when(companionPostRepository.existsByUserAndConcert_IdAndWatchDay(any(), any(), any()))
                 .thenReturn(true);
 
         assertThatThrownBy(() -> companionService.createCompanion(1L, requestDto(10L)))
@@ -171,7 +181,7 @@ class CompanionServiceImplTest {
                                              LocalDateTime createdAt) {
         CompanionPost post = CompanionPost.builder()
                 .user(owner)
-                .concertId(10L)
+                .concert(stubConcert(10L))
                 .watchDay(WatchDay.DAY1)
                 .activities(activities)
                 .watchStyle(watchStyle)
@@ -189,7 +199,7 @@ class CompanionServiceImplTest {
 
         when(companionPostRepository.findAll(any(Specification.class)))
                 .thenReturn(List.of(older, newer));
-        when(companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(1L, 10L, WatchDay.DAY1))
+        when(companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(1L, 10L, WatchDay.DAY1))
                 .thenReturn(Optional.empty());
 
         PageResponseDto<CompanionResponseDto> result = companionService.getWatchingCompanions(
@@ -212,7 +222,7 @@ class CompanionServiceImplTest {
 
         when(companionPostRepository.findAll(any(Specification.class)))
                 .thenReturn(List.of(lowMatch, highMatch));
-        when(companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(1L, 10L, WatchDay.DAY1))
+        when(companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(1L, 10L, WatchDay.DAY1))
                 .thenReturn(Optional.of(myPost));
 
         PageResponseDto<CompanionResponseDto> result = companionService.getWatchingCompanions(
@@ -237,7 +247,7 @@ class CompanionServiceImplTest {
 
         when(companionPostRepository.findAll(any(Specification.class)))
                 .thenReturn(List.of(differentStyleMoreCommon, sameStyleLessCommon));
-        when(companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(1L, 10L, WatchDay.DAY1))
+        when(companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(1L, 10L, WatchDay.DAY1))
                 .thenReturn(Optional.of(myPost));
 
         PageResponseDto<CompanionResponseDto> result = companionService.getWatchingCompanions(
@@ -261,7 +271,7 @@ class CompanionServiceImplTest {
 
         when(companionPostRepository.findAll(any(Specification.class)))
                 .thenReturn(List.of(older, newer));
-        when(companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(1L, 10L, WatchDay.DAY1))
+        when(companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(1L, 10L, WatchDay.DAY1))
                 .thenReturn(Optional.empty());
 
         PageResponseDto<CompanionResponseDto> result = companionService.getNotWatchingCompanions(
@@ -284,7 +294,7 @@ class CompanionServiceImplTest {
 
         when(companionPostRepository.findAll(any(Specification.class)))
                 .thenReturn(List.of(sameStyleLessCommon, highMatch));
-        when(companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(1L, 10L, WatchDay.DAY1))
+        when(companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(1L, 10L, WatchDay.DAY1))
                 .thenReturn(Optional.of(myPost));
 
         PageResponseDto<CompanionResponseDto> result = companionService.getNotWatchingCompanions(
@@ -389,7 +399,7 @@ class CompanionServiceImplTest {
 
         companionService.updateCompanion(1L, 1L, requestDto(999L));
 
-        assertThat(post.getConcertId()).isEqualTo(10L);
+        assertThat(post.getConcert().getId()).isEqualTo(10L);
         assertThat(post.getWatchDay()).isEqualTo(WatchDay.DAY1);
     }
 
@@ -529,7 +539,7 @@ class CompanionServiceImplTest {
                 .build();
         CompanionPost targetPost = buildPost(otherUser, 10L);
         when(companionPostRepository.findById(2L)).thenReturn(Optional.of(targetPost));
-        when(companionPostRepository.existsByUserAndConcertIdAndWatchDay(user, 10L, WatchDay.DAY1))
+        when(companionPostRepository.existsByUserAndConcert_IdAndWatchDay(user, 10L, WatchDay.DAY1))
                 .thenReturn(true);
 
         assertThat(companionService.existsMyCompanion(1L, 2L)).isTrue();
@@ -539,7 +549,7 @@ class CompanionServiceImplTest {
     void 대상_프로필과_같은_콘서트_날짜에_내_프로필이_없으면_false를_반환한다() {
         CompanionPost targetPost = buildPost(user, 10L);
         when(companionPostRepository.findById(2L)).thenReturn(Optional.of(targetPost));
-        when(companionPostRepository.existsByUserAndConcertIdAndWatchDay(user, 10L, WatchDay.DAY1))
+        when(companionPostRepository.existsByUserAndConcert_IdAndWatchDay(user, 10L, WatchDay.DAY1))
                 .thenReturn(false);
 
         assertThat(companionService.existsMyCompanion(1L, 2L)).isFalse();

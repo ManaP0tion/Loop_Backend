@@ -22,7 +22,7 @@ public final class CompanionPostSpecifications {
     }
 
     public static Specification<CompanionPost> concertIdEquals(Long concertId) {
-        return (root, query, cb) -> cb.equal(root.get("concertId"), concertId);
+        return (root, query, cb) -> cb.equal(root.get("concert").get("id"), concertId);
     }
 
     public static Specification<CompanionPost> watchDayEquals(WatchDay watchDay) {

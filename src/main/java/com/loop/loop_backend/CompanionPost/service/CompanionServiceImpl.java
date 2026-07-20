@@ -10,6 +10,7 @@ import com.loop.loop_backend.CompanionPost.dto.CompanionRequestDto;
 import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostSpecifications;
+import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.User.domain.AgeGroup;
@@ -47,11 +48,10 @@ public class CompanionServiceImpl implements CompanionService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if (!concertRepository.existsById(requestDto.getConcertId())) {
-            throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
-        }
+        Concert concert = concertRepository.findById(requestDto.getConcertId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
 
-        if (companionPostRepository.existsByUserAndConcertIdAndWatchDay(
+        if (companionPostRepository.existsByUserAndConcert_IdAndWatchDay(
                 user, requestDto.getConcertId(), requestDto.getWatchDay())) {
             throw new BusinessException(ErrorCode.COMPANION_POST_ALREADY_EXISTS);
         }
@@ -59,7 +59,7 @@ public class CompanionServiceImpl implements CompanionService {
         try {
             companionPostRepository.saveAndFlush(CompanionPost.builder()
                     .user(user)
-                    .concertId(requestDto.getConcertId())
+                    .concert(concert)
                     .watchDay(requestDto.getWatchDay())
                     .activities(requestDto.getActivities())
                     .watchStyle(requestDto.getWatchStyle())
@@ -93,7 +93,7 @@ public class CompanionServiceImpl implements CompanionService {
         List<CompanionPost> filtered = companionPostRepository.findAll(spec);
 
         CompanionPost myPost = companionPostRepository
-                .findByUser_IdAndConcertIdAndWatchDay(userId, concertId, watchDay)
+                .findByUser_IdAndConcert_IdAndWatchDay(userId, concertId, watchDay)
                 .orElse(null);
 
         Comparator<CompanionPost> comparator;
@@ -132,7 +132,7 @@ public class CompanionServiceImpl implements CompanionService {
         List<CompanionPost> filtered = companionPostRepository.findAll(spec);
 
         CompanionPost myPost = companionPostRepository
-                .findByUser_IdAndConcertIdAndWatchDay(userId, concertId, watchDay)
+                .findByUser_IdAndConcert_IdAndWatchDay(userId, concertId, watchDay)
                 .orElse(null);
 
         return paginate(filtered, defaultComparator(myPost), pageable);
@@ -237,7 +237,7 @@ public class CompanionServiceImpl implements CompanionService {
 
     @Override
     public CompanionResponseDto getMyCompanion(Long userId, Long concertId, WatchDay watchDay) {
-        CompanionPost post = companionPostRepository.findByUser_IdAndConcertIdAndWatchDay(userId, concertId, watchDay)
+        CompanionPost post = companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(userId, concertId, watchDay)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND));
         return new CompanionResponseDto(post);
     }
@@ -263,7 +263,7 @@ public class CompanionServiceImpl implements CompanionService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        return companionPostRepository.existsByUserAndConcertIdAndWatchDay(
-                user, target.getConcertId(), target.getWatchDay());
+        return companionPostRepository.existsByUserAndConcert_IdAndWatchDay(
+                user, target.getConcert().getId(), target.getWatchDay());
     }
 }

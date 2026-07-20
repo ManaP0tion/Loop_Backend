@@ -12,12 +12,12 @@ import java.util.Optional;
 public interface CompanionPostRepository extends JpaRepository<CompanionPost, Long>,
         JpaSpecificationExecutor<CompanionPost> {
 
-    boolean existsByUserAndConcertIdAndWatchDay(User user, Long concertId, WatchDay watchDay);
+    boolean existsByUserAndConcert_IdAndWatchDay(User user, Long concertId, WatchDay watchDay);
 
     List<CompanionPost> findAllByUser(User user);
 
-    Optional<CompanionPost> findByUser_IdAndConcertIdAndWatchDay(Long userId, Long concertId, WatchDay watchDay);
+    Optional<CompanionPost> findByUser_IdAndConcert_IdAndWatchDay(Long userId, Long concertId, WatchDay watchDay);
 
     //concert 조회시 해당 콘서트에 등록된 동행 수
-    long countByConcertId(Long concertId);
+    long countByConcert_Id(Long concertId);
 }

@@ -3,6 +3,8 @@ package com.loop.loop_backend.Concert.service;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
+import com.loop.loop_backend.Storage.dto.ImageUploadResponseDto;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -17,4 +19,5 @@ public interface ConcertService {
     List<ConcertResponseDto> getAllConcerts();
     List<ConcertResponseDto> getConcertsByCategory(ConcertCategory category);
     List<ConcertResponseDto> getConcertsByArtist(Long artistId);
+    ImageUploadResponseDto uploadConcertImage(Long id, MultipartFile file);
 }
