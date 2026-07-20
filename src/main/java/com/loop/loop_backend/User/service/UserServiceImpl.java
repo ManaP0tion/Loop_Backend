@@ -89,8 +89,7 @@ public class UserServiceImpl implements UserService {
         }
 
         checkNicknameAvailable(user, requestDto.getNickname());
-        user.completeOnboarding(requestDto.getNickname(), requestDto.getBirthDate(), requestDto.getGender(),
-                requestDto.getEmail());
+        user.completeOnboarding(requestDto.getNickname(), requestDto.getBirthDate(), requestDto.getGender());
         return toResponseDto(user);
     }
 

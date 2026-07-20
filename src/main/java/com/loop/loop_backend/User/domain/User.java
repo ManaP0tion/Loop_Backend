@@ -40,7 +40,7 @@ public class User {
     // 추후 확장 대비
     @Column(name = "password", length = 255)
     private String password;
-    // 온보딩 시 입력받음 (고객센터 문의 답변 등에 사용)
+    // 이메일 인증 완료 시 저장됨 (고객센터 문의 답변 등에 사용)
     @Column(name = "email", length = 255)
     private String email;
 
@@ -88,12 +88,15 @@ public class User {
         this.profileImageUrl = profileImageUrl;
     }
 
-    public void completeOnboarding(String nickname, LocalDate birthDate, Gender gender, String email) {
+    public void completeOnboarding(String nickname, LocalDate birthDate, Gender gender) {
         this.nickname = nickname;
         this.birthDate = birthDate;
         this.gender = gender;
-        this.email = email;
         this.onboardingCompleted = true;
+    }
+
+    public void verifyEmail(String email) {
+        this.email = email;
     }
 
     public void changePassword(String encodedPassword) {

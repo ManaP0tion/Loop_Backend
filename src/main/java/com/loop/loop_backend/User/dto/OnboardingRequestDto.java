@@ -2,8 +2,6 @@ package com.loop.loop_backend.User.dto;
 
 import com.loop.loop_backend.User.domain.Gender;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Pattern;
@@ -32,9 +30,4 @@ public class OnboardingRequestDto {
     @NotNull(message = "성별은 필수입니다")
     @Schema(description = "성별", example = "MALE")
     private Gender gender;
-
-    @NotBlank(message = "이메일은 필수입니다")
-    @Email(message = "이메일 형식이 올바르지 않습니다")
-    @Schema(description = "이메일 (고객센터 문의 답변 등에 사용)", example = "user@example.com")
-    private String email;
 }

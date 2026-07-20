@@ -41,7 +41,7 @@ class ChatRoomRepositoryTest {
                 .status(Status.ACTIVE)
                 .onboardingCompleted(true)
                 .build();
-        user.completeOnboarding(providerId, LocalDate.now().minusYears(25), Gender.MALE, providerId + "@test.com");
+        user.completeOnboarding(providerId, LocalDate.now().minusYears(25), Gender.MALE);
         entityManager.persist(user);
         return user;
     }

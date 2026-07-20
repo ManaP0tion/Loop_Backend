@@ -52,7 +52,7 @@ class CompanionPostRepositoryTest {
                 .onboardingCompleted(true)
                 .build();
         String nickname = providerId.substring(0, Math.min(5, providerId.length()));
-        user.completeOnboarding(nickname, LocalDate.now().minusYears(age), gender, providerId + "@test.com");
+        user.completeOnboarding(nickname, LocalDate.now().minusYears(age), gender);
         entityManager.persist(user);
         return user;
     }

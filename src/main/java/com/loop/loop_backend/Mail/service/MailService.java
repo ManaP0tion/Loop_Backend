@@ -11,4 +11,6 @@ public interface MailService {
 
     void sendUnreadChatNotification(String toEmail, String recipientNickname,
                                     List<UnreadChatRoomSummary> rooms);
+
+    void sendVerificationCode(String toEmail, String code);
 }
