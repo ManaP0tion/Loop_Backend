@@ -35,6 +35,9 @@ public class EmailVerificationController {
             @ApiResponse(responseCode = "400", description = "유효성 검사 실패",
                     content = @Content(examples = @ExampleObject(
                             value = "{\"success\":false,\"message\":\"이메일 형식이 올바르지 않습니다.\",\"code\":400}"))),
+            @ApiResponse(responseCode = "429", description = "발송 요청 횟수 초과 (시간당 5회)",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"이메일 인증 코드 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.\",\"code\":429}"))),
             @ApiResponse(responseCode = "500", description = "이메일 발송 실패",
                     content = @Content(examples = @ExampleObject(
                             value = "{\"success\":false,\"message\":\"이메일 발송에 실패했습니다.\",\"code\":500}")))
@@ -52,7 +55,10 @@ public class EmailVerificationController {
             @ApiResponse(responseCode = "200", description = "인증 성공"),
             @ApiResponse(responseCode = "400", description = "인증 코드 불일치 또는 만료",
                     content = @Content(examples = @ExampleObject(
-                            value = "{\"success\":false,\"message\":\"인증 코드가 올바르지 않거나 만료되었습니다.\",\"code\":400}")))
+                            value = "{\"success\":false,\"message\":\"인증 코드가 올바르지 않거나 만료되었습니다.\",\"code\":400}"))),
+            @ApiResponse(responseCode = "409", description = "이미 다른 계정에서 사용 중인 이메일",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"이미 사용 중인 이메일입니다.\",\"code\":409}")))
     })
     public ResponseEntity<CommonResponse<Void>> verifyCode(
             @AuthenticationPrincipal Long userId,

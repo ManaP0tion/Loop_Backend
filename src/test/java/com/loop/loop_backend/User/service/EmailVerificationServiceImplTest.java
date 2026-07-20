@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
 import java.util.Optional;
@@ -25,6 +26,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -42,10 +44,12 @@ class EmailVerificationServiceImplTest {
     private static final String EMAIL = "user@example.com";
     private static final String CODE_KEY = "email_verify_code:" + USER_ID;
     private static final String EMAIL_KEY = "email_verify_email:" + USER_ID;
+    private static final String SEND_COUNT_KEY = "email_verify_send_count:" + USER_ID;
 
     @BeforeEach
     void setUp() {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.increment(anyString())).thenReturn(1L);
     }
 
     private User testUser() {
@@ -72,6 +76,25 @@ class EmailVerificationServiceImplTest {
         verify(mailService).sendVerificationCode(EMAIL, generatedCode);
     }
 
+    @Test
+    void 첫_발송_요청이면_시간당_요청_카운트에_TTL을_건다() {
+        emailVerificationService.sendCode(USER_ID, EMAIL);
+
+        verify(redisTemplate).expire(SEND_COUNT_KEY, Duration.ofHours(1));
+    }
+
+    @Test
+    void 시간당_5회를_초과해_요청하면_예외를_던지고_메일을_보내지_않는다() {
+        when(valueOperations.increment(SEND_COUNT_KEY)).thenReturn(6L);
+
+        assertThatThrownBy(() -> emailVerificationService.sendCode(USER_ID, EMAIL))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.EMAIL_VERIFICATION_SEND_LIMIT_EXCEEDED);
+
+        verifyNoInteractions(mailService);
+    }
+
     // ── verifyCode ────────────────────────────────────────────────────────
 
     @Test
@@ -79,6 +102,7 @@ class EmailVerificationServiceImplTest {
         User user = testUser();
         when(valueOperations.get(EMAIL_KEY)).thenReturn(EMAIL);
         when(valueOperations.get(CODE_KEY)).thenReturn("123456");
+        when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.empty());
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
 
         emailVerificationService.verifyCode(USER_ID, EMAIL, "123456");
@@ -124,5 +148,35 @@ class EmailVerificationServiceImplTest {
                 .isEqualTo(ErrorCode.EMAIL_VERIFICATION_CODE_MISMATCH);
 
         verifyNoInteractions(userRepository);
+    }
+
+    @Test
+    void 이미_다른_계정이_사용중인_이메일이면_DUPLICATE_EMAIL_예외를_던지고_저장하지_않는다() {
+        User otherUser = testUser();
+        ReflectionTestUtils.setField(otherUser, "id", 999L);
+        when(valueOperations.get(EMAIL_KEY)).thenReturn(EMAIL);
+        when(valueOperations.get(CODE_KEY)).thenReturn("123456");
+        when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(otherUser));
+
+        assertThatThrownBy(() -> emailVerificationService.verifyCode(USER_ID, EMAIL, "123456"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.DUPLICATE_EMAIL);
+
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void 본인이_이미_가진_이메일을_다시_인증해도_정상적으로_처리된다() {
+        User user = testUser();
+        ReflectionTestUtils.setField(user, "id", USER_ID);
+        when(valueOperations.get(EMAIL_KEY)).thenReturn(EMAIL);
+        when(valueOperations.get(CODE_KEY)).thenReturn("123456");
+        when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(user));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+
+        emailVerificationService.verifyCode(USER_ID, EMAIL, "123456");
+
+        assertThat(user.getEmail()).isEqualTo(EMAIL);
     }
 }
