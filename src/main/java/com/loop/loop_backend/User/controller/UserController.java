@@ -135,23 +135,6 @@ public class UserController {
         return ResponseEntity.ok(CommonResponse.success(userService.completeOnboarding(userId, requestDto)));
     }
 
-    @PutMapping("/{id}/artists")
-    @Operation(summary = "관심 아티스트 수정", description = "관심 아티스트 목록을 수정합니다 (구현 예정)")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "수정 성공"),
-            @ApiResponse(responseCode = "400", description = "유효성 검사 실패",
-                    content = @Content(examples = @ExampleObject(
-                            value = "{\"success\":false,\"message\":\"입력값이 올바르지 않습니다.\",\"code\":400}"))),
-            @ApiResponse(responseCode = "404", description = "사용자 없음",
-                    content = @Content(examples = @ExampleObject(
-                            value = "{\"success\":false,\"message\":\"사용자를 찾을 수 없습니다.\",\"code\":404}")))
-    })
-    public ResponseEntity<CommonResponse<UserResponseDto>> updateArtists(
-            @Parameter(description = "사용자 PK") @PathVariable Long id,
-            @Valid @RequestBody ArtistUpdateRequestDto requestDto) {
-        return ResponseEntity.ok(CommonResponse.success(userService.updateArtists(id, requestDto)));
-    }
-
 //    @PatchMapping("/{id}/password")
 //    @Operation(summary = "비밀번호 변경", description = "현재 비밀번호 확인 후 새 비밀번호로 변경합니다. 이메일 계정만 가능합니다.")
 //    @ApiResponses({
@@ -167,17 +150,16 @@ public class UserController {
 //        return ResponseEntity.noContent().build();
 //    }
 
-    @DeleteMapping("/{id}")
-    @Operation(summary = "회원 탈퇴", description = "사용자 상태를 WITHDRAWN으로 변경합니다")
+    @DeleteMapping("/me")
+    @Operation(summary = "회원 탈퇴", description = "로그인한 본인의 상태를 WITHDRAWN으로 변경합니다")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "탈퇴 성공"),
             @ApiResponse(responseCode = "404", description = "사용자 없음",
                     content = @Content(examples = @ExampleObject(
                             value = "{\"success\":false,\"message\":\"사용자를 찾을 수 없습니다.\",\"code\":404}")))
     })
-    public ResponseEntity<CommonResponse<Void>> withdrawUser(
-            @Parameter(description = "사용자 PK") @PathVariable Long id) {
-        userService.withdrawUser(id);
+    public ResponseEntity<CommonResponse<Void>> withdrawUser(@AuthenticationPrincipal Long userId) {
+        userService.withdrawUser(userId);
         return ResponseEntity.ok(CommonResponse.success("탈퇴성공", null));
     }
 }

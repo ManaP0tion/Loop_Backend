@@ -44,8 +44,8 @@ public class UserResponseDto {
     @Schema(description = "해시태그 목록")
     private final List<HashtagSummary> hashtags;
 
-    @Schema(description = "관심 아티스트 ID 목록 (아직 연관관계 미구현으로 항상 빈 배열)")
-    private final List<String> preferredArtistIds;
+    @Schema(description = "관심 아티스트 목록")
+    private final List<ArtistSummary> favoriteArtists;
 
     @Schema(description = "생성일시")
     private final LocalDateTime createdAt;
@@ -53,7 +53,7 @@ public class UserResponseDto {
     @Schema(description = "수정일시")
     private final LocalDateTime updatedAt;
 
-    public UserResponseDto(User user, List<HashtagSummary> hashtags) {
+    public UserResponseDto(User user, List<HashtagSummary> hashtags, List<ArtistSummary> favoriteArtists) {
         this.id = user.getId();
         this.authProvider = user.getAuthProvider();
         this.userId = user.getUserId();
@@ -64,7 +64,7 @@ public class UserResponseDto {
         this.birthDate = user.getBirthDate();
         this.onboardingCompleted = user.isOnboardingCompleted();
         this.hashtags = hashtags;
-        this.preferredArtistIds = List.of();
+        this.favoriteArtists = favoriteArtists;
         this.createdAt = user.getCreatedAt();
         this.updatedAt = user.getUpdatedAt();
     }
@@ -81,6 +81,29 @@ public class UserResponseDto {
         public HashtagSummary(Long id, String tag) {
             this.id = id;
             this.tag = tag;
+        }
+    }
+
+    @Getter
+    @Schema(description = "관심 아티스트 요약 정보")
+    public static class ArtistSummary {
+        @Schema(description = "관심 아티스트 등록 ID", example = "1")
+        private final Long id;
+
+        @Schema(description = "아티스트 PK", example = "10")
+        private final Long artistId;
+
+        @Schema(description = "아티스트 이름", example = "아이유")
+        private final String artistName;
+
+        @Schema(description = "아티스트 이미지 URL")
+        private final String artistImageUrl;
+
+        public ArtistSummary(Long id, Long artistId, String artistName, String artistImageUrl) {
+            this.id = id;
+            this.artistId = artistId;
+            this.artistName = artistName;
+            this.artistImageUrl = artistImageUrl;
         }
     }
 }

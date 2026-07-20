@@ -1,5 +1,6 @@
 package com.loop.loop_backend.User.service;
 
+import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.Storage.dto.ImageUploadResponseDto;
 import com.loop.loop_backend.Storage.service.S3StorageService;
@@ -26,6 +27,7 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final UserHashtagRepository userHashtagRepository;
+    private final FavoriteArtistRepository favoriteArtistRepository;
     private final PasswordEncoder passwordEncoder;
     private final S3StorageService s3StorageService;
 
@@ -87,7 +89,8 @@ public class UserServiceImpl implements UserService {
         }
 
         checkNicknameAvailable(user, requestDto.getNickname());
-        user.completeOnboarding(requestDto.getNickname(), requestDto.getBirthDate(), requestDto.getGender());
+        user.completeOnboarding(requestDto.getNickname(), requestDto.getBirthDate(), requestDto.getGender(),
+                requestDto.getEmail());
         return toResponseDto(user);
     }
 
@@ -97,19 +100,15 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-    @Override
-    @Transactional
-    public UserResponseDto updateArtists(Long id, ArtistUpdateRequestDto requestDto) {
-        // TODO: Artist 연관관계 연결 후 실제 저장 로직 구현
-        User user = findUserOrThrow(id);
-        return toResponseDto(user);
-    }
-
     private UserResponseDto toResponseDto(User user) {
         List<UserResponseDto.HashtagSummary> hashtags = userHashtagRepository.findAllByUser(user).stream()
                 .map(tag -> new UserResponseDto.HashtagSummary(tag.getId(), tag.getTag()))
                 .toList();
-        return new UserResponseDto(user, hashtags);
+        List<UserResponseDto.ArtistSummary> favoriteArtists = favoriteArtistRepository.findAllByUser(user).stream()
+                .map(fa -> new UserResponseDto.ArtistSummary(
+                        fa.getId(), fa.getArtist().getId(), fa.getArtist().getName(), fa.getArtist().getImageUrl()))
+                .toList();
+        return new UserResponseDto(user, hashtags, favoriteArtists);
     }
 
 

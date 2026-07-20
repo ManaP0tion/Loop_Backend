@@ -36,7 +36,7 @@ public class TestUserService {
                 .providerId("test-" + UUID.randomUUID())
                 .onboardingCompleted(true)
                 .build();
-        user.completeOnboarding(finalNickname, null, null);
+        user.completeOnboarding(finalNickname, null, null, null);
 
         return userRepository.save(user);
     }

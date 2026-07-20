@@ -41,6 +41,9 @@ public enum ErrorCode {
 
     // Artist 도메인
     ARTIST_NOT_FOUND(404, "아티스트를 찾을 수 없습니다."),
+    DUPLICATE_FAVORITE_ARTIST(409, "이미 등록된 관심 아티스트입니다."),
+    LIMIT_FAVORITE_ARTIST(409, "관심 아티스트는 최대 3개까지 등록할 수 있습니다."),
+    FAVORITE_ARTIST_NOT_FOUND(404, "관심 아티스트를 찾을 수 없습니다."),
 
     // Concert 도메인
     CONCERT_NOT_FOUND(404, "콘서트를 찾을 수 없습니다."),
