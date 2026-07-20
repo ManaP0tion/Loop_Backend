@@ -16,8 +16,8 @@ public class CompanionDetailResponseDto extends CompanionResponseDto {
     @Schema(description = "작성자 관심 아티스트 ID 목록 (아직 연관관계 미구현으로 항상 빈 배열)")
     private final List<String> preferredArtistIds;
 
-    public CompanionDetailResponseDto(CompanionPost post, List<HashtagSummary> hashtags) {
-        super(post);
+    public CompanionDetailResponseDto(CompanionPost post, List<HashtagSummary> hashtags, boolean hearted) {
+        super(post, hearted);
         this.hashtags = hashtags;
         this.preferredArtistIds = List.of();
     }

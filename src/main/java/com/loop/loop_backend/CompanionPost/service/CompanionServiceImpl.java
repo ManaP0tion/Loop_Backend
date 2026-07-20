@@ -1,6 +1,7 @@
 package com.loop.loop_backend.CompanionPost.service;
 
 import com.loop.loop_backend.Block.repository.BlockRepository;
+import com.loop.loop_backend.CompanionHeart.repository.CompanionHeartRepository;
 import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
@@ -30,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.Collections;
 
 @Service
 @RequiredArgsConstructor
@@ -41,6 +43,7 @@ public class CompanionServiceImpl implements CompanionService {
     private final ConcertRepository concertRepository;
     private final UserHashtagRepository userHashtagRepository;
     private final BlockRepository blockRepository;
+    private final CompanionHeartRepository companionHeartRepository;
 
     @Override
     @Transactional
@@ -108,7 +111,7 @@ public class CompanionServiceImpl implements CompanionService {
             comparator = defaultComparator(myPost);
         }
 
-        return paginate(filtered, comparator, pageable);
+        return paginate(userId, filtered, comparator, pageable);
     }
 
     @Override
@@ -135,7 +138,7 @@ public class CompanionServiceImpl implements CompanionService {
                 .findByUser_IdAndConcert_IdAndWatchDay(userId, concertId, watchDay)
                 .orElse(null);
 
-        return paginate(filtered, defaultComparator(myPost), pageable);
+        return paginate(userId, filtered, defaultComparator(myPost), pageable);
     }
 
     // 관람 스타일 우선순위가 적용되지 않는 기본 정렬: 내 프로필이 있으면 공통 활동 많은 순, 없으면 등록일자 최신순
@@ -154,15 +157,21 @@ public class CompanionServiceImpl implements CompanionService {
         return (int) a.stream().filter(b::contains).count();
     }
 
-    private PageResponseDto<CompanionResponseDto> paginate(List<CompanionPost> posts, Comparator<CompanionPost> comparator,
-                                                            Pageable pageable) {
+    private PageResponseDto<CompanionResponseDto> paginate(Long userId, List<CompanionPost> posts,
+                                                            Comparator<CompanionPost> comparator, Pageable pageable) {
         List<CompanionPost> sorted = posts.stream().sorted(comparator).toList();
 
         int start = Math.min((int) pageable.getOffset(), sorted.size());
         int end = Math.min(start + pageable.getPageSize(), sorted.size());
+        List<CompanionPost> pageItems = sorted.subList(start, end);
 
-        List<CompanionResponseDto> content = sorted.subList(start, end).stream()
-                .map(CompanionResponseDto::new)
+        List<Long> pageItemIds = pageItems.stream().map(CompanionPost::getId).toList();
+        Set<Long> heartedIds = pageItemIds.isEmpty()
+                ? Collections.emptySet()
+                : companionHeartRepository.findHeartedCompanionPostIds(userId, pageItemIds);
+
+        List<CompanionResponseDto> content = pageItems.stream()
+                .map(post -> new CompanionResponseDto(post, heartedIds.contains(post.getId())))
                 .toList();
 
         return new PageResponseDto<>(content, sorted.size(), end < sorted.size());
@@ -188,7 +197,9 @@ public class CompanionServiceImpl implements CompanionService {
                 .map(tag -> new CompanionDetailResponseDto.HashtagSummary(tag.getId(), tag.getTag()))
                 .toList();
 
-        return new CompanionDetailResponseDto(post, hashtags);
+        boolean isHearted = companionHeartRepository.existsByUser_IdAndCompanionPost_Id(userId, companionId);
+
+        return new CompanionDetailResponseDto(post, hashtags, isHearted);
     }
 
     @Override
@@ -204,7 +215,8 @@ public class CompanionServiceImpl implements CompanionService {
         post.update(requestDto.getActivities(), requestDto.getWatchStyle(), requestDto.getMessageToCompanion(),
                 requestDto.isSameGenderOnly());
 
-        return new CompanionResponseDto(post);
+        // 본인 글이라 하트 자체가 불가능하므로 항상 false
+        return new CompanionResponseDto(post, false);
     }
 
     @Override
@@ -230,8 +242,9 @@ public class CompanionServiceImpl implements CompanionService {
             throw new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND);
         }
 
+        // 본인 글이라 하트 자체가 불가능하므로 항상 false
         return posts.stream()
-                .map(CompanionResponseDto::new)
+                .map(post -> new CompanionResponseDto(post, false))
                 .toList();
     }
 
@@ -239,7 +252,8 @@ public class CompanionServiceImpl implements CompanionService {
     public CompanionResponseDto getMyCompanion(Long userId, Long concertId, WatchDay watchDay) {
         CompanionPost post = companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(userId, concertId, watchDay)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND));
-        return new CompanionResponseDto(post);
+        // 본인 글이라 하트 자체가 불가능하므로 항상 false
+        return new CompanionResponseDto(post, false);
     }
 
     @Override

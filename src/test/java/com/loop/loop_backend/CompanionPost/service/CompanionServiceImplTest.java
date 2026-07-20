@@ -2,6 +2,7 @@ package com.loop.loop_backend.CompanionPost.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loop.loop_backend.Block.repository.BlockRepository;
+import com.loop.loop_backend.CompanionHeart.repository.CompanionHeartRepository;
 import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
@@ -55,6 +56,7 @@ class CompanionServiceImplTest {
     @Mock CompanionPostRepository companionPostRepository;
     @Mock UserHashtagRepository userHashtagRepository;
     @Mock BlockRepository blockRepository;
+    @Mock CompanionHeartRepository companionHeartRepository;
     @InjectMocks CompanionServiceImpl companionService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
