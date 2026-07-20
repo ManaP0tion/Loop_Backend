@@ -56,6 +56,7 @@ public enum ErrorCode {
     COMPANION_POST_ALREADY_CLOSED(409, "이미 마감된 모집글입니다."),
     COMPANION_POST_ALREADY_EXISTS(409, "이미 해당 콘서트에 동행 프로필이 존재합니다."),
     SELF_CHAT_NOT_ALLOWED(400, "본인 게시글에는 채팅 신청을 할 수 없습니다."),
+    SELF_HEART_NOT_ALLOWED(400, "본인 게시글에는 하트를 누를 수 없습니다."),
 
     // Chat 도메인
     CHAT_ROOM_NOT_FOUND(404, "채팅방을 찾을 수 없습니다."),

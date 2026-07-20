@@ -84,8 +84,8 @@ class EmailVerificationServiceImplTest {
     }
 
     @Test
-    void 시간당_5회를_초과해_요청하면_예외를_던지고_메일을_보내지_않는다() {
-        when(valueOperations.increment(SEND_COUNT_KEY)).thenReturn(6L);
+    void 시간당_100회를_초과해_요청하면_예외를_던지고_메일을_보내지_않는다() {
+        when(valueOperations.increment(SEND_COUNT_KEY)).thenReturn(101L);
 
         assertThatThrownBy(() -> emailVerificationService.sendCode(USER_ID, EMAIL))
                 .isInstanceOf(BusinessException.class)

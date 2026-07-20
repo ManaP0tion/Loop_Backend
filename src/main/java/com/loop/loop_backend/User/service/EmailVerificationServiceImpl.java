@@ -18,7 +18,7 @@ import java.time.Duration;
 public class EmailVerificationServiceImpl implements EmailVerificationService {
 
     private static final Duration CODE_TTL = Duration.ofMinutes(3);
-    private static final int MAX_SEND_COUNT = 5;
+    private static final int MAX_SEND_COUNT = 100;
     private static final Duration SEND_LIMIT_WINDOW = Duration.ofHours(1);
     private static final SecureRandom RANDOM = new SecureRandom();
 

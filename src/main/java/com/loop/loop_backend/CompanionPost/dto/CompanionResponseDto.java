@@ -57,7 +57,10 @@ public class CompanionResponseDto {
     @Schema(description = "생성일시")
     private final LocalDateTime createdAt;
 
-    public CompanionResponseDto(CompanionPost post) {
+    @Schema(description = "내가 이 프로필에 하트를 눌렀는지 여부", example = "false")
+    private final boolean hearted;
+
+    public CompanionResponseDto(CompanionPost post, boolean hearted) {
         this.companionId = post.getId();
         this.userId = post.getUser().getId();
         this.nickname = post.getUser().getNickname();
@@ -76,6 +79,7 @@ public class CompanionResponseDto {
         this.visible = post.isVisible();
         this.sameGenderOnly = post.isSameGenderOnly();
         this.createdAt = post.getCreatedAt();
+        this.hearted = hearted;
     }
 
     @Getter
