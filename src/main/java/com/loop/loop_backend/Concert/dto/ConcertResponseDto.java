@@ -22,9 +22,11 @@ public class ConcertResponseDto {
     private final LocalDate endDate;
     private final ConcertCategory category;
     private final String categoryDisplayName;
+
     private final long companionCount;
 
     public static ConcertResponseDto from(Concert concert, long companionCount) {
+
         ConcertCategory category = concert.getCategory();
         return ConcertResponseDto.builder()
                 .id(concert.getId())

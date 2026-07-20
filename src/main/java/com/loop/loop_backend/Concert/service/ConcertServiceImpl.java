@@ -82,7 +82,9 @@ public class ConcertServiceImpl implements ConcertService {
     @Override
     public ConcertResponseDto getConcertById(Long id) {
         Concert concert = findConcertOrThrow(id);
+
         return ConcertResponseDto.from(concert, companionPostRepository.countByConcert_Id(concert.getId()));
+
     }
 
     @Override

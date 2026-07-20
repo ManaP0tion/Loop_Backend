@@ -116,10 +116,12 @@ public class ConcertController {
     }
 
     @GetMapping("/search")
-    @Operation(summary = "콘서트 검색 (제목)", description = "제목 키워드로 콘서트를 검색합니다")
+    @Operation(summary = "콘서트 검색",
+            description = "키워드로 콘서트를 검색합니다. 콘서트 제목뿐 아니라 아티스트의 원어명/기본명/한글명/별칭도 함께 매칭됩니다. " +
+                    "예) 'King Gnu' 공연은 '킹누'로도 검색 가능")
     @ApiResponse(responseCode = "200", description = "조회 성공")
     public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> searchConcerts(
-            @Parameter(description = "검색 키워드") @RequestParam String title) {
+            @Parameter(description = "검색 키워드 (콘서트 제목 또는 아티스트명)") @RequestParam String title) {
         return ResponseEntity.ok(CommonResponse.success(concertService.searchConcertsByTitle(title)));
     }
 
