@@ -6,6 +6,7 @@ import com.loop.loop_backend.Chat.domain.ChatRoomType;
 import com.loop.loop_backend.Chat.domain.Message;
 import com.loop.loop_backend.Chat.domain.ParticipantRole;
 import com.loop.loop_backend.Chat.domain.ParticipantStatus;
+import com.loop.loop_backend.Chat.dto.ChatLeaveEventDto;
 import com.loop.loop_backend.Chat.dto.ChatMessageDto;
 import com.loop.loop_backend.Chat.dto.ChatReadEventDto;
 import com.loop.loop_backend.Chat.dto.ChatRoomResponseDto;
@@ -155,6 +156,14 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(ErrorCode.ALREADY_LEFT_CHAT);
         }
         participant.leave();
+
+        ChatLeaveEventDto event = ChatLeaveEventDto.builder()
+                .type(ChatLeaveEventDto.Type.LEAVE)
+                .roomId(roomId)
+                .leaverId(userId)
+                .leftAt(LocalDateTime.now())
+                .build();
+        messagingTemplate.convertAndSend("/sub/chat/room/" + roomId, event);
     }
 
     @Override
