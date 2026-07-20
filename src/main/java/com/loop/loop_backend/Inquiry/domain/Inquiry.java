@@ -27,9 +27,6 @@ public class Inquiry {
     @Column(name = "type", nullable = false, length = 50)
     private String type;
 
-    @Column(name = "email", nullable = false, length = 255)
-    private String email;
-
     @Column(name = "title", nullable = false, length = 100)
     private String title;
 
@@ -41,10 +38,9 @@ public class Inquiry {
     private LocalDateTime createdAt;
 
     @Builder
-    private Inquiry(User user, String type, String email, String title, String content) {
+    private Inquiry(User user, String type, String title, String content) {
         this.user = user;
         this.type = type;
-        this.email = email;
         this.title = title;
         this.content = content;
     }

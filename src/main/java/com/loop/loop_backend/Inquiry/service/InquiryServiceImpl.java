@@ -28,7 +28,6 @@ public class InquiryServiceImpl implements InquiryService {
         inquiryRepository.save(Inquiry.builder()
                 .user(user)
                 .type(requestDto.getType())
-                .email(requestDto.getEmail())
                 .title(requestDto.getTitle())
                 .content(requestDto.getContent())
                 .build());
