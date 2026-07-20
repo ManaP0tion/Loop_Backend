@@ -64,7 +64,7 @@ public class CompanionResponseDto {
         this.profileImageUrl = post.getUser().getProfileImageUrl();
         this.gender = post.getUser().getGender();
         this.age = post.getUser().getAge();
-        this.concertId = post.getConcertId();
+        this.concertId = post.getConcert().getId();
         this.watchDay = post.getWatchDay();
         this.activities = post.getActivities().stream()
                 .map(activity -> new EnumLabelDto(activity.name(), activity.getLabel()))

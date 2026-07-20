@@ -15,7 +15,6 @@ public class ConcertRequestDto {
     @NotBlank(message = "콘서트 제목은 필수입니다.")
     private String title;
 
-    private String posterUrl;
     private String venue;
     private LocalDate startDate;
     private LocalDate endDate;

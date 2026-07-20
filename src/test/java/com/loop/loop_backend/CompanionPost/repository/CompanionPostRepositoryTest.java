@@ -4,12 +4,15 @@ import com.loop.loop_backend.Block.domain.Block;
 import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
+import com.loop.loop_backend.Concert.domain.Concert;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.User.domain.AgeGroup;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Gender;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -29,6 +32,17 @@ class CompanionPostRepositoryTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    private Concert concert;
+
+    @BeforeEach
+    void setUpConcert() {
+        concert = Concert.builder()
+                .title("테스트 콘서트")
+                .category(ConcertCategory.DOMESTIC_ARTIST)
+                .build();
+        entityManager.persist(concert);
+    }
 
     private User persistUser(String providerId, Gender gender, int age) {
         User user = User.builder()
@@ -54,7 +68,7 @@ class CompanionPostRepositoryTest {
     private void persistCompanionPost(User owner, Set<CompanionActivity> activities, boolean sameGenderOnly) {
         entityManager.persist(CompanionPost.builder()
                 .user(owner)
-                .concertId(10L)
+                .concert(concert)
                 .watchDay(WatchDay.DAY1)
                 .activities(activities)
                 .sameGenderOnly(sameGenderOnly)
@@ -70,7 +84,7 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
                 CompanionPostSpecifications.doesNotHaveActivity(CompanionActivity.CONCERT));
 
@@ -89,7 +103,7 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
                 CompanionPostSpecifications.respectsSameGenderOnly(Gender.FEMALE));
 
@@ -106,7 +120,7 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
                 CompanionPostSpecifications.respectsSameGenderOnly(Gender.MALE));
 
@@ -124,7 +138,7 @@ class CompanionPostRepositoryTest {
 
         CompanionPost hiddenPost = CompanionPost.builder()
                 .user(hiddenUser)
-                .concertId(10L)
+                .concert(concert)
                 .watchDay(WatchDay.DAY1)
                 .activities(Set.of(CompanionActivity.CONCERT))
                 .build();
@@ -133,7 +147,7 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
                 CompanionPostSpecifications.isVisible());
 
@@ -154,7 +168,7 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
                 CompanionPostSpecifications.hasNoBlockRelationWith(me.getId()));
 
@@ -175,7 +189,7 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
                 CompanionPostSpecifications.hasNoBlockRelationWith(me.getId()));
 
@@ -194,7 +208,7 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
                 CompanionPostSpecifications.authorGenderEquals(Gender.MALE));
 
@@ -213,7 +227,7 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
                 CompanionPostSpecifications.ageGroupIn(List.of(AgeGroup.THIRTY_TO_THIRTY_FOUR)));
 
@@ -234,7 +248,7 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
                 CompanionPostSpecifications.ageGroupIn(
                         List.of(AgeGroup.TWENTY_FIVE_TO_TWENTY_NINE, AgeGroup.THIRTY_FIVE_TO_THIRTY_NINE)));
@@ -254,7 +268,7 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
                 CompanionPostSpecifications.userIdNotEquals(me.getId()));
 
@@ -273,7 +287,7 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
                 CompanionPostSpecifications.ageGroupIn(List.of(AgeGroup.ANY)));
 

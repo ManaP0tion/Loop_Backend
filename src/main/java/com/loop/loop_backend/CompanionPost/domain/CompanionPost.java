@@ -1,5 +1,6 @@
 package com.loop.loop_backend.CompanionPost.domain;
 
+import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.User.domain.User;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -10,6 +11,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDate;
@@ -34,8 +37,10 @@ public class CompanionPost {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "concert_id", nullable = false)
-    private Long concertId; // Concert 엔티티 머지 전까지 단순 컬럼, 이후 연관관계로 전환
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "concert_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    private Concert concert;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "watch_day", nullable = false)
@@ -77,11 +82,11 @@ public class CompanionPost {
     private LocalDateTime updatedAt;
 
     @Builder
-    private CompanionPost(User user, Long concertId, WatchDay watchDay,
+    private CompanionPost(User user, Concert concert, WatchDay watchDay,
                           Set<CompanionActivity> activities,
                           WatchStyle watchStyle, String messageToCompanion, boolean sameGenderOnly){
         this.user = user;
-        this.concertId = concertId;
+        this.concert = concert;
         this.watchDay = watchDay;
         this.activities = activities;
         this.watchStyle = watchStyle;
