@@ -40,7 +40,7 @@ public class User {
     // 추후 확장 대비
     @Column(name = "password", length = 255)
     private String password;
-    // 추후 확장 대비
+    // 이메일 인증 완료 시 저장됨 (고객센터 문의 답변 등에 사용)
     @Column(name = "email", length = 255)
     private String email;
 
@@ -64,11 +64,14 @@ public class User {
     private String profileImageUrl;
 
     // 연관관계 연결 전
-    @Column(name = "artist_id")
-    private Long artistId;
-    // 연관관계 연결 전
     @Column(name = "blocked_user_id")
     private Long blockedUserId;
+
+    @Column(name = "concert_reminder_email", nullable = false)
+    private boolean concertReminderEmail = true;
+
+    @Column(name = "chat_notification_email", nullable = false)
+    private boolean chatNotificationEmail = true;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -98,6 +101,10 @@ public class User {
         this.onboardingCompleted = true;
     }
 
+    public void verifyEmail(String email) {
+        this.email = email;
+    }
+
     public void changePassword(String encodedPassword) {
         this.password = encodedPassword;
     }
@@ -114,5 +121,10 @@ public class User {
 
     public void withdraw() {
         this.status = Status.WITHDRAWN;
+    }
+
+    public void updateNotificationSettings(Boolean concertReminderEmail, Boolean chatNotificationEmail) {
+        if (concertReminderEmail != null) this.concertReminderEmail = concertReminderEmail;
+        if (chatNotificationEmail != null) this.chatNotificationEmail = chatNotificationEmail;
     }
 }

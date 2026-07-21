@@ -50,7 +50,7 @@ public class SecurityConfig {
      */
     @Bean
     @Order(1)
-    @Profile({"local", "dev"})
+    @Profile({"local", "dev","docker"})
     public SecurityFilterChain devToolsFilterChain(HttpSecurity http) throws Exception {
         http
                 .securityMatcher("/api/test/**", "/dev/**")

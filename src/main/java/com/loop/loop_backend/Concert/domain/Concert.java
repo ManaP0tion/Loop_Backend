@@ -3,6 +3,8 @@ package com.loop.loop_backend.Concert.domain;
 import com.loop.loop_backend.Artist.domain.Artist;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.LocalDate;
 
@@ -24,6 +26,7 @@ public class Concert {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "artist_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Artist artist;
 
     @Column(name = "kopis_id", length = 20)
@@ -67,5 +70,9 @@ public class Concert {
         this.startDate = startDate;
         this.endDate = endDate;
         this.category = category;
+    }
+
+    public void updatePosterUrl(String posterUrl) {
+        this.posterUrl = posterUrl;
     }
 }

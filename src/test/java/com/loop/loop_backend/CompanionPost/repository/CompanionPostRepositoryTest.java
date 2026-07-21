@@ -1,14 +1,19 @@
 package com.loop.loop_backend.CompanionPost.repository;
 
+import com.loop.loop_backend.Block.domain.Block;
 import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
+import com.loop.loop_backend.CompanionPost.dto.ConcertReminderRow;
+import com.loop.loop_backend.Concert.domain.Concert;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.User.domain.AgeGroup;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Gender;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -28,6 +33,17 @@ class CompanionPostRepositoryTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    private Concert concert;
+
+    @BeforeEach
+    void setUpConcert() {
+        concert = Concert.builder()
+                .title("테스트 콘서트")
+                .category(ConcertCategory.DOMESTIC_ARTIST)
+                .build();
+        entityManager.persist(concert);
+    }
 
     private User persistUser(String providerId, Gender gender, int age) {
         User user = User.builder()
@@ -53,7 +69,7 @@ class CompanionPostRepositoryTest {
     private void persistCompanionPost(User owner, Set<CompanionActivity> activities, boolean sameGenderOnly) {
         entityManager.persist(CompanionPost.builder()
                 .user(owner)
-                .concertId(10L)
+                .concert(concert)
                 .watchDay(WatchDay.DAY1)
                 .activities(activities)
                 .sameGenderOnly(sameGenderOnly)
@@ -69,7 +85,7 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
                 CompanionPostSpecifications.doesNotHaveActivity(CompanionActivity.CONCERT));
 
@@ -88,9 +104,9 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
-                CompanionPostSpecifications.visibleToViewerGender(Gender.FEMALE));
+                CompanionPostSpecifications.respectsSameGenderOnly(Gender.FEMALE));
 
         List<CompanionPost> result = companionPostRepository.findAll(spec);
 
@@ -105,14 +121,83 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
-                CompanionPostSpecifications.visibleToViewerGender(Gender.MALE));
+                CompanionPostSpecifications.respectsSameGenderOnly(Gender.MALE));
 
         List<CompanionPost> result = companionPostRepository.findAll(spec);
 
         assertThat(result).extracting(post -> post.getUser().getProviderId())
                 .containsExactly("sgo2");
+    }
+
+    @Test
+    void 비공개_프로필은_목록에서_제외된다() {
+        User visibleUser = persistUser("show", Gender.MALE, 25);
+        User hiddenUser = persistUser("hide", Gender.MALE, 25);
+        persistCompanionPost(visibleUser);
+
+        CompanionPost hiddenPost = CompanionPost.builder()
+                .user(hiddenUser)
+                .concert(concert)
+                .watchDay(WatchDay.DAY1)
+                .activities(Set.of(CompanionActivity.CONCERT))
+                .build();
+        hiddenPost.toggleVisible(false);
+        entityManager.persist(hiddenPost);
+        entityManager.flush();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
+                CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
+                CompanionPostSpecifications.isVisible());
+
+        List<CompanionPost> result = companionPostRepository.findAll(spec);
+
+        assertThat(result).extracting(post -> post.getUser().getProviderId())
+                .containsExactly("show");
+    }
+
+    @Test
+    void 내가_차단한_사용자의_프로필은_제외된다() {
+        User me = persistUser("me2", Gender.MALE, 25);
+        User blockedByMe = persistUser("blkme", Gender.MALE, 25);
+        User stranger = persistUser("stranger", Gender.MALE, 25);
+        persistCompanionPost(blockedByMe);
+        persistCompanionPost(stranger);
+        entityManager.persist(Block.builder().blocker(me).blocked(blockedByMe).build());
+        entityManager.flush();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
+                CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
+                CompanionPostSpecifications.hasNoBlockRelationWith(me.getId()));
+
+        List<CompanionPost> result = companionPostRepository.findAll(spec);
+
+        assertThat(result).extracting(post -> post.getUser().getProviderId())
+                .containsExactly("stranger");
+    }
+
+    @Test
+    void 나를_차단한_사용자의_프로필도_제외된다() {
+        User me = persistUser("me3", Gender.MALE, 25);
+        User blockedMe = persistUser("blkedme", Gender.MALE, 25);
+        User stranger = persistUser("stranger2", Gender.MALE, 25);
+        persistCompanionPost(blockedMe);
+        persistCompanionPost(stranger);
+        entityManager.persist(Block.builder().blocker(blockedMe).blocked(me).build());
+        entityManager.flush();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
+                CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
+                CompanionPostSpecifications.hasNoBlockRelationWith(me.getId()));
+
+        List<CompanionPost> result = companionPostRepository.findAll(spec);
+
+        assertThat(result).extracting(post -> post.getUser().getProviderId())
+                .containsExactly("stranger2");
     }
 
     @Test
@@ -124,9 +209,9 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
-                CompanionPostSpecifications.genderEquals(Gender.MALE));
+                CompanionPostSpecifications.authorGenderEquals(Gender.MALE));
 
         List<CompanionPost> result = companionPostRepository.findAll(spec);
 
@@ -143,7 +228,7 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
                 CompanionPostSpecifications.ageGroupIn(List.of(AgeGroup.THIRTY_TO_THIRTY_FOUR)));
 
@@ -164,7 +249,7 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
                 CompanionPostSpecifications.ageGroupIn(
                         List.of(AgeGroup.TWENTY_FIVE_TO_TWENTY_NINE, AgeGroup.THIRTY_FIVE_TO_THIRTY_NINE)));
@@ -184,7 +269,7 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
                 CompanionPostSpecifications.userIdNotEquals(me.getId()));
 
@@ -203,7 +288,7 @@ class CompanionPostRepositoryTest {
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(10L),
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
                 CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
                 CompanionPostSpecifications.ageGroupIn(List.of(AgeGroup.ANY)));
 
@@ -211,5 +296,119 @@ class CompanionPostRepositoryTest {
 
         assertThat(result).extracting(post -> post.getUser().getProviderId())
                 .containsExactlyInAnyOrder("twenties2", "thirties2");
+    }
+
+    private User persistUserWithEmail(String providerId, String email, boolean concertReminderEmail) {
+        User user = User.builder()
+                .authProvider(AuthProvider.KAKAO)
+                .providerId(providerId)
+                .status(Status.ACTIVE)
+                .onboardingCompleted(true)
+                .build();
+        user.completeOnboarding(providerId.substring(0, Math.min(5, providerId.length())),
+                LocalDate.now().minusYears(25), Gender.MALE);
+        // 도메인 필드 직접 세팅 (엔티티에 setter가 없음)
+        org.springframework.test.util.ReflectionTestUtils.setField(user, "email", email);
+        org.springframework.test.util.ReflectionTestUtils.setField(user, "concertReminderEmail", concertReminderEmail);
+        entityManager.persist(user);
+        return user;
+    }
+
+    private Concert persistConcert(LocalDate startDate) {
+        Concert concert = Concert.builder()
+                .title("공연")
+                .venue("장소")
+                .startDate(startDate)
+                .endDate(startDate)
+                .category(ConcertCategory.J_POP_ARTIST)
+                .build();
+        entityManager.persist(concert);
+        return concert;
+    }
+
+    private void persistCompanionPostFor(User user, Concert concert, WatchDay watchDay) {
+        entityManager.persist(CompanionPost.builder()
+                .user(user)
+                .concert(concert)
+                .watchDay(watchDay)
+                .activities(Set.of(CompanionActivity.CONCERT))
+                .sameGenderOnly(false)
+                .build());
+    }
+
+    @Test
+    void 리마인더_쿼리는_DAY1_공연이_내일_시작할_때_대상자를_반환한다() {
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        User user = persistUserWithEmail("rmd1", "a@a.com", true);
+        Concert concert = persistConcert(tomorrow);
+        persistCompanionPostFor(user, concert, WatchDay.DAY1);
+        entityManager.flush();
+
+        List<ConcertReminderRow> rows = companionPostRepository.findConcertReminderRows(
+                tomorrow, tomorrow.minusDays(1), tomorrow.minusDays(2), tomorrow.minusDays(3));
+
+        assertThat(rows).extracting(ConcertReminderRow::recipientEmail)
+                .containsExactly("a@a.com");
+    }
+
+    @Test
+    void 리마인더_쿼리는_DAY2_공연이_오늘_시작하면_대상자를_반환한다() {
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        LocalDate today = LocalDate.now();
+        User user = persistUserWithEmail("rmd2", "b@b.com", true);
+        Concert concert = persistConcert(today);
+        persistCompanionPostFor(user, concert, WatchDay.DAY2);
+        entityManager.flush();
+
+        List<ConcertReminderRow> rows = companionPostRepository.findConcertReminderRows(
+                tomorrow, tomorrow.minusDays(1), tomorrow.minusDays(2), tomorrow.minusDays(3));
+
+        assertThat(rows).extracting(ConcertReminderRow::recipientEmail)
+                .containsExactly("b@b.com");
+    }
+
+    @Test
+    void 리마인더_쿼리는_concertReminderEmail_false인_유저를_제외한다() {
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        User enabled = persistUserWithEmail("on", "on@t.com", true);
+        User disabled = persistUserWithEmail("off", "off@t.com", false);
+        Concert concert = persistConcert(tomorrow);
+        persistCompanionPostFor(enabled, concert, WatchDay.DAY1);
+        persistCompanionPostFor(disabled, concert, WatchDay.DAY1);
+        entityManager.flush();
+
+        List<ConcertReminderRow> rows = companionPostRepository.findConcertReminderRows(
+                tomorrow, tomorrow.minusDays(1), tomorrow.minusDays(2), tomorrow.minusDays(3));
+
+        assertThat(rows).extracting(ConcertReminderRow::recipientEmail)
+                .containsExactly("on@t.com");
+    }
+
+    @Test
+    void 리마인더_쿼리는_이메일이_없는_유저를_제외한다() {
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        User noEmail = persistUserWithEmail("noem", null, true);
+        Concert concert = persistConcert(tomorrow);
+        persistCompanionPostFor(noEmail, concert, WatchDay.DAY1);
+        entityManager.flush();
+
+        List<ConcertReminderRow> rows = companionPostRepository.findConcertReminderRows(
+                tomorrow, tomorrow.minusDays(1), tomorrow.minusDays(2), tomorrow.minusDays(3));
+
+        assertThat(rows).isEmpty();
+    }
+
+    @Test
+    void 리마인더_쿼리는_다른_날짜에_시작하는_공연을_제외한다() {
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        User user = persistUserWithEmail("far", "far@t.com", true);
+        Concert farConcert = persistConcert(tomorrow.plusDays(5));
+        persistCompanionPostFor(user, farConcert, WatchDay.DAY1);
+        entityManager.flush();
+
+        List<ConcertReminderRow> rows = companionPostRepository.findConcertReminderRows(
+                tomorrow, tomorrow.minusDays(1), tomorrow.minusDays(2), tomorrow.minusDays(3));
+
+        assertThat(rows).isEmpty();
     }
 }

@@ -23,7 +23,10 @@ public class ConcertResponseDto {
     private final ConcertCategory category;
     private final String categoryDisplayName;
 
-    public static ConcertResponseDto from(Concert concert) {
+    private final long companionCount;
+
+    public static ConcertResponseDto from(Concert concert, long companionCount) {
+
         ConcertCategory category = concert.getCategory();
         return ConcertResponseDto.builder()
                 .id(concert.getId())
@@ -37,6 +40,7 @@ public class ConcertResponseDto {
                 .endDate(concert.getEndDate())
                 .category(category)
                 .categoryDisplayName(category != null ? category.getDisplayName() : null)
+                .companionCount(companionCount)
                 .build();
     }
 }

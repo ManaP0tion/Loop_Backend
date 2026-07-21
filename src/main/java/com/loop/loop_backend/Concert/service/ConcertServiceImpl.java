@@ -7,11 +7,14 @@ import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
+import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
+import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -24,32 +27,50 @@ public class ConcertServiceImpl implements ConcertService {
 
     private final ConcertRepository concertRepository;
     private final ArtistRepository artistRepository;
+    private final CompanionPostRepository companionPostRepository;
+    private final S3StorageService s3StorageService;
 
     @Override
     @Transactional
-    public ConcertResponseDto createConcert(ConcertRequestDto requestDto) {
+    public ConcertResponseDto createConcert(ConcertRequestDto requestDto, MultipartFile image) {
         Artist artist = resolveArtist(requestDto.getArtistId());
         Concert concert = Concert.builder()
                 .artist(artist)
                 .title(requestDto.getTitle())
-                .posterUrl(requestDto.getPosterUrl())
                 .venue(requestDto.getVenue())
                 .startDate(requestDto.getStartDate())
                 .endDate(requestDto.getEndDate())
                 .category(requestDto.getCategory())
                 .build();
-        return ConcertResponseDto.from(concertRepository.save(concert));
+        // IDENTITY 전략이라 save() 시점에 즉시 ID가 확정됨 -> 그 ID를 S3 키로 써서 바로 업로드 가능
+        concertRepository.save(concert);
+
+        String posterUrl = resolvePosterUrl(concert.getId(), image, null);
+        if (posterUrl != null) {
+            concert.updatePosterUrl(posterUrl);
+        }
+        return ConcertResponseDto.from(concert, companionPostRepository.countByConcert_Id(concert.getId()));
     }
 
     @Override
     @Transactional
-    public ConcertResponseDto updateConcert(Long id, ConcertRequestDto requestDto) {
+    public ConcertResponseDto updateConcert(Long id, ConcertRequestDto requestDto, MultipartFile image) {
         Concert concert = findConcertOrThrow(id);
         Artist artist = resolveArtist(requestDto.getArtistId());
-        concert.update(artist, requestDto.getTitle(), requestDto.getPosterUrl(),
+        // 새 이미지가 없으면 기존 posterUrl을 그대로 유지 (수정 시 이미지 없이 다른 필드만 바꾸는 경우 대비)
+        String posterUrl = resolvePosterUrl(id, image, concert.getPosterUrl());
+        concert.update(artist, requestDto.getTitle(), posterUrl,
                 requestDto.getVenue(), requestDto.getStartDate(), requestDto.getEndDate(),
                 requestDto.getCategory());
-        return ConcertResponseDto.from(concert);
+        return ConcertResponseDto.from(concert, companionPostRepository.countByConcert_Id(concert.getId()));
+    }
+
+    // image가 없으면(선택 파라미터) currentPosterUrl을 그대로 반환, 있으면 S3에 업로드하고 새 URL을 반환
+    private String resolvePosterUrl(Long concertId, MultipartFile image, String currentPosterUrl) {
+        if (image == null || image.isEmpty()) {
+            return currentPosterUrl;
+        }
+        return s3StorageService.uploadPublic("concerts", concertId, image);
     }
 
     @Override
@@ -60,42 +81,49 @@ public class ConcertServiceImpl implements ConcertService {
 
     @Override
     public ConcertResponseDto getConcertById(Long id) {
-        return ConcertResponseDto.from(findConcertOrThrow(id));
+        Concert concert = findConcertOrThrow(id);
+
+        return ConcertResponseDto.from(concert, companionPostRepository.countByConcert_Id(concert.getId()));
+
     }
 
     @Override
     public ConcertResponseDto getConcertByTitle(String title) {
         Concert concert = concertRepository.findByTitle(title)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
-        return ConcertResponseDto.from(concert);
+        return ConcertResponseDto.from(concert, companionPostRepository.countByConcert_Id(concert.getId()));
     }
 
     @Override
     public List<ConcertResponseDto> searchConcertsByTitle(String title) {
         return concertRepository.searchUpcomingOrUndatedByTitle(title, LocalDate.now()).stream()
-                .map(ConcertResponseDto::from)
+                .map(this::toResponseDto)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<ConcertResponseDto> getAllConcerts() {
         return concertRepository.findUpcomingOrUndated(LocalDate.now()).stream()
-                .map(ConcertResponseDto::from)
+                .map(this::toResponseDto)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<ConcertResponseDto> getConcertsByCategory(ConcertCategory category) {
         return concertRepository.findUpcomingOrUndatedByCategory(category, LocalDate.now()).stream()
-                .map(ConcertResponseDto::from)
+                .map(this::toResponseDto)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<ConcertResponseDto> getConcertsByArtist(Long artistId) {
         return concertRepository.findUpcomingOrUndatedByArtistId(artistId, LocalDate.now()).stream()
-                .map(ConcertResponseDto::from)
+                .map(this::toResponseDto)
                 .collect(Collectors.toList());
+    }
+
+    private ConcertResponseDto toResponseDto(Concert concert) {
+        return ConcertResponseDto.from(concert, companionPostRepository.countByConcert_Id(concert.getId()));
     }
 
     private Concert findConcertOrThrow(Long id) {
