@@ -50,6 +50,9 @@ public class ChatRoomResponseDto {
     @Schema(description = "안읽은 메시지 수")
     private final long unreadCount;
 
+    @Schema(description = "상대방과의 관계 상태 (탈퇴/차단/신고)")
+    private final ChatOtherUserRelationDto otherUserRelation;
+
     public static ChatRoomResponseDto from(ChatRoom room) {
         return ChatRoomResponseDto.builder()
                 .id(room.getId())
@@ -57,6 +60,24 @@ public class ChatRoomResponseDto {
                 .type(room.getType())
                 .createdAt(room.getCreatedAt())
                 .build();
+    }
+
+    public static ChatRoomResponseDto from(ChatRoom room, User otherUser, ChatOtherUserRelationDto relation) {
+        ChatRoomResponseDtoBuilder builder = ChatRoomResponseDto.builder()
+                .id(room.getId())
+                .name(room.getName())
+                .type(room.getType())
+                .createdAt(room.getCreatedAt())
+                .otherUserRelation(relation);
+
+        if (otherUser != null) {
+            builder.otherUserNickname(otherUser.getNickname())
+                    .otherUserProfileImageUrl(otherUser.getProfileImageUrl())
+                    .otherUserGender(otherUser.getGender())
+                    .otherUserBirthDate(otherUser.getBirthDate());
+        }
+
+        return builder.build();
     }
 
     public static ChatRoomResponseDto forList(ChatRoom room, User otherUser, Message lastMessage, long unreadCount) {

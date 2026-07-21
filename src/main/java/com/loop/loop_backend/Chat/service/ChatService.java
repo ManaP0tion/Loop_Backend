@@ -1,11 +1,11 @@
 package com.loop.loop_backend.Chat.service;
 
 import com.loop.loop_backend.Chat.dto.ChatMessageDto;
+import com.loop.loop_backend.Chat.dto.ChatMessagesResponseDto;
 import com.loop.loop_backend.Chat.dto.ChatRoomResponseDto;
 import com.loop.loop_backend.Chat.dto.CreateChatRoomRequestDto;
 import com.loop.loop_backend.Chat.dto.StartDirectChatRequestDto;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Slice;
 
 import java.util.List;
 
@@ -21,7 +21,7 @@ public interface ChatService {
 
     List<ChatRoomResponseDto> getMyRooms(Long userId);
 
-    Slice<ChatMessageDto> getMessages(Long roomId, Long userId, Pageable pageable);
+    ChatMessagesResponseDto getMessages(Long roomId, Long userId, Pageable pageable);
 
     ChatMessageDto saveMessage(Long roomId, Long senderId, String rawContent);
 
