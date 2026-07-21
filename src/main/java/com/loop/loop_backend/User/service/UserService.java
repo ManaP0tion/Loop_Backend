@@ -13,6 +13,7 @@ public interface UserService {
     List<UserResponseDto> getAllUsers();
     UserResponseDto updateProfile(Long id, UserUpdateRequestDto requestDto);
     UserResponseDto completeOnboarding(Long id, OnboardingRequestDto requestDto);
+    UserResponseDto updateNotificationSettings(Long id, NotificationSettingsRequestDto requestDto);
     void changePassword(Long id, PasswordChangeRequestDto requestDto);
     void withdrawUser(Long id);
     ImageUploadResponseDto uploadProfileImage(Long id, MultipartFile file);

@@ -67,6 +67,12 @@ public class User {
     @Column(name = "blocked_user_id")
     private Long blockedUserId;
 
+    @Column(name = "concert_reminder_email", nullable = false)
+    private boolean concertReminderEmail = true;
+
+    @Column(name = "chat_notification_email", nullable = false)
+    private boolean chatNotificationEmail = true;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -115,5 +121,10 @@ public class User {
 
     public void withdraw() {
         this.status = Status.WITHDRAWN;
+    }
+
+    public void updateNotificationSettings(Boolean concertReminderEmail, Boolean chatNotificationEmail) {
+        if (concertReminderEmail != null) this.concertReminderEmail = concertReminderEmail;
+        if (chatNotificationEmail != null) this.chatNotificationEmail = chatNotificationEmail;
     }
 }

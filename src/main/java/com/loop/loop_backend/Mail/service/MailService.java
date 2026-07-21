@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Mail.service;
 
+import com.loop.loop_backend.Mail.dto.ConcertReminderSummary;
 import com.loop.loop_backend.Mail.dto.UnreadChatRoomSummary;
 
 import java.util.List;
@@ -13,4 +14,7 @@ public interface MailService {
                                     List<UnreadChatRoomSummary> rooms);
 
     void sendVerificationCode(String toEmail, String code);
+
+    void sendConcertReminderNotification(String toEmail, String recipientNickname,
+                                         List<ConcertReminderSummary> concerts);
 }

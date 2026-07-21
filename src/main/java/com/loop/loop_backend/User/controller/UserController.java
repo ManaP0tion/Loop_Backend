@@ -135,6 +135,20 @@ public class UserController {
         return ResponseEntity.ok(CommonResponse.success(userService.completeOnboarding(userId, requestDto)));
     }
 
+    @PatchMapping("/me/notifications")
+    @Operation(summary = "이메일 알림 설정", description = "공연 하루전 리마인더 / 미확인 채팅 다이제스트 이메일 수신 여부를 on/off 합니다. null 필드는 변경되지 않습니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "설정 변경 성공"),
+            @ApiResponse(responseCode = "404", description = "사용자 없음",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"사용자를 찾을 수 없습니다.\",\"code\":404}")))
+    })
+    public ResponseEntity<CommonResponse<UserResponseDto>> updateNotificationSettings(
+            @AuthenticationPrincipal Long userId,
+            @RequestBody NotificationSettingsRequestDto requestDto) {
+        return ResponseEntity.ok(CommonResponse.success(userService.updateNotificationSettings(userId, requestDto)));
+    }
+
 //    @PatchMapping("/{id}/password")
 //    @Operation(summary = "비밀번호 변경", description = "현재 비밀번호 확인 후 새 비밀번호로 변경합니다. 이메일 계정만 가능합니다.")
 //    @ApiResponses({

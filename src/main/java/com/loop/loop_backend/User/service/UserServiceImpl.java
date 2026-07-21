@@ -99,6 +99,14 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    @Override
+    @Transactional
+    public UserResponseDto updateNotificationSettings(Long id, NotificationSettingsRequestDto requestDto) {
+        User user = findUserOrThrow(id);
+        user.updateNotificationSettings(requestDto.getConcertReminderEmail(), requestDto.getChatNotificationEmail());
+        return toResponseDto(user);
+    }
+
     private UserResponseDto toResponseDto(User user) {
         List<UserResponseDto.HashtagSummary> hashtags = userHashtagRepository.findAllByUser(user).stream()
                 .map(tag -> new UserResponseDto.HashtagSummary(tag.getId(), tag.getTag()))
