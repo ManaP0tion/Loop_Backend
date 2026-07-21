@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Mail.service;
 
+import com.loop.loop_backend.Mail.dto.ConcertReminderSummary;
 import com.loop.loop_backend.Mail.dto.UnreadChatRoomSummary;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -82,6 +83,33 @@ public class MailServiceImpl implements MailService {
             mailSender.send(message);
         } catch (MessagingException | MailException e) {
             log.error("미확인 채팅 알림 메일 발송 실패 (to={})", toEmail, e);
+        }
+    }
+
+    @Override
+    @Async("mailExecutor")
+    public void sendConcertReminderNotification(String toEmail, String recipientNickname,
+                                                List<ConcertReminderSummary> concerts) {
+        if (toEmail == null || toEmail.isBlank() || concerts == null || concerts.isEmpty()) {
+            return;
+        }
+
+        Context context = new Context();
+        context.setVariable("recipientNickname", recipientNickname);
+        context.setVariable("concerts", concerts);
+        context.setVariable("frontendUrl", frontendUrl);
+
+        String html = templateEngine.process("mail/concert-reminder-notification", context);
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setTo(toEmail);
+            helper.setSubject("[Loop] 내일 관람 예정 공연이 " + concerts.size() + "건 있어요");
+            helper.setText(html, true);
+            mailSender.send(message);
+        } catch (MessagingException | MailException e) {
+            log.error("공연 하루전 리마인더 메일 발송 실패 (to={})", toEmail, e);
         }
     }
 }
