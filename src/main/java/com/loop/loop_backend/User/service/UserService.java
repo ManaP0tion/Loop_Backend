@@ -12,6 +12,7 @@ public interface UserService {
     UserResponseDto updateProfile(Long id, UserUpdateRequestDto requestDto);
     UserResponseDto completeOnboarding(Long id, OnboardingRequestDto requestDto);
     UserResponseDto updateArtists(Long id, ArtistUpdateRequestDto requestDto);
+    UserResponseDto updateNotificationSettings(Long id, NotificationSettingsRequestDto requestDto);
     void changePassword(Long id, PasswordChangeRequestDto requestDto);
     void withdrawUser(Long id);
 }

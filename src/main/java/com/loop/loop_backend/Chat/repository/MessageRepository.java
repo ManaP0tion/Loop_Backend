@@ -46,6 +46,7 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
               AND m.createdAt < :cutoff
               AND cp.user.email IS NOT NULL
               AND cp.user.status = com.loop.loop_backend.User.domain.Status.ACTIVE
+              AND cp.user.chatNotificationEmail = true
             GROUP BY cp.user.id, cp.user.email, cp.user.nickname, m.chatRoom.id, m.sender.nickname
             ORDER BY cp.user.id, MAX(m.createdAt) DESC
             """)

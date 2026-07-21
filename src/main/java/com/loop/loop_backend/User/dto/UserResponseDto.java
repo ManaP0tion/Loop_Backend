@@ -47,6 +47,12 @@ public class UserResponseDto {
     @Schema(description = "관심 아티스트 ID 목록 (아직 연관관계 미구현으로 항상 빈 배열)")
     private final List<String> preferredArtistIds;
 
+    @Schema(description = "공연 하루전 리마인더 이메일 수신 여부", example = "true")
+    private final boolean concertReminderEmail;
+
+    @Schema(description = "미확인 채팅 일일 다이제스트 이메일 수신 여부", example = "true")
+    private final boolean chatNotificationEmail;
+
     @Schema(description = "생성일시")
     private final LocalDateTime createdAt;
 
@@ -65,6 +71,8 @@ public class UserResponseDto {
         this.onboardingCompleted = user.isOnboardingCompleted();
         this.hashtags = hashtags;
         this.preferredArtistIds = List.of();
+        this.concertReminderEmail = user.isConcertReminderEmail();
+        this.chatNotificationEmail = user.isChatNotificationEmail();
         this.createdAt = user.getCreatedAt();
         this.updatedAt = user.getUpdatedAt();
     }
