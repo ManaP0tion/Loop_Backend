@@ -65,6 +65,7 @@ public enum ErrorCode {
     ALREADY_LEFT_CHAT(400, "이미 나간 채팅방입니다."),
     CHAT_ROOM_ACCESS_DENIED(403, "해당 채팅방에 접근할 권한이 없습니다."),
     MESSAGE_CONTENT_INVALID(400, "메시지 내용이 올바르지 않습니다."),
+    OTHER_USER_WITHDRAWN(410, "상대방이 탈퇴하여 메시지를 전송할 수 없습니다."),
 
 
     // Report/Block 도메인

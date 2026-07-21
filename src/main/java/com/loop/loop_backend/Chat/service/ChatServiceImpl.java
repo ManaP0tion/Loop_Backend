@@ -8,6 +8,8 @@ import com.loop.loop_backend.Chat.domain.ParticipantRole;
 import com.loop.loop_backend.Chat.domain.ParticipantStatus;
 import com.loop.loop_backend.Chat.dto.ChatLeaveEventDto;
 import com.loop.loop_backend.Chat.dto.ChatMessageDto;
+import com.loop.loop_backend.Chat.dto.ChatMessagesResponseDto;
+import com.loop.loop_backend.Chat.dto.ChatOtherUserRelationDto;
 import com.loop.loop_backend.Chat.dto.ChatReadEventDto;
 import com.loop.loop_backend.Chat.dto.ChatRoomResponseDto;
 import com.loop.loop_backend.Chat.dto.CreateChatRoomRequestDto;
@@ -18,7 +20,10 @@ import com.loop.loop_backend.Chat.repository.MessageRepository;
 import com.loop.loop_backend.Block.repository.BlockRepository;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
+import com.loop.loop_backend.Report.repository.ReportRepository;
+import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
+import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.common.util.HtmlSanitizer;
@@ -43,6 +48,8 @@ public class ChatServiceImpl implements ChatService {
     private final ChatParticipantRepository chatParticipantRepository;
     private final MessageRepository messageRepository;
     private final BlockRepository blockRepository;
+    private final ReportRepository reportRepository;
+    private final UserRepository userRepository;
     private final CompanionPostRepository companionPostRepository;
     private final EntityManager em;
     private final SimpMessagingTemplate messagingTemplate;
@@ -93,27 +100,29 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(ErrorCode.SELF_CHAT_NOT_ALLOWED);
         }
 
-        return chatRoomRepository.findDirectRoomBetween(myUserId, targetId)
-                .map(ChatRoomResponseDto::from)
+        ChatRoom room = chatRoomRepository.findDirectRoomBetween(myUserId, targetId)
                 .orElseGet(() -> {
                     User me = em.getReference(User.class, myUserId);
                     User target = em.getReference(User.class, targetId);
 
-                    ChatRoom room = ChatRoom.builder()
+                    ChatRoom created = ChatRoom.builder()
                             .type(ChatRoomType.DIRECT)
                             .name(null)
                             .build();
-                    chatRoomRepository.save(room);
+                    chatRoomRepository.save(created);
 
                     chatParticipantRepository.save(ChatParticipant.builder()
-                            .chatRoom(room).user(me).role(ParticipantRole.HOST).status(ParticipantStatus.ACTIVE)
+                            .chatRoom(created).user(me).role(ParticipantRole.HOST).status(ParticipantStatus.ACTIVE)
                             .build());
                     chatParticipantRepository.save(ChatParticipant.builder()
-                            .chatRoom(room).user(target).role(ParticipantRole.MEMBER).status(ParticipantStatus.ACTIVE)
+                            .chatRoom(created).user(target).role(ParticipantRole.MEMBER).status(ParticipantStatus.ACTIVE)
                             .build());
-
-                    return ChatRoomResponseDto.from(room);
+                    return created;
                 });
+
+        User otherUser = userRepository.findById(targetId).orElse(null);
+        ChatOtherUserRelationDto relation = buildRelation(myUserId, otherUser);
+        return ChatRoomResponseDto.from(room, otherUser, relation);
     }
 
     @Override
@@ -187,9 +196,10 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public Slice<ChatMessageDto> getMessages(Long roomId, Long userId, Pageable pageable) {
+    public ChatMessagesResponseDto getMessages(Long roomId, Long userId, Pageable pageable) {
         assertActiveParticipant(roomId, userId);
-        return messageRepository.findByChatRoom_IdOrderByCreatedAtDesc(roomId, pageable)
+
+        Slice<ChatMessageDto> messages = messageRepository.findByChatRoom_IdOrderByCreatedAtDesc(roomId, pageable)
                 .map(m -> ChatMessageDto.builder()
                         .type(ChatMessageDto.MessageType.TALK)
                         .roomId(m.getChatRoom().getId())
@@ -198,6 +208,12 @@ public class ChatServiceImpl implements ChatService {
                         .createdAt(m.getCreatedAt())
                         .isRead(m.isRead())
                         .build());
+
+        ChatOtherUserRelationDto relation = buildDirectRelationForRoom(roomId, userId);
+        return ChatMessagesResponseDto.builder()
+                .otherUserRelation(relation)
+                .messages(messages)
+                .build();
     }
 
     @Override
@@ -220,6 +236,7 @@ public class ChatServiceImpl implements ChatService {
     public ChatMessageDto saveMessage(Long roomId, Long senderId, String rawContent) {
         assertActiveParticipant(roomId, senderId);
         assertNotBlockedInRoom(roomId, senderId);
+        assertOtherParticipantNotWithdrawn(roomId, senderId);
 
         String sanitized = HtmlSanitizer.sanitize(rawContent);
         if (sanitized == null || sanitized.isBlank()) {
@@ -263,5 +280,55 @@ public class ChatServiceImpl implements ChatService {
         if (blockRepository.existsBlockBetween(senderId, otherIds)) {
             throw new BusinessException(ErrorCode.BLOCKED_USER);
         }
+    }
+
+    // ponytail: N+1 for otherIds > 1. 그룹 채팅이 프로덕션에서 실제 사용되면 IN 쿼리 하나로 대체
+    private void assertOtherParticipantNotWithdrawn(Long roomId, Long senderId) {
+        List<Long> otherIds = chatParticipantRepository
+                .findByChatRoom_IdAndStatus(roomId, ParticipantStatus.ACTIVE).stream()
+                .map(p -> p.getUser().getId())
+                .filter(id -> !id.equals(senderId))
+                .collect(Collectors.toList());
+
+        for (Long otherId : otherIds) {
+            User other = userRepository.findById(otherId).orElse(null);
+            if (other != null && other.getStatus() == Status.WITHDRAWN) {
+                throw new BusinessException(ErrorCode.OTHER_USER_WITHDRAWN);
+            }
+        }
+    }
+
+    private ChatOtherUserRelationDto buildDirectRelationForRoom(Long roomId, Long myUserId) {
+        ChatRoom room = chatRoomRepository.findById(roomId).orElse(null);
+        if (room == null || room.getType() != ChatRoomType.DIRECT) return null;
+
+        Long otherId = chatParticipantRepository.findByChatRoom_IdAndStatus(roomId, ParticipantStatus.ACTIVE).stream()
+                .map(p -> p.getUser().getId())
+                .filter(id -> !id.equals(myUserId))
+                .findFirst()
+                .orElseGet(() -> chatParticipantRepository.findByChatRoom_IdAndStatus(roomId, ParticipantStatus.LEFT).stream()
+                        .map(p -> p.getUser().getId())
+                        .filter(id -> !id.equals(myUserId))
+                        .findFirst()
+                        .orElse(null));
+
+        if (otherId == null) return null;
+        User otherUser = userRepository.findById(otherId).orElse(null);
+        return buildRelation(myUserId, otherUser);
+    }
+
+    private ChatOtherUserRelationDto buildRelation(Long myUserId, User otherUser) {
+        if (otherUser == null) {
+            return ChatOtherUserRelationDto.builder()
+                    .otherUserWithdrawn(true)
+                    .build();
+        }
+        Long otherId = otherUser.getId();
+        return ChatOtherUserRelationDto.builder()
+                .otherUserWithdrawn(otherUser.getStatus() == Status.WITHDRAWN)
+                .blockedByMe(blockRepository.existsByBlocker_IdAndBlocked_Id(myUserId, otherId))
+                .blockedMe(blockRepository.existsByBlocker_IdAndBlocked_Id(otherId, myUserId))
+                .reportedByMe(reportRepository.existsByReporter_IdAndTargetUser_Id(myUserId, otherId))
+                .build();
     }
 }
