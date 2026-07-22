@@ -139,6 +139,15 @@ public class User {
         this.status = Status.WITHDRAWN;
     }
 
+    // 탈퇴 계정 재가입: 같은 계정을 살리되 온보딩부터 새로 하도록 초기화
+    public void reactivate() {
+        this.status = Status.ACTIVE;
+        this.onboardingCompleted = false;
+        this.nickname = null;
+        this.birthDate = null;
+        this.gender = null;
+    }
+
     public void updateNotificationSettings(Boolean concertReminderEmail, Boolean chatNotificationEmail) {
         if (concertReminderEmail != null) this.concertReminderEmail = concertReminderEmail;
         if (chatNotificationEmail != null) this.chatNotificationEmail = chatNotificationEmail;

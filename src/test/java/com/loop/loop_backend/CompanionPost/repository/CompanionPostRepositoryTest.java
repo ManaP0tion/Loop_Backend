@@ -201,6 +201,26 @@ class CompanionPostRepositoryTest {
     }
 
     @Test
+    void 작성자가_탈퇴한_프로필은_목록에서_제외된다() {
+        User active = persistUser("wactive", Gender.MALE, 25);
+        User withdrawn = persistUser("wwithdrawn", Gender.MALE, 25);
+        persistCompanionPost(active);
+        persistCompanionPost(withdrawn);
+        withdrawn.withdraw();
+        entityManager.flush();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
+                CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
+                CompanionPostSpecifications.authorNotWithdrawn());
+
+        List<CompanionPost> result = companionPostRepository.findAll(spec);
+
+        assertThat(result).extracting(post -> post.getUser().getProviderId())
+                .containsExactly("wactive");
+    }
+
+    @Test
     void 성별_조건으로_필터링된다() {
         User male = persistUser("male", Gender.MALE, 25);
         User female = persistUser("female", Gender.FEMALE, 25);

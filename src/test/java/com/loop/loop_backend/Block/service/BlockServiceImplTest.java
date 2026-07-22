@@ -135,6 +135,18 @@ class BlockServiceImplTest {
     }
 
     @Test
+    void 차단한_사용자가_탈퇴하면_차단_목록에서_제외된다() {
+        blockService.block(1L, 2L);
+        blockService.block(1L, 3L);
+
+        userB.withdraw();
+
+        List<BlockedUserResponseDto> result = blockService.getBlockedUsers(1L);
+        assertThat(result).extracting(BlockedUserResponseDto::getNickname)
+                .containsExactly("userC");
+    }
+
+    @Test
     void 생년월일이_없는_사용자는_차단_목록에서_나이가_null이다() {
         blockService.block(1L, 2L);
 

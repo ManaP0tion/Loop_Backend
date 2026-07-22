@@ -5,6 +5,7 @@ import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.FavoriteArtist.domain.FavoriteArtist;
 import com.loop.loop_backend.FavoriteArtist.dto.FavoriteArtistResponseDto;
 import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
+import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -29,6 +30,9 @@ public class FavoriteArtistServiceImpl implements FavoriteArtistService {
     @Override
     public List<FavoriteArtistResponseDto> getFavoriteArtists(Long userId) {
         User user = getUser(userId);
+        if (user.getStatus() == Status.WITHDRAWN) {
+            throw new BusinessException(ErrorCode.WITHDRAWN_USER);
+        }
         return favoriteArtistRepository.findAllByUser(user).stream()
                 .map(FavoriteArtistResponseDto::from)
                 .toList();
