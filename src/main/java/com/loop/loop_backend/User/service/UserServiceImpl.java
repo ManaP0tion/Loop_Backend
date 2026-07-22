@@ -1,5 +1,6 @@
 package com.loop.loop_backend.User.service;
 
+import com.loop.loop_backend.Chat.service.ChatService;
 import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.Storage.dto.ImageUploadResponseDto;
@@ -30,6 +31,7 @@ public class UserServiceImpl implements UserService {
     private final FavoriteArtistRepository favoriteArtistRepository;
     private final PasswordEncoder passwordEncoder;
     private final S3StorageService s3StorageService;
+    private final ChatService chatService;
 
 //    @Override
 //    @Transactional
@@ -144,6 +146,7 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public void withdrawUser(Long id) {
         User user = findUserOrThrow(id);
+        chatService.handleUserWithdrawn(id);
         user.withdraw();
     }
 

@@ -66,6 +66,7 @@ public enum ErrorCode {
     CHAT_ROOM_ACCESS_DENIED(403, "해당 채팅방에 접근할 권한이 없습니다."),
     MESSAGE_CONTENT_INVALID(400, "메시지 내용이 올바르지 않습니다."),
     OTHER_USER_WITHDRAWN(410, "상대방이 탈퇴하여 메시지를 전송할 수 없습니다."),
+    OTHER_USER_LEFT(410, "상대가 채팅방을 나가 메시지를 전송할 수 없습니다."),
 
 
     // Report/Block 도메인
@@ -74,6 +75,12 @@ public enum ErrorCode {
     ALREADY_BLOCKED(409, "이미 차단한 사용자입니다."),
     BLOCK_NOT_FOUND(404, "차단 내역을 찾을 수 없습니다."),
     SELF_REPORT_NOT_ALLOWED(400, "자기 자신을 신고/차단할 수 없습니다."),
+
+    // Admin 도메인
+    REPORT_NOT_FOUND(404, "신고를 찾을 수 없습니다."),
+    INQUIRY_NOT_FOUND(404, "고객센터 문의를 찾을 수 없습니다."),
+    ADMIN_ACCESS_LOG_NOT_FOUND(404, "접속 기록을 찾을 수 없습니다."),
+    APPEAL_INVALID_STATE(400, "이의제기 상태가 유효하지 않습니다."),
 
     // Storage(S3) 도메인
     EMPTY_FILE(400, "빈 파일은 업로드할 수 없습니다."),

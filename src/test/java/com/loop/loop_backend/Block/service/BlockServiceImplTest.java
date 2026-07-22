@@ -3,6 +3,7 @@ package com.loop.loop_backend.Block.service;
 import com.loop.loop_backend.Block.domain.Block;
 import com.loop.loop_backend.Block.dto.BlockedUserResponseDto;
 import com.loop.loop_backend.Block.repository.BlockRepository;
+import com.loop.loop_backend.Chat.service.ChatService;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
@@ -37,6 +38,7 @@ class BlockServiceImplTest {
 
     @Mock UserRepository userRepository;
     @Mock BlockRepository blockRepository;
+    @Mock ChatService chatService;
     @InjectMocks BlockServiceImpl blockService;
 
     private final List<Block> store = new ArrayList<>();

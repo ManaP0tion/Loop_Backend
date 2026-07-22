@@ -22,6 +22,7 @@ import java.security.Principal;
 public class StompSubscriptionInterceptor implements ChannelInterceptor {
 
     private static final String ROOM_DESTINATION_PREFIX = "/sub/chat/room/";
+    private static final String ERROR_DESTINATION_PREFIX = "/sub/chat/errors/";
     private static final String APP_DESTINATION_PREFIX = "/pub/";
 
     private final ChatParticipantRepository chatParticipantRepository;
@@ -60,21 +61,32 @@ public class StompSubscriptionInterceptor implements ChannelInterceptor {
 
     private void handleSubscribe(StompHeaderAccessor accessor) {
         String destination = accessor.getDestination();
-        if (destination == null || !destination.startsWith(ROOM_DESTINATION_PREFIX)) {
-            return;
-        }
+        if (destination == null) return;
 
-        Long userId = requireUserId(accessor, "채팅방 구독은 로그인이 필요합니다.");
-        Long roomId;
-        try {
-            roomId = Long.parseLong(destination.substring(ROOM_DESTINATION_PREFIX.length()));
-        } catch (NumberFormatException e) {
-            throw new MessagingException("잘못된 구독 요청입니다.");
-        }
-
-        if (!chatParticipantRepository.existsByChatRoom_IdAndUser_IdAndStatus(roomId, userId, ParticipantStatus.ACTIVE)) {
-            log.warn("채팅방 구독 차단: userId={}, roomId={}", userId, roomId);
-            throw new MessagingException("해당 채팅방의 참여자가 아닙니다.");
+        if (destination.startsWith(ROOM_DESTINATION_PREFIX)) {
+            Long userId = requireUserId(accessor, "채팅방 구독은 로그인이 필요합니다.");
+            Long roomId;
+            try {
+                roomId = Long.parseLong(destination.substring(ROOM_DESTINATION_PREFIX.length()));
+            } catch (NumberFormatException e) {
+                throw new MessagingException("잘못된 구독 요청입니다.");
+            }
+            if (!chatParticipantRepository.existsByChatRoom_IdAndUser_IdAndStatus(roomId, userId, ParticipantStatus.ACTIVE)) {
+                log.warn("채팅방 구독 차단: userId={}, roomId={}", userId, roomId);
+                throw new MessagingException("해당 채팅방의 참여자가 아닙니다.");
+            }
+        } else if (destination.startsWith(ERROR_DESTINATION_PREFIX)) {
+            Long userId = requireUserId(accessor, "에러 채널 구독은 로그인이 필요합니다.");
+            Long targetUserId;
+            try {
+                targetUserId = Long.parseLong(destination.substring(ERROR_DESTINATION_PREFIX.length()));
+            } catch (NumberFormatException e) {
+                throw new MessagingException("잘못된 구독 요청입니다.");
+            }
+            if (!userId.equals(targetUserId)) {
+                log.warn("에러 채널 무단 구독 차단: userId={}, targetUserId={}", userId, targetUserId);
+                throw new MessagingException("본인의 에러 채널만 구독할 수 있습니다.");
+            }
         }
     }
 

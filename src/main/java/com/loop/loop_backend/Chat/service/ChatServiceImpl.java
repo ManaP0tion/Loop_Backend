@@ -4,6 +4,7 @@ import com.loop.loop_backend.Chat.domain.ChatParticipant;
 import com.loop.loop_backend.Chat.domain.ChatRoom;
 import com.loop.loop_backend.Chat.domain.ChatRoomType;
 import com.loop.loop_backend.Chat.domain.Message;
+import com.loop.loop_backend.Chat.domain.MessageType;
 import com.loop.loop_backend.Chat.domain.ParticipantRole;
 import com.loop.loop_backend.Chat.domain.ParticipantStatus;
 import com.loop.loop_backend.Chat.dto.ChatLeaveEventDto;
@@ -175,6 +176,14 @@ public class ChatServiceImpl implements ChatService {
         }
         participant.leave();
 
+        User leaver = participant.getUser();
+        String leaverNickname = leaver.getNickname() != null ? leaver.getNickname() : "상대방";
+        saveAndBroadcastSystemMessage(
+                em.getReference(ChatRoom.class, roomId),
+                leaver,
+                MessageType.SYSTEM_LEAVE,
+                leaverNickname + "님이 채팅방을 나갔습니다");
+
         ChatLeaveEventDto event = ChatLeaveEventDto.builder()
                 .type(ChatLeaveEventDto.Type.LEAVE)
                 .roomId(roomId)
@@ -215,14 +224,7 @@ public class ChatServiceImpl implements ChatService {
         assertActiveParticipant(roomId, userId);
 
         Slice<ChatMessageDto> messages = messageRepository.findByChatRoom_IdOrderByCreatedAtDesc(roomId, pageable)
-                .map(m -> ChatMessageDto.builder()
-                        .type(ChatMessageDto.MessageType.TALK)
-                        .roomId(m.getChatRoom().getId())
-                        .senderId(m.getSender().getId())
-                        .content(m.getContent())
-                        .createdAt(m.getCreatedAt())
-                        .isRead(m.isRead())
-                        .build());
+                .map(this::toDto);
 
         ChatRoom room = chatRoomRepository.findById(roomId).orElse(null);
         ChatOtherUserRelationDto relation = buildDirectRelationForRoom(room, userId);
@@ -260,6 +262,7 @@ public class ChatServiceImpl implements ChatService {
         assertActiveParticipant(roomId, senderId);
         assertNotBlockedInRoom(roomId, senderId);
         assertOtherParticipantNotWithdrawn(roomId, senderId);
+        assertOtherParticipantActive(roomId, senderId);
 
         String sanitized = HtmlSanitizer.sanitize(rawContent);
         if (sanitized == null || sanitized.isBlank()) {
@@ -271,6 +274,7 @@ public class ChatServiceImpl implements ChatService {
         Message saved = messageRepository.save(Message.builder()
                 .chatRoom(chatRoom)
                 .sender(sender)
+                .type(MessageType.USER)
                 .content(sanitized)
                 .build());
 
@@ -282,6 +286,69 @@ public class ChatServiceImpl implements ChatService {
                 .createdAt(saved.getCreatedAt() != null ? saved.getCreatedAt() : LocalDateTime.now())
                 .isRead(false)
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public void hideDirectRoomForUser(Long actorUserId, Long otherUserId) {
+        chatRoomRepository.findDirectRoomBetweenAnyStatus(actorUserId, otherUserId)
+                .flatMap(room -> chatParticipantRepository.findByChatRoom_IdAndUser_Id(room.getId(), actorUserId))
+                .filter(p -> p.getStatus() == ParticipantStatus.ACTIVE)
+                .ifPresent(ChatParticipant::leave);
+    }
+
+    @Override
+    @Transactional
+    public void handleUserWithdrawn(Long withdrawnUserId) {
+        User withdrawer = userRepository.findById(withdrawnUserId).orElse(null);
+        if (withdrawer == null) return;
+        String nickname = withdrawer.getNickname() != null ? withdrawer.getNickname() : "상대방";
+        String content = nickname + "님이 루프를 탈퇴했어요";
+
+        // 탈퇴자가 참여 중이던(ACTIVE) DIRECT 방들에 대해 시스템 메시지 이력 남기고 실시간 브로드캐스트
+        chatParticipantRepository.findByUser_IdAndStatus(withdrawnUserId, ParticipantStatus.ACTIVE).stream()
+                .map(ChatParticipant::getChatRoom)
+                .filter(room -> room.getType() == ChatRoomType.DIRECT)
+                .forEach(room -> saveAndBroadcastSystemMessage(room, withdrawer, MessageType.SYSTEM_WITHDRAWN, content));
+    }
+
+    private void saveAndBroadcastSystemMessage(ChatRoom room, User actor, MessageType type, String content) {
+        Message saved = messageRepository.save(Message.builder()
+                .chatRoom(room)
+                .sender(actor)
+                .type(type)
+                .content(content)
+                .build());
+        messagingTemplate.convertAndSend("/sub/chat/room/" + room.getId(), toDto(saved));
+    }
+
+    private ChatMessageDto toDto(Message m) {
+        return ChatMessageDto.builder()
+                .type(mapType(m.getType()))
+                .roomId(m.getChatRoom().getId())
+                .senderId(m.getSender() != null ? m.getSender().getId() : null)
+                .content(m.getContent())
+                .createdAt(m.getCreatedAt())
+                .isRead(m.isRead())
+                .build();
+    }
+
+    private ChatMessageDto.MessageType mapType(MessageType type) {
+        if (type == null) return ChatMessageDto.MessageType.TALK;
+        return switch (type) {
+            case USER -> ChatMessageDto.MessageType.TALK;
+            case SYSTEM_LEAVE -> ChatMessageDto.MessageType.SYSTEM_LEAVE;
+            case SYSTEM_WITHDRAWN -> ChatMessageDto.MessageType.SYSTEM_WITHDRAWN;
+        };
+    }
+
+    private void assertOtherParticipantActive(Long roomId, Long senderId) {
+        List<ChatParticipant> others = chatParticipantRepository.findByChatRoom_IdAndStatus(roomId, ParticipantStatus.ACTIVE).stream()
+                .filter(p -> !p.getUser().getId().equals(senderId))
+                .collect(Collectors.toList());
+        if (others.isEmpty()) {
+            throw new BusinessException(ErrorCode.OTHER_USER_LEFT);
+        }
     }
 
     private void assertActiveParticipant(Long roomId, Long userId) {

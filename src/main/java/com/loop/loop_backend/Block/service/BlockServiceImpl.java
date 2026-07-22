@@ -3,6 +3,7 @@ package com.loop.loop_backend.Block.service;
 import com.loop.loop_backend.Block.domain.Block;
 import com.loop.loop_backend.Block.dto.BlockedUserResponseDto;
 import com.loop.loop_backend.Block.repository.BlockRepository;
+import com.loop.loop_backend.Chat.service.ChatService;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -21,6 +22,7 @@ public class BlockServiceImpl implements BlockService {
 
     private final BlockRepository blockRepository;
     private final UserRepository userRepository;
+    private final ChatService chatService;
 
     @Override
     @Transactional
@@ -45,6 +47,8 @@ public class BlockServiceImpl implements BlockService {
             // 사전 존재 체크와 저장 사이의 동시 요청 레이스 - DB 유니크 제약이 최종 방어선
             throw new BusinessException(ErrorCode.ALREADY_BLOCKED);
         }
+
+        chatService.hideDirectRoomForUser(userId, targetUserId);
     }
 
     @Override

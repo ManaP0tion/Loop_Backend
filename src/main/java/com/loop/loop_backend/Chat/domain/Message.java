@@ -24,8 +24,13 @@ public class Message {
     private ChatRoom chatRoom;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sender_id", nullable = false)
+    @JoinColumn(name = "sender_id")
     private User sender;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", nullable = false, length = 32)
+    private MessageType type = MessageType.USER;
 
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;

@@ -26,4 +26,8 @@ public interface ChatService {
     ChatMessageDto saveMessage(Long roomId, Long senderId, String rawContent);
 
     void markAsRead(Long roomId, Long userId);
+
+    void hideDirectRoomForUser(Long actorUserId, Long otherUserId);
+
+    void handleUserWithdrawn(Long withdrawnUserId);
 }

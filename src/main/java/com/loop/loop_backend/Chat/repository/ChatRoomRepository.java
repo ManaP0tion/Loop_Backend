@@ -39,4 +39,13 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
             )
             """)
     Optional<ChatRoom> findDirectRoomBetween(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
+
+    // 참여자 상태와 무관하게 두 유저 사이 DIRECT 방을 찾는다. (차단/신고로 방을 hide 할 때 대상 방을 찾기 위함)
+    @Query("""
+            SELECT cr FROM ChatRoom cr
+            WHERE cr.type = com.loop.loop_backend.Chat.domain.ChatRoomType.DIRECT
+            AND EXISTS (SELECT 1 FROM ChatParticipant p1 WHERE p1.chatRoom = cr AND p1.user.id = :userId1)
+            AND EXISTS (SELECT 1 FROM ChatParticipant p2 WHERE p2.chatRoom = cr AND p2.user.id = :userId2)
+            """)
+    Optional<ChatRoom> findDirectRoomBetweenAnyStatus(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
 }
