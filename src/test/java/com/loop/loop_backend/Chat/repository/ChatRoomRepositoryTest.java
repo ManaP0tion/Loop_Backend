@@ -1,7 +1,10 @@
 package com.loop.loop_backend.Chat.repository;
 
+import com.loop.loop_backend.Chat.domain.ChatParticipant;
 import com.loop.loop_backend.Chat.domain.ChatRoom;
 import com.loop.loop_backend.Chat.domain.ChatRoomType;
+import com.loop.loop_backend.Chat.domain.ParticipantRole;
+import com.loop.loop_backend.Chat.domain.ParticipantStatus;
 import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
@@ -18,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -87,5 +91,30 @@ class ChatRoomRepositoryTest {
         // then: 채팅방 자체는 남아있고, 참조하던 동행글만 null로 바뀐다
         ChatRoom found = chatRoomRepository.findById(roomId).orElseThrow();
         assertThat(found.getPost()).isNull();
+    }
+
+    @Test
+    void 두_유저_사이_DIRECT_방이_중복이어도_예외_없이_모두_반환된다() {
+        // 과거 race로 DIRECT 방이 2개 생긴 상황 재현: Optional 반환이었다면 NonUniqueResultException.
+        User a = persistUser("uA");
+        User b = persistUser("uB");
+
+        ChatRoom room1 = persistDirectRoom(a, b);
+        ChatRoom room2 = persistDirectRoom(a, b);
+        entityManager.flush();
+        entityManager.clear();
+
+        List<ChatRoom> anyStatus = chatRoomRepository.findDirectRoomsBetweenAnyStatus(a.getId(), b.getId());
+        assertThat(anyStatus).extracting(ChatRoom::getId).containsExactly(room1.getId(), room2.getId());
+    }
+
+    private ChatRoom persistDirectRoom(User u1, User u2) {
+        ChatRoom room = ChatRoom.builder().type(ChatRoomType.DIRECT).build();
+        entityManager.persist(room);
+        entityManager.persist(ChatParticipant.builder()
+                .chatRoom(room).user(u1).role(ParticipantRole.HOST).status(ParticipantStatus.ACTIVE).build());
+        entityManager.persist(ChatParticipant.builder()
+                .chatRoom(room).user(u2).role(ParticipantRole.MEMBER).status(ParticipantStatus.ACTIVE).build());
+        return room;
     }
 }

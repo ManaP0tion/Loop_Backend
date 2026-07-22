@@ -35,6 +35,7 @@ import org.springframework.data.domain.Slice;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -54,6 +55,7 @@ public class ChatServiceImpl implements ChatService {
     private final CompanionPostRepository companionPostRepository;
     private final EntityManager em;
     private final SimpMessagingTemplate messagingTemplate;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
     @Transactional
@@ -94,45 +96,64 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    @Transactional
     public ChatRoomResponseDto startDirectChat(Long myUserId, StartDirectChatRequestDto request) {
         Long targetId = request.getTargetUserId();
         if (myUserId.equals(targetId)) {
             throw new BusinessException(ErrorCode.SELF_CHAT_NOT_ALLOWED);
         }
 
-        ChatRoom room = chatRoomRepository.findDirectRoomBetween(myUserId, targetId)
-                .orElseGet(() -> {
-                    User me = em.getReference(User.class, myUserId);
-                    User target = em.getReference(User.class, targetId);
-
-                    ChatRoom created = ChatRoom.builder()
-                            .type(ChatRoomType.DIRECT)
-                            .name(null)
-                            .build();
-                    chatRoomRepository.save(created);
-
-                    chatParticipantRepository.save(ChatParticipant.builder()
-                            .chatRoom(created).user(me).role(ParticipantRole.HOST).status(ParticipantStatus.ACTIVE)
-                            .build());
-                    chatParticipantRepository.save(ChatParticipant.builder()
-                            .chatRoom(created).user(target).role(ParticipantRole.MEMBER).status(ParticipantStatus.ACTIVE)
-                            .build());
-                    return created;
-                });
-
-        if (request.getCompanionPostId() != null) {
-            CompanionPost post = companionPostRepository.findById(request.getCompanionPostId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND));
-            if (!post.getUser().getId().equals(targetId)) {
-                throw new BusinessException(ErrorCode.FORBIDDEN);
-            }
-            room.assignPost(post);
+        // ponytail: 동일 페어 동시 생성 방지용 JVM 내 mutex. sync가 tx를 감싸야 commit이
+        // 다음 스레드 조회에 보인다. 다중 인스턴스면 (type, min(user), max(user)) DB 유니크로 승격.
+        String pairKey = ("chat:direct:"
+                + Math.min(myUserId, targetId) + ":" + Math.max(myUserId, targetId)).intern();
+        Long roomId;
+        synchronized (pairKey) {
+            roomId = transactionTemplate.execute(status -> {
+                // LINE 방식: DIRECT는 페어당 방 1개. hide된(내 participant=LEFT) 방이면 rejoin.
+                List<ChatRoom> existing = chatRoomRepository.findDirectRoomsBetweenAnyStatus(myUserId, targetId);
+                ChatRoom room;
+                if (existing.isEmpty()) {
+                    room = createDirectRoom(myUserId, targetId);
+                } else {
+                    room = existing.get(0);
+                    chatParticipantRepository.findByChatRoom_IdAndUser_Id(room.getId(), myUserId)
+                            .filter(p -> p.getStatus() == ParticipantStatus.LEFT)
+                            .ifPresent(ChatParticipant::rejoin);
+                }
+                if (request.getCompanionPostId() != null) {
+                    CompanionPost post = companionPostRepository.findById(request.getCompanionPostId())
+                            .orElseThrow(() -> new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND));
+                    if (!post.getUser().getId().equals(targetId)) {
+                        throw new BusinessException(ErrorCode.FORBIDDEN);
+                    }
+                    room.assignPost(post);
+                }
+                return room.getId();
+            });
         }
 
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         User otherUser = userRepository.findById(targetId).orElse(null);
         ChatOtherUserRelationDto relation = buildRelation(myUserId, targetId, otherUser);
         return ChatRoomResponseDto.from(room, targetId, otherUser, relation);
+    }
+
+    private ChatRoom createDirectRoom(Long myUserId, Long targetId) {
+        User me = em.getReference(User.class, myUserId);
+        User target = em.getReference(User.class, targetId);
+        ChatRoom created = ChatRoom.builder()
+                .type(ChatRoomType.DIRECT)
+                .name(null)
+                .build();
+        chatRoomRepository.save(created);
+        chatParticipantRepository.save(ChatParticipant.builder()
+                .chatRoom(created).user(me).role(ParticipantRole.HOST).status(ParticipantStatus.ACTIVE)
+                .build());
+        chatParticipantRepository.save(ChatParticipant.builder()
+                .chatRoom(created).user(target).role(ParticipantRole.MEMBER).status(ParticipantStatus.ACTIVE)
+                .build());
+        return created;
     }
 
     @Override
@@ -291,10 +312,12 @@ public class ChatServiceImpl implements ChatService {
     @Override
     @Transactional
     public void hideDirectRoomForUser(Long actorUserId, Long otherUserId) {
-        chatRoomRepository.findDirectRoomBetweenAnyStatus(actorUserId, otherUserId)
-                .flatMap(room -> chatParticipantRepository.findByChatRoom_IdAndUser_Id(room.getId(), actorUserId))
-                .filter(p -> p.getStatus() == ParticipantStatus.ACTIVE)
-                .ifPresent(ChatParticipant::leave);
+        // 중복 방(과거 race로 생긴 dupes)까지 전부 hide
+        chatRoomRepository.findDirectRoomsBetweenAnyStatus(actorUserId, otherUserId)
+                .forEach(room -> chatParticipantRepository
+                        .findByChatRoom_IdAndUser_Id(room.getId(), actorUserId)
+                        .filter(p -> p.getStatus() == ParticipantStatus.ACTIVE)
+                        .ifPresent(ChatParticipant::leave));
     }
 
     @Override
