@@ -1,17 +1,30 @@
 package com.loop.loop_backend.Chat.repository;
 
 import com.loop.loop_backend.Chat.domain.ChatRoom;
+import com.loop.loop_backend.Chat.dto.ChatRoomSummaryDto;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
     boolean existsByPost_Id(Long postId);
+
+    // 트랜잭션 밖에서 응답을 조립해야 할 때(startDirectChat) 지연로딩 없이 필요한 값만 한 번에 조회
+    @Query("""
+            SELECT new com.loop.loop_backend.Chat.dto.ChatRoomSummaryDto(
+                cr.id, cr.name, cr.type, cr.createdAt, p.id, c.id)
+            FROM ChatRoom cr
+            LEFT JOIN cr.post p
+            LEFT JOIN p.concert c
+            WHERE cr.id = :roomId
+            """)
+    Optional<ChatRoomSummaryDto> findSummaryById(@Param("roomId") Long roomId);
 
     @Query("""
             SELECT cp.chatRoom FROM ChatParticipant cp

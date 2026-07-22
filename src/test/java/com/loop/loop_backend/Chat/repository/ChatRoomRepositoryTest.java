@@ -5,6 +5,7 @@ import com.loop.loop_backend.Chat.domain.ChatRoom;
 import com.loop.loop_backend.Chat.domain.ChatRoomType;
 import com.loop.loop_backend.Chat.domain.ParticipantRole;
 import com.loop.loop_backend.Chat.domain.ParticipantStatus;
+import com.loop.loop_backend.Chat.dto.ChatRoomSummaryDto;
 import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
@@ -91,6 +92,55 @@ class ChatRoomRepositoryTest {
         // then: 채팅방 자체는 남아있고, 참조하던 동행글만 null로 바뀐다
         ChatRoom found = chatRoomRepository.findById(roomId).orElseThrow();
         assertThat(found.getPost()).isNull();
+    }
+
+    @Test
+    void 요약_조회는_동행글과_공연_id까지_한번에_가져온다() {
+        Concert concert = Concert.builder()
+                .title("테스트 콘서트")
+                .category(ConcertCategory.DOMESTIC_ARTIST)
+                .build();
+        entityManager.persist(concert);
+
+        User host = persistUser("sumH");
+        CompanionPost post = CompanionPost.builder()
+                .user(host)
+                .concert(concert)
+                .watchDay(WatchDay.DAY1)
+                .activities(Set.of(CompanionActivity.CONCERT))
+                .build();
+        entityManager.persist(post);
+
+        ChatRoom room = ChatRoom.builder()
+                .post(post)
+                .type(ChatRoomType.GROUP)
+                .name("동행 채팅방")
+                .build();
+        entityManager.persist(room);
+        entityManager.flush();
+        entityManager.clear();
+
+        ChatRoomSummaryDto summary = chatRoomRepository.findSummaryById(room.getId()).orElseThrow();
+
+        assertThat(summary.id()).isEqualTo(room.getId());
+        assertThat(summary.name()).isEqualTo("동행 채팅방");
+        assertThat(summary.type()).isEqualTo(ChatRoomType.GROUP);
+        assertThat(summary.postId()).isEqualTo(post.getId());
+        assertThat(summary.concertId()).isEqualTo(concert.getId());
+    }
+
+    @Test
+    void 동행글_연결이_없는_DIRECT_방의_요약은_postId와_concertId가_null이다() {
+        User a = persistUser("sumA");
+        User b = persistUser("sumB");
+        ChatRoom room = persistDirectRoom(a, b);
+        entityManager.flush();
+        entityManager.clear();
+
+        ChatRoomSummaryDto summary = chatRoomRepository.findSummaryById(room.getId()).orElseThrow();
+
+        assertThat(summary.postId()).isNull();
+        assertThat(summary.concertId()).isNull();
     }
 
     @Test
