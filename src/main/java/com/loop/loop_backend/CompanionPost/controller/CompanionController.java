@@ -157,7 +157,10 @@ public class CompanionController {
                     })),
             @ApiResponse(responseCode = "404", description = "동행 프로필 없음",
                     content = @Content(examples = @ExampleObject(
-                            value = "{\"success\":false,\"message\":\"동행 모집글을 찾을 수 없습니다.\",\"code\":404}")))
+                            value = "{\"success\":false,\"message\":\"동행 모집글을 찾을 수 없습니다.\",\"code\":404}"))),
+            @ApiResponse(responseCode = "410", description = "작성자가 탈퇴한 사용자",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"탈퇴한 사용자입니다.\",\"code\":410}")))
     })
     @GetMapping("/{id}")
     public ResponseEntity<CommonResponse<CompanionDetailResponseDto>> getCompanion(

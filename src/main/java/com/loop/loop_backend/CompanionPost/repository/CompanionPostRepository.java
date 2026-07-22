@@ -22,6 +22,8 @@ public interface CompanionPostRepository extends JpaRepository<CompanionPost, Lo
 
     Optional<CompanionPost> findByUser_IdAndConcert_IdAndWatchDay(Long userId, Long concertId, WatchDay watchDay);
 
+    void deleteAllByUser(User user);
+
     //concert 조회시 해당 콘서트에 등록된 동행 수
     long countByConcert_Id(Long concertId);
 

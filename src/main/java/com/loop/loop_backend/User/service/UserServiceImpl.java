@@ -10,6 +10,7 @@ import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.User.dto.*;
+import com.loop.loop_backend.auth.service.RefreshTokenService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final S3StorageService s3StorageService;
     private final ChatService chatService;
+    private final RefreshTokenService refreshTokenService;
 
 //    @Override
 //    @Transactional
@@ -148,6 +150,7 @@ public class UserServiceImpl implements UserService {
         User user = findUserOrThrow(id);
         chatService.handleUserWithdrawn(id);
         user.withdraw();
+        refreshTokenService.delete(id);
     }
 
     private User findUserOrThrow(Long id) {
