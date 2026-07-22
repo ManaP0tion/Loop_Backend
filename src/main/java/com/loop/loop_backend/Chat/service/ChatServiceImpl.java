@@ -120,9 +120,18 @@ public class ChatServiceImpl implements ChatService {
                     return created;
                 });
 
+        if (request.getCompanionPostId() != null) {
+            CompanionPost post = companionPostRepository.findById(request.getCompanionPostId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND));
+            if (!post.getUser().getId().equals(targetId)) {
+                throw new BusinessException(ErrorCode.FORBIDDEN);
+            }
+            room.assignPost(post);
+        }
+
         User otherUser = userRepository.findById(targetId).orElse(null);
-        ChatOtherUserRelationDto relation = buildRelation(myUserId, otherUser);
-        return ChatRoomResponseDto.from(room, otherUser, relation);
+        ChatOtherUserRelationDto relation = buildRelation(myUserId, targetId, otherUser);
+        return ChatRoomResponseDto.from(room, targetId, otherUser, relation);
     }
 
     @Override
@@ -184,13 +193,19 @@ public class ChatServiceImpl implements ChatService {
                             .filter(p -> !p.getUser().getId().equals(userId))
                             .map(ChatParticipant::getUser)
                             .findFirst()
-                            .orElse(null);
+                            .orElseGet(() -> chatParticipantRepository
+                                    .findByChatRoom_IdAndStatus(room.getId(), ParticipantStatus.LEFT).stream()
+                                    .filter(p -> !p.getUser().getId().equals(userId))
+                                    .map(ChatParticipant::getUser)
+                                    .findFirst()
+                                    .orElse(null));
+                    Long otherUserId = otherUser != null ? otherUser.getId() : null;
                     Message lastMessage = messageRepository
                             .findTopByChatRoom_IdOrderByCreatedAtDesc(room.getId())
                             .orElse(null);
                     long unreadCount = messageRepository
                             .countByChatRoom_IdAndSender_IdNotAndIsReadFalse(room.getId(), userId);
-                    return ChatRoomResponseDto.forList(room, otherUser, lastMessage, unreadCount);
+                    return ChatRoomResponseDto.forList(room, otherUserId, otherUser, lastMessage, unreadCount);
                 })
                 .collect(Collectors.toList());
     }
@@ -209,11 +224,19 @@ public class ChatServiceImpl implements ChatService {
                         .isRead(m.isRead())
                         .build());
 
-        ChatOtherUserRelationDto relation = buildDirectRelationForRoom(roomId, userId);
-        return ChatMessagesResponseDto.builder()
+        ChatRoom room = chatRoomRepository.findById(roomId).orElse(null);
+        ChatOtherUserRelationDto relation = buildDirectRelationForRoom(room, userId);
+
+        ChatMessagesResponseDto.ChatMessagesResponseDtoBuilder builder = ChatMessagesResponseDto.builder()
                 .otherUserRelation(relation)
-                .messages(messages)
-                .build();
+                .messages(messages);
+        if (room != null && room.getPost() != null) {
+            builder.otherCompanionId(room.getPost().getId());
+            if (room.getPost().getConcert() != null) {
+                builder.concertId(room.getPost().getConcert().getId());
+            }
+        }
+        return builder.build();
     }
 
     @Override
@@ -298,9 +321,9 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
-    private ChatOtherUserRelationDto buildDirectRelationForRoom(Long roomId, Long myUserId) {
-        ChatRoom room = chatRoomRepository.findById(roomId).orElse(null);
+    private ChatOtherUserRelationDto buildDirectRelationForRoom(ChatRoom room, Long myUserId) {
         if (room == null || room.getType() != ChatRoomType.DIRECT) return null;
+        Long roomId = room.getId();
 
         Long otherId = chatParticipantRepository.findByChatRoom_IdAndStatus(roomId, ParticipantStatus.ACTIVE).stream()
                 .map(p -> p.getUser().getId())
@@ -314,16 +337,15 @@ public class ChatServiceImpl implements ChatService {
 
         if (otherId == null) return null;
         User otherUser = userRepository.findById(otherId).orElse(null);
-        return buildRelation(myUserId, otherUser);
+        return buildRelation(myUserId, otherId, otherUser);
     }
 
-    private ChatOtherUserRelationDto buildRelation(Long myUserId, User otherUser) {
+    private ChatOtherUserRelationDto buildRelation(Long myUserId, Long otherId, User otherUser) {
         if (otherUser == null) {
             return ChatOtherUserRelationDto.builder()
                     .otherUserWithdrawn(true)
                     .build();
         }
-        Long otherId = otherUser.getId();
         return ChatOtherUserRelationDto.builder()
                 .otherUserWithdrawn(otherUser.getStatus() == Status.WITHDRAWN)
                 .blockedByMe(blockRepository.existsByBlocker_IdAndBlocked_Id(myUserId, otherId))
