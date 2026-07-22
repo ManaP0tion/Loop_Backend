@@ -35,15 +35,70 @@ public class Report {
     @Column(name = "detail", columnDefinition = "TEXT")
     private String detail;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    @org.hibernate.annotations.ColumnDefault("'RECEIVED'")
+    private ReportStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "action", nullable = false, length = 20)
+    @org.hibernate.annotations.ColumnDefault("'NONE'")
+    private ReportAction action;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "appeal_status", nullable = false, length = 20)
+    @org.hibernate.annotations.ColumnDefault("'NONE'")
+    private AppealStatus appealStatus;
+
+    @Column(name = "admin_note", columnDefinition = "TEXT")
+    private String adminNote;
+
+    // 신고자·피신고자 채팅방 (신고 접수 시 스냅샷). 없으면 채팅 없는 신고.
+    @Column(name = "chat_room_id")
+    private Long chatRoomId;
+
+    @Column(name = "processed_at")
+    private LocalDateTime processedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Builder
-    private Report(User reporter, User targetUser, String reason, String detail) {
+    private Report(User reporter, User targetUser, String reason, String detail, Long chatRoomId) {
         this.reporter = reporter;
         this.targetUser = targetUser;
         this.reason = reason;
         this.detail = detail;
+        this.chatRoomId = chatRoomId;
+        this.status = ReportStatus.RECEIVED;
+        this.action = ReportAction.NONE;
+        this.appealStatus = AppealStatus.NONE;
+    }
+
+    public void updateStatus(ReportStatus status) {
+        this.status = status;
+    }
+
+    public void applyAction(ReportAction action, String adminNote) {
+        this.action = action;
+        this.adminNote = adminNote;
+        this.status = ReportStatus.ACTION_TAKEN;
+        this.processedAt = LocalDateTime.now();
+    }
+
+    public void closeWithoutAction(String adminNote) {
+        this.status = ReportStatus.CLOSED;
+        this.adminNote = adminNote;
+        this.processedAt = LocalDateTime.now();
+    }
+
+    public void raiseAppeal() {
+        this.appealStatus = AppealStatus.RAISED;
+    }
+
+    public void resolveAppeal(AppealStatus resolution, String adminNote) {
+        this.appealStatus = resolution;
+        if (adminNote != null) this.adminNote = adminNote;
     }
 }

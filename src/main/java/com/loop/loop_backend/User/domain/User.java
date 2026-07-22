@@ -34,6 +34,15 @@ public class User {
     @Column(name = "status", nullable = false, length = 10)
     private Status status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 10)
+    @org.hibernate.annotations.ColumnDefault("'USER'")
+    private Role role;
+
+    // 정지 자동 해제 시각 (SUSPENDED 상태에서만 의미). null 이면 영구정지.
+    @Column(name = "suspended_until")
+    private LocalDateTime suspendedUntil;
+
     // 추후 확장 대비
     @Column(name = "user_id", length = 50, unique = true)
     private String userId;
@@ -82,10 +91,11 @@ public class User {
     private LocalDateTime updatedAt;
 
     @Builder
-    private User(AuthProvider authProvider, String providerId,Status status, boolean onboardingCompleted) {
+    private User(AuthProvider authProvider, String providerId,Status status, boolean onboardingCompleted, Role role) {
         this.authProvider = authProvider;
         this.providerId = providerId;
         this.status = status != null ? status : Status.ACTIVE;
+        this.role = role != null ? role : Role.USER;
         this.onboardingCompleted = onboardingCompleted;
     }
 
@@ -109,6 +119,12 @@ public class User {
         this.password = encodedPassword;
     }
 
+    /** dev 전용: 테스트 유저에 로그인 자격(userId/password) 주입. */
+    public void assignEmailCredentials(String userId, String encodedPassword) {
+        this.userId = userId;
+        this.password = encodedPassword;
+    }
+
     public AgeGroup getAgeGroup() {
         return AgeGroup.from(this.birthDate);
     }
@@ -126,5 +142,29 @@ public class User {
     public void updateNotificationSettings(Boolean concertReminderEmail, Boolean chatNotificationEmail) {
         if (concertReminderEmail != null) this.concertReminderEmail = concertReminderEmail;
         if (chatNotificationEmail != null) this.chatNotificationEmail = chatNotificationEmail;
+    }
+
+    // 관리자 조작
+    public void suspend(LocalDateTime until) {
+        this.status = Status.SUSPENDED;
+        this.suspendedUntil = until;   // null 이면 영구
+    }
+
+    public void liftSuspension() {
+        this.status = Status.ACTIVE;
+        this.suspendedUntil = null;
+    }
+
+    public void terminate() {
+        this.status = Status.WITHDRAWN;
+    }
+
+    public void changeRole(Role role) {
+        this.role = role;
+    }
+
+    public void updateBirthAndGender(java.time.LocalDate birthDate, Gender gender) {
+        if (birthDate != null) this.birthDate = birthDate;
+        if (gender != null) this.gender = gender;
     }
 }
