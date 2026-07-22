@@ -11,6 +11,7 @@ import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
+import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -124,7 +125,7 @@ public class CompanionHeartServiceImpl implements CompanionHeartService {
                 days);
     }
 
-    // 하트한 뒤에 작성자가 비공개로 돌렸거나, 나와 작성자 사이에 차단 관계가 생긴 경우 하트탭에서 조용히 제외
+    // 하트한 뒤에 작성자가 비공개로 돌렸거나, 나와 작성자 사이에 차단 관계가 생겼거나, 작성자가 탈퇴한 경우 하트탭에서 조용히 제외
     // (개별 조회처럼 에러를 던지면 목록 전체가 깨지므로, 목록에서는 필터링 방식으로 처리)
     private List<CompanionHeart> filterHiddenOrBlocked(Long userId, List<CompanionHeart> hearts) {
         if (hearts.isEmpty()) {
@@ -139,6 +140,7 @@ public class CompanionHeartServiceImpl implements CompanionHeartService {
 
         return hearts.stream()
                 .filter(heart -> heart.getCompanionPost().isVisible())
+                .filter(heart -> heart.getCompanionPost().getUser().getStatus() != Status.WITHDRAWN)
                 .filter(heart -> !blockedAuthorIds.contains(heart.getCompanionPost().getUser().getId()))
                 .toList();
     }

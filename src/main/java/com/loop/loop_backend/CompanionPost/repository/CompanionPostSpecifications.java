@@ -6,6 +6,7 @@ import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
 import com.loop.loop_backend.User.domain.AgeGroup;
 import com.loop.loop_backend.User.domain.Gender;
+import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.Predicate;
@@ -43,6 +44,11 @@ public final class CompanionPostSpecifications {
 
     public static Specification<CompanionPost> userIdNotEquals(Long userId) {
         return (root, query, cb) -> cb.notEqual(root.get("user").get("id"), userId);
+    }
+
+    // 작성자가 탈퇴한 프로필은 목록에서 제외
+    public static Specification<CompanionPost> authorNotWithdrawn() {
+        return (root, query, cb) -> cb.notEqual(root.get("user").get("status"), Status.WITHDRAWN);
     }
 
     // 나와 작성자 사이에 어느 방향으로든 차단 관계가 있으면 제외

@@ -224,6 +224,22 @@ class CompanionHeartServiceImplTest {
     }
 
     @Test
+    void 작성자가_탈퇴한_프로필은_하트탭에서_제외된다() {
+        User viewer = testUser(VIEWER_ID);
+        User author = testUser(AUTHOR_ID);
+        ReflectionTestUtils.setField(author, "status", Status.WITHDRAWN);
+        Concert concert = testConcert(100L, "콘서트A");
+        CompanionPost post = testPost(11L, author, concert, WatchDay.DAY1);
+
+        when(companionHeartRepository.findAllByUser_IdOrderByCreatedAtDesc(VIEWER_ID))
+                .thenReturn(List.of(CompanionHeart.builder().user(viewer).companionPost(post).build()));
+
+        List<HeartedConcertSummaryDto> result = companionHeartService.getMyHeartedConcerts(VIEWER_ID);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
     void 차단_관계가_있는_작성자의_프로필은_하트탭에서_제외된다() {
         User viewer = testUser(VIEWER_ID);
         User author = testUser(AUTHOR_ID);

@@ -1,6 +1,9 @@
 package com.loop.loop_backend.auth.service;
 
+import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
+import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.User.domain.AuthProvider;
+import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.auth.dto.KakaoTokenResponseDto;
@@ -14,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
@@ -25,6 +29,8 @@ import org.springframework.web.client.RestTemplate;
 public class KakaoAuthService {
 
     private final UserRepository userRepository;
+    private final UserHashtagRepository userHashtagRepository;
+    private final FavoriteArtistRepository favoriteArtistRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
 
@@ -45,6 +51,7 @@ public class KakaoAuthService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    @Transactional
     public TokenResponseDto login(String code) {
         // 1. 인가코드 → 카카오 Access Token
         KakaoTokenResponseDto kakaoToken = getKakaoToken(code);
@@ -56,6 +63,13 @@ public class KakaoAuthService {
         User user = userRepository
                 .findByAuthProviderAndProviderId(AuthProvider.KAKAO, String.valueOf(userInfo.getId()))
                 .orElseGet(() -> registerKakaoUser(userInfo));
+
+        // 3-1. 탈퇴 계정으로 재가입하는 경우: 같은 계정을 살리고 온보딩부터 새로 시작하도록 초기화
+        if (user.getStatus() == Status.WITHDRAWN) {
+            userHashtagRepository.deleteAllByUser(user);
+            favoriteArtistRepository.deleteAllByUser(user);
+            user.reactivate();
+        }
 
         // 4. JWT 발급
         String accessToken = jwtTokenProvider.createAccessToken(user.getId());

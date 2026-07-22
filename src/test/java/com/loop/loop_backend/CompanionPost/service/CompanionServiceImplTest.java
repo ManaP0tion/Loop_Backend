@@ -379,6 +379,19 @@ class CompanionServiceImplTest {
                 .isEqualTo(ErrorCode.COMPANION_POST_NOT_FOUND);
     }
 
+    @Test
+    void 작성자가_탈퇴한_프로필을_조회하면_WITHDRAWN_USER_예외를_던진다() {
+        ReflectionTestUtils.setField(user, "id", 1L);
+        CompanionPost post = buildPost(user, 10L);
+        ReflectionTestUtils.setField(user, "status", Status.WITHDRAWN);
+        when(companionPostRepository.findById(1L)).thenReturn(Optional.of(post));
+
+        assertThatThrownBy(() -> companionService.getCompanion(2L, 1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.WITHDRAWN_USER);
+    }
+
     // ── updateCompanion ───────────────────────────────────────────────────────
 
     @Test

@@ -16,6 +16,7 @@ import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.User.domain.AgeGroup;
 import com.loop.loop_backend.User.domain.Gender;
+import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.dto.PageResponseDto;
@@ -88,6 +89,7 @@ public class CompanionServiceImpl implements CompanionService {
                 CompanionPostSpecifications.hasActivity(CompanionActivity.CONCERT),
                 CompanionPostSpecifications.userIdNotEquals(userId),
                 CompanionPostSpecifications.isVisible(),
+                CompanionPostSpecifications.authorNotWithdrawn(),
                 CompanionPostSpecifications.hasNoBlockRelationWith(userId),
                 CompanionPostSpecifications.respectsSameGenderOnly(viewerGender),
                 CompanionPostSpecifications.authorGenderEquals(gender),
@@ -127,6 +129,7 @@ public class CompanionServiceImpl implements CompanionService {
                 CompanionPostSpecifications.doesNotHaveActivity(CompanionActivity.CONCERT),
                 CompanionPostSpecifications.userIdNotEquals(userId),
                 CompanionPostSpecifications.isVisible(),
+                CompanionPostSpecifications.authorNotWithdrawn(),
                 CompanionPostSpecifications.hasNoBlockRelationWith(userId),
                 CompanionPostSpecifications.respectsSameGenderOnly(viewerGender),
                 CompanionPostSpecifications.authorGenderEquals(gender),
@@ -183,6 +186,10 @@ public class CompanionServiceImpl implements CompanionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND));
 
         Long authorId = post.getUser().getId();
+
+        if (post.getUser().getStatus() == Status.WITHDRAWN) {
+            throw new BusinessException(ErrorCode.WITHDRAWN_USER);
+        }
 
         if (!userId.equals(authorId) && blockRepository.existsBlockBetween(userId, List.of(authorId))) {
             throw new BusinessException(ErrorCode.BLOCKED_USER);

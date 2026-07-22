@@ -91,6 +91,18 @@ class FavoriteArtistServiceImplTest {
                 .isEqualTo(ErrorCode.USER_NOT_FOUND);
     }
 
+    @Test
+    void 탈퇴한_유저의_관심_아티스트_조회시_WITHDRAWN_USER_예외를_던진다() {
+        User user = testUser();
+        user.withdraw();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> favoriteArtistService.getFavoriteArtists(USER_ID))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.WITHDRAWN_USER);
+    }
+
     // ── addFavoriteArtist ─────────────────────────────────────────────────
 
     @Test
