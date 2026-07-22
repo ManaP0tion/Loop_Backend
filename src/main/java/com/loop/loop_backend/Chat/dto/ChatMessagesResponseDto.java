@@ -10,6 +10,12 @@ import org.springframework.data.domain.Slice;
 @Schema(description = "채팅 메시지 페이지 + 상대방과의 관계 상태")
 public class ChatMessagesResponseDto {
 
+    @Schema(description = "연결된 공연 ID (연결된 동행글이 없으면 null)")
+    private final Long concertId;
+
+    @Schema(description = "연결된 상대방 동행글 ID (없으면 null)")
+    private final Long otherCompanionId;
+
     @Schema(description = "상대방과의 관계 상태 (탈퇴/차단/신고). DIRECT 방이 아니면 null.")
     private final ChatOtherUserRelationDto otherUserRelation;
 

@@ -13,4 +13,8 @@ public class StartDirectChatRequestDto {
     @Positive
     @Schema(description = "채팅 상대 유저 ID")
     private Long targetUserId;
+
+    @Positive
+    @Schema(description = "채팅을 시작한 상대방의 동행글 ID (선택). 전달 시 채팅방의 공연/동행글 컨텍스트를 최신 값으로 갱신")
+    private Long companionPostId;
 }

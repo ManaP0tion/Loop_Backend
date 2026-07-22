@@ -2,6 +2,7 @@ package com.loop.loop_backend.Report.service;
 
 import com.loop.loop_backend.Block.repository.BlockRepository;
 import com.loop.loop_backend.Block.service.BlockService;
+import com.loop.loop_backend.Chat.service.ChatService;
 import com.loop.loop_backend.Report.domain.Report;
 import com.loop.loop_backend.Report.domain.ReportImage;
 import com.loop.loop_backend.Report.event.ReportCreatedEvent;
@@ -31,6 +32,7 @@ public class ReportServiceImpl implements ReportService {
     private final BlockRepository blockRepository;
     private final UserRepository userRepository;
     private final BlockService blockService;
+    private final ChatService chatService;
     private final ApplicationEventPublisher eventPublisher;
     private final S3StorageService s3StorageService;
 
@@ -74,6 +76,9 @@ public class ReportServiceImpl implements ReportService {
                 // 신고 처리 중 동시에 들어온 다른 요청이 이미 차단을 완료한 경우 - 신고 자체는 그대로 성공 처리
             }
         }
+
+        // 신고자 관점에서 채팅방 hide (blockToo=true 인 경우 block() 안에서 이미 처리되지만 idempotent)
+        chatService.hideDirectRoomForUser(userId, targetUserId);
 
         eventPublisher.publishEvent(new ReportCreatedEvent(report.getId(), me.getNickname(), target.getNickname(), reason, detail, imageKeys));
     }
