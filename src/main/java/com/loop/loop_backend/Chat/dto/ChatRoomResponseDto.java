@@ -66,8 +66,16 @@ public class ChatRoomResponseDto {
         return baseBuilder(room).build();
     }
 
-    public static ChatRoomResponseDto from(ChatRoom room, Long otherUserId, User otherUser, ChatOtherUserRelationDto relation) {
-        ChatRoomResponseDtoBuilder builder = baseBuilder(room)
+    // startDirectChat처럼 트랜잭션 밖에서 조립하는 경우: 엔티티를 훑지 않고 이미 조회된 스칼라 값(summary)만 사용
+    public static ChatRoomResponseDto fromSummary(ChatRoomSummaryDto summary, Long otherUserId, User otherUser,
+                                                   ChatOtherUserRelationDto relation) {
+        ChatRoomResponseDtoBuilder builder = ChatRoomResponseDto.builder()
+                .id(summary.id())
+                .name(summary.name())
+                .type(summary.type())
+                .createdAt(summary.createdAt())
+                .otherCompanionId(summary.postId())
+                .concertId(summary.concertId())
                 .otherUserId(otherUserId)
                 .otherUserRelation(relation);
 
