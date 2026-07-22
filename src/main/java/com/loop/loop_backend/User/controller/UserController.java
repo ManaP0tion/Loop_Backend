@@ -19,8 +19,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
@@ -52,25 +50,7 @@ public class UserController {
     }
 
 
-    @GetMapping
-    @Operation(summary = "전체 사용자 조회", description = "모든 사용자 목록을 반환합니다")
-    @ApiResponse(responseCode = "200", description = "조회 성공")
-    public ResponseEntity<CommonResponse<List<UserResponseDto>>> getAllUsers() {
-        return ResponseEntity.ok(CommonResponse.success(userService.getAllUsers()));
-    }
-
-    @GetMapping("/{id}")
-    @Operation(summary = "사용자 조회 (PK)", description = "PK로 사용자를 조회합니다")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 성공"),
-            @ApiResponse(responseCode = "404", description = "사용자 없음",
-                    content = @Content(examples = @ExampleObject(
-                            value = "{\"success\":false,\"message\":\"사용자를 찾을 수 없습니다.\",\"code\":404}")))
-    })
-    public ResponseEntity<CommonResponse<UserResponseDto>> getUserById(
-            @Parameter(description = "사용자 PK") @PathVariable Long id) {
-        return ResponseEntity.ok(CommonResponse.success(userService.getUserById(id)));
-    }
+    // GET /api/users, GET /api/users/{id} 는 관리자 전용 /api/admin/users 로 이관 (처리방침 제10조 6항).
 
 //    @GetMapping("/search")
 //    @Operation(summary = "사용자 조회 (아이디)", description = "로그인 아이디로 이메일 사용자를 조회합니다")

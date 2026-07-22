@@ -3,6 +3,7 @@ package com.loop.loop_backend.Config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import com.loop.loop_backend.common.exception.ErrorCode;
+import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.jwt.JwtAuthenticationFilter;
 import com.loop.loop_backend.common.jwt.JwtTokenProvider;
 import jakarta.servlet.http.HttpServletResponse;
@@ -39,6 +40,7 @@ public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper;
+    private final UserRepository userRepository;
 
     @Value("${chat.allowed-origins}")
     private String[] allowedOrigins;
@@ -90,10 +92,12 @@ public class SecurityConfig {
                                 "/api/artists/**",
                                 "/api/concerts/**"
                         ).permitAll()
+                        // 개인정보 접근 경로 — 관리자 전용 (처리방침 제10조 6항). 회원 조회는 /api/admin/users 로 이관.
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(
-                        new JwtAuthenticationFilter(jwtTokenProvider),
+                        new JwtAuthenticationFilter(jwtTokenProvider, userRepository),
                         UsernamePasswordAuthenticationFilter.class
                 );
 

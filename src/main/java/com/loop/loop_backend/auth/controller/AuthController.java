@@ -31,21 +31,20 @@ public class AuthController {
     private final AuthService authService;
     private final CookieUtil cookieUtil;
 
-//    @PostMapping("/login")
-//    @Operation(summary = "로그인", description = "아이디/비밀번호로 로그인하고 Access/Refresh Token을 HttpOnly 쿠키로 발급받습니다")
-//    @ApiResponses({
-//            @ApiResponse(responseCode = "200", description = "로그인 성공"),
-//            @ApiResponse(responseCode = "401", description = "아이디 또는 비밀번호가 올바르지 않음"),
-//            @ApiResponse(responseCode = "429", description = "로그인 실패 횟수 초과로 잠금")
-//    })
-//    public ResponseEntity<CommonResponse<Void>> login(
-//            @Valid @RequestBody LoginRequestDto requestDto) {
-//        TokenResponseDto token = authService.login(requestDto);
-//        return ResponseEntity.ok()
-//                .header(HttpHeaders.SET_COOKIE, cookieUtil.createAccessTokenCookie(token.getAccessToken()).toString())
-//                .header(HttpHeaders.SET_COOKIE, cookieUtil.createRefreshTokenCookie(token.getRefreshToken()).toString())
-//                .body(CommonResponse.success(null));
-//    }
+    @PostMapping("/login")
+    @Operation(summary = "로그인", description = "아이디/비밀번호로 로그인. accessToken은 응답 바디, refreshToken은 HttpOnly 쿠키.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "로그인 성공"),
+            @ApiResponse(responseCode = "401", description = "아이디 또는 비밀번호가 올바르지 않음"),
+            @ApiResponse(responseCode = "429", description = "로그인 실패 횟수 초과로 잠금")
+    })
+    public ResponseEntity<CommonResponse<AccessTokenResponseDto>> login(
+            @Valid @RequestBody LoginRequestDto requestDto) {
+        TokenResponseDto token = authService.login(requestDto);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookieUtil.createRefreshTokenCookie(token.getRefreshToken()).toString())
+                .body(CommonResponse.success(new AccessTokenResponseDto(token.getAccessToken())));
+    }
 
     @PostMapping("/refresh")
     @Operation(summary = "토큰 재발급", description = "쿠키의 Refresh Token으로 Access/Refresh Token을 재발급합니다. " +

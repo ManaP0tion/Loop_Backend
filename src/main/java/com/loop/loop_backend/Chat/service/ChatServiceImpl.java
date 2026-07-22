@@ -34,6 +34,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -96,6 +97,13 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
+    // 클래스 레벨 @Transactional(readOnly=true) 를 이 메서드에서 suspend.
+    //  1) 안 하면 transactionTemplate.execute 안의 INSERT 가 readOnly connection 에서 거부됨.
+    //  2) 대신 @Transactional 만 붙이면 tx commit 이 메서드 반환 시점 = synchronized 블록 이후라
+    //     mutex 를 놓은 순간에도 다른 스레드에게 room 이 안 보여 중복 생성이 재발함.
+    //  → NOT_SUPPORTED 로 바깥 tx 를 걸어두지 않고, 안쪽 transactionTemplate 가 REQUIRED 로
+    //     자기 tx 를 만들어 execute() 반환 시(=synchronized 안) 커밋되도록 보장.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public ChatRoomResponseDto startDirectChat(Long myUserId, StartDirectChatRequestDto request) {
         Long targetId = request.getTargetUserId();
         if (myUserId.equals(targetId)) {

@@ -2,6 +2,8 @@ package com.loop.loop_backend.Report.service;
 
 import com.loop.loop_backend.Block.repository.BlockRepository;
 import com.loop.loop_backend.Block.service.BlockService;
+import com.loop.loop_backend.Chat.domain.ChatRoom;
+import com.loop.loop_backend.Chat.repository.ChatRoomRepository;
 import com.loop.loop_backend.Chat.service.ChatService;
 import com.loop.loop_backend.Report.domain.Report;
 import com.loop.loop_backend.Report.domain.ReportImage;
@@ -33,6 +35,7 @@ public class ReportServiceImpl implements ReportService {
     private final UserRepository userRepository;
     private final BlockService blockService;
     private final ChatService chatService;
+    private final ChatRoomRepository chatRoomRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final S3StorageService s3StorageService;
 
@@ -51,6 +54,10 @@ public class ReportServiceImpl implements ReportService {
             throw new BusinessException(ErrorCode.ALREADY_REPORTED);
         }
 
+        // 관리자 콘솔이 신고 상세에서 관련 채팅을 열람할 수 있도록, 신고 시점의 DIRECT 방을 스냅샷.
+        Long chatRoomId = chatRoomRepository.findDirectRoomsBetweenAnyStatus(userId, targetUserId)
+                .stream().findFirst().map(ChatRoom::getId).orElse(null);
+
         Report report;
         try {
             report = reportRepository.saveAndFlush(Report.builder()
@@ -58,6 +65,7 @@ public class ReportServiceImpl implements ReportService {
                     .targetUser(target)
                     .reason(reason)
                     .detail(detail)
+                    .chatRoomId(chatRoomId)
                     .build());
         } catch (DataIntegrityViolationException e) {
             // 사전 존재 체크와 저장 사이의 동시 요청 레이스 - DB 유니크 제약이 최종 방어선
