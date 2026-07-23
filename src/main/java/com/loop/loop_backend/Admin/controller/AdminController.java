@@ -19,6 +19,7 @@ import com.loop.loop_backend.Report.domain.Report;
 import com.loop.loop_backend.Report.domain.ReportAction;
 import com.loop.loop_backend.Report.domain.ReportStatus;
 import com.loop.loop_backend.Report.repository.ReportRepository;
+import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.User.domain.Gender;
 import com.loop.loop_backend.User.domain.Role;
 import com.loop.loop_backend.User.domain.Status;
@@ -34,10 +35,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -63,6 +66,7 @@ public class AdminController {
     private final MessageRepository messageRepository;
     private final AdminAccessLogRepository accessLogRepository;
     private final AdminAccessLogService accessLog;
+    private final S3StorageService s3StorageService;
 
     // ================= USERS =================
 
@@ -292,6 +296,17 @@ public class AdminController {
         // Concert.artist ON DELETE CASCADE → 관련 콘서트 함께 삭제.
         artistRepository.deleteById(id);
         return ResponseEntity.ok(CommonResponse.success(null));
+    }
+
+    // S3 공개 버킷 업로드 후 아티스트의 imageUrl 갱신. 프론트는 JSON 저장 뒤 별도로 호출.
+    @PostMapping(value = "/artists/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Transactional
+    public ResponseEntity<CommonResponse<Map<String, String>>> uploadArtistImage(
+            @PathVariable Long id, @RequestPart("image") MultipartFile image) {
+        Artist a = artistRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
+        String url = s3StorageService.uploadPublic("artists", id, image);
+        a.update(a.getName(), a.getBaseName(), a.getNameKo(), a.getNameAlias(), url, a.getCategory());
+        return ResponseEntity.ok(CommonResponse.success(Map.of("imageUrl", url)));
     }
 
     // ================= CONCERTS =================
