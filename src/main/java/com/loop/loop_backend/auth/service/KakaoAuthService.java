@@ -26,6 +26,8 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.List;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -46,8 +48,8 @@ public class KakaoAuthService {
     @Value("${kakao.client-secret}")
     private String clientSecret;
 
-    @Value("${kakao.redirect-uri}")
-    private String redirectUri;
+    @Value("${kakao.allowed-redirect-uris}")
+    private String[] allowedRedirectUris;
 
     @Value("${kakao.auth-url}")
     private String authUrl;
@@ -58,9 +60,14 @@ public class KakaoAuthService {
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Transactional
-    public TokenResponseDto login(String code) {
+    public TokenResponseDto login(String code, String redirectUri) {
+        // 0. 프론트가 실제로 카카오 인가 요청에 썼던 redirect_uri인지 검증 (화이트리스트 방식, 임의 주소 우회 방지)
+        if (!List.of(allowedRedirectUris).contains(redirectUri)) {
+            throw new BusinessException(ErrorCode.INVALID_REDIRECT_URI);
+        }
+
         // 1. 인가코드 → 카카오 Access Token
-        KakaoTokenResponseDto kakaoToken = getKakaoToken(code);
+        KakaoTokenResponseDto kakaoToken = getKakaoToken(code, redirectUri);
 
         // 2. 카카오 Access Token → 사용자 정보
         KakaoUserInfoDto userInfo = getKakaoUserInfo(kakaoToken.getAccessToken());
@@ -99,7 +106,7 @@ public class KakaoAuthService {
         return new TokenResponseDto(accessToken, refreshToken);
     }
 
-    private KakaoTokenResponseDto getKakaoToken(String code) {
+    private KakaoTokenResponseDto getKakaoToken(String code, String redirectUri) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
