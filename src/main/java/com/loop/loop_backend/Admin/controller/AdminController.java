@@ -140,6 +140,7 @@ public class AdminController {
     // ================= REPORTS =================
 
     @GetMapping("/reports")
+    @Transactional(readOnly = true)
     public ResponseEntity<CommonResponse<PageResp<ReportRow>>> listReports(
             @RequestParam(required = false) ReportStatus status,
             @RequestParam(required = false) AppealStatus appeal,
@@ -243,6 +244,7 @@ public class AdminController {
     // ================= INQUIRIES =================
 
     @GetMapping("/inquiries")
+    @Transactional(readOnly = true)
     public ResponseEntity<CommonResponse<PageResp<InquiryRow>>> listInquiries(
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
         Page<Inquiry> p = inquiryRepository.findAll(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
@@ -312,6 +314,7 @@ public class AdminController {
     // ================= CONCERTS =================
 
     @GetMapping("/concerts")
+    @Transactional(readOnly = true)
     public ResponseEntity<CommonResponse<PageResp<ConcertRow>>> listConcerts(
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
         Page<Concert> p = concertRepository.findAll(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id")));
@@ -359,6 +362,7 @@ public class AdminController {
     // ================= COMPANION POSTS =================
 
     @GetMapping("/companion-posts")
+    @Transactional(readOnly = true)
     public ResponseEntity<CommonResponse<PageResp<CompanionRow>>> listPosts(
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
         Page<CompanionPost> p = companionPostRepository.findAll(
