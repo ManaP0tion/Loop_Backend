@@ -337,9 +337,6 @@
             <input id="loginPassword" type="password" autocomplete="current-password" />
             <button class="btn primary" id="loginSubmit">로그인</button>
         </div>
-        <div class="hint">
-            개발 편의: <a href="#" id="quickAdmin">1‑클릭 dev 관리자 생성</a> (test 프로파일)
-        </div>
     </div>
 </div>
 
@@ -377,6 +374,8 @@
         <div class="crumbs">Loop · <strong id="crumb-current">회원 관리</strong></div>
         <div class="spacer"></div>
         <div class="who">
+            <span id="sessionTimer" title="자동 로그아웃까지 남은 시간"
+                  style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; color: var(--text-sub); padding: 4px 8px; border:1px solid var(--border); border-radius:6px; margin-right:8px;">--:--</span>
             <div class="avatar" id="meAvatar">?</div>
             <span id="meLabel">-</span>
             <button class="btn ghost" id="logoutBtn" style="margin-left:8px;">로그아웃</button>
@@ -393,6 +392,8 @@
 const API_BASE = '';
 const TOKEN_KEY = 'loop-admin-token';
 const ME_KEY = 'loop-admin-me';
+const LAST_ACT_KEY = 'loop-admin-last-act';
+const IDLE_MS = 15 * 60 * 1000; // 15분 무동작 시 자동 로그아웃
 
 const api = {
     _token: () => localStorage.getItem(TOKEN_KEY),
@@ -424,6 +425,18 @@ const api = {
     put: (p, b) => api._req('PUT', p, b),
     patch: (p, b) => api._req('PATCH', p, b),
     del: (p) => api._req('DELETE', p),
+    async upload(path, file, field = 'image') {
+        const fd = new FormData();
+        fd.append(field, file);
+        const res = await fetch(api._url(path), {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + api._token() },
+            body: fd,
+        });
+        const payload = await res.json().catch(() => null);
+        if (!res.ok) throw { status: res.status, payload };
+        return payload && payload.data !== undefined ? payload.data : payload;
+    },
 };
 
 // ============ Toast ============
@@ -897,10 +910,13 @@ sections.artists = async () => {
         const tb = t.querySelector('tbody');
         if (!arr.length) tb.append(el(`<tr><td colspan="7" class="empty">아티스트 없음</td></tr>`));
         arr.forEach(a => {
+            const thumb = a.imageUrl
+                ? `<a href="${esc(a.imageUrl)}" target="_blank" title="원본 열기"><img src="${esc(a.imageUrl)}" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block;" /></a>`
+                : '<span style="color:var(--text-muted);">-</span>';
             const tr = el(`<tr>
                 <td>${a.id}</td><td>${esc(a.name)}</td><td>${esc(a.baseName) || '-'}</td>
                 <td>${esc(a.nameKo) || '-'}</td><td><span class="pill blue">${esc(a.category)}</span></td>
-                <td>${a.imageUrl ? `<a href="${esc(a.imageUrl)}" target="_blank">보기</a>` : '-'}</td>
+                <td>${thumb}</td>
                 <td><div class="row-actions">
                     <button class="btn" data-a="edit">수정</button>
                     <button class="btn danger" data-a="del">삭제</button>
@@ -927,13 +943,19 @@ function artistForm(a, refresh) {
         <div class="form-row"><label>Base Name</label><input id="baseName" value="${esc(a?.baseName || '')}" /></div>
         <div class="form-row"><label>한글명</label><input id="nameKo" value="${esc(a?.nameKo || '')}" /></div>
         <div class="form-row"><label>Alias</label><input id="nameAlias" value="${esc(a?.nameAlias || '')}" /></div>
-        <div class="form-row"><label>이미지 URL</label><input id="imageUrl" value="${esc(a?.imageUrl || '')}" /></div>
+        <div class="form-row"><label>이미지 URL (자동 채워짐)</label><input id="imageUrl" value="${esc(a?.imageUrl || '')}" placeholder="파일 업로드 시 자동 갱신" /></div>
+        <div class="form-row">
+            <label>이미지 파일 (jpg/png/webp, 5MB 이하)</label>
+            <input id="imageFile" type="file" accept="image/jpeg,image/png,image/webp" />
+            ${a?.imageUrl ? `<div style="margin-top:8px;"><img src="${esc(a.imageUrl)}" alt="" style="max-height:120px;border-radius:6px;" /></div>` : ''}
+        </div>
         <div class="form-row"><label>카테고리</label>
             <select id="category">${cats.map(c => `<option ${a?.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
         </div>
     </div>`);
     const foot = el(`<div><button class="btn primary" id="ok">${a ? '저장' : '등록'}</button></div>`);
     foot.querySelector('#ok').onclick = async () => {
+        const file = body.querySelector('#imageFile').files[0];
         const payload = {
             name: body.querySelector('#name').value,
             baseName: body.querySelector('#baseName').value || null,
@@ -943,8 +965,13 @@ function artistForm(a, refresh) {
             category: body.querySelector('#category').value,
         };
         try {
-            if (a) await api.put(`/api/admin/artists/${a.id}`, payload);
-            else await api.post('/api/admin/artists', payload);
+            // 1) 먼저 JSON으로 저장(신규는 id 확보) 2) 파일이 있으면 S3 업로드 → 서버가 imageUrl 갱신
+            const saved = a
+                ? await api.put(`/api/admin/artists/${a.id}`, payload)
+                : await api.post('/api/admin/artists', payload);
+            if (file) {
+                await api.upload(`/api/admin/artists/${saved.id}/image`, file);
+            }
             toast('저장되었습니다.'); modal.close(); refresh();
         } catch (e) { handleErr(e); }
     };
@@ -1202,17 +1229,7 @@ async function login(userId, password) {
     const token = payload?.data?.accessToken;
     if (!token) throw new Error('토큰 없음');
     localStorage.setItem(TOKEN_KEY, token);
-    return token;
-}
-
-async function quickAdminBootstrap() {
-    // dev 프로파일에서만 동작 (/api/test/** permitAll)
-    const res = await fetch('/api/test/users?admin=true', { method: 'POST' });
-    const payload = await res.json();
-    if (!res.ok) throw { status: res.status, payload };
-    const token = payload?.data?.accessToken;
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(ME_KEY, JSON.stringify({ nickname: payload?.data?.nickname || 'DEV', admin: true }));
+    localStorage.setItem(LAST_ACT_KEY, Date.now());
     return token;
 }
 
@@ -1258,18 +1275,31 @@ document.getElementById('loginSubmit').onclick = async () => {
         if (await ensureAuthed()) route();
     } catch (e) { handleErr(e, '로그인 실패'); }
 };
-document.getElementById('quickAdmin').onclick = async (e) => {
-    e.preventDefault();
-    try {
-        await quickAdminBootstrap();
-        if (await ensureAuthed()) route();
-    } catch (err) { handleErr(err, 'dev 관리자 생성 실패'); }
-};
-document.getElementById('logoutBtn').onclick = () => {
+function doLogout(reason) {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(ME_KEY);
+    localStorage.removeItem(LAST_ACT_KEY);
     showLogin();
-};
+    if (reason) toast(reason, true);
+}
+document.getElementById('logoutBtn').onclick = () => doLogout();
+
+// ===== 15분 무동작 자동 로그아웃 + 남은 시간 타이머 =====
+const touchAct = () => { if (api._token()) localStorage.setItem(LAST_ACT_KEY, Date.now()); };
+['click', 'keydown', 'mousemove', 'touchstart'].forEach(ev =>
+    document.addEventListener(ev, touchAct, { passive: true }));
+setInterval(() => {
+    const timerEl = document.getElementById('sessionTimer');
+    if (!api._token()) { if (timerEl) timerEl.textContent = '--:--'; return; }
+    const last = +localStorage.getItem(LAST_ACT_KEY) || 0;
+    const remain = IDLE_MS - (Date.now() - last);
+    if (last && remain <= 0) { doLogout('세션이 만료되어 로그아웃되었습니다.'); return; }
+    if (timerEl) {
+        const s = Math.max(0, Math.floor(remain / 1000));
+        timerEl.textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+        timerEl.style.color = s <= 60 ? 'var(--danger, #e5484d)' : 'var(--text-sub)';
+    }
+}, 1000);
 
 document.querySelectorAll('.nav a[data-section]').forEach(a => {
     a.addEventListener('click', e => { /* hash change triggers route() */ });

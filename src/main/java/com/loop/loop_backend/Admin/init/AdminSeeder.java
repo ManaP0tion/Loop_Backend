@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
+// TODO(remove-before-prod): 어드민 UI 테스트용 임시 시더. 배포 시 이 파일 삭제.
 /** dev 편의: 부팅 시 loginId=admin / password=0000 / role=ADMIN 계정을 보장. prod 에선 절대 실행 안 됨. */
 @Slf4j
 @Component
@@ -32,7 +33,15 @@ public class AdminSeeder implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (userRepository.existsByUserId(LOGIN_ID)) return;
+        // 매 부팅마다 admin/0000 을 보장. 이미 존재하면 비번만 0000 으로 재설정(테스트 편의).
+        String encoded = passwordEncoder.encode(PLAIN_PW);
+
+        User existing = userRepository.findByUserId(LOGIN_ID).orElse(null);
+        if (existing != null) {
+            existing.assignEmailCredentials(LOGIN_ID, encoded);
+            log.info("[dev] Seed 관리자 계정 비번 재설정 — loginId={} password={}", LOGIN_ID, PLAIN_PW);
+            return;
+        }
 
         String nickname = userRepository.existsByNickname(NICKNAME) ? "관리자" + UUID.randomUUID().toString().substring(0, 4) : NICKNAME;
 
@@ -43,7 +52,7 @@ public class AdminSeeder implements ApplicationRunner {
                 .role(Role.ADMIN)
                 .build();
         admin.completeOnboarding(nickname, null, null);
-        admin.assignEmailCredentials(LOGIN_ID, passwordEncoder.encode(PLAIN_PW));
+        admin.assignEmailCredentials(LOGIN_ID, encoded);
 
         userRepository.save(admin);
         log.info("[dev] Seed 관리자 계정 생성됨 — loginId={} password={}", LOGIN_ID, PLAIN_PW);
