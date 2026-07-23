@@ -164,6 +164,11 @@ public class User {
         this.suspendedUntil = null;
     }
 
+    // suspendedUntil 지났으면 true. null(영구) 이면 false.
+    public boolean isSuspensionExpired() {
+        return status == Status.SUSPENDED && suspendedUntil != null && suspendedUntil.isBefore(LocalDateTime.now());
+    }
+
     public void terminate() {
         this.status = Status.WITHDRAWN;
     }

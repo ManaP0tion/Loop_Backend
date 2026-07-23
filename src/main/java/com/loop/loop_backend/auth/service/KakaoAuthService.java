@@ -83,6 +83,12 @@ public class KakaoAuthService {
             user.reactivate();
         }
 
+        // 이용정지된 계정은 로그인 차단. 기간 만료 시 즉시 해제.
+        if (user.getStatus() == Status.SUSPENDED) {
+            if (user.isSuspensionExpired()) user.liftSuspension();
+            else throw new BusinessException(ErrorCode.USER_SUSPENDED);
+        }
+
         // 4. JWT 발급
         String accessToken = jwtTokenProvider.createAccessToken(user.getId());
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());

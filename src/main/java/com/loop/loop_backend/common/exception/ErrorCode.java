@@ -16,6 +16,7 @@ public enum ErrorCode {
     UNAUTHORIZED(401, "인증이 필요합니다."),
     FORBIDDEN(403, "접근 권한이 없습니다."),
     WITHDRAWN_USER(410, "탈퇴한 사용자입니다."),
+    USER_SUSPENDED(403, "이용정지된 계정입니다."),
 
     // User 도메인
     USER_NOT_FOUND(404, "사용자를 찾을 수 없습니다."),
