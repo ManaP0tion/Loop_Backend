@@ -3,6 +3,7 @@ package com.loop.loop_backend.HashTag.service;
 import com.loop.loop_backend.HashTag.domain.UserHashtag;
 import com.loop.loop_backend.HashTag.dto.HashtagResponseDto;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
+import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -26,6 +27,9 @@ public class UserHashtagServiceImpl implements UserHashtagService {
     @Override
     public List<HashtagResponseDto> getHashtags(Long userId) {
         User user = getUser(userId);
+        if (user.getStatus() == Status.WITHDRAWN) {
+            throw new BusinessException(ErrorCode.WITHDRAWN_USER);
+        }
         return userHashtagRepository.findAllByUser(user).stream()
                 .map(HashtagResponseDto::from)
                 .toList();

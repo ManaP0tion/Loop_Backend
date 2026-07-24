@@ -4,6 +4,7 @@ import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
 import com.loop.loop_backend.CompanionPost.domain.WatchStyle;
+import com.loop.loop_backend.User.domain.Gender;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 
@@ -22,6 +23,15 @@ public class CompanionResponseDto {
 
     @Schema(description = "작성자 닉네임", example = "루퍼123")
     private final String nickname;
+
+    @Schema(description = "작성자 프로필 이미지 URL")
+    private final String profileImageUrl;
+
+    @Schema(description = "작성자 성별", example = "MALE")
+    private final Gender gender;
+
+    @Schema(description = "작성자 나이 (생년월일 없으면 null)", example = "27")
+    private final Integer age;
 
     @Schema(description = "콘서트 PK", example = "1")
     private final Long concertId;
@@ -47,11 +57,17 @@ public class CompanionResponseDto {
     @Schema(description = "생성일시")
     private final LocalDateTime createdAt;
 
-    public CompanionResponseDto(CompanionPost post) {
+    @Schema(description = "내가 이 프로필에 하트를 눌렀는지 여부", example = "false")
+    private final boolean hearted;
+
+    public CompanionResponseDto(CompanionPost post, boolean hearted) {
         this.companionId = post.getId();
         this.userId = post.getUser().getId();
         this.nickname = post.getUser().getNickname();
-        this.concertId = post.getConcertId();
+        this.profileImageUrl = post.getUser().getProfileImageUrl();
+        this.gender = post.getUser().getGender();
+        this.age = post.getUser().getAge();
+        this.concertId = post.getConcert().getId();
         this.watchDay = post.getWatchDay();
         this.activities = post.getActivities().stream()
                 .map(activity -> new EnumLabelDto(activity.name(), activity.getLabel()))
@@ -63,6 +79,7 @@ public class CompanionResponseDto {
         this.visible = post.isVisible();
         this.sameGenderOnly = post.isSameGenderOnly();
         this.createdAt = post.getCreatedAt();
+        this.hearted = hearted;
     }
 
     @Getter

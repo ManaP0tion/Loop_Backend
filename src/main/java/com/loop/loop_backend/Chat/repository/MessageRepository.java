@@ -42,6 +42,7 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
               AND cp.user.id <> m.sender.id
               AND cp.status = com.loop.loop_backend.Chat.domain.ParticipantStatus.ACTIVE
               AND m.chatRoom.type = com.loop.loop_backend.Chat.domain.ChatRoomType.DIRECT
+              AND m.type = com.loop.loop_backend.Chat.domain.MessageType.USER
               AND m.isRead = false
               AND m.createdAt < :cutoff
               AND cp.user.email IS NOT NULL

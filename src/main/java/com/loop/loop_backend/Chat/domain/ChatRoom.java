@@ -8,6 +8,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.LocalDateTime;
 
@@ -24,8 +26,11 @@ public class ChatRoom {
     private Long id;
 
     // DIRECT(1:1) 채팅방은 post가 없을 수 있음
+    // 동행글(CompanionPost)이 삭제되면 이 FK(post_id)를 DB가 자동으로 null 처리한다 (ON DELETE SET NULL).
+    // 채팅방/대화 이력은 지우지 않고 "원본 글 참조"만 끊어내는 설계.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "post_id", nullable = true)
+    @OnDelete(action = OnDeleteAction.SET_NULL)
     private CompanionPost post;
 
     @Enumerated(EnumType.STRING)
@@ -38,4 +43,8 @@ public class ChatRoom {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    public void assignPost(CompanionPost post) {
+        this.post = post;
+    }
 }

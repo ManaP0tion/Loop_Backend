@@ -29,6 +29,15 @@ public class ChatRoomResponseDto {
     @Schema(description = "생성일시")
     private final LocalDateTime createdAt;
 
+    @Schema(description = "연결된 공연 ID (원본 동행글이 있으면 그 공연 ID, 없으면 null)")
+    private final Long concertId;
+
+    @Schema(description = "연결된 상대방 동행글 ID (원본이 삭제되었거나 최초 생성 시 미지정이면 null)")
+    private final Long otherCompanionId;
+
+    @Schema(description = "상대방 유저 ID (탈퇴/삭제된 유저도 참여자 이력으로 확인. 차단/신고 대상 식별용)")
+    private final Long otherUserId;
+
     @Schema(description = "상대방 닉네임")
     private final String otherUserNickname;
 
@@ -50,21 +59,39 @@ public class ChatRoomResponseDto {
     @Schema(description = "안읽은 메시지 수")
     private final long unreadCount;
 
+    @Schema(description = "상대방과의 관계 상태 (탈퇴/차단/신고)")
+    private final ChatOtherUserRelationDto otherUserRelation;
+
     public static ChatRoomResponseDto from(ChatRoom room) {
-        return ChatRoomResponseDto.builder()
-                .id(room.getId())
-                .name(room.getName())
-                .type(room.getType())
-                .createdAt(room.getCreatedAt())
-                .build();
+        return baseBuilder(room).build();
     }
 
-    public static ChatRoomResponseDto forList(ChatRoom room, User otherUser, Message lastMessage, long unreadCount) {
+    // startDirectChat처럼 트랜잭션 밖에서 조립하는 경우: 엔티티를 훑지 않고 이미 조회된 스칼라 값(summary)만 사용
+    public static ChatRoomResponseDto fromSummary(ChatRoomSummaryDto summary, Long otherUserId, User otherUser,
+                                                   ChatOtherUserRelationDto relation) {
         ChatRoomResponseDtoBuilder builder = ChatRoomResponseDto.builder()
-                .id(room.getId())
-                .name(room.getName())
-                .type(room.getType())
-                .createdAt(room.getCreatedAt())
+                .id(summary.id())
+                .name(summary.name())
+                .type(summary.type())
+                .createdAt(summary.createdAt())
+                .otherCompanionId(summary.postId())
+                .concertId(summary.concertId())
+                .otherUserId(otherUserId)
+                .otherUserRelation(relation);
+
+        if (otherUser != null) {
+            builder.otherUserNickname(otherUser.getNickname())
+                    .otherUserProfileImageUrl(otherUser.getProfileImageUrl())
+                    .otherUserGender(otherUser.getGender())
+                    .otherUserBirthDate(otherUser.getBirthDate());
+        }
+
+        return builder.build();
+    }
+
+    public static ChatRoomResponseDto forList(ChatRoom room, Long otherUserId, User otherUser, Message lastMessage, long unreadCount) {
+        ChatRoomResponseDtoBuilder builder = baseBuilder(room)
+                .otherUserId(otherUserId)
                 .unreadCount(unreadCount);
 
         if (otherUser != null) {
@@ -80,5 +107,21 @@ public class ChatRoomResponseDto {
         }
 
         return builder.build();
+    }
+
+    private static ChatRoomResponseDtoBuilder baseBuilder(ChatRoom room) {
+        ChatRoomResponseDtoBuilder builder = ChatRoomResponseDto.builder()
+                .id(room.getId())
+                .name(room.getName())
+                .type(room.getType())
+                .createdAt(room.getCreatedAt());
+
+        if (room.getPost() != null) {
+            builder.otherCompanionId(room.getPost().getId());
+            if (room.getPost().getConcert() != null) {
+                builder.concertId(room.getPost().getConcert().getId());
+            }
+        }
+        return builder;
     }
 }

@@ -51,7 +51,7 @@ jwt:
 
 kakao:
   client-id: local-kakao-client-id
-  redirect-uri: http://localhost:8080/api/auth/kakao/callback
+  allowed-redirect-uris: http://localhost:8080/api/auth/kakao/callback,http://localhost:3000/oauth/callback
   client-secret: local-kakao-client-secret
   auth-url: https://kauth.kakao.com
   api-url: https://kapi.kakao.com

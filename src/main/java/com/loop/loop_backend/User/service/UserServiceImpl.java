@@ -1,17 +1,23 @@
 package com.loop.loop_backend.User.service;
 
+import com.loop.loop_backend.Chat.service.ChatService;
+import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
+import com.loop.loop_backend.Storage.dto.ImageUploadResponseDto;
+import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.User.dto.*;
+import com.loop.loop_backend.auth.service.RefreshTokenService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -23,7 +29,11 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final UserHashtagRepository userHashtagRepository;
+    private final FavoriteArtistRepository favoriteArtistRepository;
     private final PasswordEncoder passwordEncoder;
+    private final S3StorageService s3StorageService;
+    private final ChatService chatService;
+    private final RefreshTokenService refreshTokenService;
 
 //    @Override
 //    @Transactional
@@ -95,14 +105,6 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public UserResponseDto updateArtists(Long id, ArtistUpdateRequestDto requestDto) {
-        // TODO: Artist 연관관계 연결 후 실제 저장 로직 구현
-        User user = findUserOrThrow(id);
-        return toResponseDto(user);
-    }
-
-    @Override
-    @Transactional
     public UserResponseDto updateNotificationSettings(Long id, NotificationSettingsRequestDto requestDto) {
         User user = findUserOrThrow(id);
         user.updateNotificationSettings(requestDto.getConcertReminderEmail(), requestDto.getChatNotificationEmail());
@@ -113,7 +115,11 @@ public class UserServiceImpl implements UserService {
         List<UserResponseDto.HashtagSummary> hashtags = userHashtagRepository.findAllByUser(user).stream()
                 .map(tag -> new UserResponseDto.HashtagSummary(tag.getId(), tag.getTag()))
                 .toList();
-        return new UserResponseDto(user, hashtags);
+        List<UserResponseDto.ArtistSummary> favoriteArtists = favoriteArtistRepository.findAllByUser(user).stream()
+                .map(fa -> new UserResponseDto.ArtistSummary(
+                        fa.getId(), fa.getArtist().getId(), fa.getArtist().getName(), fa.getArtist().getImageUrl()))
+                .toList();
+        return new UserResponseDto(user, hashtags, favoriteArtists);
     }
 
 
@@ -142,11 +148,20 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public void withdrawUser(Long id) {
         User user = findUserOrThrow(id);
+        chatService.handleUserWithdrawn(id);
         user.withdraw();
+        refreshTokenService.delete(id);
     }
 
     private User findUserOrThrow(Long id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+    }
+
+    @Override
+    public ImageUploadResponseDto uploadProfileImage(Long id, MultipartFile file) {
+        findUserOrThrow(id);
+        String url = s3StorageService.uploadPublic("profiles", id, file);
+        return new ImageUploadResponseDto(url);
     }
 }

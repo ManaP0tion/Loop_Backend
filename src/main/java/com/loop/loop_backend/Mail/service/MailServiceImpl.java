@@ -2,6 +2,8 @@ package com.loop.loop_backend.Mail.service;
 
 import com.loop.loop_backend.Mail.dto.ConcertReminderSummary;
 import com.loop.loop_backend.Mail.dto.UnreadChatRoomSummary;
+import com.loop.loop_backend.common.exception.BusinessException;
+import com.loop.loop_backend.common.exception.ErrorCode;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -83,6 +85,27 @@ public class MailServiceImpl implements MailService {
             mailSender.send(message);
         } catch (MessagingException | MailException e) {
             log.error("미확인 채팅 알림 메일 발송 실패 (to={})", toEmail, e);
+        }
+    }
+
+    @Override
+    public void sendVerificationCode(String toEmail, String code) {
+        Context context = new Context();
+        context.setVariable("code", code);
+
+        String html = templateEngine.process("mail/email-verification", context);
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setTo(toEmail);
+            helper.setSubject("[Loop] 이메일 인증 코드");
+            helper.setText(html, true);
+            mailSender.send(message);
+        } catch (MessagingException | MailException e) {
+            log.error("이메일 인증 코드 발송 실패 (to={})", toEmail, e);
+            // 사용자가 코드 도착을 기다리는 critical path라, 다른 알림 메일과 달리 실패를 조용히 넘기지 않고 그대로 전파
+            throw new BusinessException(ErrorCode.EMAIL_SEND_FAILED);
         }
     }
 

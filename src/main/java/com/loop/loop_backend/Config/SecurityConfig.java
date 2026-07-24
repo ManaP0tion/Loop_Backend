@@ -3,11 +3,13 @@ package com.loop.loop_backend.Config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import com.loop.loop_backend.common.exception.ErrorCode;
+import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.jwt.JwtAuthenticationFilter;
 import com.loop.loop_backend.common.jwt.JwtTokenProvider;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -38,6 +40,10 @@ public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper;
+    private final UserRepository userRepository;
+
+    @Value("${chat.allowed-origins}")
+    private String[] allowedOrigins;
 
     /**
      * 개발/로컬 프로파일에서만 활성화되는 체인.
@@ -46,7 +52,7 @@ public class SecurityConfig {
      */
     @Bean
     @Order(1)
-    @Profile({"local", "dev"})
+    @Profile({"local", "dev","docker"})
     public SecurityFilterChain devToolsFilterChain(HttpSecurity http) throws Exception {
         http
                 .securityMatcher("/api/test/**", "/dev/**")
@@ -86,10 +92,12 @@ public class SecurityConfig {
                                 "/api/artists/**",
                                 "/api/concerts/**"
                         ).permitAll()
+                        // 개인정보 접근 경로 — 관리자 전용 (처리방침 제10조 6항). 회원 조회는 /api/admin/users 로 이관.
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(
-                        new JwtAuthenticationFilter(jwtTokenProvider),
+                        new JwtAuthenticationFilter(jwtTokenProvider, userRepository),
                         UsernamePasswordAuthenticationFilter.class
                 );
 
@@ -119,7 +127,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("https://localhost:3000")); // 배포 시 프론트 도메인 추가 필요
+        config.setAllowedOriginPatterns(List.of(allowedOrigins));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
