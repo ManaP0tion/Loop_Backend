@@ -35,6 +35,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -109,6 +110,22 @@ class CompanionServiceImplTest {
                 .user(owner)
                 .concert(stubConcert(concertId))
                 .watchDay(WatchDay.DAY1)
+                .activities(Set.of(CompanionActivity.MEAL))
+                .watchStyle(WatchStyle.NORMAL)
+                .build();
+    }
+
+    private Concert stubConcert(long id, LocalDate startDate) {
+        Concert c = Concert.builder().title("테스트 콘서트").startDate(startDate).build();
+        ReflectionTestUtils.setField(c, "id", id);
+        return c;
+    }
+
+    private CompanionPost buildPost(User owner, long concertId, LocalDate concertStartDate, WatchDay watchDay) {
+        return CompanionPost.builder()
+                .user(owner)
+                .concert(stubConcert(concertId, concertStartDate))
+                .watchDay(watchDay)
                 .activities(Set.of(CompanionActivity.MEAL))
                 .watchStyle(WatchStyle.NORMAL)
                 .build();
@@ -392,6 +409,18 @@ class CompanionServiceImplTest {
                 .isEqualTo(ErrorCode.WITHDRAWN_USER);
     }
 
+    @Test
+    void 관람일이_지난_프로필을_상세조회하면_삭제된_것과_동일하게_COMPANION_POST_NOT_FOUND_예외를_던진다() {
+        ReflectionTestUtils.setField(user, "id", 1L);
+        CompanionPost post = buildPost(user, 10L, LocalDate.now().minusDays(1), WatchDay.DAY1);
+        when(companionPostRepository.findById(1L)).thenReturn(Optional.of(post));
+
+        assertThatThrownBy(() -> companionService.getCompanion(2L, 1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.COMPANION_POST_NOT_FOUND);
+    }
+
     // ── updateCompanion ───────────────────────────────────────────────────────
 
     @Test
@@ -505,6 +534,64 @@ class CompanionServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    void 관람일이_지난_프로필은_내_동행_프로필_목록에서_제외된다() {
+        CompanionPost active = buildPost(user, 10L, LocalDate.now().plusDays(1), WatchDay.DAY1);
+        CompanionPost expired = buildPost(user, 20L, LocalDate.now().minusDays(1), WatchDay.DAY1);
+        when(companionPostRepository.findAllByUser(user)).thenReturn(List.of(active, expired));
+
+        List<CompanionResponseDto> result = companionService.getMyCompanions(1L);
+
+        assertThat(result).extracting(CompanionResponseDto::getConcertId).containsExactly(10L);
+    }
+
+    @Test
+    void 등록한_프로필이_전부_관람일이_지났으면_COMPANION_POST_NOT_FOUND_예외를_던진다() {
+        CompanionPost expired = buildPost(user, 10L, LocalDate.now().minusDays(1), WatchDay.DAY1);
+        when(companionPostRepository.findAllByUser(user)).thenReturn(List.of(expired));
+
+        assertThatThrownBy(() -> companionService.getMyCompanions(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.COMPANION_POST_NOT_FOUND);
+    }
+
+    // ── getMyCompanion ────────────────────────────────────────────────────────
+
+    @Test
+    void 콘서트와_관람일로_내_프로필을_조회한다() {
+        CompanionPost post = buildPost(user, 10L, LocalDate.now().plusDays(1), WatchDay.DAY1);
+        when(companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(1L, 10L, WatchDay.DAY1))
+                .thenReturn(Optional.of(post));
+
+        CompanionResponseDto dto = companionService.getMyCompanion(1L, 10L, WatchDay.DAY1);
+
+        assertThat(dto.getConcertId()).isEqualTo(10L);
+    }
+
+    @Test
+    void 관람일이_지난_내_프로필을_조회하면_COMPANION_POST_NOT_FOUND_예외를_던진다() {
+        CompanionPost post = buildPost(user, 10L, LocalDate.now().minusDays(1), WatchDay.DAY1);
+        when(companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(1L, 10L, WatchDay.DAY1))
+                .thenReturn(Optional.of(post));
+
+        assertThatThrownBy(() -> companionService.getMyCompanion(1L, 10L, WatchDay.DAY1))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.COMPANION_POST_NOT_FOUND);
+    }
+
+    @Test
+    void 존재하지_않는_내_프로필을_조회하면_COMPANION_POST_NOT_FOUND_예외를_던진다() {
+        when(companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(1L, 10L, WatchDay.DAY1))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> companionService.getMyCompanion(1L, 10L, WatchDay.DAY1))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.COMPANION_POST_NOT_FOUND);
     }
 
     // ── deleteCompanion ───────────────────────────────────────────────────────

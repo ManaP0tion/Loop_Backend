@@ -12,19 +12,22 @@ import java.util.Optional;
 
 public interface ConcertRepository extends JpaRepository<Concert, Long> {
 
+    // 마지막 날(endDate)이 지나지 않은 콘서트만 노출. endDate가 비어있으면 startDate로 대체(둘 다 없으면 날짜 미정으로 취급)
     @Query("SELECT c FROM Concert c " +
-            "WHERE c.startDate IS NULL OR c.startDate >= :date " +
+            "WHERE COALESCE(c.endDate, c.startDate) IS NULL OR COALESCE(c.endDate, c.startDate) >= :date " +
             "ORDER BY CASE WHEN c.startDate IS NULL THEN 1 ELSE 0 END, c.startDate ASC")
     List<Concert> findUpcomingOrUndated(@Param("date") LocalDate date);
 
     @Query("SELECT c FROM Concert c " +
-            "WHERE c.category = :category AND (c.startDate IS NULL OR c.startDate >= :date) " +
+            "WHERE c.category = :category " +
+            "AND (COALESCE(c.endDate, c.startDate) IS NULL OR COALESCE(c.endDate, c.startDate) >= :date) " +
             "ORDER BY CASE WHEN c.startDate IS NULL THEN 1 ELSE 0 END, c.startDate ASC")
     List<Concert> findUpcomingOrUndatedByCategory(@Param("category") ConcertCategory category,
                                                   @Param("date") LocalDate date);
 
     @Query("SELECT c FROM Concert c " +
-            "WHERE c.artist.id = :artistId AND (c.startDate IS NULL OR c.startDate >= :date) " +
+            "WHERE c.artist.id = :artistId " +
+            "AND (COALESCE(c.endDate, c.startDate) IS NULL OR COALESCE(c.endDate, c.startDate) >= :date) " +
             "ORDER BY CASE WHEN c.startDate IS NULL THEN 1 ELSE 0 END, c.startDate ASC")
     List<Concert> findUpcomingOrUndatedByArtistId(@Param("artistId") Long artistId,
                                                   @Param("date") LocalDate date);
@@ -35,7 +38,7 @@ public interface ConcertRepository extends JpaRepository<Concert, Long> {
             "   OR LOWER(a.baseName) LIKE LOWER(CONCAT('%', :title, '%')) " +
             "   OR LOWER(a.nameKo) LIKE LOWER(CONCAT('%', :title, '%')) " +
             "   OR LOWER(a.nameAlias) LIKE LOWER(CONCAT('%', :title, '%'))) " +
-            "AND (c.startDate IS NULL OR c.startDate >= :date) " +
+            "AND (COALESCE(c.endDate, c.startDate) IS NULL OR COALESCE(c.endDate, c.startDate) >= :date) " +
             "ORDER BY CASE WHEN c.startDate IS NULL THEN 1 ELSE 0 END, c.startDate ASC")
     List<Concert> searchUpcomingOrUndatedByTitle(@Param("title") String title,
                                                  @Param("date") LocalDate date);

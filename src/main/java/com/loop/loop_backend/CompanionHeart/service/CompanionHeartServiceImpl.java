@@ -20,6 +20,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -32,6 +34,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class CompanionHeartServiceImpl implements CompanionHeartService {
+
+    private static final ZoneId ZONE_KST = ZoneId.of("Asia/Seoul");
 
     private final CompanionHeartRepository companionHeartRepository;
     private final CompanionPostRepository companionPostRepository;
@@ -125,8 +129,8 @@ public class CompanionHeartServiceImpl implements CompanionHeartService {
                 days);
     }
 
-    // 하트한 뒤에 작성자가 비공개로 돌렸거나, 나와 작성자 사이에 차단 관계가 생겼거나, 작성자가 탈퇴한 경우 하트탭에서 조용히 제외
-    // (개별 조회처럼 에러를 던지면 목록 전체가 깨지므로, 목록에서는 필터링 방식으로 처리)
+    // 하트한 뒤에 작성자가 비공개로 돌렸거나, 나와 작성자 사이에 차단 관계가 생겼거나, 작성자가 탈퇴했거나,
+    // 관람일이 지난 경우 하트탭에서 조용히 제외 (개별 조회처럼 에러를 던지면 목록 전체가 깨지므로, 목록에서는 필터링 방식으로 처리)
     private List<CompanionHeart> filterHiddenOrBlocked(Long userId, List<CompanionHeart> hearts) {
         if (hearts.isEmpty()) {
             return hearts;
@@ -137,11 +141,13 @@ public class CompanionHeartServiceImpl implements CompanionHeartService {
                 .distinct()
                 .toList();
         Set<Long> blockedAuthorIds = new HashSet<>(blockRepository.findBlockedRelatedUserIds(userId, authorIds));
+        LocalDate today = LocalDate.now(ZONE_KST);
 
         return hearts.stream()
                 .filter(heart -> heart.getCompanionPost().isVisible())
                 .filter(heart -> heart.getCompanionPost().getUser().getStatus() != Status.WITHDRAWN)
                 .filter(heart -> !blockedAuthorIds.contains(heart.getCompanionPost().getUser().getId()))
+                .filter(heart -> !heart.getCompanionPost().isExpired(today))
                 .toList();
     }
 }

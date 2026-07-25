@@ -4,6 +4,7 @@ import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
 import com.loop.loop_backend.CompanionPost.dto.ConcertReminderRow;
 import com.loop.loop_backend.User.domain.User;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -18,6 +19,8 @@ public interface CompanionPostRepository extends JpaRepository<CompanionPost, Lo
 
     boolean existsByUserAndConcert_IdAndWatchDay(User user, Long concertId, WatchDay watchDay);
 
+    // 마이페이지 목록에서 관람일 만료 여부(concert.startDate) 판단에 쓰이므로 함께 로딩
+    @EntityGraph(attributePaths = "concert")
     List<CompanionPost> findAllByUser(User user);
 
     Optional<CompanionPost> findByUser_IdAndConcert_IdAndWatchDay(Long userId, Long concertId, WatchDay watchDay);
