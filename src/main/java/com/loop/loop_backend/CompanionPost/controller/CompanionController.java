@@ -141,6 +141,39 @@ public class CompanionController {
                 companionService.getNotWatchingCompanions(userId, concertId, watchDay, gender, ageGroups, pageable)));
     }
 
+    //동행 프로필 전체 조회 (공연 관람 여부 구분 없음)
+    @Operation(summary = "동행 프로필 전체 조회 (관람 여부 구분 없음)",
+            description = """
+                    콘서트/관람일 기준으로 공연 관람 여부와 상관없이 동행 프로필 전체를 조회합니다. \
+                    작성자의 성별/나이대로 필터링할 수 있습니다. 스크롤용 페이지네이션(page, size)을 지원하며 size 기본값은 20입니다. \
+                    작성자가 "같은 성별에게만 연락받기"를 켠 경우, 나와 성별이 다르면 이 목록에 노출되지 않습니다 (상세 조회는 별개입니다). \
+                    응답은 목록(content) 외에 전체 개수(totalElements), 다음 페이지 존재 여부(hasNext)를 함께 내려줍니다. \
+                    목록 각 항목에도 작성자의 프로필 이미지/성별/나이가 포함됩니다.
+
+                    아직 내 프로필을 등록하기 전에 보여주는 목록이라, 관람 스타일/공통 활동 기준 정렬 없이 등록일자 최신순으로 고정입니다.
+                    """)
+    @ApiResponse(responseCode = "200", description = "조회 성공")
+    @Parameters(@Parameter(name = "sort", hidden = true))
+    @GetMapping("/all")
+    public ResponseEntity<CommonResponse<PageResponseDto<CompanionResponseDto>>> getAllCompanions(
+            @AuthenticationPrincipal Long userId,
+            @Parameter(description = "콘서트 PK")
+            @RequestParam Long concertId,
+            @Parameter(description = "관람 일차", schema = @Schema(allowableValues = {"DAY1", "DAY2", "DAY3", "DAY4"}))
+            @RequestParam WatchDay watchDay,
+            @Parameter(description = "작성자 성별 필터", schema = @Schema(allowableValues = {"MALE", "FEMALE", "OTHER"}))
+            @RequestParam(required = false) Gender gender,
+            @Parameter(description = "작성자 나이대 필터 (다중 선택)",
+                    array = @ArraySchema(schema = @Schema(allowableValues = {
+                            "NINETEEN_TO_TWENTY_FOUR", "TWENTY_FIVE_TO_TWENTY_NINE", "THIRTY_TO_THIRTY_FOUR",
+                            "THIRTY_FIVE_TO_THIRTY_NINE", "FORTY_PLUS", "ANY"})))
+            @RequestParam(required = false) List<AgeGroup> ageGroups,
+            @PageableDefault(size = 20) Pageable pageable
+    ) {
+        return ResponseEntity.ok(CommonResponse.success(
+                companionService.getAllCompanions(userId, concertId, watchDay, gender, ageGroups, pageable)));
+    }
+
 
     //동행 프로필 상세 조회
     @Operation(summary = "동행 프로필 상세 조회",

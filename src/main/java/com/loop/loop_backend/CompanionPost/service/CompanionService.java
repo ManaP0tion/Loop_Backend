@@ -21,6 +21,9 @@ public interface CompanionService {
     PageResponseDto<CompanionResponseDto> getNotWatchingCompanions(Long userId, Long concertId, WatchDay watchDay,
                                                                     Gender gender, List<AgeGroup> ageGroups, Pageable pageable);
 
+    PageResponseDto<CompanionResponseDto> getAllCompanions(Long userId, Long concertId, WatchDay watchDay,
+                                                            Gender gender, List<AgeGroup> ageGroups, Pageable pageable);
+
     CompanionDetailResponseDto getCompanion(Long userId, Long companionId);
 
     CompanionResponseDto updateCompanion(Long userId, Long companionId, CompanionRequestDto requestDto);
