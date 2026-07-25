@@ -18,7 +18,9 @@ import com.loop.loop_backend.Report.domain.AppealStatus;
 import com.loop.loop_backend.Report.domain.Report;
 import com.loop.loop_backend.Report.domain.ReportAction;
 import com.loop.loop_backend.Report.domain.ReportStatus;
+import com.loop.loop_backend.Report.domain.SanctionRecord;
 import com.loop.loop_backend.Report.repository.ReportRepository;
+import com.loop.loop_backend.Report.repository.SanctionRecordRepository;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.User.domain.Gender;
 import com.loop.loop_backend.User.domain.Role;
@@ -59,6 +61,9 @@ public class AdminController {
 
     private final UserRepository userRepository;
     private final ReportRepository reportRepository;
+    // 사용자가 "내 제재 이력"(GET /api/users/me/reports/sanctions)에서 조회할 수 있도록,
+    // 정지 조치를 적용할 때마다(신고 처리든 아래 직접 정지든) 이곳에도 기록을 남긴다.
+    private final SanctionRecordRepository sanctionRecordRepository;
     private final InquiryRepository inquiryRepository;
     private final ArtistRepository artistRepository;
     private final ConcertRepository concertRepository;
@@ -111,10 +116,23 @@ public class AdminController {
         User u = userRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         Integer days = body.days();
         LocalDateTime until = (days == null) ? null : LocalDateTime.now().plusDays(days);
-        u.suspend(until);
+        // 신고 없이 관리자가 직접 정지시키는 경로라 report는 null로 남긴다 (applySuspension 참고)
+        applySuspension(u, until, body.reason(), null);
         accessLog.log(adminId, req, "SUSPEND_USER", "USER", id,
                 "정지 " + (days == null ? "영구" : days + "일") + " · 사유: " + body.reason());
         return ResponseEntity.ok(CommonResponse.success(UserRow.of(u)));
+    }
+
+    // 정지 처리(User 상태 변경)와 "내 제재 이력" 기록(SanctionRecord)을 한 번에 처리하는 헬퍼.
+    // report가 null이면 신고를 거치지 않고 관리자가 직접 정지시킨 경우, non-null이면 그 신고 처리로 인한 정지.
+    private void applySuspension(User target, LocalDateTime until, String adminNote, Report report) {
+        target.suspend(until);
+        sanctionRecordRepository.save(SanctionRecord.builder()
+                .targetUser(target)
+                .suspendedUntil(until)
+                .adminNote(adminNote)
+                .report(report)
+                .build());
     }
 
     @PostMapping("/users/{id}/lift")
@@ -176,11 +194,11 @@ public class AdminController {
         Report r = reportRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.REPORT_NOT_FOUND));
         r.applyAction(body.action(), body.note());
 
-        // 피신고자에 실제 조치 반영
+        // 피신고자에 실제 조치 반영 (정지된 경우 SanctionRecord에도 기록 - applySuspension 참고)
         User target = r.getTargetUser();
         switch (body.action()) {
-            case SUSPEND_30D -> target.suspend(LocalDateTime.now().plusDays(30));
-            case PERMANENT -> target.suspend(null);
+            case SUSPEND_30D -> applySuspension(target, LocalDateTime.now().plusDays(30), body.note(), r);
+            case PERMANENT -> applySuspension(target, null, body.note(), r);
             case NONE -> { /* no user side effect */ }
         }
         accessLog.log(adminId, req, "REPORT_ACTION", "REPORT", id,

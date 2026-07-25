@@ -1,10 +1,5 @@
 package com.loop.loop_backend.auth.service;
 
-import com.loop.loop_backend.Block.repository.BlockRepository;
-import com.loop.loop_backend.CompanionHeart.repository.CompanionHeartRepository;
-import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
-import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
-import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
@@ -41,11 +36,6 @@ import static org.mockito.Mockito.when;
 class KakaoAuthServiceTest {
 
     @Mock UserRepository userRepository;
-    @Mock UserHashtagRepository userHashtagRepository;
-    @Mock FavoriteArtistRepository favoriteArtistRepository;
-    @Mock CompanionPostRepository companionPostRepository;
-    @Mock CompanionHeartRepository companionHeartRepository;
-    @Mock BlockRepository blockRepository;
     @Mock JwtTokenProvider jwtTokenProvider;
     @Mock RefreshTokenService refreshTokenService;
     @Mock RestTemplate restTemplate;
@@ -108,6 +98,20 @@ class KakaoAuthServiceTest {
         assertThat(existing.isEmailVerified()).isTrue();
         assertThat(existing.isOnboardingCompleted()).isFalse();
         assertThat(result.getAccessToken()).isEqualTo("access-token");
+    }
+
+    @Test
+    void 탈퇴한_계정으로_재로그인하면_같은_계정이_ACTIVE로_되살아난다() {
+        User withdrawn = existingUserWith(true, true, 1L);
+        withdrawn.withdraw();
+        when(userRepository.findByAuthProviderAndProviderId(AuthProvider.KAKAO, KAKAO_PROVIDER_ID))
+                .thenReturn(Optional.of(withdrawn));
+
+        kakaoAuthService.login("auth-code", REDIRECT_URI);
+
+        // 새 계정을 만들지 않고 같은 계정(id=1)을 그대로 되살린다
+        verify(userRepository, never()).save(any());
+        assertThat(withdrawn.getStatus()).isEqualTo(Status.ACTIVE);
     }
 
     @Test
