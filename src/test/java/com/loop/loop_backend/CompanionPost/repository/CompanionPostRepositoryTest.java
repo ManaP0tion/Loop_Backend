@@ -319,7 +319,7 @@ class CompanionPostRepositoryTest {
     }
 
     @Test
-    void 콘서트_동행_수를_셀_때_조회자가_볼_수_있는_프로필만_카운트된다() {
+    void 매칭_목록에서는_본인을_제외하고_조회자가_볼_수_있는_프로필만_필터링된다() {
         // persistUser는 providerId 앞 5자를 닉네임으로 쓰므로(유니크 제약), 앞 5자가 서로 겹치지 않게 짓는다
         User me = persistUser("meCnt", Gender.MALE, 25);
         User visible = persistUser("visCnt", Gender.MALE, 25);
@@ -368,6 +368,73 @@ class CompanionPostRepositoryTest {
         // 나(me)를 제외하고, visible + sameGenderOnlySameGender 만 남는다:
         // hidden(비공개), withdrawn(탈퇴), blockedByMe/blockedMe(차단), sameGenderOnlyOppositeGender(이성 공개제한)는 제외
         assertThat(count).isEqualTo(2);
+    }
+
+    @Test
+    void 콘서트_동행_수를_셀_때는_공개된_본인_프로필도_포함된다() {
+        User me = persistUser("meCnt2", Gender.MALE, 25);
+        User visible = persistUser("visCnt2", Gender.MALE, 25);
+        User hidden = persistUser("hidCnt2", Gender.MALE, 25);
+        User blockedByMe = persistUser("bbmCnt2", Gender.MALE, 25);
+
+        persistCompanionPost(me);
+        persistCompanionPost(visible);
+
+        CompanionPost hiddenPost = CompanionPost.builder()
+                .user(hidden)
+                .concert(concert)
+                .watchDay(WatchDay.DAY1)
+                .activities(Set.of(CompanionActivity.CONCERT))
+                .build();
+        hiddenPost.toggleVisible(false);
+        entityManager.persist(hiddenPost);
+
+        persistCompanionPost(blockedByMe);
+        entityManager.persist(Block.builder().blocker(me).blocked(blockedByMe).build());
+
+        entityManager.flush();
+
+        // countVisibleCompanions()와 동일한 구성 - userIdNotEquals 없이 나머지 조건만
+        Specification<CompanionPost> countSpec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
+                CompanionPostSpecifications.isVisible(),
+                CompanionPostSpecifications.authorNotWithdrawn(),
+                CompanionPostSpecifications.hasNoBlockRelationWith(me.getId()),
+                CompanionPostSpecifications.respectsSameGenderOnly(me.getGender()));
+
+        long count = companionPostRepository.count(countSpec);
+
+        // 나(공개) + visible = 2. hidden(비공개), blockedByMe(차단)는 제외
+        assertThat(count).isEqualTo(2);
+    }
+
+    @Test
+    void 콘서트_동행_수를_셀_때_본인_프로필이_비공개면_제외된다() {
+        User me = persistUser("meCnt3", Gender.MALE, 25);
+        User visible = persistUser("visCnt3", Gender.MALE, 25);
+
+        CompanionPost myPost = CompanionPost.builder()
+                .user(me)
+                .concert(concert)
+                .watchDay(WatchDay.DAY1)
+                .activities(Set.of(CompanionActivity.CONCERT))
+                .build();
+        myPost.toggleVisible(false);
+        entityManager.persist(myPost);
+
+        persistCompanionPost(visible);
+        entityManager.flush();
+
+        Specification<CompanionPost> countSpec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
+                CompanionPostSpecifications.isVisible(),
+                CompanionPostSpecifications.authorNotWithdrawn(),
+                CompanionPostSpecifications.hasNoBlockRelationWith(me.getId()),
+                CompanionPostSpecifications.respectsSameGenderOnly(me.getGender()));
+
+        long count = companionPostRepository.count(countSpec);
+
+        assertThat(count).isEqualTo(1);
     }
 
     @Test

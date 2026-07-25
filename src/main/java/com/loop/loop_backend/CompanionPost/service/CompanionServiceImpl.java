@@ -140,7 +140,7 @@ public class CompanionServiceImpl implements CompanionService {
         return paginate(userId, filtered, defaultComparator(myPost), pageable);
     }
 
-    // 조회자가 대상 프로필을 볼 수 있는지를 결정하는 공통 신원 기반 필터 (목록/카운트 공용)
+    // 조회자가 대상 프로필을 볼 수 있는지를 결정하는 공통 신원 기반 필터 (매칭 목록 전용 - 본인 글은 매칭 상대가 아니므로 제외)
     private Specification<CompanionPost> visibleToViewer(Long userId, Gender viewerGender) {
         return Specification.allOf(
                 CompanionPostSpecifications.userIdNotEquals(userId),
@@ -157,9 +157,15 @@ public class CompanionServiceImpl implements CompanionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
                 .getGender();
 
+        // 목록(visibleToViewer)과 달리 본인 글도 포함해서 셈 - 단, isVisible/authorNotWithdrawn/watchDayNotExpired는 그대로 적용되고,
+        // hasNoBlockRelationWith·respectsSameGenderOnly는 본인 글에는 항상 자명하게 통과한다(자기 자신과는 차단·이성공개제한이 성립하지 않음)
         Specification<CompanionPost> spec = Specification.allOf(
                 CompanionPostSpecifications.concertIdEquals(concertId),
-                visibleToViewer(userId, viewerGender));
+                CompanionPostSpecifications.isVisible(),
+                CompanionPostSpecifications.authorNotWithdrawn(),
+                CompanionPostSpecifications.hasNoBlockRelationWith(userId),
+                CompanionPostSpecifications.respectsSameGenderOnly(viewerGender),
+                CompanionPostSpecifications.watchDayNotExpired());
 
         return companionPostRepository.count(spec);
     }
