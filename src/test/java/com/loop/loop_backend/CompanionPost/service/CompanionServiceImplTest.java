@@ -590,4 +590,25 @@ class CompanionServiceImplTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.USER_NOT_FOUND);
     }
+
+    // ── countVisibleCompanions ────────────────────────────────────────────────
+    // 필터 조합 자체(비공개/차단/탈퇴/동성공개)의 정확성은 CompanionPostRepositoryTest(@DataJpaTest)에서 검증한다.
+    // 여기서는 이 메서드가 "조회자 기준으로 필터링된 리포지토리 카운트를 그대로 반환한다"는 위임 계약만 확인한다.
+
+    @Test
+    void 존재하지_않는_조회자로_카운트하면_USER_NOT_FOUND_예외를_던진다() {
+        assertThatThrownBy(() -> companionService.countVisibleCompanions(10L, 999L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    void 조회자_기준으로_필터링된_리포지토리_카운트를_그대로_반환한다() {
+        when(companionPostRepository.count(any(Specification.class))).thenReturn(7L);
+
+        long count = companionService.countVisibleCompanions(10L, 1L);
+
+        assertThat(count).isEqualTo(7L);
+    }
 }

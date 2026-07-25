@@ -8,6 +8,7 @@ import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
+import com.loop.loop_backend.CompanionPost.service.CompanionService;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
@@ -28,6 +29,7 @@ public class ConcertServiceImpl implements ConcertService {
     private final ConcertRepository concertRepository;
     private final ArtistRepository artistRepository;
     private final CompanionPostRepository companionPostRepository;
+    private final CompanionService companionService;
     private final S3StorageService s3StorageService;
 
     @Override
@@ -80,50 +82,51 @@ public class ConcertServiceImpl implements ConcertService {
     }
 
     @Override
-    public ConcertResponseDto getConcertById(Long id) {
+    public ConcertResponseDto getConcertById(Long id, Long userId) {
         Concert concert = findConcertOrThrow(id);
 
-        return ConcertResponseDto.from(concert, companionPostRepository.countByConcert_Id(concert.getId()));
+        return ConcertResponseDto.from(concert, companionService.countVisibleCompanions(concert.getId(), userId));
 
     }
 
-    @Override
-    public ConcertResponseDto getConcertByTitle(String title) {
-        Concert concert = concertRepository.findByTitle(title)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
-        return ConcertResponseDto.from(concert, companionPostRepository.countByConcert_Id(concert.getId()));
-    }
+    // 호출하는 곳이 없어 주석 처리 (필요해지면 userId 파라미터 추가해서 복구)
+    // @Override
+    // public ConcertResponseDto getConcertByTitle(String title) {
+    //     Concert concert = concertRepository.findByTitle(title)
+    //             .orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
+    //     return ConcertResponseDto.from(concert, companionPostRepository.countByConcert_Id(concert.getId()));
+    // }
 
     @Override
-    public List<ConcertResponseDto> searchConcertsByTitle(String title) {
+    public List<ConcertResponseDto> searchConcertsByTitle(String title, Long userId) {
         return concertRepository.searchUpcomingOrUndatedByTitle(title, LocalDate.now()).stream()
-                .map(this::toResponseDto)
+                .map(concert -> toResponseDto(concert, userId))
                 .collect(Collectors.toList());
     }
 
     @Override
-    public List<ConcertResponseDto> getAllConcerts() {
+    public List<ConcertResponseDto> getAllConcerts(Long userId) {
         return concertRepository.findUpcomingOrUndated(LocalDate.now()).stream()
-                .map(this::toResponseDto)
+                .map(concert -> toResponseDto(concert, userId))
                 .collect(Collectors.toList());
     }
 
     @Override
-    public List<ConcertResponseDto> getConcertsByCategory(ConcertCategory category) {
+    public List<ConcertResponseDto> getConcertsByCategory(ConcertCategory category, Long userId) {
         return concertRepository.findUpcomingOrUndatedByCategory(category, LocalDate.now()).stream()
-                .map(this::toResponseDto)
+                .map(concert -> toResponseDto(concert, userId))
                 .collect(Collectors.toList());
     }
 
     @Override
-    public List<ConcertResponseDto> getConcertsByArtist(Long artistId) {
+    public List<ConcertResponseDto> getConcertsByArtist(Long artistId, Long userId) {
         return concertRepository.findUpcomingOrUndatedByArtistId(artistId, LocalDate.now()).stream()
-                .map(this::toResponseDto)
+                .map(concert -> toResponseDto(concert, userId))
                 .collect(Collectors.toList());
     }
 
-    private ConcertResponseDto toResponseDto(Concert concert) {
-        return ConcertResponseDto.from(concert, companionPostRepository.countByConcert_Id(concert.getId()));
+    private ConcertResponseDto toResponseDto(Concert concert, Long userId) {
+        return ConcertResponseDto.from(concert, companionService.countVisibleCompanions(concert.getId(), userId));
     }
 
     private Concert findConcertOrThrow(Long id) {

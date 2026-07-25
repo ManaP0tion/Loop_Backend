@@ -318,6 +318,58 @@ class CompanionPostRepositoryTest {
                 .containsExactlyInAnyOrder("twenties2", "thirties2");
     }
 
+    @Test
+    void 콘서트_동행_수를_셀_때_조회자가_볼_수_있는_프로필만_카운트된다() {
+        // persistUser는 providerId 앞 5자를 닉네임으로 쓰므로(유니크 제약), 앞 5자가 서로 겹치지 않게 짓는다
+        User me = persistUser("meCnt", Gender.MALE, 25);
+        User visible = persistUser("visCnt", Gender.MALE, 25);
+        User sameGenderOnlySameGender = persistUser("sgSame", Gender.MALE, 25);
+        User sameGenderOnlyOppositeGender = persistUser("sgOpp", Gender.FEMALE, 25);
+        User hidden = persistUser("hidCnt", Gender.MALE, 25);
+        User withdrawn = persistUser("wdCnt", Gender.MALE, 25);
+        User blockedByMe = persistUser("bbmCnt", Gender.MALE, 25);
+        User blockedMe = persistUser("bmeCnt", Gender.MALE, 25);
+
+        persistCompanionPost(me);
+        persistCompanionPost(visible);
+        persistCompanionPost(sameGenderOnlySameGender, Set.of(CompanionActivity.CONCERT), true);
+        persistCompanionPost(sameGenderOnlyOppositeGender, Set.of(CompanionActivity.CONCERT), true);
+
+        CompanionPost hiddenPost = CompanionPost.builder()
+                .user(hidden)
+                .concert(concert)
+                .watchDay(WatchDay.DAY1)
+                .activities(Set.of(CompanionActivity.CONCERT))
+                .build();
+        hiddenPost.toggleVisible(false);
+        entityManager.persist(hiddenPost);
+
+        persistCompanionPost(withdrawn);
+        withdrawn.withdraw();
+
+        persistCompanionPost(blockedByMe);
+        entityManager.persist(Block.builder().blocker(me).blocked(blockedByMe).build());
+
+        persistCompanionPost(blockedMe);
+        entityManager.persist(Block.builder().blocker(blockedMe).blocked(me).build());
+
+        entityManager.flush();
+
+        Specification<CompanionPost> visibleToMeSpec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
+                CompanionPostSpecifications.userIdNotEquals(me.getId()),
+                CompanionPostSpecifications.isVisible(),
+                CompanionPostSpecifications.authorNotWithdrawn(),
+                CompanionPostSpecifications.hasNoBlockRelationWith(me.getId()),
+                CompanionPostSpecifications.respectsSameGenderOnly(me.getGender()));
+
+        long count = companionPostRepository.count(visibleToMeSpec);
+
+        // 나(me)를 제외하고, visible + sameGenderOnlySameGender 만 남는다:
+        // hidden(비공개), withdrawn(탈퇴), blockedByMe/blockedMe(차단), sameGenderOnlyOppositeGender(이성 공개제한)는 제외
+        assertThat(count).isEqualTo(2);
+    }
+
     private User persistUserWithEmail(String providerId, String email, boolean concertReminderEmail) {
         User user = User.builder()
                 .authProvider(AuthProvider.KAKAO)
