@@ -1,6 +1,8 @@
 package com.loop.loop_backend.User.service;
 
 import com.loop.loop_backend.Chat.service.ChatService;
+import com.loop.loop_backend.CompanionHeart.repository.CompanionHeartRepository;
+import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.Storage.service.S3StorageService;
@@ -34,6 +36,8 @@ class UserServiceImplTest {
     @Mock UserRepository userRepository;
     @Mock UserHashtagRepository userHashtagRepository;
     @Mock FavoriteArtistRepository favoriteArtistRepository;
+    @Mock CompanionPostRepository companionPostRepository;
+    @Mock CompanionHeartRepository companionHeartRepository;
     @Mock PasswordEncoder passwordEncoder;
     @Mock S3StorageService s3StorageService;
     @Mock ChatService chatService;
@@ -63,6 +67,20 @@ class UserServiceImplTest {
         assertThat(user.getStatus()).isEqualTo(Status.WITHDRAWN);
         verify(chatService).handleUserWithdrawn(USER_ID);
         verify(refreshTokenService).delete(USER_ID);
+    }
+
+    @Test
+    void 탈퇴_시점에_동행글_하트_해시태그_관심아티스트가_정리된다() {
+        User user = testUser();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+
+        userService.withdrawUser(USER_ID);
+
+        verify(companionHeartRepository).deleteAllByCompanionPost_User(user);
+        verify(companionHeartRepository).deleteAllByUser(user);
+        verify(companionPostRepository).deleteAllByUser(user);
+        verify(userHashtagRepository).deleteAllByUser(user);
+        verify(favoriteArtistRepository).deleteAllByUser(user);
     }
 
     @Test

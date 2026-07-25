@@ -1,10 +1,5 @@
 package com.loop.loop_backend.auth.service;
 
-import com.loop.loop_backend.Block.repository.BlockRepository;
-import com.loop.loop_backend.CompanionHeart.repository.CompanionHeartRepository;
-import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
-import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
-import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
@@ -34,11 +29,6 @@ import java.util.List;
 public class KakaoAuthService {
 
     private final UserRepository userRepository;
-    private final UserHashtagRepository userHashtagRepository;
-    private final FavoriteArtistRepository favoriteArtistRepository;
-    private final CompanionPostRepository companionPostRepository;
-    private final CompanionHeartRepository companionHeartRepository;
-    private final BlockRepository blockRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
 
@@ -77,16 +67,9 @@ public class KakaoAuthService {
                 .findByAuthProviderAndProviderId(AuthProvider.KAKAO, String.valueOf(userInfo.getId()))
                 .orElseGet(() -> registerKakaoUser(userInfo));
 
-        // 3-1. 탈퇴 계정으로 재가입하는 경우: 같은 계정을 살리고 온보딩부터 새로 시작하도록 초기화
-        // 삭제 순서 주의: 내 글을 참조하는 하트부터 지운 뒤에 글을 지워야 FK 위반이 안 남
+        // 3-1. 탈퇴 계정으로 재가입하는 경우: 잔존 데이터는 이미 탈퇴 시점(withdrawUser)에 정리됐으므로 계정만 되살린다.
+        // 차단(Block)은 탈퇴/재가입과 무관하게 유지된다.
         if (user.getStatus() == Status.WITHDRAWN) {
-            companionHeartRepository.deleteAllByCompanionPost_User(user);
-            companionHeartRepository.deleteAllByUser(user);
-            companionPostRepository.deleteAllByUser(user);
-            blockRepository.deleteAllByBlocker(user);
-            blockRepository.deleteAllByBlocked(user);
-            userHashtagRepository.deleteAllByUser(user);
-            favoriteArtistRepository.deleteAllByUser(user);
             user.reactivate();
         }
 
