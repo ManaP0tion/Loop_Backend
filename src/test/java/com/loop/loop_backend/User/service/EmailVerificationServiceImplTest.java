@@ -108,6 +108,7 @@ class EmailVerificationServiceImplTest {
         emailVerificationService.verifyCode(USER_ID, EMAIL, "123456");
 
         assertThat(user.getEmail()).isEqualTo(EMAIL);
+        assertThat(user.isEmailVerified()).isTrue();
         verify(redisTemplate).delete(CODE_KEY);
         verify(redisTemplate).delete(EMAIL_KEY);
     }
@@ -178,5 +179,6 @@ class EmailVerificationServiceImplTest {
         emailVerificationService.verifyCode(USER_ID, EMAIL, "123456");
 
         assertThat(user.getEmail()).isEqualTo(EMAIL);
+        assertThat(user.isEmailVerified()).isTrue();
     }
 }

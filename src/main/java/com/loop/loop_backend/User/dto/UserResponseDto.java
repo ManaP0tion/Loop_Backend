@@ -41,6 +41,9 @@ public class UserResponseDto {
     @Schema(description = "온보딩 완료 여부", example = "true")
     private final boolean onboardingCompleted;
 
+    @Schema(description = "이메일 인증 완료 여부", example = "true")
+    private final boolean emailVerified;
+
     @Schema(description = "해시태그 목록")
     private final List<HashtagSummary> hashtags;
 
@@ -69,6 +72,7 @@ public class UserResponseDto {
         this.gender = user.getGender();
         this.birthDate = user.getBirthDate();
         this.onboardingCompleted = user.isOnboardingCompleted();
+        this.emailVerified = user.isEmailVerified();
         this.hashtags = hashtags;
         this.favoriteArtists = favoriteArtists;
         this.concertReminderEmail = user.isConcertReminderEmail();
