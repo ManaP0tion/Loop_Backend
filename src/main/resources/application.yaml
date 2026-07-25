@@ -53,7 +53,7 @@ jwt:
 
 kakao:
   client-id: ${KAKAO_CLIENT_ID}
-  redirect-uri: ${KAKAO_REDIRECT_URI}
+  allowed-redirect-uris: ${KAKAO_ALLOWED_REDIRECT_URIS:${KAKAO_REDIRECT_URI}}
   client-secret: ${KAKAO_CLIENT_SECRET}
   auth-url: https://kauth.kakao.com
   api-url: https://kapi.kakao.com

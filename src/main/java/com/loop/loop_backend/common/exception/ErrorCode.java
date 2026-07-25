@@ -15,6 +15,8 @@ public enum ErrorCode {
     INTERNAL_SERVER_ERROR(500, "서버 오류가 발생했습니다."),
     UNAUTHORIZED(401, "인증이 필요합니다."),
     FORBIDDEN(403, "접근 권한이 없습니다."),
+    WITHDRAWN_USER(410, "탈퇴한 사용자입니다."),
+    USER_SUSPENDED(403, "이용정지된 계정입니다."),
 
     // User 도메인
     USER_NOT_FOUND(404, "사용자를 찾을 수 없습니다."),
@@ -41,6 +43,7 @@ public enum ErrorCode {
     INVALID_CREDENTIALS(401, "아이디 또는 비밀번호가 올바르지 않습니다."),
     INVALID_REFRESH_TOKEN(401, "유효하지 않은 Refresh Token입니다."),
     INVALID_KAKAO_CODE(400, "유효하지 않거나 만료된 카카오 인가 코드입니다."),
+    INVALID_REDIRECT_URI(400, "허용되지 않는 리다이렉트 주소입니다."),
 
     // Artist 도메인
     ARTIST_NOT_FOUND(404, "아티스트를 찾을 수 없습니다."),

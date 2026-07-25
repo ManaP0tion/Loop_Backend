@@ -12,6 +12,7 @@ public interface UserService {
     UserResponseDto getUserByUserId(String userId);
     List<UserResponseDto> getAllUsers();
     UserResponseDto updateProfile(Long id, UserUpdateRequestDto requestDto);
+    boolean isNicknameAvailable(Long id, String nickname);
     UserResponseDto completeOnboarding(Long id, OnboardingRequestDto requestDto);
     UserResponseDto updateNotificationSettings(Long id, NotificationSettingsRequestDto requestDto);
     void changePassword(Long id, PasswordChangeRequestDto requestDto);

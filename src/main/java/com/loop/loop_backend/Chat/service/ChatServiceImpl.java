@@ -13,6 +13,7 @@ import com.loop.loop_backend.Chat.dto.ChatMessagesResponseDto;
 import com.loop.loop_backend.Chat.dto.ChatOtherUserRelationDto;
 import com.loop.loop_backend.Chat.dto.ChatReadEventDto;
 import com.loop.loop_backend.Chat.dto.ChatRoomResponseDto;
+import com.loop.loop_backend.Chat.dto.ChatRoomSummaryDto;
 import com.loop.loop_backend.Chat.dto.CreateChatRoomRequestDto;
 import com.loop.loop_backend.Chat.dto.StartDirectChatRequestDto;
 import com.loop.loop_backend.Chat.repository.ChatParticipantRepository;
@@ -140,11 +141,11 @@ public class ChatServiceImpl implements ChatService {
             });
         }
 
-        ChatRoom room = chatRoomRepository.findById(roomId)
+        ChatRoomSummaryDto summary = chatRoomRepository.findSummaryById(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         User otherUser = userRepository.findById(targetId).orElse(null);
         ChatOtherUserRelationDto relation = buildRelation(myUserId, targetId, otherUser);
-        return ChatRoomResponseDto.from(room, targetId, otherUser, relation);
+        return ChatRoomResponseDto.fromSummary(summary, targetId, otherUser, relation);
     }
 
     private ChatRoom createDirectRoom(Long myUserId, Long targetId) {

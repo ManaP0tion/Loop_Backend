@@ -34,7 +34,10 @@ public class FavoriteArtistController {
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "404", description = "사용자 없음",
                     content = @Content(examples = @ExampleObject(
-                            value = "{\"success\":false,\"message\":\"사용자를 찾을 수 없습니다.\",\"code\":404}")))
+                            value = "{\"success\":false,\"message\":\"사용자를 찾을 수 없습니다.\",\"code\":404}"))),
+            @ApiResponse(responseCode = "410", description = "탈퇴한 사용자",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"탈퇴한 사용자입니다.\",\"code\":410}")))
     })
     public ResponseEntity<CommonResponse<List<FavoriteArtistResponseDto>>> getFavoriteArtistsByUserId(
             @Parameter(description = "사용자 PK") @PathVariable Long userId) {

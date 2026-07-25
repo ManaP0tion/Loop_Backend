@@ -1,6 +1,7 @@
 package com.loop.loop_backend.CompanionHeart.repository;
 
 import com.loop.loop_backend.CompanionHeart.domain.CompanionHeart;
+import com.loop.loop_backend.User.domain.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -20,6 +21,10 @@ public interface CompanionHeartRepository extends JpaRepository<CompanionHeart, 
     boolean existsByUser_IdAndCompanionPost_Id(Long userId, Long companionPostId);
 
     Optional<CompanionHeart> findByUser_IdAndCompanionPost_Id(Long userId, Long companionPostId);
+
+    void deleteAllByUser(User user);
+
+    void deleteAllByCompanionPost_User(User user);
 
     // 동행 목록/상세 조회 시 항목별로 존재 여부를 따로 조회하지 않도록, 화면에 보여줄 게시글 id들 중 하트한 것만 한 번에 조회
     @Query("SELECT ch.companionPost.id FROM CompanionHeart ch " +

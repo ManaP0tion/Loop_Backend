@@ -4,6 +4,7 @@ import com.loop.loop_backend.Block.domain.Block;
 import com.loop.loop_backend.Block.dto.BlockedUserResponseDto;
 import com.loop.loop_backend.Block.repository.BlockRepository;
 import com.loop.loop_backend.Chat.service.ChatService;
+import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -67,6 +68,7 @@ public class BlockServiceImpl implements BlockService {
     public List<BlockedUserResponseDto> getBlockedUsers(Long userId) {
         User me = getUser(userId);
         return blockRepository.findAllByBlocker(me).stream()
+                .filter(block -> block.getBlocked().getStatus() != Status.WITHDRAWN)
                 .map(BlockedUserResponseDto::new)
                 .toList();
     }
