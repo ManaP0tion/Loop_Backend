@@ -74,4 +74,45 @@ class UserServiceImplTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.USER_NOT_FOUND);
     }
+
+    // ── isNicknameAvailable ──────────────────────────────────────────────
+
+    @Test
+    void 아무도_쓰지_않는_닉네임이면_사용_가능하다() {
+        User user = testUser();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(userRepository.existsByNickname("새닉네임")).thenReturn(false);
+
+        assertThat(userService.isNicknameAvailable(USER_ID, "새닉네임")).isTrue();
+    }
+
+    @Test
+    void 다른_사용자가_이미_쓰고_있는_닉네임이면_사용_불가능하다() {
+        User user = testUser();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(userRepository.existsByNickname("이미있음")).thenReturn(true);
+
+        assertThat(userService.isNicknameAvailable(USER_ID, "이미있음")).isFalse();
+    }
+
+    @Test
+    void 본인이_이미_쓰고_있는_닉네임을_그대로_확인하면_사용_가능하다() {
+        User user = testUser();
+        user.updateUserProfile("내닉네임", null);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+
+        assertThat(userService.isNicknameAvailable(USER_ID, "내닉네임")).isTrue();
+        // 본인 것과 같으면 중복 조회 자체를 할 필요가 없다
+        verify(userRepository, org.mockito.Mockito.never()).existsByNickname(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void 존재하지_않는_사용자로_닉네임을_확인하면_USER_NOT_FOUND_예외를_던진다() {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.isNicknameAvailable(USER_ID, "아무닉네임"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.USER_NOT_FOUND);
+    }
 }

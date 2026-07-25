@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -87,10 +88,11 @@ public class ConcertController {
     @ApiResponse(responseCode = "200", description = "조회 성공")
     public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> getConcerts(
             @Parameter(description = "콘서트 카테고리 (J_POP_ARTIST / DOMESTIC_ARTIST / JAPAN_FESTIVAL / DOMESTIC_FESTIVAL)")
-            @RequestParam(required = false) ConcertCategory category) {
+            @RequestParam(required = false) ConcertCategory category,
+            @AuthenticationPrincipal Long userId) {
         List<ConcertResponseDto> concerts = (category != null)
-                ? concertService.getConcertsByCategory(category)
-                : concertService.getAllConcerts();
+                ? concertService.getConcertsByCategory(category, userId)
+                : concertService.getAllConcerts(userId);
         return ResponseEntity.ok(CommonResponse.success(concerts));
     }
 
@@ -111,8 +113,9 @@ public class ConcertController {
             @ApiResponse(responseCode = "404", description = "콘서트 없음")
     })
     public ResponseEntity<CommonResponse<ConcertResponseDto>> getConcertById(
-            @Parameter(description = "콘서트 PK") @PathVariable Long id) {
-        return ResponseEntity.ok(CommonResponse.success(concertService.getConcertById(id)));
+            @Parameter(description = "콘서트 PK") @PathVariable Long id,
+        @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.getConcertById(id, userId)));
     }
 
     @GetMapping("/search")
@@ -121,8 +124,9 @@ public class ConcertController {
                     "예) 'King Gnu' 공연은 '킹누'로도 검색 가능")
     @ApiResponse(responseCode = "200", description = "조회 성공")
     public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> searchConcerts(
-            @Parameter(description = "검색 키워드 (콘서트 제목 또는 아티스트명)") @RequestParam String title) {
-        return ResponseEntity.ok(CommonResponse.success(concertService.searchConcertsByTitle(title)));
+            @Parameter(description = "검색 키워드 (콘서트 제목 또는 아티스트명)") @RequestParam String title,
+            @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.searchConcertsByTitle(title, userId)));
     }
 
     @GetMapping("/artist/{artistId}")
@@ -132,8 +136,9 @@ public class ConcertController {
             @ApiResponse(responseCode = "404", description = "아티스트 없음")
     })
     public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> getConcertsByArtist(
-            @Parameter(description = "아티스트 PK") @PathVariable Long artistId) {
-        return ResponseEntity.ok(CommonResponse.success(concertService.getConcertsByArtist(artistId)));
+            @Parameter(description = "아티스트 PK") @PathVariable Long artistId,
+            @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.getConcertsByArtist(artistId, userId)));
     }
 
     @PostMapping("/sync")

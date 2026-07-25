@@ -89,8 +89,7 @@ public class SecurityConfig {
                                 "/api/users/register",
                                 "/api/users/kakao",
                                 "/ws/chat/**",
-                                "/api/artists/**",
-                                "/api/concerts/**"
+                                "/api/artists/**"
                         ).permitAll()
                         // 개인정보 접근 경로 — 관리자 전용 (처리방침 제10조 6항). 회원 조회는 /api/admin/users 로 이관.
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")

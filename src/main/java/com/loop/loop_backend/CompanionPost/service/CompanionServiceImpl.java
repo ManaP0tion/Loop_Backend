@@ -87,11 +87,7 @@ public class CompanionServiceImpl implements CompanionService {
                 CompanionPostSpecifications.concertIdEquals(concertId),
                 CompanionPostSpecifications.watchDayEquals(watchDay),
                 CompanionPostSpecifications.hasActivity(CompanionActivity.CONCERT),
-                CompanionPostSpecifications.userIdNotEquals(userId),
-                CompanionPostSpecifications.isVisible(),
-                CompanionPostSpecifications.authorNotWithdrawn(),
-                CompanionPostSpecifications.hasNoBlockRelationWith(userId),
-                CompanionPostSpecifications.respectsSameGenderOnly(viewerGender),
+                visibleToViewer(userId, viewerGender),
                 CompanionPostSpecifications.authorGenderEquals(gender),
                 CompanionPostSpecifications.ageGroupIn(ageGroups));
 
@@ -127,11 +123,7 @@ public class CompanionServiceImpl implements CompanionService {
                 CompanionPostSpecifications.concertIdEquals(concertId),
                 CompanionPostSpecifications.watchDayEquals(watchDay),
                 CompanionPostSpecifications.doesNotHaveActivity(CompanionActivity.CONCERT),
-                CompanionPostSpecifications.userIdNotEquals(userId),
-                CompanionPostSpecifications.isVisible(),
-                CompanionPostSpecifications.authorNotWithdrawn(),
-                CompanionPostSpecifications.hasNoBlockRelationWith(userId),
-                CompanionPostSpecifications.respectsSameGenderOnly(viewerGender),
+                visibleToViewer(userId, viewerGender),
                 CompanionPostSpecifications.authorGenderEquals(gender),
                 CompanionPostSpecifications.ageGroupIn(ageGroups));
 
@@ -142,6 +134,29 @@ public class CompanionServiceImpl implements CompanionService {
                 .orElse(null);
 
         return paginate(userId, filtered, defaultComparator(myPost), pageable);
+    }
+
+    // 조회자가 대상 프로필을 볼 수 있는지를 결정하는 공통 신원 기반 필터 (목록/카운트 공용)
+    private Specification<CompanionPost> visibleToViewer(Long userId, Gender viewerGender) {
+        return Specification.allOf(
+                CompanionPostSpecifications.userIdNotEquals(userId),
+                CompanionPostSpecifications.isVisible(),
+                CompanionPostSpecifications.authorNotWithdrawn(),
+                CompanionPostSpecifications.hasNoBlockRelationWith(userId),
+                CompanionPostSpecifications.respectsSameGenderOnly(viewerGender));
+    }
+
+    @Override
+    public long countVisibleCompanions(Long concertId, Long userId) {
+        Gender viewerGender = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
+                .getGender();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concertId),
+                visibleToViewer(userId, viewerGender));
+
+        return companionPostRepository.count(spec);
     }
 
     // 관람 스타일 우선순위가 적용되지 않는 기본 정렬: 내 프로필이 있으면 공통 활동 많은 순, 없으면 등록일자 최신순

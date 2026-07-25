@@ -115,6 +115,11 @@ public class User {
         this.email = email;
     }
 
+    // 이메일 인증 완료 여부를 별도 플래그 없이 email 존재 여부로 판단 (verifyEmail()에서만 email이 세팅됨)
+    public boolean isEmailVerified() {
+        return email != null;
+    }
+
     public void changePassword(String encodedPassword) {
         this.password = encodedPassword;
     }
