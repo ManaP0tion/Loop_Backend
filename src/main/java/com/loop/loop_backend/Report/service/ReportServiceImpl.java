@@ -74,19 +74,21 @@ public class ReportServiceImpl implements ReportService {
 
         List<String> imageKeys = uploadReportImages(userId, report, images);
 
-        if (blockToo && !blockRepository.existsByBlockerAndBlocked(me, target)) {
-            try {
-                blockService.block(userId, targetUserId);
-            } catch (BusinessException e) {
-                if (e.getErrorCode() != ErrorCode.ALREADY_BLOCKED) {
-                    throw e;
+        if (blockToo) {
+            if (!blockRepository.existsByBlockerAndBlocked(me, target)) {
+                try {
+                    blockService.block(userId, targetUserId);
+                } catch (BusinessException e) {
+                    if (e.getErrorCode() != ErrorCode.ALREADY_BLOCKED) {
+                        throw e;
+                    }
+                    // 신고 처리 중 동시에 들어온 다른 요청이 이미 차단을 완료한 경우 - 신고 자체는 그대로 성공 처리
                 }
-                // 신고 처리 중 동시에 들어온 다른 요청이 이미 차단을 완료한 경우 - 신고 자체는 그대로 성공 처리
             }
+            // 신고자 관점에서 채팅방 hide (방금 block()에서 이미 처리됐거나, 예전에 이미 차단된 상태라 이번엔 block()을 안 탄 경우 모두 대비한 idempotent 호출)
+            // blockToo=false(단순 신고)인 경우는 채팅방을 그대로 유지해야 하므로 여기서 호출하지 않는다
+            chatService.hideDirectRoomForUser(userId, targetUserId);
         }
-
-        // 신고자 관점에서 채팅방 hide (blockToo=true 인 경우 block() 안에서 이미 처리되지만 idempotent)
-        chatService.hideDirectRoomForUser(userId, targetUserId);
 
         eventPublisher.publishEvent(new ReportCreatedEvent(report.getId(), me.getNickname(), target.getNickname(), reason, detail, imageKeys));
     }
