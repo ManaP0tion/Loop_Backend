@@ -1032,13 +1032,18 @@ sections.concerts = async () => {
 
 async function concertForm(c, refresh) {
     const artists = await api.get('/api/admin/artists');
-    const cats = ['J_POP_ARTIST', 'K_POP_ARTIST', 'MUSICAL', 'PLAY', 'CLASSIC', 'ETC'];
+    const cats = ['J_POP_ARTIST', 'DOMESTIC_ARTIST', 'JAPAN_FESTIVAL', 'DOMESTIC_FESTIVAL'];
     const body = el(`<div>
         <div class="form-row"><label>아티스트</label>
             <select id="artistId">${artists.map(a => `<option value="${a.id}" ${c?.artistId === a.id ? 'selected' : ''}>#${a.id} ${esc(a.name)}</option>`).join('')}</select>
         </div>
         <div class="form-row"><label>공연명</label><input id="title" value="${esc(c?.title || '')}" /></div>
-        <div class="form-row"><label>포스터 URL</label><input id="posterUrl" value="${esc(c?.posterUrl || '')}" /></div>
+        <div class="form-row"><label>포스터 URL (자동 채워짐)</label><input id="posterUrl" value="${esc(c?.posterUrl || '')}" placeholder="파일 업로드 시 자동 갱신" /></div>
+        <div class="form-row">
+            <label>포스터 이미지 (jpg/png/webp, 5MB 이하)</label>
+            <input id="imageFile" type="file" accept="image/jpeg,image/png,image/webp" />
+            ${c?.posterUrl ? `<div style="margin-top:8px;"><img src="${esc(c.posterUrl)}" alt="" style="max-height:120px;border-radius:6px;" /></div>` : ''}
+        </div>
         <div class="form-row"><label>장소</label><input id="venue" value="${esc(c?.venue || '')}" /></div>
         <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             <div><label>시작일</label><input id="startDate" type="date" value="${c?.startDate || ''}" /></div>
@@ -1050,6 +1055,7 @@ async function concertForm(c, refresh) {
     </div>`);
     const foot = el(`<div><button class="btn primary" id="ok">${c ? '저장' : '등록'}</button></div>`);
     foot.querySelector('#ok').onclick = async () => {
+        const file = body.querySelector('#imageFile').files[0];
         const payload = {
             artistId: Number(body.querySelector('#artistId').value),
             title: body.querySelector('#title').value,
@@ -1060,8 +1066,12 @@ async function concertForm(c, refresh) {
             category: body.querySelector('#category').value || null,
         };
         try {
-            if (c) await api.put(`/api/admin/concerts/${c.id}`, payload);
-            else await api.post('/api/admin/concerts', payload);
+            const saved = c
+                ? await api.put(`/api/admin/concerts/${c.id}`, payload)
+                : await api.post('/api/admin/concerts', payload);
+            if (file) {
+                await api.upload(`/api/admin/concerts/${saved.id}/image`, file);
+            }
             toast('저장되었습니다.'); modal.close(); refresh();
         } catch (e) { handleErr(e); }
     };

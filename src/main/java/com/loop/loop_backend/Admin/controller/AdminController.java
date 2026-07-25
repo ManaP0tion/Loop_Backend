@@ -350,6 +350,17 @@ public class AdminController {
         return ResponseEntity.ok(CommonResponse.success(ConcertRow.of(c)));
     }
 
+    // S3 공개 버킷 업로드 후 콘서트의 posterUrl 갱신. 프론트는 JSON 저장 뒤 별도로 호출.
+    @PostMapping(value = "/concerts/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Transactional
+    public ResponseEntity<CommonResponse<Map<String, String>>> uploadConcertPoster(
+            @PathVariable Long id, @RequestPart("image") MultipartFile image) {
+        Concert c = concertRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
+        String url = s3StorageService.uploadPublic("concerts", id, image);
+        c.updatePosterUrl(url);
+        return ResponseEntity.ok(CommonResponse.success(Map.of("posterUrl", url)));
+    }
+
     @DeleteMapping("/concerts/{id}")
     @Transactional
     public ResponseEntity<CommonResponse<Void>> deleteConcert(@PathVariable Long id) {
