@@ -27,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -63,7 +64,12 @@ class CompanionHeartServiceImplTest {
     }
 
     private Concert testConcert(long id, String title) {
-        Concert concert = Concert.builder().title(title).category(ConcertCategory.DOMESTIC_ARTIST).build();
+        return testConcert(id, title, null);
+    }
+
+    private Concert testConcert(long id, String title, LocalDate startDate) {
+        Concert concert = Concert.builder().title(title).category(ConcertCategory.DOMESTIC_ARTIST)
+                .startDate(startDate).venue(title + " 공연장").build();
         ReflectionTestUtils.setField(concert, "id", id);
         return concert;
     }
@@ -194,6 +200,7 @@ class CompanionHeartServiceImplTest {
                 .filter(g -> g.getConcertId().equals(100L)).findFirst().orElseThrow();
         assertThat(concertAGroup.getHeartCount()).isEqualTo(3);
         assertThat(concertAGroup.getCompanions()).hasSize(2);
+        assertThat(concertAGroup.getVenue()).isEqualTo("콘서트A 공연장");
 
         HeartedConcertSummaryDto concertBGroup = result.stream()
                 .filter(g -> g.getConcertId().equals(200L)).findFirst().orElseThrow();
@@ -254,6 +261,28 @@ class CompanionHeartServiceImplTest {
         List<HeartedConcertSummaryDto> result = companionHeartService.getMyHeartedConcerts(VIEWER_ID);
 
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    void 관람일이_지난_프로필은_하트탭에서_제외된다() {
+        User viewer = testUser(VIEWER_ID);
+        User author = testUser(AUTHOR_ID);
+        Concert pastConcert = testConcert(100L, "콘서트A", LocalDate.now().minusDays(1));
+        Concert upcomingConcert = testConcert(200L, "콘서트B", LocalDate.now().plusDays(1));
+
+        CompanionPost expiredPost = testPost(11L, author, pastConcert, WatchDay.DAY1);
+        CompanionPost activePost = testPost(21L, author, upcomingConcert, WatchDay.DAY1);
+
+        when(companionHeartRepository.findAllByUser_IdOrderByCreatedAtDesc(VIEWER_ID))
+                .thenReturn(List.of(
+                        CompanionHeart.builder().user(viewer).companionPost(expiredPost).build(),
+                        CompanionHeart.builder().user(viewer).companionPost(activePost).build()
+                ));
+
+        List<HeartedConcertSummaryDto> result = companionHeartService.getMyHeartedConcerts(VIEWER_ID);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getConcertId()).isEqualTo(200L);
     }
 
     // ── getMyHeartedCompanionsByConcert ──────────────────────────────────

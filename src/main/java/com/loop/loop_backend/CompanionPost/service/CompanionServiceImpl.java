@@ -29,6 +29,8 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -38,6 +40,8 @@ import java.util.Collections;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class CompanionServiceImpl implements CompanionService {
+
+    private static final ZoneId ZONE_KST = ZoneId.of("Asia/Seoul");
 
     private final CompanionPostRepository companionPostRepository;
     private final UserRepository userRepository;
@@ -143,7 +147,8 @@ public class CompanionServiceImpl implements CompanionService {
                 CompanionPostSpecifications.isVisible(),
                 CompanionPostSpecifications.authorNotWithdrawn(),
                 CompanionPostSpecifications.hasNoBlockRelationWith(userId),
-                CompanionPostSpecifications.respectsSameGenderOnly(viewerGender));
+                CompanionPostSpecifications.respectsSameGenderOnly(viewerGender),
+                CompanionPostSpecifications.watchDayNotExpired());
     }
 
     @Override
@@ -199,6 +204,11 @@ public class CompanionServiceImpl implements CompanionService {
     public CompanionDetailResponseDto getCompanion(Long userId, Long companionId) {
         CompanionPost post = companionPostRepository.findById(companionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND));
+
+        // 관람일이 지난 프로필은 삭제된 것과 동일하게 취급 (채팅방의 프로필 조회 링크 포함)
+        if (post.isExpired(LocalDate.now(ZONE_KST))) {
+            throw new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND);
+        }
 
         Long authorId = post.getUser().getId();
 
@@ -259,7 +269,10 @@ public class CompanionServiceImpl implements CompanionService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        List<CompanionPost> posts = companionPostRepository.findAllByUser(user);
+        LocalDate today = LocalDate.now(ZONE_KST);
+        List<CompanionPost> posts = companionPostRepository.findAllByUser(user).stream()
+                .filter(post -> !post.isExpired(today))
+                .toList();
         if (posts.isEmpty()) {
             throw new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND);
         }
@@ -274,6 +287,11 @@ public class CompanionServiceImpl implements CompanionService {
     public CompanionResponseDto getMyCompanion(Long userId, Long concertId, WatchDay watchDay) {
         CompanionPost post = companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(userId, concertId, watchDay)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND));
+
+        if (post.isExpired(LocalDate.now(ZONE_KST))) {
+            throw new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND);
+        }
+
         // 본인 글이라 하트 자체가 불가능하므로 항상 false
         return new CompanionResponseDto(post, false);
     }

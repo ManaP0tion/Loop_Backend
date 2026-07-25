@@ -108,5 +108,14 @@ public class CompanionPost {
         this.sameGenderOnly = sameGenderOnly;
     }
 
+    // 콘서트 날짜가 미정이면(startDate == null) 관람일도 정할 수 없으므로 null
+    public LocalDate getWatchDate() {
+        LocalDate startDate = concert.getStartDate();
+        return startDate == null ? null : startDate.plusDays(watchDay.ordinal());
+    }
 
+    public boolean isExpired(LocalDate today) {
+        LocalDate watchDate = getWatchDate();
+        return watchDate != null && watchDate.isBefore(today);
+    }
 }
