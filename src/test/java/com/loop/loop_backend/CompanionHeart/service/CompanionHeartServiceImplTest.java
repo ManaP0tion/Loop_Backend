@@ -69,7 +69,7 @@ class CompanionHeartServiceImplTest {
 
     private Concert testConcert(long id, String title, LocalDate startDate) {
         Concert concert = Concert.builder().title(title).category(ConcertCategory.DOMESTIC_ARTIST)
-                .startDate(startDate).build();
+                .startDate(startDate).venue(title + " 공연장").build();
         ReflectionTestUtils.setField(concert, "id", id);
         return concert;
     }
@@ -200,6 +200,7 @@ class CompanionHeartServiceImplTest {
                 .filter(g -> g.getConcertId().equals(100L)).findFirst().orElseThrow();
         assertThat(concertAGroup.getHeartCount()).isEqualTo(3);
         assertThat(concertAGroup.getCompanions()).hasSize(2);
+        assertThat(concertAGroup.getVenue()).isEqualTo("콘서트A 공연장");
 
         HeartedConcertSummaryDto concertBGroup = result.stream()
                 .filter(g -> g.getConcertId().equals(200L)).findFirst().orElseThrow();

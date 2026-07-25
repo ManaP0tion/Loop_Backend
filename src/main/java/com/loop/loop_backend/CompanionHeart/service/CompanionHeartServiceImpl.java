@@ -101,6 +101,7 @@ public class CompanionHeartServiceImpl implements CompanionHeartService {
                 concert.getArtist() != null ? concert.getArtist().getName() : null,
                 concert.getStartDate(),
                 concert.getEndDate(),
+                concert.getVenue(),
                 group.size(),
                 preview);
     }
