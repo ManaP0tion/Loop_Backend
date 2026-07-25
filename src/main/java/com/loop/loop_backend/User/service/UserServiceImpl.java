@@ -101,6 +101,20 @@ public class UserServiceImpl implements UserService {
         return toResponseDto(user);
     }
 
+    @Override
+    @Transactional
+    public UserResponseDto agreeToTerms(Long id, TermsAgreementRequestDto requestDto) {
+        User user = findUserOrThrow(id);
+
+        if (!requestDto.isAge19Agreed() || !requestDto.isTermsAgreed() || !requestDto.isPrivacyAgreed()) {
+            throw new BusinessException(ErrorCode.AGREEMENT_REQUIRED);
+        }
+
+        user.agreeToTerms(requestDto.isAge19Agreed(), requestDto.isTermsAgreed(),
+                requestDto.isPrivacyAgreed(), requestDto.isProfileInfoAgreed());
+        return toResponseDto(user);
+    }
+
     private void checkNicknameAvailable(User user, String nickname) {
         if (isNicknameTaken(user, nickname)) {
             throw new BusinessException(ErrorCode.DUPLICATE_NICKNAME);

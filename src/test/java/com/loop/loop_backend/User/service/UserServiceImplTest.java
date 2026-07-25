@@ -9,6 +9,7 @@ import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
+import com.loop.loop_backend.User.dto.TermsAgreementRequestDto;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.auth.service.RefreshTokenService;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -129,6 +130,59 @@ class UserServiceImplTest {
         when(userRepository.findById(USER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> userService.isNicknameAvailable(USER_ID, "아무닉네임"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.USER_NOT_FOUND);
+    }
+
+    // ── agreeToTerms ──────────────────────────────────────────────────────
+
+    @Test
+    void 필수_약관에_모두_동의하면_저장된다() {
+        User user = testUser();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+
+        userService.agreeToTerms(USER_ID, new TermsAgreementRequestDto(true, true, true, false));
+
+        assertThat(user.isAgreementsCompleted()).isTrue();
+        assertThat(user.isProfileInfoAgreed()).isFalse();
+    }
+
+    @Test
+    void 나이_동의가_false면_AGREEMENT_REQUIRED_예외를_던진다() {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser()));
+
+        assertThatThrownBy(() -> userService.agreeToTerms(USER_ID, new TermsAgreementRequestDto(false, true, true, true)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.AGREEMENT_REQUIRED);
+    }
+
+    @Test
+    void 이용약관_동의가_false면_AGREEMENT_REQUIRED_예외를_던진다() {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser()));
+
+        assertThatThrownBy(() -> userService.agreeToTerms(USER_ID, new TermsAgreementRequestDto(true, false, true, true)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.AGREEMENT_REQUIRED);
+    }
+
+    @Test
+    void 개인정보_수집동의가_false면_AGREEMENT_REQUIRED_예외를_던진다() {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser()));
+
+        assertThatThrownBy(() -> userService.agreeToTerms(USER_ID, new TermsAgreementRequestDto(true, true, false, true)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.AGREEMENT_REQUIRED);
+    }
+
+    @Test
+    void 존재하지_않는_사용자면_약관동의시_USER_NOT_FOUND_예외를_던진다() {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.agreeToTerms(USER_ID, new TermsAgreementRequestDto(true, true, true, true)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.USER_NOT_FOUND);

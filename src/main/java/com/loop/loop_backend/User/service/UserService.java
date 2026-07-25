@@ -14,6 +14,7 @@ public interface UserService {
     UserResponseDto updateProfile(Long id, UserUpdateRequestDto requestDto);
     boolean isNicknameAvailable(Long id, String nickname);
     UserResponseDto completeOnboarding(Long id, OnboardingRequestDto requestDto);
+    UserResponseDto agreeToTerms(Long id, TermsAgreementRequestDto requestDto);
     UserResponseDto updateNotificationSettings(Long id, NotificationSettingsRequestDto requestDto);
     void changePassword(Long id, PasswordChangeRequestDto requestDto);
     void withdrawUser(Long id);
