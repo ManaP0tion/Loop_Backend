@@ -82,6 +82,23 @@ public class User {
     @Column(name = "chat_notification_email", nullable = false)
     private boolean chatNotificationEmail = true;
 
+    // 약관 동의 (첫 로그인 시 저장) - 나이/이용약관/개인정보 수집은 필수, 프로필 정보 수집은 선택
+    @Column(name = "age19_agreed", nullable = false)
+    private boolean age19Agreed;
+    @Column(name = "terms_agreed", nullable = false)
+    private boolean termsAgreed;
+    @Column(name = "privacy_agreed", nullable = false)
+    private boolean privacyAgreed;
+    @Column(name = "profile_info_agreed", nullable = false)
+    private boolean profileInfoAgreed;
+
+    // 필수 약관(나이/이용약관/개인정보) 동의를 모두 마쳤는지 - onboardingCompleted와 같은 패턴
+    @Column(name = "agreements_completed", nullable = false)
+    private boolean agreementsCompleted;
+
+    @Column(name = "agreed_at")
+    private LocalDateTime agreedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -120,6 +137,16 @@ public class User {
         return email != null;
     }
 
+    // 필수 항목(age19/terms/privacy) 검증은 서비스 계층에서 하고, 여기선 값 반영만 한다
+    public void agreeToTerms(boolean age19Agreed, boolean termsAgreed, boolean privacyAgreed, boolean profileInfoAgreed) {
+        this.age19Agreed = age19Agreed;
+        this.termsAgreed = termsAgreed;
+        this.privacyAgreed = privacyAgreed;
+        this.profileInfoAgreed = profileInfoAgreed;
+        this.agreementsCompleted = age19Agreed && termsAgreed && privacyAgreed;
+        this.agreedAt = LocalDateTime.now();
+    }
+
     public void changePassword(String encodedPassword) {
         this.password = encodedPassword;
     }
@@ -144,13 +171,19 @@ public class User {
         this.status = Status.WITHDRAWN;
     }
 
-    // 탈퇴 계정 재가입: 같은 계정을 살리되 온보딩부터 새로 하도록 초기화
+    // 탈퇴 계정 재가입: 같은 계정을 살리되 온보딩부터 새로 하도록 초기화 (약관 동의도 다시 받아야 함)
     public void reactivate() {
         this.status = Status.ACTIVE;
         this.onboardingCompleted = false;
         this.nickname = null;
         this.birthDate = null;
         this.gender = null;
+        this.age19Agreed = false;
+        this.termsAgreed = false;
+        this.privacyAgreed = false;
+        this.profileInfoAgreed = false;
+        this.agreementsCompleted = false;
+        this.agreedAt = null;
     }
 
     public void updateNotificationSettings(Boolean concertReminderEmail, Boolean chatNotificationEmail) {

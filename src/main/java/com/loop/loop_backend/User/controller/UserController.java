@@ -125,6 +125,25 @@ public class UserController {
         return ResponseEntity.ok(CommonResponse.success(userService.completeOnboarding(userId, requestDto)));
     }
 
+    @PatchMapping("/me/agreements")
+    @Operation(summary = "약관 동의", description = "첫 로그인 시 약관 동의 여부를 저장합니다. " +
+            "만 19세 이상/이용약관/개인정보 수집동의는 필수이고, 프로필 정보 수집동의는 선택입니다. " +
+            "필수 항목 중 하나라도 false면 저장되지 않습니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "동의 저장 성공"),
+            @ApiResponse(responseCode = "400", description = "필수 약관 미동의",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"필수 약관에 모두 동의해야 합니다.\",\"code\":400}"))),
+            @ApiResponse(responseCode = "404", description = "사용자 없음",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"사용자를 찾을 수 없습니다.\",\"code\":404}")))
+    })
+    public ResponseEntity<CommonResponse<UserResponseDto>> agreeToTerms(
+            @AuthenticationPrincipal Long userId,
+            @RequestBody TermsAgreementRequestDto requestDto) {
+        return ResponseEntity.ok(CommonResponse.success(userService.agreeToTerms(userId, requestDto)));
+    }
+
     @PatchMapping("/me/notifications")
     @Operation(summary = "이메일 알림 설정", description = "공연 하루전 리마인더 / 미확인 채팅 다이제스트 이메일 수신 여부를 on/off 합니다. null 필드는 변경되지 않습니다.")
     @ApiResponses({

@@ -29,6 +29,7 @@ public enum ErrorCode {
     PASSWORD_CONFIRM_MISMATCH(400, "새 비밀번호가 일치하지 않습니다."),
     SOCIAL_LOGIN_NO_PASSWORD(400, "소셜 로그인 사용자는 비밀번호를 변경할 수 없습니다."),
     ONBOARDING_ALREADY_COMPLETED(409, "이미 온보딩을 완료했습니다."),
+    AGREEMENT_REQUIRED(400, "필수 약관에 모두 동의해야 합니다."),
     EMAIL_VERIFICATION_CODE_MISMATCH(400, "인증 코드가 올바르지 않거나 만료되었습니다."),
     EMAIL_SEND_FAILED(500, "이메일 발송에 실패했습니다."),
     EMAIL_VERIFICATION_SEND_LIMIT_EXCEEDED(429, "이메일 인증 코드 요청이 너무 많습니다. 잠시 후 다시 시도해주세요."),
