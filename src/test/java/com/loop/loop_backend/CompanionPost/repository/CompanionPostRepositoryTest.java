@@ -201,6 +201,26 @@ class CompanionPostRepositoryTest {
     }
 
     @Test
+    void 작성자가_탈퇴한_프로필은_목록에서_제외된다() {
+        User active = persistUser("wactive", Gender.MALE, 25);
+        User withdrawn = persistUser("wwithdrawn", Gender.MALE, 25);
+        persistCompanionPost(active);
+        persistCompanionPost(withdrawn);
+        withdrawn.withdraw();
+        entityManager.flush();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
+                CompanionPostSpecifications.watchDayEquals(WatchDay.DAY1),
+                CompanionPostSpecifications.authorNotWithdrawn());
+
+        List<CompanionPost> result = companionPostRepository.findAll(spec);
+
+        assertThat(result).extracting(post -> post.getUser().getProviderId())
+                .containsExactly("wactive");
+    }
+
+    @Test
     void 성별_조건으로_필터링된다() {
         User male = persistUser("male", Gender.MALE, 25);
         User female = persistUser("female", Gender.FEMALE, 25);
@@ -296,6 +316,182 @@ class CompanionPostRepositoryTest {
 
         assertThat(result).extracting(post -> post.getUser().getProviderId())
                 .containsExactlyInAnyOrder("twenties2", "thirties2");
+    }
+
+    @Test
+    void 매칭_목록에서는_본인을_제외하고_조회자가_볼_수_있는_프로필만_필터링된다() {
+        // persistUser는 providerId 앞 5자를 닉네임으로 쓰므로(유니크 제약), 앞 5자가 서로 겹치지 않게 짓는다
+        User me = persistUser("meCnt", Gender.MALE, 25);
+        User visible = persistUser("visCnt", Gender.MALE, 25);
+        User sameGenderOnlySameGender = persistUser("sgSame", Gender.MALE, 25);
+        User sameGenderOnlyOppositeGender = persistUser("sgOpp", Gender.FEMALE, 25);
+        User hidden = persistUser("hidCnt", Gender.MALE, 25);
+        User withdrawn = persistUser("wdCnt", Gender.MALE, 25);
+        User blockedByMe = persistUser("bbmCnt", Gender.MALE, 25);
+        User blockedMe = persistUser("bmeCnt", Gender.MALE, 25);
+
+        persistCompanionPost(me);
+        persistCompanionPost(visible);
+        persistCompanionPost(sameGenderOnlySameGender, Set.of(CompanionActivity.CONCERT), true);
+        persistCompanionPost(sameGenderOnlyOppositeGender, Set.of(CompanionActivity.CONCERT), true);
+
+        CompanionPost hiddenPost = CompanionPost.builder()
+                .user(hidden)
+                .concert(concert)
+                .watchDay(WatchDay.DAY1)
+                .activities(Set.of(CompanionActivity.CONCERT))
+                .build();
+        hiddenPost.toggleVisible(false);
+        entityManager.persist(hiddenPost);
+
+        persistCompanionPost(withdrawn);
+        withdrawn.withdraw();
+
+        persistCompanionPost(blockedByMe);
+        entityManager.persist(Block.builder().blocker(me).blocked(blockedByMe).build());
+
+        persistCompanionPost(blockedMe);
+        entityManager.persist(Block.builder().blocker(blockedMe).blocked(me).build());
+
+        entityManager.flush();
+
+        Specification<CompanionPost> visibleToMeSpec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
+                CompanionPostSpecifications.userIdNotEquals(me.getId()),
+                CompanionPostSpecifications.isVisible(),
+                CompanionPostSpecifications.authorNotWithdrawn(),
+                CompanionPostSpecifications.hasNoBlockRelationWith(me.getId()),
+                CompanionPostSpecifications.respectsSameGenderOnly(me.getGender()));
+
+        long count = companionPostRepository.count(visibleToMeSpec);
+
+        // 나(me)를 제외하고, visible + sameGenderOnlySameGender 만 남는다:
+        // hidden(비공개), withdrawn(탈퇴), blockedByMe/blockedMe(차단), sameGenderOnlyOppositeGender(이성 공개제한)는 제외
+        assertThat(count).isEqualTo(2);
+    }
+
+    @Test
+    void 콘서트_동행_수를_셀_때는_공개된_본인_프로필도_포함된다() {
+        User me = persistUser("meCnt2", Gender.MALE, 25);
+        User visible = persistUser("visCnt2", Gender.MALE, 25);
+        User hidden = persistUser("hidCnt2", Gender.MALE, 25);
+        User blockedByMe = persistUser("bbmCnt2", Gender.MALE, 25);
+
+        persistCompanionPost(me);
+        persistCompanionPost(visible);
+
+        CompanionPost hiddenPost = CompanionPost.builder()
+                .user(hidden)
+                .concert(concert)
+                .watchDay(WatchDay.DAY1)
+                .activities(Set.of(CompanionActivity.CONCERT))
+                .build();
+        hiddenPost.toggleVisible(false);
+        entityManager.persist(hiddenPost);
+
+        persistCompanionPost(blockedByMe);
+        entityManager.persist(Block.builder().blocker(me).blocked(blockedByMe).build());
+
+        entityManager.flush();
+
+        // countVisibleCompanions()와 동일한 구성 - userIdNotEquals 없이 나머지 조건만
+        Specification<CompanionPost> countSpec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
+                CompanionPostSpecifications.isVisible(),
+                CompanionPostSpecifications.authorNotWithdrawn(),
+                CompanionPostSpecifications.hasNoBlockRelationWith(me.getId()),
+                CompanionPostSpecifications.respectsSameGenderOnly(me.getGender()));
+
+        long count = companionPostRepository.count(countSpec);
+
+        // 나(공개) + visible = 2. hidden(비공개), blockedByMe(차단)는 제외
+        assertThat(count).isEqualTo(2);
+    }
+
+    @Test
+    void 콘서트_동행_수를_셀_때_본인_프로필이_비공개면_제외된다() {
+        User me = persistUser("meCnt3", Gender.MALE, 25);
+        User visible = persistUser("visCnt3", Gender.MALE, 25);
+
+        CompanionPost myPost = CompanionPost.builder()
+                .user(me)
+                .concert(concert)
+                .watchDay(WatchDay.DAY1)
+                .activities(Set.of(CompanionActivity.CONCERT))
+                .build();
+        myPost.toggleVisible(false);
+        entityManager.persist(myPost);
+
+        persistCompanionPost(visible);
+        entityManager.flush();
+
+        Specification<CompanionPost> countSpec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
+                CompanionPostSpecifications.isVisible(),
+                CompanionPostSpecifications.authorNotWithdrawn(),
+                CompanionPostSpecifications.hasNoBlockRelationWith(me.getId()),
+                CompanionPostSpecifications.respectsSameGenderOnly(me.getGender()));
+
+        long count = companionPostRepository.count(countSpec);
+
+        assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    void 관람일이_지난_프로필은_watchDayNotExpired_스펙에서_제외된다() {
+        User author = persistUser("exp1", Gender.MALE, 25);
+        Concert pastConcert = persistConcert(LocalDate.now().minusDays(1));
+        persistCompanionPostFor(author, pastConcert, WatchDay.DAY1);
+        entityManager.flush();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(pastConcert.getId()),
+                CompanionPostSpecifications.watchDayNotExpired());
+
+        assertThat(companionPostRepository.count(spec)).isZero();
+    }
+
+    @Test
+    void 관람일이_오늘이거나_미래인_프로필은_watchDayNotExpired_스펙에_포함된다() {
+        User todayAuthor = persistUser("exp2", Gender.MALE, 25);
+        User futureAuthor = persistUser("exp3", Gender.MALE, 25);
+        Concert todayConcert = persistConcert(LocalDate.now());
+        Concert futureConcert = persistConcert(LocalDate.now().plusDays(5));
+        persistCompanionPostFor(todayAuthor, todayConcert, WatchDay.DAY1);
+        persistCompanionPostFor(futureAuthor, futureConcert, WatchDay.DAY1);
+        entityManager.flush();
+
+        assertThat(companionPostRepository.count(CompanionPostSpecifications.watchDayNotExpired()))
+                .isEqualTo(2);
+    }
+
+    @Test
+    void DAY2_프로필의_관람일은_콘서트_시작일_다음날로_계산된다() {
+        User author = persistUser("exp4", Gender.MALE, 25);
+        // 콘서트가 어제 시작 -> DAY2 관람일은 오늘 -> 아직 지나지 않음
+        Concert concert = persistConcert(LocalDate.now().minusDays(1));
+        persistCompanionPostFor(author, concert, WatchDay.DAY2);
+        entityManager.flush();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
+                CompanionPostSpecifications.watchDayNotExpired());
+
+        assertThat(companionPostRepository.count(spec)).isEqualTo(1);
+    }
+
+    @Test
+    void 콘서트_날짜가_미정이면_관람일이_지난_것으로_취급하지_않는다() {
+        User author = persistUser("exp5", Gender.MALE, 25);
+        Concert undatedConcert = persistConcert(null);
+        persistCompanionPostFor(author, undatedConcert, WatchDay.DAY1);
+        entityManager.flush();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(undatedConcert.getId()),
+                CompanionPostSpecifications.watchDayNotExpired());
+
+        assertThat(companionPostRepository.count(spec)).isEqualTo(1);
     }
 
     private User persistUserWithEmail(String providerId, String email, boolean concertReminderEmail) {

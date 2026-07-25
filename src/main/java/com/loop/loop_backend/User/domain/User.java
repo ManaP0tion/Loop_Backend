@@ -115,6 +115,11 @@ public class User {
         this.email = email;
     }
 
+    // 이메일 인증 완료 여부를 별도 플래그 없이 email 존재 여부로 판단 (verifyEmail()에서만 email이 세팅됨)
+    public boolean isEmailVerified() {
+        return email != null;
+    }
+
     public void changePassword(String encodedPassword) {
         this.password = encodedPassword;
     }
@@ -139,6 +144,15 @@ public class User {
         this.status = Status.WITHDRAWN;
     }
 
+    // 탈퇴 계정 재가입: 같은 계정을 살리되 온보딩부터 새로 하도록 초기화
+    public void reactivate() {
+        this.status = Status.ACTIVE;
+        this.onboardingCompleted = false;
+        this.nickname = null;
+        this.birthDate = null;
+        this.gender = null;
+    }
+
     public void updateNotificationSettings(Boolean concertReminderEmail, Boolean chatNotificationEmail) {
         if (concertReminderEmail != null) this.concertReminderEmail = concertReminderEmail;
         if (chatNotificationEmail != null) this.chatNotificationEmail = chatNotificationEmail;
@@ -153,6 +167,11 @@ public class User {
     public void liftSuspension() {
         this.status = Status.ACTIVE;
         this.suspendedUntil = null;
+    }
+
+    // suspendedUntil 지났으면 true. null(영구) 이면 false.
+    public boolean isSuspensionExpired() {
+        return status == Status.SUSPENDED && suspendedUntil != null && suspendedUntil.isBefore(LocalDateTime.now());
     }
 
     public void terminate() {

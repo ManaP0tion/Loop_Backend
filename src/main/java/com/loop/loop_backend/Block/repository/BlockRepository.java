@@ -21,6 +21,10 @@ public interface BlockRepository extends JpaRepository<Block, Long> {
 
     List<Block> findAllByBlocker(User blocker);
 
+    void deleteAllByBlocker(User blocker);
+
+    void deleteAllByBlocked(User blocked);
+
     @Query("""
             SELECT CASE WHEN COUNT(b) > 0 THEN true ELSE false END
             FROM Block b

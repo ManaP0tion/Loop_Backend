@@ -18,8 +18,10 @@ import java.time.Duration;
 public class EmailVerificationServiceImpl implements EmailVerificationService {
 
     private static final Duration CODE_TTL = Duration.ofMinutes(3);
-    private static final int MAX_SEND_COUNT = 100;
-    private static final Duration SEND_LIMIT_WINDOW = Duration.ofHours(1);
+    private static final int HOURLY_SEND_LIMIT = 5;
+    private static final Duration HOURLY_SEND_WINDOW = Duration.ofHours(1);
+    private static final int DAILY_SEND_LIMIT = 10;
+    private static final Duration DAILY_SEND_WINDOW = Duration.ofDays(1);
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final StringRedisTemplate redisTemplate;
@@ -34,21 +36,18 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
         return "email_verify_email:" + userId;
     }
 
-    private String sendCountKey(Long userId) {
-        return "email_verify_send_count:" + userId;
+    private String hourlySendCountKey(Long userId) {
+        return "email_verify_send_count_hour:" + userId;
+    }
+
+    private String dailySendCountKey(Long userId) {
+        return "email_verify_send_count_day:" + userId;
     }
 
     @Override
     public void sendCode(Long userId, String email) {
-        String countKey = sendCountKey(userId);
-        Long count = redisTemplate.opsForValue().increment(countKey);
-        if (count != null && count == 1L) {
-            // 첫 요청일 때만 TTL 설정 (이후 increment는 TTL 유지) - LoginAttemptService와 동일한 패턴
-            redisTemplate.expire(countKey, SEND_LIMIT_WINDOW);
-        }
-        if (count != null && count > MAX_SEND_COUNT) {
-            throw new BusinessException(ErrorCode.EMAIL_VERIFICATION_SEND_LIMIT_EXCEEDED);
-        }
+        enforceSendLimit(hourlySendCountKey(userId), HOURLY_SEND_WINDOW, HOURLY_SEND_LIMIT);
+        enforceSendLimit(dailySendCountKey(userId), DAILY_SEND_WINDOW, DAILY_SEND_LIMIT);
 
         String code = String.format("%06d", RANDOM.nextInt(1_000_000));
 
@@ -56,6 +55,17 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
         redisTemplate.opsForValue().set(emailKey(userId), email, CODE_TTL);
 
         mailService.sendVerificationCode(email, code);
+    }
+
+    // count == 1(창의 첫 요청)일 때만 TTL을 걸어 새 창을 연다 (이후 increment는 기존 TTL 유지) - LoginAttemptService와 동일한 패턴
+    private void enforceSendLimit(String countKey, Duration window, int limit) {
+        Long count = redisTemplate.opsForValue().increment(countKey);
+        if (count != null && count == 1L) {
+            redisTemplate.expire(countKey, window);
+        }
+        if (count != null && count > limit) {
+            throw new BusinessException(ErrorCode.EMAIL_VERIFICATION_SEND_LIMIT_EXCEEDED);
+        }
     }
 
     @Override

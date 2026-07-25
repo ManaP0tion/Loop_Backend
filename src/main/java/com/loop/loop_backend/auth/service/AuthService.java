@@ -1,8 +1,10 @@
 package com.loop.loop_backend.auth.service;
 
 import com.loop.loop_backend.User.domain.AuthProvider;
+import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
+import org.springframework.transaction.annotation.Transactional;
 import com.loop.loop_backend.auth.dto.LoginRequestDto;
 import com.loop.loop_backend.auth.dto.TokenResponseDto;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -22,6 +24,7 @@ public class AuthService {
     private final LoginAttemptService loginAttemptService;
     private final RefreshTokenService refreshTokenService;
 
+    @Transactional
     public TokenResponseDto login(LoginRequestDto requestDto) {
         String userId = requestDto.getUserId();
 
@@ -42,6 +45,12 @@ public class AuthService {
         }
 
         loginAttemptService.resetFailCount(userId);
+
+        // 이용정지된 계정은 로그인 차단. 기간 만료 시 즉시 해제 후 통과.
+        if (user.getStatus() == Status.SUSPENDED) {
+            if (user.isSuspensionExpired()) user.liftSuspension();
+            else throw new BusinessException(ErrorCode.USER_SUSPENDED);
+        }
 
         String accessToken = jwtTokenProvider.createAccessToken(user.getId());
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());

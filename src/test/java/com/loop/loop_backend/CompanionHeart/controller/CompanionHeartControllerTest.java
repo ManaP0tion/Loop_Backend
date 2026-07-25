@@ -86,13 +86,14 @@ class CompanionHeartControllerTest {
     @Test
     void 하트탭_메인_조회시_200과_콘서트별_요약을_반환한다() throws Exception {
         when(companionHeartService.getMyHeartedConcerts(USER_ID)).thenReturn(List.of(
-                new HeartedConcertSummaryDto(1L, "콘서트1", 5L, "아이유", null, null, 3, List.of())
+                new HeartedConcertSummaryDto(1L, "콘서트1", 5L, "아이유", null, null, "잠실종합운동장", 3, List.of())
         ));
 
         mockMvc.perform(get("/api/companions/me/hearts"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))
-                .andExpect(jsonPath("$.data[0].concertTitle").value("콘서트1"));
+                .andExpect(jsonPath("$.data[0].concertTitle").value("콘서트1"))
+                .andExpect(jsonPath("$.data[0].venue").value("잠실종합운동장"));
     }
 
     // ── GET /me/hearts/{concertId} ───────────────────────────────────────

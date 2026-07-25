@@ -31,7 +31,7 @@ public class KakaoAuthController {
     public ResponseEntity<CommonResponse<AccessTokenResponseDto>> kakaoLogin(
             @Valid @RequestBody KakaoLoginRequestDto requestDto) {
 
-        TokenResponseDto token = kakaoAuthService.login(requestDto.getCode());
+        TokenResponseDto token = kakaoAuthService.login(requestDto.getCode(), requestDto.getRedirectUri());
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookieUtil.createRefreshTokenCookie(token.getRefreshToken()).toString())

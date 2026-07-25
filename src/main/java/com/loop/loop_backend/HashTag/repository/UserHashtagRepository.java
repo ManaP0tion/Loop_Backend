@@ -16,4 +16,6 @@ public interface UserHashtagRepository extends JpaRepository<UserHashtag, Long> 
     boolean existsByUserAndTag(User user, String tag);
 
     Optional<UserHashtag> findByIdAndUser(Long id, User user);
+
+    void deleteAllByUser(User user);
 }

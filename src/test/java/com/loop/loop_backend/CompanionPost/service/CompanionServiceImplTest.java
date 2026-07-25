@@ -35,6 +35,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -109,6 +110,22 @@ class CompanionServiceImplTest {
                 .user(owner)
                 .concert(stubConcert(concertId))
                 .watchDay(WatchDay.DAY1)
+                .activities(Set.of(CompanionActivity.MEAL))
+                .watchStyle(WatchStyle.NORMAL)
+                .build();
+    }
+
+    private Concert stubConcert(long id, LocalDate startDate) {
+        Concert c = Concert.builder().title("테스트 콘서트").startDate(startDate).build();
+        ReflectionTestUtils.setField(c, "id", id);
+        return c;
+    }
+
+    private CompanionPost buildPost(User owner, long concertId, LocalDate concertStartDate, WatchDay watchDay) {
+        return CompanionPost.builder()
+                .user(owner)
+                .concert(stubConcert(concertId, concertStartDate))
+                .watchDay(watchDay)
                 .activities(Set.of(CompanionActivity.MEAL))
                 .watchStyle(WatchStyle.NORMAL)
                 .build();
@@ -306,6 +323,54 @@ class CompanionServiceImplTest {
                 .containsExactly(3L, 2L);
     }
 
+    // ── getAllCompanions ──────────────────────────────────────────────────────
+
+    @Test
+    void 전체_조회는_관람여부와_무관하게_등록일자_최신순으로_정렬된다() {
+        CompanionPost older = buildWatchingPost(buildUser(2L, "kakao-2"),
+                Set.of(CompanionActivity.MEAL), null, LocalDateTime.now().minusDays(1));
+        CompanionPost newer = buildWatchingPost(buildUser(3L, "kakao-3"),
+                Set.of(CompanionActivity.CONCERT), WatchStyle.NORMAL, LocalDateTime.now());
+
+        when(companionPostRepository.findAll(any(Specification.class)))
+                .thenReturn(List.of(older, newer));
+
+        PageResponseDto<CompanionResponseDto> result = companionService.getAllCompanions(
+                1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
+
+        assertThat(result.getContent()).extracting(CompanionResponseDto::getUserId)
+                .containsExactly(3L, 2L);
+    }
+
+    @Test
+    void 전체_조회는_내_프로필이_있어도_공통활동_기준으로_정렬되지_않는다() {
+        CompanionPost myPost = buildWatchingPost(user,
+                Set.of(CompanionActivity.MEAL, CompanionActivity.PHOTO), null, LocalDateTime.now());
+        CompanionPost highMatchButOlder = buildWatchingPost(buildUser(2L, "kakao-2"),
+                Set.of(CompanionActivity.MEAL, CompanionActivity.PHOTO), null, LocalDateTime.now().minusDays(1));
+        CompanionPost lowMatchButNewer = buildWatchingPost(buildUser(3L, "kakao-3"),
+                Set.of(CompanionActivity.CONCERT), WatchStyle.NORMAL, LocalDateTime.now());
+
+        when(companionPostRepository.findAll(any(Specification.class)))
+                .thenReturn(List.of(highMatchButOlder, lowMatchButNewer));
+
+        PageResponseDto<CompanionResponseDto> result = companionService.getAllCompanions(
+                1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
+
+        // 공통 활동이 더 많은 highMatchButOlder가 아니라, 등록일자가 최신인 lowMatchButNewer가 먼저 나온다
+        assertThat(result.getContent()).extracting(CompanionResponseDto::getUserId)
+                .containsExactly(3L, 2L);
+    }
+
+    @Test
+    void 존재하지_않는_조회자로_전체_조회하면_USER_NOT_FOUND_예외를_던진다() {
+        assertThatThrownBy(() -> companionService.getAllCompanions(
+                999L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.USER_NOT_FOUND);
+    }
+
     // ── getCompanion ──────────────────────────────────────────────────────────
 
     @Test
@@ -374,6 +439,31 @@ class CompanionServiceImplTest {
         when(companionPostRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> companionService.getCompanion(1L, 999L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.COMPANION_POST_NOT_FOUND);
+    }
+
+    @Test
+    void 작성자가_탈퇴한_프로필을_조회하면_WITHDRAWN_USER_예외를_던진다() {
+        ReflectionTestUtils.setField(user, "id", 1L);
+        CompanionPost post = buildPost(user, 10L);
+        ReflectionTestUtils.setField(user, "status", Status.WITHDRAWN);
+        when(companionPostRepository.findById(1L)).thenReturn(Optional.of(post));
+
+        assertThatThrownBy(() -> companionService.getCompanion(2L, 1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.WITHDRAWN_USER);
+    }
+
+    @Test
+    void 관람일이_지난_프로필을_상세조회하면_삭제된_것과_동일하게_COMPANION_POST_NOT_FOUND_예외를_던진다() {
+        ReflectionTestUtils.setField(user, "id", 1L);
+        CompanionPost post = buildPost(user, 10L, LocalDate.now().minusDays(1), WatchDay.DAY1);
+        when(companionPostRepository.findById(1L)).thenReturn(Optional.of(post));
+
+        assertThatThrownBy(() -> companionService.getCompanion(2L, 1L))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.COMPANION_POST_NOT_FOUND);
@@ -494,6 +584,64 @@ class CompanionServiceImplTest {
                 .isEqualTo(ErrorCode.USER_NOT_FOUND);
     }
 
+    @Test
+    void 관람일이_지난_프로필은_내_동행_프로필_목록에서_제외된다() {
+        CompanionPost active = buildPost(user, 10L, LocalDate.now().plusDays(1), WatchDay.DAY1);
+        CompanionPost expired = buildPost(user, 20L, LocalDate.now().minusDays(1), WatchDay.DAY1);
+        when(companionPostRepository.findAllByUser(user)).thenReturn(List.of(active, expired));
+
+        List<CompanionResponseDto> result = companionService.getMyCompanions(1L);
+
+        assertThat(result).extracting(CompanionResponseDto::getConcertId).containsExactly(10L);
+    }
+
+    @Test
+    void 등록한_프로필이_전부_관람일이_지났으면_COMPANION_POST_NOT_FOUND_예외를_던진다() {
+        CompanionPost expired = buildPost(user, 10L, LocalDate.now().minusDays(1), WatchDay.DAY1);
+        when(companionPostRepository.findAllByUser(user)).thenReturn(List.of(expired));
+
+        assertThatThrownBy(() -> companionService.getMyCompanions(1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.COMPANION_POST_NOT_FOUND);
+    }
+
+    // ── getMyCompanion ────────────────────────────────────────────────────────
+
+    @Test
+    void 콘서트와_관람일로_내_프로필을_조회한다() {
+        CompanionPost post = buildPost(user, 10L, LocalDate.now().plusDays(1), WatchDay.DAY1);
+        when(companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(1L, 10L, WatchDay.DAY1))
+                .thenReturn(Optional.of(post));
+
+        CompanionResponseDto dto = companionService.getMyCompanion(1L, 10L, WatchDay.DAY1);
+
+        assertThat(dto.getConcertId()).isEqualTo(10L);
+    }
+
+    @Test
+    void 관람일이_지난_내_프로필을_조회하면_COMPANION_POST_NOT_FOUND_예외를_던진다() {
+        CompanionPost post = buildPost(user, 10L, LocalDate.now().minusDays(1), WatchDay.DAY1);
+        when(companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(1L, 10L, WatchDay.DAY1))
+                .thenReturn(Optional.of(post));
+
+        assertThatThrownBy(() -> companionService.getMyCompanion(1L, 10L, WatchDay.DAY1))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.COMPANION_POST_NOT_FOUND);
+    }
+
+    @Test
+    void 존재하지_않는_내_프로필을_조회하면_COMPANION_POST_NOT_FOUND_예외를_던진다() {
+        when(companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(1L, 10L, WatchDay.DAY1))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> companionService.getMyCompanion(1L, 10L, WatchDay.DAY1))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.COMPANION_POST_NOT_FOUND);
+    }
+
     // ── deleteCompanion ───────────────────────────────────────────────────────
 
     @Test
@@ -576,5 +724,26 @@ class CompanionServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.USER_NOT_FOUND);
+    }
+
+    // ── countVisibleCompanions ────────────────────────────────────────────────
+    // 필터 조합 자체(비공개/차단/탈퇴/동성공개)의 정확성은 CompanionPostRepositoryTest(@DataJpaTest)에서 검증한다.
+    // 여기서는 이 메서드가 "조회자 기준으로 필터링된 리포지토리 카운트를 그대로 반환한다"는 위임 계약만 확인한다.
+
+    @Test
+    void 존재하지_않는_조회자로_카운트하면_USER_NOT_FOUND_예외를_던진다() {
+        assertThatThrownBy(() -> companionService.countVisibleCompanions(10L, 999L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    void 조회자_기준으로_필터링된_리포지토리_카운트를_그대로_반환한다() {
+        when(companionPostRepository.count(any(Specification.class))).thenReturn(7L);
+
+        long count = companionService.countVisibleCompanions(10L, 1L);
+
+        assertThat(count).isEqualTo(7L);
     }
 }

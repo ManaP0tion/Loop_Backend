@@ -29,6 +29,9 @@ public class HeartedConcertSummaryDto {
     @Schema(description = "콘서트 종료일")
     private final LocalDate endDate;
 
+    @Schema(description = "공연 장소", example = "잠실종합운동장")
+    private final String venue;
+
     @Schema(description = "이 콘서트에서 내가 하트한 프로필 총 개수", example = "5")
     private final long heartCount;
 
@@ -36,7 +39,7 @@ public class HeartedConcertSummaryDto {
     private final List<CompanionResponseDto> companions;
 
     public HeartedConcertSummaryDto(Long concertId, String concertTitle, Long artistId, String artistName,
-                                     LocalDate startDate, LocalDate endDate,
+                                     LocalDate startDate, LocalDate endDate, String venue,
                                      long heartCount, List<CompanionResponseDto> companions) {
         this.concertId = concertId;
         this.concertTitle = concertTitle;
@@ -44,6 +47,7 @@ public class HeartedConcertSummaryDto {
         this.artistName = artistName;
         this.startDate = startDate;
         this.endDate = endDate;
+        this.venue = venue;
         this.heartCount = heartCount;
         this.companions = companions;
     }

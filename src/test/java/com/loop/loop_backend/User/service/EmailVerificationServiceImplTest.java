@@ -44,7 +44,8 @@ class EmailVerificationServiceImplTest {
     private static final String EMAIL = "user@example.com";
     private static final String CODE_KEY = "email_verify_code:" + USER_ID;
     private static final String EMAIL_KEY = "email_verify_email:" + USER_ID;
-    private static final String SEND_COUNT_KEY = "email_verify_send_count:" + USER_ID;
+    private static final String HOURLY_SEND_COUNT_KEY = "email_verify_send_count_hour:" + USER_ID;
+    private static final String DAILY_SEND_COUNT_KEY = "email_verify_send_count_day:" + USER_ID;
 
     @BeforeEach
     void setUp() {
@@ -77,15 +78,26 @@ class EmailVerificationServiceImplTest {
     }
 
     @Test
-    void 첫_발송_요청이면_시간당_요청_카운트에_TTL을_건다() {
+    void 첫_발송_요청이면_시간당_카운트와_일일_카운트에_각각_TTL을_건다() {
         emailVerificationService.sendCode(USER_ID, EMAIL);
 
-        verify(redisTemplate).expire(SEND_COUNT_KEY, Duration.ofHours(1));
+        verify(redisTemplate).expire(HOURLY_SEND_COUNT_KEY, Duration.ofHours(1));
+        verify(redisTemplate).expire(DAILY_SEND_COUNT_KEY, Duration.ofDays(1));
     }
 
     @Test
-    void 시간당_100회를_초과해_요청하면_예외를_던지고_메일을_보내지_않는다() {
-        when(valueOperations.increment(SEND_COUNT_KEY)).thenReturn(101L);
+    void 시간당_5번째_하루_10번째_요청까지는_허용된다() {
+        when(valueOperations.increment(HOURLY_SEND_COUNT_KEY)).thenReturn(5L);
+        when(valueOperations.increment(DAILY_SEND_COUNT_KEY)).thenReturn(10L);
+
+        emailVerificationService.sendCode(USER_ID, EMAIL);
+
+        verify(mailService).sendVerificationCode(eq(EMAIL), anyString());
+    }
+
+    @Test
+    void 시간당_5회를_초과해_요청하면_예외를_던지고_메일을_보내지_않는다() {
+        when(valueOperations.increment(HOURLY_SEND_COUNT_KEY)).thenReturn(6L);
 
         assertThatThrownBy(() -> emailVerificationService.sendCode(USER_ID, EMAIL))
                 .isInstanceOf(BusinessException.class)
@@ -93,6 +105,21 @@ class EmailVerificationServiceImplTest {
                 .isEqualTo(ErrorCode.EMAIL_VERIFICATION_SEND_LIMIT_EXCEEDED);
 
         verifyNoInteractions(mailService);
+        verify(valueOperations, never()).set(eq(CODE_KEY), anyString(), any(Duration.class));
+    }
+
+    @Test
+    void 시간당_한도는_넘지_않아도_하루_10회를_초과하면_예외를_던지고_메일을_보내지_않는다() {
+        when(valueOperations.increment(HOURLY_SEND_COUNT_KEY)).thenReturn(3L);
+        when(valueOperations.increment(DAILY_SEND_COUNT_KEY)).thenReturn(11L);
+
+        assertThatThrownBy(() -> emailVerificationService.sendCode(USER_ID, EMAIL))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.EMAIL_VERIFICATION_SEND_LIMIT_EXCEEDED);
+
+        verifyNoInteractions(mailService);
+        verify(valueOperations, never()).set(eq(CODE_KEY), anyString(), any(Duration.class));
     }
 
     // ── verifyCode ────────────────────────────────────────────────────────
@@ -108,6 +135,7 @@ class EmailVerificationServiceImplTest {
         emailVerificationService.verifyCode(USER_ID, EMAIL, "123456");
 
         assertThat(user.getEmail()).isEqualTo(EMAIL);
+        assertThat(user.isEmailVerified()).isTrue();
         verify(redisTemplate).delete(CODE_KEY);
         verify(redisTemplate).delete(EMAIL_KEY);
     }
@@ -178,5 +206,6 @@ class EmailVerificationServiceImplTest {
         emailVerificationService.verifyCode(USER_ID, EMAIL, "123456");
 
         assertThat(user.getEmail()).isEqualTo(EMAIL);
+        assertThat(user.isEmailVerified()).isTrue();
     }
 }

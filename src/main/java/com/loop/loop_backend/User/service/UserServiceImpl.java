@@ -10,6 +10,7 @@ import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.User.dto.*;
+import com.loop.loop_backend.auth.service.RefreshTokenService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final S3StorageService s3StorageService;
     private final ChatService chatService;
+    private final RefreshTokenService refreshTokenService;
 
 //    @Override
 //    @Transactional
@@ -96,9 +98,19 @@ public class UserServiceImpl implements UserService {
     }
 
     private void checkNicknameAvailable(User user, String nickname) {
-        if (!nickname.equals(user.getNickname()) && userRepository.existsByNickname(nickname)) {
+        if (isNicknameTaken(user, nickname)) {
             throw new BusinessException(ErrorCode.DUPLICATE_NICKNAME);
         }
+    }
+
+    @Override
+    public boolean isNicknameAvailable(Long id, String nickname) {
+        return !isNicknameTaken(findUserOrThrow(id), nickname);
+    }
+
+    // 본인이 이미 쓰고 있는 닉네임은 "중복"으로 치지 않는다 (수정 시 그대로 두는 경우 포함)
+    private boolean isNicknameTaken(User user, String nickname) {
+        return !nickname.equals(user.getNickname()) && userRepository.existsByNickname(nickname);
     }
 
     @Override
@@ -148,6 +160,7 @@ public class UserServiceImpl implements UserService {
         User user = findUserOrThrow(id);
         chatService.handleUserWithdrawn(id);
         user.withdraw();
+        refreshTokenService.delete(id);
     }
 
     private User findUserOrThrow(Long id) {
