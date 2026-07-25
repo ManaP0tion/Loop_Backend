@@ -5,8 +5,11 @@ import com.loop.loop_backend.Block.service.BlockService;
 import com.loop.loop_backend.Chat.repository.ChatRoomRepository;
 import com.loop.loop_backend.Chat.service.ChatService;
 import com.loop.loop_backend.Report.domain.Report;
+import com.loop.loop_backend.Report.domain.SanctionRecord;
+import com.loop.loop_backend.Report.dto.SanctionHistoryListResponseDto;
 import com.loop.loop_backend.Report.repository.ReportImageRepository;
 import com.loop.loop_backend.Report.repository.ReportRepository;
+import com.loop.loop_backend.Report.repository.SanctionRecordRepository;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
@@ -25,6 +28,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,6 +42,7 @@ import static org.mockito.Mockito.*;
 class ReportServiceImplTest {
 
     @Mock ReportRepository reportRepository;
+    @Mock SanctionRecordRepository sanctionRecordRepository;
     @Mock ReportImageRepository reportImageRepository;
     @Mock BlockRepository blockRepository;
     @Mock UserRepository userRepository;
@@ -160,5 +165,55 @@ class ReportServiceImplTest {
         reportService.report(REPORTER_ID, TARGET_ID, "SPAM", "상세", false, null);
 
         verify(reportRepository).saveAndFlush(argThat(report -> report.getChatRoomId().equals(99L)));
+    }
+
+    // ── getMySanctionHistory ─────────────────────────────────────────────
+
+    @Test
+    void 신고_처리로_정지된_기록이_최신순으로_반환되고_이력_있음_플래그가_true다() {
+        Report report = Report.builder().reporter(reporter).targetUser(target).reason("SPAM").build();
+        LocalDateTime until = LocalDateTime.now().plusDays(30);
+        SanctionRecord record = SanctionRecord.builder()
+                .targetUser(target).suspendedUntil(until).adminNote("반복 위반").report(report).build();
+        ReflectionTestUtils.setField(record, "processedAt", LocalDateTime.now());
+
+        when(sanctionRecordRepository.findByTargetUser_IdOrderByProcessedAtDesc(TARGET_ID))
+                .thenReturn(List.of(record));
+
+        SanctionHistoryListResponseDto result = reportService.getMySanctionHistory(TARGET_ID);
+
+        assertThat(result.isHasSanctionHistory()).isTrue();
+        assertThat(result.getHistory()).hasSize(1);
+        assertThat(result.getHistory().get(0).getSuspendedUntil()).isEqualTo(until);
+        assertThat(result.getHistory().get(0).getAdminNote()).isEqualTo("반복 위반");
+        assertThat(result.getHistory().get(0).getProcessedAt()).isEqualTo(record.getProcessedAt());
+    }
+
+    @Test
+    void 신고_없이_직접_정지된_기록도_이력에_포함된다() {
+        SanctionRecord record = SanctionRecord.builder()
+                .targetUser(target).suspendedUntil(null).adminNote("약관 위반으로 직접 정지").report(null).build();
+        ReflectionTestUtils.setField(record, "processedAt", LocalDateTime.now());
+
+        when(sanctionRecordRepository.findByTargetUser_IdOrderByProcessedAtDesc(TARGET_ID))
+                .thenReturn(List.of(record));
+
+        SanctionHistoryListResponseDto result = reportService.getMySanctionHistory(TARGET_ID);
+
+        assertThat(result.isHasSanctionHistory()).isTrue();
+        // suspendedUntil == null -> 영구정지
+        assertThat(result.getHistory().get(0).getSuspendedUntil()).isNull();
+        assertThat(result.getHistory().get(0).getAdminNote()).isEqualTo("약관 위반으로 직접 정지");
+    }
+
+    @Test
+    void 제재_이력이_없으면_이력_있음_플래그가_false이고_목록도_비어있다() {
+        when(sanctionRecordRepository.findByTargetUser_IdOrderByProcessedAtDesc(TARGET_ID))
+                .thenReturn(List.of());
+
+        SanctionHistoryListResponseDto result = reportService.getMySanctionHistory(TARGET_ID);
+
+        assertThat(result.isHasSanctionHistory()).isFalse();
+        assertThat(result.getHistory()).isEmpty();
     }
 }

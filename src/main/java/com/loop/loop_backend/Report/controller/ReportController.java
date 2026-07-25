@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Report.controller;
 
 import com.loop.loop_backend.Report.dto.ReportRequestDto;
+import com.loop.loop_backend.Report.dto.SanctionHistoryListResponseDto;
 import com.loop.loop_backend.Report.service.ReportService;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -49,5 +50,16 @@ public class ReportController {
         reportService.report(userId, requestDto.getTargetUserId(), requestDto.getReason(), requestDto.getDetail(),
                 requestDto.isBlockToo(), images);
         return ResponseEntity.ok(CommonResponse.success("신고가 접수되었습니다.", null));
+    }
+
+    @GetMapping("/sanctions")
+    @Operation(summary = "내 제재 이력 조회",
+            description = "실제로 적용된 정지 조치를 최신순으로 조회합니다. 신고 처리로 정지된 경우뿐 아니라 " +
+                    "관리자가 신고 없이 직접 정지시킨 경우도 포함됩니다. 현재 정지가 풀렸는지와 무관하게 과거 이력 전체를 반환합니다. " +
+                    "탈퇴 시 \"제재 이력은 탈퇴 후에도 보관됩니다\" 안내에 사용합니다.")
+    @ApiResponse(responseCode = "200", description = "조회 성공")
+    public ResponseEntity<CommonResponse<SanctionHistoryListResponseDto>> getMySanctionHistory(
+            @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(reportService.getMySanctionHistory(userId)));
     }
 }

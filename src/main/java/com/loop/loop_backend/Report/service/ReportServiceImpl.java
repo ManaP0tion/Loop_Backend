@@ -7,9 +7,12 @@ import com.loop.loop_backend.Chat.repository.ChatRoomRepository;
 import com.loop.loop_backend.Chat.service.ChatService;
 import com.loop.loop_backend.Report.domain.Report;
 import com.loop.loop_backend.Report.domain.ReportImage;
+import com.loop.loop_backend.Report.dto.SanctionHistoryListResponseDto;
+import com.loop.loop_backend.Report.dto.SanctionHistoryResponseDto;
 import com.loop.loop_backend.Report.event.ReportCreatedEvent;
 import com.loop.loop_backend.Report.repository.ReportImageRepository;
 import com.loop.loop_backend.Report.repository.ReportRepository;
+import com.loop.loop_backend.Report.repository.SanctionRecordRepository;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
@@ -30,6 +33,7 @@ import java.util.List;
 public class ReportServiceImpl implements ReportService {
 
     private final ReportRepository reportRepository;
+    private final SanctionRecordRepository sanctionRecordRepository;
     private final ReportImageRepository reportImageRepository;
     private final BlockRepository blockRepository;
     private final UserRepository userRepository;
@@ -91,6 +95,17 @@ public class ReportServiceImpl implements ReportService {
         }
 
         eventPublisher.publishEvent(new ReportCreatedEvent(report.getId(), me.getNickname(), target.getNickname(), reason, detail, imageKeys));
+    }
+
+    @Override
+    public SanctionHistoryListResponseDto getMySanctionHistory(Long userId) {
+        List<SanctionHistoryResponseDto> history = sanctionRecordRepository
+                .findByTargetUser_IdOrderByProcessedAtDesc(userId)
+                .stream()
+                .map(SanctionHistoryResponseDto::new)
+                .toList();
+
+        return new SanctionHistoryListResponseDto(history);
     }
 
     private List<String> uploadReportImages(Long userId, Report report, List<MultipartFile> images) {
