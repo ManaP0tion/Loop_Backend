@@ -98,9 +98,19 @@ public class UserServiceImpl implements UserService {
     }
 
     private void checkNicknameAvailable(User user, String nickname) {
-        if (!nickname.equals(user.getNickname()) && userRepository.existsByNickname(nickname)) {
+        if (isNicknameTaken(user, nickname)) {
             throw new BusinessException(ErrorCode.DUPLICATE_NICKNAME);
         }
+    }
+
+    @Override
+    public boolean isNicknameAvailable(Long id, String nickname) {
+        return !isNicknameTaken(findUserOrThrow(id), nickname);
+    }
+
+    // 본인이 이미 쓰고 있는 닉네임은 "중복"으로 치지 않는다 (수정 시 그대로 두는 경우 포함)
+    private boolean isNicknameTaken(User user, String nickname) {
+        return !nickname.equals(user.getNickname()) && userRepository.existsByNickname(nickname);
     }
 
     @Override

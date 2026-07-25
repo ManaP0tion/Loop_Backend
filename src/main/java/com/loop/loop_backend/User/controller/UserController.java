@@ -63,6 +63,16 @@ public class UserController {
 //        return ResponseEntity.ok(CommonResponse.success(userService.getUserByUserId(userId)));
 //    }
 
+    @GetMapping("/me/nickname-check")
+    @Operation(summary = "닉네임 중복 확인", description = "입력한 닉네임을 지금 저장해도 되는지 미리 확인합니다.")
+    @ApiResponse(responseCode = "200", description = "확인 성공")
+    public ResponseEntity<CommonResponse<NicknameCheckResponseDto>> checkNicknameAvailable(
+            @AuthenticationPrincipal Long userId,
+            @Parameter(description = "확인할 닉네임") @RequestParam String nickname) {
+        boolean available = userService.isNicknameAvailable(userId, nickname);
+        return ResponseEntity.ok(CommonResponse.success(new NicknameCheckResponseDto(available)));
+    }
+
     @PutMapping("/me/profile")
     @Operation(summary = "프로필 수정", description = "로그인한 본인의 닉네임, 프로필 이미지를 수정합니다")
     @ApiResponses({
