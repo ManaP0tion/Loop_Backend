@@ -140,6 +140,27 @@ public class CompanionServiceImpl implements CompanionService {
         return paginate(userId, filtered, defaultComparator(myPost), pageable);
     }
 
+    @Override
+    public PageResponseDto<CompanionResponseDto> getAllCompanions(Long userId, Long concertId, WatchDay watchDay,
+                                                                    Gender gender, List<AgeGroup> ageGroups, Pageable pageable) {
+        Gender viewerGender = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
+                .getGender();
+
+        // 공연 관람 여부(hasActivity/doesNotHaveActivity) 구분 없이 전체 조회 - 아직 내 프로필을 등록하기 전에 보여주는 목록이라
+        // watching처럼 내 관람스타일 기준으로 정렬할 근거가 없으므로 등록일자 최신순 고정
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concertId),
+                CompanionPostSpecifications.watchDayEquals(watchDay),
+                visibleToViewer(userId, viewerGender),
+                CompanionPostSpecifications.authorGenderEquals(gender),
+                CompanionPostSpecifications.ageGroupIn(ageGroups));
+
+        List<CompanionPost> filtered = companionPostRepository.findAll(spec);
+
+        return paginate(userId, filtered, Comparator.comparing(CompanionPost::getCreatedAt, Comparator.reverseOrder()), pageable);
+    }
+
     // 조회자가 대상 프로필을 볼 수 있는지를 결정하는 공통 신원 기반 필터 (매칭 목록 전용 - 본인 글은 매칭 상대가 아니므로 제외)
     private Specification<CompanionPost> visibleToViewer(Long userId, Gender viewerGender) {
         return Specification.allOf(

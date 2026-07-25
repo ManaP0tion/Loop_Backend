@@ -323,6 +323,54 @@ class CompanionServiceImplTest {
                 .containsExactly(3L, 2L);
     }
 
+    // ── getAllCompanions ──────────────────────────────────────────────────────
+
+    @Test
+    void 전체_조회는_관람여부와_무관하게_등록일자_최신순으로_정렬된다() {
+        CompanionPost older = buildWatchingPost(buildUser(2L, "kakao-2"),
+                Set.of(CompanionActivity.MEAL), null, LocalDateTime.now().minusDays(1));
+        CompanionPost newer = buildWatchingPost(buildUser(3L, "kakao-3"),
+                Set.of(CompanionActivity.CONCERT), WatchStyle.NORMAL, LocalDateTime.now());
+
+        when(companionPostRepository.findAll(any(Specification.class)))
+                .thenReturn(List.of(older, newer));
+
+        PageResponseDto<CompanionResponseDto> result = companionService.getAllCompanions(
+                1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
+
+        assertThat(result.getContent()).extracting(CompanionResponseDto::getUserId)
+                .containsExactly(3L, 2L);
+    }
+
+    @Test
+    void 전체_조회는_내_프로필이_있어도_공통활동_기준으로_정렬되지_않는다() {
+        CompanionPost myPost = buildWatchingPost(user,
+                Set.of(CompanionActivity.MEAL, CompanionActivity.PHOTO), null, LocalDateTime.now());
+        CompanionPost highMatchButOlder = buildWatchingPost(buildUser(2L, "kakao-2"),
+                Set.of(CompanionActivity.MEAL, CompanionActivity.PHOTO), null, LocalDateTime.now().minusDays(1));
+        CompanionPost lowMatchButNewer = buildWatchingPost(buildUser(3L, "kakao-3"),
+                Set.of(CompanionActivity.CONCERT), WatchStyle.NORMAL, LocalDateTime.now());
+
+        when(companionPostRepository.findAll(any(Specification.class)))
+                .thenReturn(List.of(highMatchButOlder, lowMatchButNewer));
+
+        PageResponseDto<CompanionResponseDto> result = companionService.getAllCompanions(
+                1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
+
+        // 공통 활동이 더 많은 highMatchButOlder가 아니라, 등록일자가 최신인 lowMatchButNewer가 먼저 나온다
+        assertThat(result.getContent()).extracting(CompanionResponseDto::getUserId)
+                .containsExactly(3L, 2L);
+    }
+
+    @Test
+    void 존재하지_않는_조회자로_전체_조회하면_USER_NOT_FOUND_예외를_던진다() {
+        assertThatThrownBy(() -> companionService.getAllCompanions(
+                999L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.USER_NOT_FOUND);
+    }
+
     // ── getCompanion ──────────────────────────────────────────────────────────
 
     @Test
