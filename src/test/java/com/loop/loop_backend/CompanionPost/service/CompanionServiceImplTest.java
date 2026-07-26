@@ -11,8 +11,11 @@ import com.loop.loop_backend.CompanionPost.dto.CompanionDetailResponseDto;
 import com.loop.loop_backend.CompanionPost.dto.CompanionRequestDto;
 import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
+import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
+import com.loop.loop_backend.FavoriteArtist.domain.FavoriteArtist;
+import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
@@ -56,6 +59,7 @@ class CompanionServiceImplTest {
     @Mock ConcertRepository concertRepository;
     @Mock CompanionPostRepository companionPostRepository;
     @Mock UserHashtagRepository userHashtagRepository;
+    @Mock FavoriteArtistRepository favoriteArtistRepository;
     @Mock BlockRepository blockRepository;
     @Mock CompanionHeartRepository companionHeartRepository;
     @InjectMocks CompanionServiceImpl companionService;
@@ -382,6 +386,34 @@ class CompanionServiceImplTest {
         CompanionResponseDto dto = companionService.getCompanion(999L, 1L);
 
         assertThat(dto.getConcertId()).isEqualTo(10L);
+    }
+
+    @Test
+    void 상세조회시_작성자의_관심_아티스트_이름이_실제_데이터로_채워진다() {
+        ReflectionTestUtils.setField(user, "id", 1L);
+        CompanionPost post = buildPost(user, 10L);
+        when(companionPostRepository.findById(1L)).thenReturn(Optional.of(post));
+
+        Artist artist = Artist.builder().name("아이유").build();
+        ReflectionTestUtils.setField(artist, "id", 5L);
+        FavoriteArtist favoriteArtist = FavoriteArtist.builder().user(user).artist(artist).build();
+        when(favoriteArtistRepository.findAllByUser(user)).thenReturn(List.of(favoriteArtist));
+
+        CompanionDetailResponseDto dto = (CompanionDetailResponseDto) companionService.getCompanion(999L, 1L);
+
+        assertThat(dto.getPreferredArtistNames()).containsExactly("아이유");
+    }
+
+    @Test
+    void 관심_아티스트가_없으면_빈_목록을_반환한다() {
+        ReflectionTestUtils.setField(user, "id", 1L);
+        CompanionPost post = buildPost(user, 10L);
+        when(companionPostRepository.findById(1L)).thenReturn(Optional.of(post));
+        when(favoriteArtistRepository.findAllByUser(user)).thenReturn(List.of());
+
+        CompanionDetailResponseDto dto = (CompanionDetailResponseDto) companionService.getCompanion(999L, 1L);
+
+        assertThat(dto.getPreferredArtistNames()).isEmpty();
     }
 
     @Test

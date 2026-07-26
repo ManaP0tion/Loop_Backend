@@ -2,6 +2,13 @@ package com.loop.loop_backend.Concert.repository;
 
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
+import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
+import com.loop.loop_backend.CompanionPost.domain.WatchDay;
+import com.loop.loop_backend.User.domain.AuthProvider;
+import com.loop.loop_backend.User.domain.Gender;
+import com.loop.loop_backend.User.domain.Status;
+import com.loop.loop_backend.User.domain.User;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +16,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,6 +38,48 @@ class ConcertRepositoryTest {
                 .build();
         entityManager.persist(concert);
         return concert;
+    }
+
+    private User persistUser(String providerId) {
+        User user = User.builder()
+                .authProvider(AuthProvider.KAKAO)
+                .providerId(providerId)
+                .status(Status.ACTIVE)
+                .onboardingCompleted(true)
+                .build();
+        user.completeOnboarding(providerId, LocalDate.now().minusYears(25), Gender.MALE);
+        entityManager.persist(user);
+        return user;
+    }
+
+    // 콘서트 삭제 -> companion_posts(ON DELETE CASCADE)까지는 됐지만, companion_post_activities에
+    // cascade가 없어서 FK 위반으로 삭제 자체가 실패하던 버그의 회귀 테스트.
+    @Test
+    void 콘서트를_삭제하면_동행글과_activities_컬렉션까지_함께_삭제된다() {
+        User user = persistUser("cUser");
+        Concert concert = persistConcert("삭제될 공연", LocalDate.now().plusDays(1), LocalDate.now().plusDays(1));
+
+        CompanionPost post = CompanionPost.builder()
+                .user(user)
+                .concert(concert)
+                .watchDay(WatchDay.DAY1)
+                .activities(Set.of(CompanionActivity.MEAL, CompanionActivity.PHOTO))
+                .build();
+        entityManager.persist(post);
+        entityManager.flush();
+        Long postId = post.getId();
+
+        // 예전엔 이 flush()에서 companion_post_activities FK 위반(ConstraintViolationException)이 발생했다.
+        concertRepository.delete(concert);
+        entityManager.flush();
+
+        assertThat(concertRepository.findById(concert.getId())).isEmpty();
+
+        Number activityCount = (Number) entityManager.createNativeQuery(
+                        "SELECT COUNT(*) FROM companion_post_activities WHERE companion_post_id = :postId")
+                .setParameter("postId", postId)
+                .getSingleResult();
+        assertThat(activityCount.longValue()).isZero();
     }
 
     @Test
