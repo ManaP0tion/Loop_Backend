@@ -16,11 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 // TODO(remove-before-prod): 어드민 UI 테스트용 임시 시더. 배포 시 이 파일 삭제.
-/** dev 편의: 부팅 시 loginId=admin / password=0000 / role=ADMIN 계정을 보장. prod 에선 절대 실행 안 됨. */
+/** local 편의: 부팅 시 loginId=admin / password=0000 / role=ADMIN 계정을 보장. local 프로필에서만 실행. */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@Profile("!prod")
+@Profile("local")
 public class AdminSeeder implements ApplicationRunner {
 
     private static final String LOGIN_ID = "admin";
