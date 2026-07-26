@@ -46,14 +46,12 @@ public class SecurityConfig {
     private String[] allowedOrigins;
 
     /**
-     * 개발/로컬 프로파일에서만 활성화되는 체인.
-     * /api/test/**(테스트 유저 생성) 와 /dev/**(chat-test.html 등 개발 페이지)를 permitAll 처리.
-     * prod 환경에서는 등록되지 않아 자동 차단됨.
+     * local 전용: chat-test.html 포함 /dev/** 전부 개방.
      */
     @Bean
     @Order(1)
-    @Profile({"local", "dev","docker"})
-    public SecurityFilterChain devToolsFilterChain(HttpSecurity http) throws Exception {
+    @Profile("local")
+    public SecurityFilterChain devToolsFilterChainLocal(HttpSecurity http) throws Exception {
         http
                 .securityMatcher("/api/test/**", "/dev/**")
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -61,6 +59,25 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        return http.build();
+    }
+
+    /**
+     * dev/docker: chat-test.html 은 차단하고 admin.html 등 나머지 /dev/** 만 허용.
+     */
+    @Bean
+    @Order(1)
+    @Profile({"dev", "docker"})
+    public SecurityFilterChain devToolsFilterChainRemote(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/api/test/**", "/dev/**")
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/dev/chat-test.html").denyAll()
+                        .anyRequest().permitAll());
         return http.build();
     }
 
