@@ -329,14 +329,18 @@
 <div id="loginWrap" class="login-wrap" hidden>
     <div class="login-card">
         <h2>Loop Admin</h2>
-        <p>관리자 계정으로 로그인하세요.</p>
-        <div>
-            <label>아이디</label>
-            <input id="loginUserId" type="text" autocomplete="username" />
-            <label>비밀번호</label>
-            <input id="loginPassword" type="password" autocomplete="current-password" />
-            <button class="btn primary" id="loginSubmit">로그인</button>
-        </div>
+        <p>카카오 계정으로 로그인하세요. (ADMIN 권한 필요)</p>
+        <button class="btn primary" id="kakaoLoginBtn" style="width:100%;margin-top:12px;background:#FEE500;color:#191919;border:none;">카카오로 로그인</button>
+        <details style="margin-top:16px;">
+            <summary style="font-size:11px;color:var(--text-muted);cursor:pointer;">로컬 관리자 로그인</summary>
+            <div style="margin-top:8px;">
+                <label>아이디</label>
+                <input id="loginUserId" type="text" autocomplete="username" />
+                <label>비밀번호</label>
+                <input id="loginPassword" type="password" autocomplete="current-password" />
+                <button class="btn" id="loginSubmit" style="width:100%;margin-top:8px;">로그인</button>
+            </div>
+        </details>
     </div>
 </div>
 
@@ -1286,6 +1290,41 @@ document.getElementById('loginSubmit').onclick = async () => {
         if (await ensureAuthed()) route();
     } catch (e) { handleErr(e, '로그인 실패'); }
 };
+
+function adminRedirectUri() { return location.origin + location.pathname; }
+
+document.getElementById('kakaoLoginBtn').onclick = async () => {
+    try {
+        const res = await fetch('/api/auth/kakao/client-id');
+        const payload = await res.json();
+        const clientId = payload?.data?.clientId;
+        if (!clientId) return toast('카카오 client-id 설정이 없습니다.', true);
+        const url = `https://kauth.kakao.com/oauth/authorize?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(adminRedirectUri())}&response_type=code`;
+        location.href = url;
+    } catch (e) { handleErr(e, '카카오 로그인 시작 실패'); }
+};
+
+async function handleKakaoCallback() {
+    const params = new URLSearchParams(location.search);
+    const code = params.get('code');
+    if (!code) return false;
+    // URL에서 code 제거 (새로고침 시 재사용 방지)
+    history.replaceState({}, '', location.pathname);
+    try {
+        const res = await fetch('/api/auth/kakao/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, redirectUri: adminRedirectUri() }),
+        });
+        const payload = await res.json();
+        if (!res.ok) throw { status: res.status, payload };
+        const token = payload?.data?.accessToken;
+        if (!token) throw new Error('토큰 없음');
+        localStorage.setItem(TOKEN_KEY, token);
+        localStorage.setItem(LAST_ACT_KEY, Date.now());
+        return true;
+    } catch (e) { handleErr(e, '카카오 로그인 실패'); return false; }
+}
 function doLogout(reason) {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(ME_KEY);
@@ -1318,6 +1357,7 @@ document.querySelectorAll('.nav a[data-section]').forEach(a => {
 window.addEventListener('hashchange', route);
 
 (async function boot() {
+    await handleKakaoCallback();
     if (await ensureAuthed()) {
         if (!location.hash) location.hash = 'users';
         else route();

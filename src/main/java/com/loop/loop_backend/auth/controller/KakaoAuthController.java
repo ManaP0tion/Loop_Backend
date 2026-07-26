@@ -15,6 +15,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @Slf4j
 @RestController
 @RequestMapping("/api/auth")
@@ -36,5 +38,11 @@ public class KakaoAuthController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookieUtil.createRefreshTokenCookie(token.getRefreshToken()).toString())
                 .body(CommonResponse.success(new AccessTokenResponseDto(token.getAccessToken())));
+    }
+
+    @GetMapping("/kakao/client-id")
+    @Operation(summary = "카카오 REST API 키 조회", description = "어드민 페이지가 OAuth 인가 URL을 만들기 위해 사용.")
+    public ResponseEntity<CommonResponse<Map<String, String>>> kakaoClientId() {
+        return ResponseEntity.ok(CommonResponse.success(Map.of("clientId", kakaoAuthService.getClientId())));
     }
 }
