@@ -52,6 +52,7 @@ public class CompanionPost {
             name = "companion_post_activities",
             joinColumns = @JoinColumn(name = "companion_post_id")
     )
+    @OnDelete(action = OnDeleteAction.CASCADE)
     @Enumerated(EnumType.STRING)
     @Column(name = "activity")
     @NotNull
