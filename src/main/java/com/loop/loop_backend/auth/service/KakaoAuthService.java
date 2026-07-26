@@ -45,6 +45,8 @@ public class KakaoAuthService {
     @Value("${kakao.client-id}")
     private String clientId;
 
+    public String getClientId() { return clientId; }
+
     @Value("${kakao.client-secret}")
     private String clientSecret;
 

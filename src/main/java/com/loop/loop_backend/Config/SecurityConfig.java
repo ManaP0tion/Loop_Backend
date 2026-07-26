@@ -102,6 +102,7 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/api/auth/login",
                                 "/api/auth/kakao/login",
+                                "/api/auth/kakao/client-id",
                                 "/api/auth/refresh",
                                 "/api/users/register",
                                 "/api/users/kakao",
