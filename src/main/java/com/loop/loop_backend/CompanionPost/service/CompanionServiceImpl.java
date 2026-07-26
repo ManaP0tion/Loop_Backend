@@ -13,6 +13,7 @@ import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostSpecifications;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
+import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.User.domain.AgeGroup;
 import com.loop.loop_backend.User.domain.Gender;
@@ -47,6 +48,7 @@ public class CompanionServiceImpl implements CompanionService {
     private final UserRepository userRepository;
     private final ConcertRepository concertRepository;
     private final UserHashtagRepository userHashtagRepository;
+    private final FavoriteArtistRepository favoriteArtistRepository;
     private final BlockRepository blockRepository;
     private final CompanionHeartRepository companionHeartRepository;
 
@@ -256,9 +258,14 @@ public class CompanionServiceImpl implements CompanionService {
                 .map(tag -> new CompanionDetailResponseDto.HashtagSummary(tag.getId(), tag.getTag()))
                 .toList();
 
+        List<String> preferredArtistNames = favoriteArtistRepository.findAllByUser(post.getUser())
+                .stream()
+                .map(fa -> fa.getArtist().getName())
+                .toList();
+
         boolean isHearted = companionHeartRepository.existsByUser_IdAndCompanionPost_Id(userId, companionId);
 
-        return new CompanionDetailResponseDto(post, hashtags, isHearted);
+        return new CompanionDetailResponseDto(post, hashtags, preferredArtistNames, isHearted);
     }
 
     @Override
