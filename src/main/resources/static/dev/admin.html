@@ -750,6 +750,7 @@ async function reportAction(a, r, refresh) {
                 <span class="k">조치</span><span class="v">${statusPill(d.action)}</span>
                 <span class="k">이의제기</span><span class="v">${statusPill(d.appealStatus)}</span>
                 <span class="k">관리자 메모</span><span class="v" style="white-space:pre-wrap;">${esc(d.adminNote) || '-'}</span>
+                <span class="k">첨부 이미지</span><span class="v">${(d.imageUrls || []).length ? (d.imageUrls).map(u => `<a href="${u}" target="_blank" rel="noreferrer"><img src="${u}" style="max-height:120px;margin:4px;border-radius:6px;" /></a>`).join('') : '-'}</span>
                 <span class="k">접수</span><span class="v">${fmtDate(d.createdAt)}</span>
                 <span class="k">처리</span><span class="v">${fmtDate(d.processedAt)}</span>
             </div>`);
@@ -937,7 +938,7 @@ sections.artists = async () => {
 };
 
 function artistForm(a, refresh) {
-    const cats = ['J_POP_ARTIST', 'K_POP_ARTIST', 'MUSICAL', 'PLAY', 'CLASSIC', 'ETC'];
+    const cats = ['J_POP_ARTIST', 'DOMESTIC_ARTIST', 'JAPAN_FESTIVAL', 'DOMESTIC_FESTIVAL'];
     const body = el(`<div>
         <div class="form-row"><label>이름 (필수)</label><input id="name" value="${esc(a?.name || '')}" /></div>
         <div class="form-row"><label>Base Name</label><input id="baseName" value="${esc(a?.baseName || '')}" /></div>
@@ -1034,8 +1035,8 @@ async function concertForm(c, refresh) {
     const artists = await api.get('/api/admin/artists');
     const cats = ['J_POP_ARTIST', 'DOMESTIC_ARTIST', 'JAPAN_FESTIVAL', 'DOMESTIC_FESTIVAL'];
     const body = el(`<div>
-        <div class="form-row"><label>아티스트</label>
-            <select id="artistId">${artists.map(a => `<option value="${a.id}" ${c?.artistId === a.id ? 'selected' : ''}>#${a.id} ${esc(a.name)}</option>`).join('')}</select>
+        <div class="form-row"><label>아티스트 (페스티벌은 미선택 가능)</label>
+            <select id="artistId"><option value="" ${!c?.artistId ? 'selected' : ''}>-</option>${artists.map(a => `<option value="${a.id}" ${c?.artistId === a.id ? 'selected' : ''}>#${a.id} ${esc(a.name)}</option>`).join('')}</select>
         </div>
         <div class="form-row"><label>공연명</label><input id="title" value="${esc(c?.title || '')}" /></div>
         <div class="form-row"><label>포스터 URL (자동 채워짐)</label><input id="posterUrl" value="${esc(c?.posterUrl || '')}" placeholder="파일 업로드 시 자동 갱신" /></div>
@@ -1057,7 +1058,7 @@ async function concertForm(c, refresh) {
     foot.querySelector('#ok').onclick = async () => {
         const file = body.querySelector('#imageFile').files[0];
         const payload = {
-            artistId: Number(body.querySelector('#artistId').value),
+            artistId: body.querySelector('#artistId').value ? Number(body.querySelector('#artistId').value) : null,
             title: body.querySelector('#title').value,
             posterUrl: body.querySelector('#posterUrl').value || null,
             venue: body.querySelector('#venue').value || null,

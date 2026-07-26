@@ -155,8 +155,11 @@ public class AdminController {
     public ResponseEntity<CommonResponse<ReportRow>> getReport(
             @AuthenticationPrincipal Long adminId, HttpServletRequest req, @PathVariable Long id) {
         Report r = reportRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.REPORT_NOT_FOUND));
+        List<String> imageUrls = r.getImages().stream()
+                .map(img -> s3StorageService.generatePresignedGetUrl(img.getImageUrl(), java.time.Duration.ofMinutes(15)))
+                .toList();
         accessLog.log(adminId, req, "VIEW_REPORT", "REPORT", id, "신고 상세 조회");
-        return ResponseEntity.ok(CommonResponse.success(ReportRow.of(r)));
+        return ResponseEntity.ok(CommonResponse.success(ReportRow.of(r, imageUrls)));
     }
 
     @PatchMapping("/reports/{id}/status")
@@ -464,14 +467,19 @@ public class AdminController {
                             String reason, String detail, ReportStatus status,
                             ReportAction action, AppealStatus appealStatus,
                             Long chatRoomId, String adminNote,
+                            List<String> imageUrls,
                             LocalDateTime createdAt, LocalDateTime processedAt) {
         static ReportRow of(Report r) {
+            return of(r, List.of());
+        }
+        static ReportRow of(Report r, List<String> imageUrls) {
             return new ReportRow(r.getId(),
                     r.getReporter().getId(), r.getReporter().getNickname(),
                     r.getTargetUser().getId(), r.getTargetUser().getNickname(),
                     r.getReason(), r.getDetail(), r.getStatus(),
                     r.getAction(), r.getAppealStatus(),
                     r.getChatRoomId(), r.getAdminNote(),
+                    imageUrls,
                     r.getCreatedAt(), r.getProcessedAt());
         }
     }

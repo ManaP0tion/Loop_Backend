@@ -9,6 +9,8 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "reports",
@@ -63,6 +65,9 @@ public class Report {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @OneToMany(mappedBy = "report", fetch = FetchType.LAZY)
+    private List<ReportImage> images = new ArrayList<>();
 
     @Builder
     private Report(User reporter, User targetUser, String reason, String detail, Long chatRoomId) {
