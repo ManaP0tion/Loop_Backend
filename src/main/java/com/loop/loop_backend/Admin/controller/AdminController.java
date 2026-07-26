@@ -327,8 +327,12 @@ public class AdminController {
     @PostMapping("/concerts")
     @Transactional
     public ResponseEntity<CommonResponse<ConcertRow>> createConcert(@RequestBody ConcertReq body) {
-        Artist artist = artistRepository.findById(body.artistId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
+        Artist artist = body.artistId() == null ? null
+                : artistRepository.findById(body.artistId())
+                        .orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
+        ConcertCategory category = body.category() != null ? body.category()
+                : (artist != null ? artist.getCategory() : null);
+        if (category == null) throw new BusinessException(ErrorCode.INVALID_INPUT);
         Concert c = Concert.builder()
                 .artist(artist)
                 .title(body.title())
@@ -336,7 +340,7 @@ public class AdminController {
                 .venue(body.venue())
                 .startDate(body.startDate())
                 .endDate(body.endDate())
-                .category(body.category() != null ? body.category() : artist.getCategory())
+                .category(category)
                 .build();
         return ResponseEntity.ok(CommonResponse.success(ConcertRow.of(concertRepository.save(c))));
     }
@@ -345,11 +349,14 @@ public class AdminController {
     @Transactional
     public ResponseEntity<CommonResponse<ConcertRow>> updateConcert(@PathVariable Long id, @RequestBody ConcertReq body) {
         Concert c = concertRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
-        Artist artist = artistRepository.findById(body.artistId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
+        Artist artist = body.artistId() == null ? null
+                : artistRepository.findById(body.artistId())
+                        .orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
+        ConcertCategory category = body.category() != null ? body.category()
+                : (artist != null ? artist.getCategory() : null);
+        if (category == null) throw new BusinessException(ErrorCode.INVALID_INPUT);
         c.update(artist, body.title(), body.posterUrl(), body.venue(),
-                body.startDate(), body.endDate(),
-                body.category() != null ? body.category() : artist.getCategory());
+                body.startDate(), body.endDate(), category);
         return ResponseEntity.ok(CommonResponse.success(ConcertRow.of(c)));
     }
 
