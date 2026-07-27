@@ -16,7 +16,6 @@ import jakarta.persistence.criteria.Subquery;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 
@@ -88,10 +87,10 @@ public final class CompanionPostSpecifications {
     }
 
     // 관람일(콘서트 startDate + watchDay)이 지나지 않은 프로필만 (매칭용 목록/카운트 전용, 상세 조회는 별도 처리)
-    // 오늘 날짜를 today.minusDays(N)으로 역산해서 비교 - DB 방언에 상관없이 동작하도록 DB 컬럼 연산 대신 파라미터 쪽에서 계산
-    public static Specification<CompanionPost> watchDayNotExpired() {
+    // cutoff 날짜를 cutoff.minusDays(N)으로 역산해서 비교 - DB 방언에 상관없이 동작하도록 DB 컬럼 연산 대신 파라미터 쪽에서 계산.
+    // cutoff는 ExpiryCutoff.cutoffDate()로 계산한다(관람일 다음날 오전 10시까지는 유효).
+    public static Specification<CompanionPost> watchDayNotExpired(LocalDate cutoff) {
         return (root, query, cb) -> {
-            LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
             Join<CompanionPost, Concert> concert = root.join("concert");
 
             Predicate[] perDay = Arrays.stream(WatchDay.values())
@@ -99,7 +98,7 @@ public final class CompanionPostSpecifications {
                             cb.equal(root.get("watchDay"), day),
                             cb.or(
                                     cb.isNull(concert.get("startDate")),
-                                    cb.greaterThanOrEqualTo(concert.get("startDate"), today.minusDays(day.ordinal())))))
+                                    cb.greaterThanOrEqualTo(concert.get("startDate"), cutoff.minusDays(day.ordinal())))))
                     .toArray(Predicate[]::new);
 
             return cb.or(perDay);

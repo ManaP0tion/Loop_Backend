@@ -23,6 +23,7 @@ import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.dto.PageResponseDto;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
+import com.loop.loop_backend.common.time.ExpiryCutoff;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
@@ -30,7 +31,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
@@ -171,7 +172,7 @@ public class CompanionServiceImpl implements CompanionService {
                 CompanionPostSpecifications.authorNotWithdrawn(),
                 CompanionPostSpecifications.hasNoBlockRelationWith(userId),
                 CompanionPostSpecifications.respectsSameGenderOnly(viewerGender),
-                CompanionPostSpecifications.watchDayNotExpired());
+                CompanionPostSpecifications.watchDayNotExpired(ExpiryCutoff.cutoffDate()));
     }
 
     @Override
@@ -188,7 +189,7 @@ public class CompanionServiceImpl implements CompanionService {
                 CompanionPostSpecifications.authorNotWithdrawn(),
                 CompanionPostSpecifications.hasNoBlockRelationWith(userId),
                 CompanionPostSpecifications.respectsSameGenderOnly(viewerGender),
-                CompanionPostSpecifications.watchDayNotExpired());
+                CompanionPostSpecifications.watchDayNotExpired(ExpiryCutoff.cutoffDate()));
 
         return companionPostRepository.count(spec);
     }
@@ -235,7 +236,7 @@ public class CompanionServiceImpl implements CompanionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND));
 
         // 관람일이 지난 프로필은 삭제된 것과 동일하게 취급 (채팅방의 프로필 조회 링크 포함)
-        if (post.isExpired(LocalDate.now(ZONE_KST))) {
+        if (post.isExpired(LocalDateTime.now(ZONE_KST))) {
             throw new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND);
         }
 
@@ -303,9 +304,9 @@ public class CompanionServiceImpl implements CompanionService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        LocalDate today = LocalDate.now(ZONE_KST);
+        LocalDateTime now = LocalDateTime.now(ZONE_KST);
         List<CompanionPost> posts = companionPostRepository.findAllByUser(user).stream()
-                .filter(post -> !post.isExpired(today))
+                .filter(post -> !post.isExpired(now))
                 .toList();
         if (posts.isEmpty()) {
             throw new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND);
@@ -322,7 +323,7 @@ public class CompanionServiceImpl implements CompanionService {
         CompanionPost post = companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(userId, concertId, watchDay)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND));
 
-        if (post.isExpired(LocalDate.now(ZONE_KST))) {
+        if (post.isExpired(LocalDateTime.now(ZONE_KST))) {
             throw new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND);
         }
 

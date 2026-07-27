@@ -12,6 +12,7 @@ import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Gender;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
+import com.loop.loop_backend.common.time.ExpiryCutoff;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -440,42 +441,45 @@ class CompanionPostRepositoryTest {
     @Test
     void 관람일이_지난_프로필은_watchDayNotExpired_스펙에서_제외된다() {
         User author = persistUser("exp1", Gender.MALE, 25);
-        Concert pastConcert = persistConcert(LocalDate.now().minusDays(1));
+        LocalDate cutoff = LocalDate.now();
+        Concert pastConcert = persistConcert(cutoff.minusDays(1));
         persistCompanionPostFor(author, pastConcert, WatchDay.DAY1);
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
                 CompanionPostSpecifications.concertIdEquals(pastConcert.getId()),
-                CompanionPostSpecifications.watchDayNotExpired());
+                CompanionPostSpecifications.watchDayNotExpired(cutoff));
 
         assertThat(companionPostRepository.count(spec)).isZero();
     }
 
     @Test
-    void 관람일이_오늘이거나_미래인_프로필은_watchDayNotExpired_스펙에_포함된다() {
+    void 관람일이_컷오프_당일이거나_미래인_프로필은_watchDayNotExpired_스펙에_포함된다() {
         User todayAuthor = persistUser("exp2", Gender.MALE, 25);
         User futureAuthor = persistUser("exp3", Gender.MALE, 25);
-        Concert todayConcert = persistConcert(LocalDate.now());
-        Concert futureConcert = persistConcert(LocalDate.now().plusDays(5));
+        LocalDate cutoff = LocalDate.now();
+        Concert todayConcert = persistConcert(cutoff);
+        Concert futureConcert = persistConcert(cutoff.plusDays(5));
         persistCompanionPostFor(todayAuthor, todayConcert, WatchDay.DAY1);
         persistCompanionPostFor(futureAuthor, futureConcert, WatchDay.DAY1);
         entityManager.flush();
 
-        assertThat(companionPostRepository.count(CompanionPostSpecifications.watchDayNotExpired()))
+        assertThat(companionPostRepository.count(CompanionPostSpecifications.watchDayNotExpired(cutoff)))
                 .isEqualTo(2);
     }
 
     @Test
     void DAY2_프로필의_관람일은_콘서트_시작일_다음날로_계산된다() {
         User author = persistUser("exp4", Gender.MALE, 25);
-        // 콘서트가 어제 시작 -> DAY2 관람일은 오늘 -> 아직 지나지 않음
-        Concert concert = persistConcert(LocalDate.now().minusDays(1));
+        LocalDate cutoff = LocalDate.now();
+        // 콘서트가 컷오프 하루 전 시작 -> DAY2 관람일은 컷오프 당일 -> 아직 지나지 않음
+        Concert concert = persistConcert(cutoff.minusDays(1));
         persistCompanionPostFor(author, concert, WatchDay.DAY2);
         entityManager.flush();
 
         Specification<CompanionPost> spec = Specification.allOf(
                 CompanionPostSpecifications.concertIdEquals(concert.getId()),
-                CompanionPostSpecifications.watchDayNotExpired());
+                CompanionPostSpecifications.watchDayNotExpired(cutoff));
 
         assertThat(companionPostRepository.count(spec)).isEqualTo(1);
     }
@@ -489,9 +493,30 @@ class CompanionPostRepositoryTest {
 
         Specification<CompanionPost> spec = Specification.allOf(
                 CompanionPostSpecifications.concertIdEquals(undatedConcert.getId()),
-                CompanionPostSpecifications.watchDayNotExpired());
+                CompanionPostSpecifications.watchDayNotExpired(LocalDate.now()));
 
         assertThat(companionPostRepository.count(spec)).isEqualTo(1);
+    }
+
+    @Test
+    void 컷오프가_다음날_오전_10시_경계에서_정확히_전환된다() {
+        User author = persistUser("exp6", Gender.MALE, 25);
+        LocalDate watchDate = LocalDate.now().minusDays(1);
+        Concert concert = persistConcert(watchDate);
+        persistCompanionPostFor(author, concert, WatchDay.DAY1);
+        entityManager.flush();
+
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
+                CompanionPostSpecifications.watchDayNotExpired(
+                        ExpiryCutoff.cutoffDate(watchDate.plusDays(1).atTime(9, 59))));
+        assertThat(companionPostRepository.count(spec)).isEqualTo(1);
+
+        Specification<CompanionPost> specAfter = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concert.getId()),
+                CompanionPostSpecifications.watchDayNotExpired(
+                        ExpiryCutoff.cutoffDate(watchDate.plusDays(1).atTime(10, 0))));
+        assertThat(companionPostRepository.count(specAfter)).isZero();
     }
 
     private User persistUserWithEmail(String providerId, String email, boolean concertReminderEmail) {
