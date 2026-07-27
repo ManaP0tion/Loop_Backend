@@ -267,7 +267,7 @@ class CompanionHeartServiceImplTest {
     void 관람일이_지난_프로필은_하트탭에서_제외된다() {
         User viewer = testUser(VIEWER_ID);
         User author = testUser(AUTHOR_ID);
-        Concert pastConcert = testConcert(100L, "콘서트A", LocalDate.now().minusDays(1));
+        Concert pastConcert = testConcert(100L, "콘서트A", LocalDate.now().minusDays(2));
         Concert upcomingConcert = testConcert(200L, "콘서트B", LocalDate.now().plusDays(1));
 
         CompanionPost expiredPost = testPost(11L, author, pastConcert, WatchDay.DAY1);

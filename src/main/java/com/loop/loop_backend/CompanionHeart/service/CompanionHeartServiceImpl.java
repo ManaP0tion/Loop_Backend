@@ -20,7 +20,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -142,13 +142,13 @@ public class CompanionHeartServiceImpl implements CompanionHeartService {
                 .distinct()
                 .toList();
         Set<Long> blockedAuthorIds = new HashSet<>(blockRepository.findBlockedRelatedUserIds(userId, authorIds));
-        LocalDate today = LocalDate.now(ZONE_KST);
+        LocalDateTime now = LocalDateTime.now(ZONE_KST);
 
         return hearts.stream()
                 .filter(heart -> heart.getCompanionPost().isVisible())
                 .filter(heart -> heart.getCompanionPost().getUser().getStatus() != Status.WITHDRAWN)
                 .filter(heart -> !blockedAuthorIds.contains(heart.getCompanionPost().getUser().getId()))
-                .filter(heart -> !heart.getCompanionPost().isExpired(today))
+                .filter(heart -> !heart.getCompanionPost().isExpired(now))
                 .toList();
     }
 }

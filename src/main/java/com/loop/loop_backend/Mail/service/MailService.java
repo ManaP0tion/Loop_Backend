@@ -10,6 +10,8 @@ public interface MailService {
     void sendReportNotification(Long reportId, String reporterNickname, String targetNickname,
                                  String reason, String detail, List<String> imageUrls);
 
+    void sendInquiryNotification(Long inquiryId, String userNickname, String type, String title, String content);
+
     void sendUnreadChatNotification(String toEmail, String recipientNickname,
                                     List<UnreadChatRoomSummary> rooms);
 

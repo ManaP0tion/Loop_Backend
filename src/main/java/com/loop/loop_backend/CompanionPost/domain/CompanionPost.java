@@ -115,8 +115,12 @@ public class CompanionPost {
         return startDate == null ? null : startDate.plusDays(watchDay.ordinal());
     }
 
-    public boolean isExpired(LocalDate today) {
+    // 관람일 다음날 오전 10시까지는 노출, 그 이후 만료 처리
+    public boolean isExpired(LocalDateTime now) {
         LocalDate watchDate = getWatchDate();
-        return watchDate != null && watchDate.isBefore(today);
+        if (watchDate == null) {
+            return false;
+        }
+        return !now.isBefore(watchDate.plusDays(1).atTime(10, 0));
     }
 }

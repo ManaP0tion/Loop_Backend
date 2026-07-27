@@ -492,7 +492,7 @@ class CompanionServiceImplTest {
     @Test
     void 관람일이_지난_프로필을_상세조회하면_삭제된_것과_동일하게_COMPANION_POST_NOT_FOUND_예외를_던진다() {
         ReflectionTestUtils.setField(user, "id", 1L);
-        CompanionPost post = buildPost(user, 10L, LocalDate.now().minusDays(1), WatchDay.DAY1);
+        CompanionPost post = buildPost(user, 10L, LocalDate.now().minusDays(2), WatchDay.DAY1);
         when(companionPostRepository.findById(1L)).thenReturn(Optional.of(post));
 
         assertThatThrownBy(() -> companionService.getCompanion(2L, 1L))
@@ -619,7 +619,7 @@ class CompanionServiceImplTest {
     @Test
     void 관람일이_지난_프로필은_내_동행_프로필_목록에서_제외된다() {
         CompanionPost active = buildPost(user, 10L, LocalDate.now().plusDays(1), WatchDay.DAY1);
-        CompanionPost expired = buildPost(user, 20L, LocalDate.now().minusDays(1), WatchDay.DAY1);
+        CompanionPost expired = buildPost(user, 20L, LocalDate.now().minusDays(2), WatchDay.DAY1);
         when(companionPostRepository.findAllByUser(user)).thenReturn(List.of(active, expired));
 
         List<CompanionResponseDto> result = companionService.getMyCompanions(1L);
@@ -629,7 +629,7 @@ class CompanionServiceImplTest {
 
     @Test
     void 등록한_프로필이_전부_관람일이_지났으면_COMPANION_POST_NOT_FOUND_예외를_던진다() {
-        CompanionPost expired = buildPost(user, 10L, LocalDate.now().minusDays(1), WatchDay.DAY1);
+        CompanionPost expired = buildPost(user, 10L, LocalDate.now().minusDays(2), WatchDay.DAY1);
         when(companionPostRepository.findAllByUser(user)).thenReturn(List.of(expired));
 
         assertThatThrownBy(() -> companionService.getMyCompanions(1L))
@@ -653,7 +653,7 @@ class CompanionServiceImplTest {
 
     @Test
     void 관람일이_지난_내_프로필을_조회하면_COMPANION_POST_NOT_FOUND_예외를_던진다() {
-        CompanionPost post = buildPost(user, 10L, LocalDate.now().minusDays(1), WatchDay.DAY1);
+        CompanionPost post = buildPost(user, 10L, LocalDate.now().minusDays(2), WatchDay.DAY1);
         when(companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(1L, 10L, WatchDay.DAY1))
                 .thenReturn(Optional.of(post));
 

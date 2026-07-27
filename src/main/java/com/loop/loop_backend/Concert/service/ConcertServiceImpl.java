@@ -12,12 +12,12 @@ import com.loop.loop_backend.CompanionPost.service.CompanionService;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
+import com.loop.loop_backend.common.time.ExpiryCutoff;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -99,28 +99,28 @@ public class ConcertServiceImpl implements ConcertService {
 
     @Override
     public List<ConcertResponseDto> searchConcertsByTitle(String title, Long userId) {
-        return concertRepository.searchUpcomingOrUndatedByTitle(title, LocalDate.now()).stream()
+        return concertRepository.searchUpcomingOrUndatedByTitle(title, ExpiryCutoff.cutoffDate()).stream()
                 .map(concert -> toResponseDto(concert, userId))
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<ConcertResponseDto> getAllConcerts(Long userId) {
-        return concertRepository.findUpcomingOrUndated(LocalDate.now()).stream()
+        return concertRepository.findUpcomingOrUndated(ExpiryCutoff.cutoffDate()).stream()
                 .map(concert -> toResponseDto(concert, userId))
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<ConcertResponseDto> getConcertsByCategory(ConcertCategory category, Long userId) {
-        return concertRepository.findUpcomingOrUndatedByCategory(category, LocalDate.now()).stream()
+        return concertRepository.findUpcomingOrUndatedByCategory(category, ExpiryCutoff.cutoffDate()).stream()
                 .map(concert -> toResponseDto(concert, userId))
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<ConcertResponseDto> getConcertsByArtist(Long artistId, Long userId) {
-        return concertRepository.findUpcomingOrUndatedByArtistId(artistId, LocalDate.now()).stream()
+        return concertRepository.findUpcomingOrUndatedByArtistId(artistId, ExpiryCutoff.cutoffDate()).stream()
                 .map(concert -> toResponseDto(concert, userId))
                 .collect(Collectors.toList());
     }
