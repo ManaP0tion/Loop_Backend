@@ -15,9 +15,15 @@ public interface BlockRepository extends JpaRepository<Block, Long> {
 
     boolean existsByBlockerAndBlocked(User blocker, User blocked);
 
+    boolean existsByBlocker_IdAndBlocked_Id(Long blockerId, Long blockedId);
+
     Optional<Block> findByBlockerAndBlocked(User blocker, User blocked);
 
     List<Block> findAllByBlocker(User blocker);
+
+    void deleteAllByBlocker(User blocker);
+
+    void deleteAllByBlocked(User blocked);
 
     @Query("""
             SELECT CASE WHEN COUNT(b) > 0 THEN true ELSE false END
@@ -26,6 +32,18 @@ public interface BlockRepository extends JpaRepository<Block, Long> {
             OR (b.blocker.id IN :otherIds AND b.blocked.id = :userId)
             """)
     boolean existsBlockBetween(
+            @Param("userId") Long userId,
+            @Param("otherIds") List<Long> otherIds
+    );
+
+    // otherIds 중 userId와 차단 관계(어느 쪽이 차단했든)가 있는 id들만 골라서 반환 (목록 필터링용 배치 조회)
+    @Query("""
+            SELECT CASE WHEN b.blocker.id = :userId THEN b.blocked.id ELSE b.blocker.id END
+            FROM Block b
+            WHERE (b.blocker.id = :userId AND b.blocked.id IN :otherIds)
+               OR (b.blocker.id IN :otherIds AND b.blocked.id = :userId)
+            """)
+    List<Long> findBlockedRelatedUserIds(
             @Param("userId") Long userId,
             @Param("otherIds") List<Long> otherIds
     );

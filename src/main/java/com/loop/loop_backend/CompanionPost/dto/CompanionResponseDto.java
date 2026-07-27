@@ -2,16 +2,14 @@ package com.loop.loop_backend.CompanionPost.dto;
 
 import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
-import com.loop.loop_backend.CompanionPost.domain.PreferredAgeGroup;
-import com.loop.loop_backend.CompanionPost.domain.PreferredGender;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
 import com.loop.loop_backend.CompanionPost.domain.WatchStyle;
+import com.loop.loop_backend.User.domain.Gender;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Set;
 
 @Getter
 @Schema(description = "동행 프로필 응답 DTO")
@@ -26,17 +24,20 @@ public class CompanionResponseDto {
     @Schema(description = "작성자 닉네임", example = "루퍼123")
     private final String nickname;
 
+    @Schema(description = "작성자 프로필 이미지 URL")
+    private final String profileImageUrl;
+
+    @Schema(description = "작성자 성별", example = "MALE")
+    private final Gender gender;
+
+    @Schema(description = "작성자 나이 (생년월일 없으면 null)", example = "27")
+    private final Integer age;
+
     @Schema(description = "콘서트 PK", example = "1")
     private final Long concertId;
 
     @Schema(description = "관람 일차", example = "DAY1")
     private final WatchDay watchDay;
-
-    @Schema(description = "선호하는 동행자 성별", example = "ANY")
-    private final PreferredGender preferredGender;
-
-    @Schema(description = "선호하는 동행자 나이대 목록")
-    private final Set<PreferredAgeGroup> preferredAgeGroups;
 
     @Schema(description = "함께 하고 싶은 활동 목록")
     private final List<EnumLabelDto> activities;
@@ -50,24 +51,35 @@ public class CompanionResponseDto {
     @Schema(description = "공개 여부", example = "true")
     private final boolean visible;
 
+    @Schema(description = "같은 성별에게만 연락받기", example = "false")
+    private final boolean sameGenderOnly;
+
     @Schema(description = "생성일시")
     private final LocalDateTime createdAt;
 
-    public CompanionResponseDto(CompanionPost post) {
+    @Schema(description = "내가 이 프로필에 하트를 눌렀는지 여부", example = "false")
+    private final boolean hearted;
+
+    public CompanionResponseDto(CompanionPost post, boolean hearted) {
         this.companionId = post.getId();
         this.userId = post.getUser().getId();
         this.nickname = post.getUser().getNickname();
-        this.concertId = post.getConcertId();
+        this.profileImageUrl = post.getUser().getProfileImageUrl();
+        this.gender = post.getUser().getGender();
+        this.age = post.getUser().getAge();
+        this.concertId = post.getConcert().getId();
         this.watchDay = post.getWatchDay();
-        this.preferredGender = post.getPreferredGender();
-        this.preferredAgeGroups = Set.copyOf(post.getPreferredAgeGroups());
         this.activities = post.getActivities().stream()
                 .map(activity -> new EnumLabelDto(activity.name(), activity.getLabel()))
                 .toList();
-        this.watchStyle = new EnumLabelDto(post.getWatchStyle().name(), post.getWatchStyle().getLabel());
+        this.watchStyle = post.getWatchStyle() != null
+                ? new EnumLabelDto(post.getWatchStyle().name(), post.getWatchStyle().getLabel())
+                : null;
         this.messageToCompanion = post.getMessageToCompanion();
         this.visible = post.isVisible();
+        this.sameGenderOnly = post.isSameGenderOnly();
         this.createdAt = post.getCreatedAt();
+        this.hearted = hearted;
     }
 
     @Getter

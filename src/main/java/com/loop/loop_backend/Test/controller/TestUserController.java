@@ -2,7 +2,6 @@ package com.loop.loop_backend.Test.controller;
 
 import com.loop.loop_backend.Test.dto.TestUserResponseDto;
 import com.loop.loop_backend.Test.service.TestUserService;
-import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.auth.service.RefreshTokenService;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import com.loop.loop_backend.common.jwt.JwtTokenProvider;
@@ -36,16 +35,22 @@ public class TestUserController {
                     "\"Bearer {accessToken}\" 형태로 입력한 뒤 다른 API를 바로 테스트하면 됩니다. 닉네임 미입력 시 랜덤 생성됩니다.")
     public ResponseEntity<CommonResponse<TestUserResponseDto>> createTestUser(
             @Parameter(description = "테스트 사용자 닉네임 (5자 이하, 미입력 시 랜덤 생성)")
-            @RequestParam(required = false) String nickname) {
+            @RequestParam(required = false) String nickname,
+            @Parameter(description = "true 이면 ADMIN 권한으로 생성 (dev 전용)")
+            @RequestParam(required = false, defaultValue = "false") boolean admin,
+            @Parameter(description = "로그인 아이디 (미입력 시 자동)") @RequestParam(required = false) String loginId,
+            @Parameter(description = "로그인 비밀번호 (미입력 시 기본 test1234!)") @RequestParam(required = false) String password) {
 
-        User user = testUserService.createTestUser(nickname);
+        var created = testUserService.create(nickname, admin, loginId, password);
 
-        String accessToken = jwtTokenProvider.createAccessToken(user.getId());
-        String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
-        refreshTokenService.save(user.getId(), refreshToken);
+        Long id = created.user().getId();
+        String accessToken = jwtTokenProvider.createAccessToken(id);
+        String refreshToken = jwtTokenProvider.createRefreshToken(id);
+        refreshTokenService.save(id, refreshToken);
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookieUtil.createRefreshTokenCookie(refreshToken).toString())
-                .body(CommonResponse.success("테스트 사용자가 생성되었습니다.", new TestUserResponseDto(user, accessToken)));
+                .body(CommonResponse.success("테스트 사용자가 생성되었습니다.",
+                        new TestUserResponseDto(created.user(), created.loginId(), created.plainPassword(), accessToken)));
     }
 }

@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 public class ChatMessageDto {
 
     public enum MessageType {
-        ENTER, TALK, LEAVE
+        ENTER, TALK, LEAVE, SYSTEM_LEAVE, SYSTEM_WITHDRAWN
     }
 
     @NotNull
@@ -34,4 +34,7 @@ public class ChatMessageDto {
 
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private final LocalDateTime createdAt;
+
+    @JsonProperty(value = "isRead", access = JsonProperty.Access.READ_ONLY)
+    private final Boolean isRead;
 }

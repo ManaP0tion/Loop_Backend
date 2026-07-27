@@ -1,15 +1,17 @@
 package com.loop.loop_backend.CompanionPost.controller;
 
-import com.loop.loop_backend.CompanionPost.domain.PreferredAgeGroup;
-import com.loop.loop_backend.CompanionPost.domain.PreferredGender;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
 import com.loop.loop_backend.CompanionPost.dto.CompanionDetailResponseDto;
 import com.loop.loop_backend.CompanionPost.dto.CompanionRequestDto;
 import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
+import com.loop.loop_backend.User.domain.AgeGroup;
+import com.loop.loop_backend.User.domain.Gender;
+import com.loop.loop_backend.common.dto.PageResponseDto;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.Parameters;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -42,10 +44,9 @@ public class CompanionController {
             | 필드 | 값 (enum) | 설명 |
             |---|---|---|
             | watchDay | DAY1, DAY2, DAY3, DAY4 | 관람 일차 |
-            | preferredGender | MALE, FEMALE, ANY | 선호하는 동행자 성별 |
-            | preferredAgeGroups | NINETEEN_TO_TWENTY_FOUR, TWENTY_FIVE_TO_TWENTY_NINE, THIRTY_TO_THIRTY_FOUR, THIRTY_FIVE_TO_THIRTY_NINE, FORTY_PLUS, ANY | 선호하는 동행자 나이대 (복수 선택) |
             | activities | CONCERT(공연 관람), MEAL(식사), PHOTO(사진), GOODS(굿즈), TALK(대화) | 함께 하고 싶은 활동 (복수 선택) |
             | watchStyle | ENTHUSIASTIC(뗴창 열심히), NORMAL(보통), QUIET(조용히 관람) | 관람 스타일 |
+            | sameGenderOnly | true, false | 같은 성별에게만 연락받기 |
             """)
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "동행 프로필 생성"),
@@ -69,64 +70,130 @@ public class CompanionController {
     }
 
 
-    //동행 프로필 전체 조회 공연관람 O (콘서트, day별, 필터는 성별, 나이)
+    //동행 프로필 전체 조회 공연관람 O (콘서트, day별)
     @Operation(summary = "공연 관람 동행 프로필 전체 조회",
-            description = "콘서트/관람일 기준으로 공연을 관람하는 동행 프로필 목록을 조회하고, 성별/나이대로 필터링합니다. " +
-                    "스크롤용 페이지네이션(page, size)을 지원하며 size 기본값은 20입니다.")
+            description = """
+                    콘서트/관람일 기준으로 공연을 관람하는 동행 프로필 목록을 조회합니다. \
+                    작성자의 성별/나이대로 필터링할 수 있습니다. 스크롤용 페이지네이션(page, size)을 지원하며 size 기본값은 20입니다. \
+                    작성자가 "같은 성별에게만 연락받기"를 켠 경우, 나와 성별이 다르면 이 목록에 노출되지 않습니다 (상세 조회는 별개입니다). \
+                    응답은 목록(content) 외에 전체 개수(totalElements), 다음 페이지 존재 여부(hasNext)를 함께 내려줍니다. \
+                    목록 각 항목에도 작성자의 프로필 이미지/성별/나이가 포함됩니다.
+
+                    정렬 기준은 이 목록의 후보자가 아닌, 조회하는 내 프로필의 상태에 따라 다릅니다. (후보자는 공연 관람 선택 여부와 무관하게 이미 이 API로 필터링되어 있습니다)
+                    - 내 프로필이 있고, 내 프로필의 활동에도 공연 관람이 포함되어 있으면: 관람 스타일이 나와 같은 사람 우선 + 그 안에서 공통 활동 많은 순
+                    - 내 프로필이 있지만, 내 프로필의 활동에 공연 관람이 없으면: 공통 활동 많은 순
+                    - 내 프로필이 없으면: 등록일자 최신순
+                    """)
     @ApiResponse(responseCode = "200", description = "조회 성공")
+    @Parameters(@Parameter(name = "sort", hidden = true))
     @GetMapping("watching")
-    public ResponseEntity<CommonResponse<List<CompanionResponseDto>>> getWatchingCompanions(
+    public ResponseEntity<CommonResponse<PageResponseDto<CompanionResponseDto>>> getWatchingCompanions(
+            @AuthenticationPrincipal Long userId,
             @Parameter(description = "콘서트 PK")
             @RequestParam Long concertId,
             @Parameter(description = "관람 일차", schema = @Schema(allowableValues = {"DAY1", "DAY2", "DAY3", "DAY4"}))
             @RequestParam WatchDay watchDay,
-            @Parameter(description = "성별 필터", schema = @Schema(allowableValues = {"MALE", "FEMALE", "ANY"}))
-            @RequestParam(required = false) PreferredGender preferredGender,
-            @Parameter(description = "나이대 필터 (다중 선택)",
+            @Parameter(description = "작성자 성별 필터", schema = @Schema(allowableValues = {"MALE", "FEMALE", "OTHER"}))
+            @RequestParam(required = false) Gender gender,
+            @Parameter(description = "작성자 나이대 필터 (다중 선택)",
                     array = @ArraySchema(schema = @Schema(allowableValues = {
                             "NINETEEN_TO_TWENTY_FOUR", "TWENTY_FIVE_TO_TWENTY_NINE", "THIRTY_TO_THIRTY_FOUR",
                             "THIRTY_FIVE_TO_THIRTY_NINE", "FORTY_PLUS", "ANY"})))
-            @RequestParam(required = false) List<PreferredAgeGroup> preferredAgeGroups,
+            @RequestParam(required = false) List<AgeGroup> ageGroups,
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        return ResponseEntity.ok(CommonResponse.success(List.of()));
+        return ResponseEntity.ok(CommonResponse.success(
+                companionService.getWatchingCompanions(userId, concertId, watchDay, gender, ageGroups, pageable)));
     }
 
-    //동행 프로필 전체 조회 공연관람 X (콘서트, day별, 필터는 성별, 나이)
+    //동행 프로필 전체 조회 공연관람 X (콘서트, day별)
     @Operation(summary = "공연 미관람 동행 프로필 전체 조회",
-            description = "콘서트/관람일 기준으로 공연 관람을 안하는 동행 프로필 목록을 조회하고, 성별/나이대로 필터링합니다. " +
-                    "스크롤용 페이지네이션(page, size)을 지원하며 size 기본값은 20입니다.")
+            description = """
+                    콘서트/관람일 기준으로 공연 관람을 안하는 동행 프로필 목록을 조회합니다. \
+                    작성자의 성별/나이대로 필터링할 수 있습니다. 스크롤용 페이지네이션(page, size)을 지원하며 size 기본값은 20입니다. \
+                    작성자가 "같은 성별에게만 연락받기"를 켠 경우, 나와 성별이 다르면 이 목록에 노출되지 않습니다 (상세 조회는 별개입니다). \
+                    응답은 목록(content) 외에 전체 개수(totalElements), 다음 페이지 존재 여부(hasNext)를 함께 내려줍니다. \
+                    목록 각 항목에도 작성자의 프로필 이미지/성별/나이가 포함됩니다.
+
+                    정렬 기준은 내 상태에 따라 다릅니다. (이 목록은 같이 관람하지 않으므로 관람 스타일은 정렬에 반영되지 않습니다)
+                    - 내 프로필이 있으면: 공통 활동 많은 순
+                    - 내 프로필이 없으면: 등록일자 최신순
+                    """)
     @ApiResponse(responseCode = "200", description = "조회 성공")
+    @Parameters(@Parameter(name = "sort", hidden = true))
     @GetMapping("/not-watching")
-    public ResponseEntity<CommonResponse<List<CompanionResponseDto>>> getNotWatchingCompanions(
+    public ResponseEntity<CommonResponse<PageResponseDto<CompanionResponseDto>>> getNotWatchingCompanions(
+            @AuthenticationPrincipal Long userId,
             @Parameter(description = "콘서트 PK")
             @RequestParam Long concertId,
             @Parameter(description = "관람 일차", schema = @Schema(allowableValues = {"DAY1", "DAY2", "DAY3", "DAY4"}))
             @RequestParam WatchDay watchDay,
-            @Parameter(description = "성별 필터", schema = @Schema(allowableValues = {"MALE", "FEMALE", "ANY"}))
-            @RequestParam(required = false) PreferredGender preferredGender,
-            @Parameter(description = "나이대 필터 (다중 선택)",
+            @Parameter(description = "작성자 성별 필터", schema = @Schema(allowableValues = {"MALE", "FEMALE", "OTHER"}))
+            @RequestParam(required = false) Gender gender,
+            @Parameter(description = "작성자 나이대 필터 (다중 선택)",
                     array = @ArraySchema(schema = @Schema(allowableValues = {
                             "NINETEEN_TO_TWENTY_FOUR", "TWENTY_FIVE_TO_TWENTY_NINE", "THIRTY_TO_THIRTY_FOUR",
                             "THIRTY_FIVE_TO_THIRTY_NINE", "FORTY_PLUS", "ANY"})))
-            @RequestParam(required = false) List<PreferredAgeGroup> preferredAgeGroups,
+            @RequestParam(required = false) List<AgeGroup> ageGroups,
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        return ResponseEntity.ok(CommonResponse.success(List.of()));
+        return ResponseEntity.ok(CommonResponse.success(
+                companionService.getNotWatchingCompanions(userId, concertId, watchDay, gender, ageGroups, pageable)));
+    }
+
+    //동행 프로필 전체 조회 (공연 관람 여부 구분 없음)
+    @Operation(summary = "동행 프로필 전체 조회 (관람 여부 구분 없음)",
+            description = """
+                    콘서트/관람일 기준으로 공연 관람 여부와 상관없이 동행 프로필 전체를 조회합니다. \
+                    작성자의 성별/나이대로 필터링할 수 있습니다. 스크롤용 페이지네이션(page, size)을 지원하며 size 기본값은 20입니다. \
+                    작성자가 "같은 성별에게만 연락받기"를 켠 경우, 나와 성별이 다르면 이 목록에 노출되지 않습니다 (상세 조회는 별개입니다). \
+                    응답은 목록(content) 외에 전체 개수(totalElements), 다음 페이지 존재 여부(hasNext)를 함께 내려줍니다. \
+                    목록 각 항목에도 작성자의 프로필 이미지/성별/나이가 포함됩니다.
+
+                    아직 내 프로필을 등록하기 전에 보여주는 목록이라, 관람 스타일/공통 활동 기준 정렬 없이 등록일자 최신순으로 고정입니다.
+                    """)
+    @ApiResponse(responseCode = "200", description = "조회 성공")
+    @Parameters(@Parameter(name = "sort", hidden = true))
+    @GetMapping("/all")
+    public ResponseEntity<CommonResponse<PageResponseDto<CompanionResponseDto>>> getAllCompanions(
+            @AuthenticationPrincipal Long userId,
+            @Parameter(description = "콘서트 PK")
+            @RequestParam Long concertId,
+            @Parameter(description = "관람 일차", schema = @Schema(allowableValues = {"DAY1", "DAY2", "DAY3", "DAY4"}))
+            @RequestParam WatchDay watchDay,
+            @Parameter(description = "작성자 성별 필터", schema = @Schema(allowableValues = {"MALE", "FEMALE", "OTHER"}))
+            @RequestParam(required = false) Gender gender,
+            @Parameter(description = "작성자 나이대 필터 (다중 선택)",
+                    array = @ArraySchema(schema = @Schema(allowableValues = {
+                            "NINETEEN_TO_TWENTY_FOUR", "TWENTY_FIVE_TO_TWENTY_NINE", "THIRTY_TO_THIRTY_FOUR",
+                            "THIRTY_FIVE_TO_THIRTY_NINE", "FORTY_PLUS", "ANY"})))
+            @RequestParam(required = false) List<AgeGroup> ageGroups,
+            @PageableDefault(size = 20) Pageable pageable
+    ) {
+        return ResponseEntity.ok(CommonResponse.success(
+                companionService.getAllCompanions(userId, concertId, watchDay, gender, ageGroups, pageable)));
     }
 
 
     //동행 프로필 상세 조회
     @Operation(summary = "동행 프로필 상세 조회",
-            description = "동행 프로필 PK로 상세 정보를 조회합니다. 비공개 프로필은 작성자 본인만 조회할 수 있습니다.")
+            description = "동행 프로필 PK로 상세 정보를 조회합니다. 비공개 프로필은 작성자 본인만 조회할 수 있습니다. " +
+                    "작성자와 나 사이에 차단 관계가 있으면(어느 쪽이 차단했든) 조회할 수 없습니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
-            @ApiResponse(responseCode = "403", description = "비공개 프로필이며 본인이 아님",
-                    content = @Content(examples = @ExampleObject(
-                            value = "{\"success\":false,\"message\":\"접근 권한이 없습니다.\",\"code\":403}"))),
+            @ApiResponse(responseCode = "403", description = "비공개 프로필이며 본인이 아니거나, 차단 관계가 있음",
+                    content = @Content(examples = {
+                            @ExampleObject(name = "비공개 프로필",
+                                    value = "{\"success\":false,\"message\":\"접근 권한이 없습니다.\",\"code\":403}"),
+                            @ExampleObject(name = "차단 관계",
+                                    value = "{\"success\":false,\"message\":\"차단된 사용자입니다.\",\"code\":403}")
+                    })),
             @ApiResponse(responseCode = "404", description = "동행 프로필 없음",
                     content = @Content(examples = @ExampleObject(
-                            value = "{\"success\":false,\"message\":\"동행 모집글을 찾을 수 없습니다.\",\"code\":404}")))
+                            value = "{\"success\":false,\"message\":\"동행 모집글을 찾을 수 없습니다.\",\"code\":404}"))),
+            @ApiResponse(responseCode = "410", description = "작성자가 탈퇴한 사용자",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"탈퇴한 사용자입니다.\",\"code\":410}")))
     })
     @GetMapping("/{id}")
     public ResponseEntity<CommonResponse<CompanionDetailResponseDto>> getCompanion(
@@ -150,6 +217,26 @@ public class CompanionController {
             @AuthenticationPrincipal Long userId
     ) {
         return ResponseEntity.ok(CommonResponse.success(companionService.getMyCompanions(userId)));
+    }
+
+
+    //특정 콘서트/관람일의 내 동행 프로필 조회 (수정/삭제/공개토글 전 companionId 확인용)
+    @Operation(summary = "특정 콘서트의 내 동행 프로필 조회",
+            description = "콘서트/관람일 기준으로 내 동행 프로필을 조회합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "404", description = "등록한 동행 프로필 없음",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"동행 모집글을 찾을 수 없습니다.\",\"code\":404}")))
+    })
+    @GetMapping("/me/current")
+    public ResponseEntity<CommonResponse<CompanionResponseDto>> getMyCompanion(
+            @AuthenticationPrincipal Long userId,
+            @Parameter(description = "콘서트 PK") @RequestParam Long concertId,
+            @Parameter(description = "관람 일차", schema = @Schema(allowableValues = {"DAY1", "DAY2", "DAY3", "DAY4"}))
+            @RequestParam WatchDay watchDay
+    ) {
+        return ResponseEntity.ok(CommonResponse.success(companionService.getMyCompanion(userId, concertId, watchDay)));
     }
 
 
@@ -200,11 +287,9 @@ public class CompanionController {
 
             | 필드 | 값 (enum) | 설명 |
             |---|---|---|
-            | watchDay | DAY1, DAY2, DAY3, DAY4 | 관람 일차 |
-            | preferredGender | MALE, FEMALE, ANY | 선호하는 동행자 성별 |
-            | preferredAgeGroups | NINETEEN_TO_TWENTY_FOUR, TWENTY_FIVE_TO_TWENTY_NINE, THIRTY_TO_THIRTY_FOUR, THIRTY_FIVE_TO_THIRTY_NINE, FORTY_PLUS, ANY | 선호하는 동행자 나이대 (복수 선택) |
             | activities | CONCERT(공연 관람), MEAL(식사), PHOTO(사진), GOODS(굿즈), TALK(대화) | 함께 하고 싶은 활동 (복수 선택) |
             | watchStyle | ENTHUSIASTIC(뗴창 열심히), NORMAL(보통), QUIET(조용히 관람) | 관람 스타일 |
+            | sameGenderOnly | true, false | 같은 성별에게만 연락받기 |
             """)
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수정 성공"),

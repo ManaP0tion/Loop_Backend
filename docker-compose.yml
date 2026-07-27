@@ -6,21 +6,28 @@ services:
     ports:
       - "8080:8080"
     environment:
+      TZ: Asia/Seoul
       SPRING_PROFILES_ACTIVE: docker
       DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
       DB_USERNAME: ${MYSQL_USER}
       DB_PASSWORD: ${MYSQL_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID}
-      KAKAO_REDIRECT_URI: ${KAKAO_REDIRECT_URI}
+      KAKAO_ALLOWED_REDIRECT_URIS: ${KAKAO_ALLOWED_REDIRECT_URIS}
       KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET}
       FRONTEND_URL: ${FRONTEND_URL}
+      CHAT_ALLOWED_ORIGINS: ${CHAT_ALLOWED_ORIGINS}
       MAIL_HOST: ${MAIL_HOST}
       MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME}
       MAIL_PASSWORD: ${MAIL_PASSWORD}
       REPORT_ADMIN_EMAIL: ${REPORT_ADMIN_EMAIL}
       KOPIS_API_KEY: ${KOPIS_API_KEY}
+      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      AWS_S3_PUBLIC_BUCKET: ${AWS_S3_PUBLIC_BUCKET:-loop-public-storage}
+      AWS_S3_PRIVATE_BUCKET: ${AWS_S3_PRIVATE_BUCKET:-loop-private-storage}
+      DISCORD_REPORT_WEBHOOK_URL: ${DISCORD_REPORT_WEBHOOK_URL}
+      DISCORD_INQUIRY_WEBHOOK_URL: ${DISCORD_INQUIRY_WEBHOOK_URL}
     depends_on:
       mysql:
         condition: service_healthy
@@ -34,6 +41,7 @@ services:
     container_name: loop-mysql
     restart: unless-stopped
     environment:
+      TZ: Asia/Seoul
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}

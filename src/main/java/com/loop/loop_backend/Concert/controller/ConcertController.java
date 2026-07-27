@@ -9,14 +9,19 @@ import com.loop.loop_backend.Concert.service.ConcertService;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Encoding;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Arrays;
 import java.util.List;
@@ -31,28 +36,39 @@ public class ConcertController {
     private final ConcertService concertService;
     private final KopisSyncService kopisSyncService;
 
-    @PostMapping
-    @Operation(summary = "콘서트 등록", description = "새 콘서트를 등록합니다")
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "콘서트 등록", description = "새 콘서트를 등록합니다. 포스터 이미지 파일을 함께 보내면 " +
+            "공개 버킷에 업로드 후 URL이 바로 반영됩니다 (이미지는 선택).")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "등록 성공"),
-            @ApiResponse(responseCode = "400", description = "유효성 검사 실패")
+            @ApiResponse(responseCode = "400", description = "유효성 검사 실패 또는 허용되지 않는 파일 형식/크기 초과")
     })
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                    encoding = @Encoding(name = "request", contentType = MediaType.APPLICATION_JSON_VALUE)))
     public ResponseEntity<CommonResponse<ConcertResponseDto>> createConcert(
-            @Valid @RequestBody ConcertRequestDto requestDto) {
+            @Valid @RequestPart("request") ConcertRequestDto requestDto,
+            @RequestPart(value = "image", required = false) MultipartFile image) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(CommonResponse.success(concertService.createConcert(requestDto)));
+                .body(CommonResponse.success(concertService.createConcert(requestDto, image)));
     }
 
-    @PutMapping("/{id}")
-    @Operation(summary = "콘서트 수정", description = "콘서트 정보를 수정합니다")
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "콘서트 수정", description = "콘서트 정보를 수정합니다. 포스터 이미지 파일을 함께 보내면 " +
+            "새로 업로드하여 교체하고, 보내지 않으면 기존 이미지가 유지됩니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수정 성공"),
+            @ApiResponse(responseCode = "400", description = "유효성 검사 실패 또는 허용되지 않는 파일 형식/크기 초과"),
             @ApiResponse(responseCode = "404", description = "콘서트 없음")
     })
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                    encoding = @Encoding(name = "request", contentType = MediaType.APPLICATION_JSON_VALUE)))
     public ResponseEntity<CommonResponse<ConcertResponseDto>> updateConcert(
             @Parameter(description = "콘서트 PK") @PathVariable Long id,
-            @Valid @RequestBody ConcertRequestDto requestDto) {
-        return ResponseEntity.ok(CommonResponse.success(concertService.updateConcert(id, requestDto)));
+            @Valid @RequestPart("request") ConcertRequestDto requestDto,
+            @RequestPart(value = "image", required = false) MultipartFile image) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.updateConcert(id, requestDto, image)));
     }
 
     @DeleteMapping("/{id}")
@@ -72,10 +88,11 @@ public class ConcertController {
     @ApiResponse(responseCode = "200", description = "조회 성공")
     public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> getConcerts(
             @Parameter(description = "콘서트 카테고리 (J_POP_ARTIST / DOMESTIC_ARTIST / JAPAN_FESTIVAL / DOMESTIC_FESTIVAL)")
-            @RequestParam(required = false) ConcertCategory category) {
+            @RequestParam(required = false) ConcertCategory category,
+            @AuthenticationPrincipal Long userId) {
         List<ConcertResponseDto> concerts = (category != null)
-                ? concertService.getConcertsByCategory(category)
-                : concertService.getAllConcerts();
+                ? concertService.getConcertsByCategory(category, userId)
+                : concertService.getAllConcerts(userId);
         return ResponseEntity.ok(CommonResponse.success(concerts));
     }
 
@@ -96,16 +113,20 @@ public class ConcertController {
             @ApiResponse(responseCode = "404", description = "콘서트 없음")
     })
     public ResponseEntity<CommonResponse<ConcertResponseDto>> getConcertById(
-            @Parameter(description = "콘서트 PK") @PathVariable Long id) {
-        return ResponseEntity.ok(CommonResponse.success(concertService.getConcertById(id)));
+            @Parameter(description = "콘서트 PK") @PathVariable Long id,
+        @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.getConcertById(id, userId)));
     }
 
     @GetMapping("/search")
-    @Operation(summary = "콘서트 검색 (제목)", description = "제목 키워드로 콘서트를 검색합니다")
+    @Operation(summary = "콘서트 검색",
+            description = "키워드로 콘서트를 검색합니다. 콘서트 제목뿐 아니라 아티스트의 원어명/기본명/한글명/별칭도 함께 매칭됩니다. " +
+                    "예) 'King Gnu' 공연은 '킹누'로도 검색 가능")
     @ApiResponse(responseCode = "200", description = "조회 성공")
     public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> searchConcerts(
-            @Parameter(description = "검색 키워드") @RequestParam String title) {
-        return ResponseEntity.ok(CommonResponse.success(concertService.searchConcertsByTitle(title)));
+            @Parameter(description = "검색 키워드 (콘서트 제목 또는 아티스트명)") @RequestParam String title,
+            @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.searchConcertsByTitle(title, userId)));
     }
 
     @GetMapping("/artist/{artistId}")
@@ -115,8 +136,9 @@ public class ConcertController {
             @ApiResponse(responseCode = "404", description = "아티스트 없음")
     })
     public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> getConcertsByArtist(
-            @Parameter(description = "아티스트 PK") @PathVariable Long artistId) {
-        return ResponseEntity.ok(CommonResponse.success(concertService.getConcertsByArtist(artistId)));
+            @Parameter(description = "아티스트 PK") @PathVariable Long artistId,
+            @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.getConcertsByArtist(artistId, userId)));
     }
 
     @PostMapping("/sync")

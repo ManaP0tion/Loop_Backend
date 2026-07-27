@@ -1,5 +1,9 @@
 package com.loop.loop_backend.Mail.service;
 
+import com.loop.loop_backend.Mail.dto.ConcertReminderSummary;
+import com.loop.loop_backend.Mail.dto.UnreadChatRoomSummary;
+import com.loop.loop_backend.common.exception.BusinessException;
+import com.loop.loop_backend.common.exception.ErrorCode;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -8,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.spring6.SpringTemplateEngine;
@@ -24,6 +29,9 @@ public class MailServiceImpl implements MailService {
 
     @Value("${report.admin-email}")
     private String adminEmail;
+
+    @Value("${frontend.url}")
+    private String frontendUrl;
 
     @Override
     public void sendReportNotification(Long reportId, String reporterNickname, String targetNickname,
@@ -47,6 +55,107 @@ public class MailServiceImpl implements MailService {
             mailSender.send(message);
         } catch (MessagingException | MailException e) {
             log.error("신고 알림 메일 발송 실패 (reportId={})", reportId, e);
+        }
+    }
+
+    @Override
+    public void sendInquiryNotification(Long inquiryId, String userNickname, String type, String title, String content) {
+        Context context = new Context();
+        context.setVariable("inquiryId", inquiryId);
+        context.setVariable("userNickname", userNickname);
+        context.setVariable("type", type);
+        context.setVariable("title", title);
+        context.setVariable("content", content);
+
+        String html = templateEngine.process("mail/inquiry-notification", context);
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setTo(adminEmail);
+            helper.setSubject("[Loop] 문의 접수 (문의 ID: " + inquiryId + ")");
+            helper.setText(html, true);
+            mailSender.send(message);
+        } catch (MessagingException | MailException e) {
+            log.error("문의 알림 메일 발송 실패 (inquiryId={})", inquiryId, e);
+        }
+    }
+
+    @Override
+    @Async("mailExecutor")
+    public void sendUnreadChatNotification(String toEmail, String recipientNickname,
+                                           List<UnreadChatRoomSummary> rooms) {
+        if (toEmail == null || toEmail.isBlank() || rooms == null || rooms.isEmpty()) {
+            return;
+        }
+
+        long totalUnread = rooms.stream().mapToLong(UnreadChatRoomSummary::unreadCount).sum();
+
+        Context context = new Context();
+        context.setVariable("recipientNickname", recipientNickname);
+        context.setVariable("rooms", rooms);
+        context.setVariable("totalUnread", totalUnread);
+        context.setVariable("frontendUrl", frontendUrl);
+
+        String html = templateEngine.process("mail/chat-unread-notification", context);
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setTo(toEmail);
+            helper.setSubject("[Loop] 확인하지 않은 메시지가 " + totalUnread + "건 있어요");
+            helper.setText(html, true);
+            mailSender.send(message);
+        } catch (MessagingException | MailException e) {
+            log.error("미확인 채팅 알림 메일 발송 실패 (to={})", toEmail, e);
+        }
+    }
+
+    @Override
+    public void sendVerificationCode(String toEmail, String code) {
+        Context context = new Context();
+        context.setVariable("code", code);
+
+        String html = templateEngine.process("mail/email-verification", context);
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setTo(toEmail);
+            helper.setSubject("[Loop] 이메일 인증 코드");
+            helper.setText(html, true);
+            mailSender.send(message);
+        } catch (MessagingException | MailException e) {
+            log.error("이메일 인증 코드 발송 실패 (to={})", toEmail, e);
+            // 사용자가 코드 도착을 기다리는 critical path라, 다른 알림 메일과 달리 실패를 조용히 넘기지 않고 그대로 전파
+            throw new BusinessException(ErrorCode.EMAIL_SEND_FAILED);
+        }
+    }
+
+    @Override
+    @Async("mailExecutor")
+    public void sendConcertReminderNotification(String toEmail, String recipientNickname,
+                                                List<ConcertReminderSummary> concerts) {
+        if (toEmail == null || toEmail.isBlank() || concerts == null || concerts.isEmpty()) {
+            return;
+        }
+
+        Context context = new Context();
+        context.setVariable("recipientNickname", recipientNickname);
+        context.setVariable("concerts", concerts);
+        context.setVariable("frontendUrl", frontendUrl);
+
+        String html = templateEngine.process("mail/concert-reminder-notification", context);
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setTo(toEmail);
+            helper.setSubject("[Loop] 내일 관람 예정 공연이 " + concerts.size() + "건 있어요");
+            helper.setText(html, true);
+            mailSender.send(message);
+        } catch (MessagingException | MailException e) {
+            log.error("공연 하루전 리마인더 메일 발송 실패 (to={})", toEmail, e);
         }
     }
 }

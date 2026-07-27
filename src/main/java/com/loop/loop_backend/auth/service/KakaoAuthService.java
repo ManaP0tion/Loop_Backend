@@ -1,6 +1,7 @@
 package com.loop.loop_backend.auth.service;
 
 import com.loop.loop_backend.User.domain.AuthProvider;
+import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.auth.dto.KakaoTokenResponseDto;
@@ -14,10 +15,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+
+import java.util.List;
 
 @Slf4j
 @Service
@@ -31,11 +35,13 @@ public class KakaoAuthService {
     @Value("${kakao.client-id}")
     private String clientId;
 
+    public String getClientId() { return clientId; }
+
     @Value("${kakao.client-secret}")
     private String clientSecret;
 
-    @Value("${kakao.redirect-uri}")
-    private String redirectUri;
+    @Value("${kakao.allowed-redirect-uris}")
+    private String[] allowedRedirectUris;
 
     @Value("${kakao.auth-url}")
     private String authUrl;
@@ -45,9 +51,15 @@ public class KakaoAuthService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    public TokenResponseDto login(String code) {
+    @Transactional
+    public TokenResponseDto login(String code, String redirectUri) {
+        // 0. 프론트가 실제로 카카오 인가 요청에 썼던 redirect_uri인지 검증 (화이트리스트 방식, 임의 주소 우회 방지)
+        if (!List.of(allowedRedirectUris).contains(redirectUri)) {
+            throw new BusinessException(ErrorCode.INVALID_REDIRECT_URI);
+        }
+
         // 1. 인가코드 → 카카오 Access Token
-        KakaoTokenResponseDto kakaoToken = getKakaoToken(code);
+        KakaoTokenResponseDto kakaoToken = getKakaoToken(code, redirectUri);
 
         // 2. 카카오 Access Token → 사용자 정보
         KakaoUserInfoDto userInfo = getKakaoUserInfo(kakaoToken.getAccessToken());
@@ -56,6 +68,18 @@ public class KakaoAuthService {
         User user = userRepository
                 .findByAuthProviderAndProviderId(AuthProvider.KAKAO, String.valueOf(userInfo.getId()))
                 .orElseGet(() -> registerKakaoUser(userInfo));
+
+        // 3-1. 탈퇴 계정으로 재가입하는 경우: 잔존 데이터는 이미 탈퇴 시점(withdrawUser)에 정리됐으므로 계정만 되살린다.
+        // 차단(Block)은 탈퇴/재가입과 무관하게 유지된다.
+        if (user.getStatus() == Status.WITHDRAWN) {
+            user.reactivate();
+        }
+
+        // 이용정지된 계정은 로그인 차단. 기간 만료 시 즉시 해제.
+        if (user.getStatus() == Status.SUSPENDED) {
+            if (user.isSuspensionExpired()) user.liftSuspension();
+            else throw new BusinessException(ErrorCode.USER_SUSPENDED);
+        }
 
         // 4. JWT 발급
         String accessToken = jwtTokenProvider.createAccessToken(user.getId());
@@ -67,7 +91,7 @@ public class KakaoAuthService {
         return new TokenResponseDto(accessToken, refreshToken);
     }
 
-    private KakaoTokenResponseDto getKakaoToken(String code) {
+    private KakaoTokenResponseDto getKakaoToken(String code, String redirectUri) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 

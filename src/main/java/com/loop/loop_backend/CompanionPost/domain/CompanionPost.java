@@ -1,5 +1,6 @@
 package com.loop.loop_backend.CompanionPost.domain;
 
+import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.User.domain.User;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -8,7 +9,10 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDate;
@@ -33,27 +37,14 @@ public class CompanionPost {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "concert_id", nullable = false)
-    private Long concertId; // Concert 엔티티 머지 전까지 단순 컬럼, 이후 연관관계로 전환
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "concert_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    private Concert concert;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "watch_day", nullable = false)
     private WatchDay watchDay;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "preferred_gender")
-    private PreferredGender preferredGender;
-
-    //선호하는 동행자 나이대, 다중선택 별도 테이블
-    @ElementCollection(fetch = FetchType.LAZY)
-    @CollectionTable(
-            name = "companion_post_preferred_age_groups",
-            joinColumns = @JoinColumn(name = "companion_post_id")
-    )
-    @Enumerated(EnumType.STRING)
-    @Column(name = "preferred_age_group")
-    @NotNull
-    private Set<PreferredAgeGroup> preferredAgeGroups = new HashSet<>();
 
     //함께 하고 싶은 것, 다중선택 별도 테이블
     @ElementCollection(fetch = FetchType.LAZY)
@@ -61,13 +52,16 @@ public class CompanionPost {
             name = "companion_post_activities",
             joinColumns = @JoinColumn(name = "companion_post_id")
     )
+    @OnDelete(action = OnDeleteAction.CASCADE)
     @Enumerated(EnumType.STRING)
     @Column(name = "activity")
     @NotNull
+    @BatchSize(size = 20)
     private Set<CompanionActivity> activities = new HashSet<>();
 
+    // 함께하고 싶은 것에 공연 관람(CONCERT)을 선택했을 때만 의미 있는 값 - 그 외엔 null 허용
     @Enumerated(EnumType.STRING)
-    @Column(name = "watch_style", nullable = false)
+    @Column(name = "watch_style")
     private WatchStyle watchStyle;
 
     @Column(name = "message_to_companion", length = 200)
@@ -76,6 +70,9 @@ public class CompanionPost {
 
     @Column(name = "visible", nullable = false)
     private boolean visible;
+
+    @Column(name = "same_gender_only", nullable = false)
+    private boolean sameGenderOnly;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -86,18 +83,17 @@ public class CompanionPost {
     private LocalDateTime updatedAt;
 
     @Builder
-    private CompanionPost(User user, Long concertId, WatchDay watchDay, PreferredGender preferredGender,
-                          Set<PreferredAgeGroup> preferredAgeGroups, Set<CompanionActivity> activities,
-                          WatchStyle watchStyle, String messageToCompanion){
+    private CompanionPost(User user, Concert concert, WatchDay watchDay,
+                          Set<CompanionActivity> activities,
+                          WatchStyle watchStyle, String messageToCompanion, boolean sameGenderOnly){
         this.user = user;
-        this.concertId = concertId;
+        this.concert = concert;
         this.watchDay = watchDay;
-        this.preferredGender = preferredGender;
-        this.preferredAgeGroups = preferredAgeGroups;
         this.activities = activities;
         this.watchStyle = watchStyle;
         this.messageToCompanion = messageToCompanion;
         this.visible = true;
+        this.sameGenderOnly = sameGenderOnly;
     }
 
 
@@ -105,14 +101,26 @@ public class CompanionPost {
         this.visible = visible;
     }
 
-    public void update(PreferredGender preferredGender, Set<PreferredAgeGroup> preferredAgeGroups,
-                        Set<CompanionActivity> activities, WatchStyle watchStyle, String messageToCompanion) {
-        this.preferredGender = preferredGender;
-        this.preferredAgeGroups = preferredAgeGroups;
+    public void update(Set<CompanionActivity> activities, WatchStyle watchStyle, String messageToCompanion,
+                        boolean sameGenderOnly) {
         this.activities = activities;
         this.watchStyle = watchStyle;
         this.messageToCompanion = messageToCompanion;
+        this.sameGenderOnly = sameGenderOnly;
     }
 
+    // 콘서트 날짜가 미정이면(startDate == null) 관람일도 정할 수 없으므로 null
+    public LocalDate getWatchDate() {
+        LocalDate startDate = concert.getStartDate();
+        return startDate == null ? null : startDate.plusDays(watchDay.ordinal());
+    }
 
+    // 관람일 다음날 오전 10시까지는 노출, 그 이후 만료 처리
+    public boolean isExpired(LocalDateTime now) {
+        LocalDate watchDate = getWatchDate();
+        if (watchDate == null) {
+            return false;
+        }
+        return !now.isBefore(watchDate.plusDays(1).atTime(10, 0));
+    }
 }

@@ -13,8 +13,8 @@ public class ConcertSyncScheduler {
 
     private final KopisSyncService kopisSyncService;
 
-    // 매일 새벽 2시 실행
-    @Scheduled(cron = "0 0 2 * * *")
+    // 매일 오전 9시 실행
+    @Scheduled(cron = "0 0 9 * * *", zone = "Asia/Seoul")
     public void syncConcerts() {
         log.info("Scheduled KOPIS concert sync triggered");
         kopisSyncService.syncAll();

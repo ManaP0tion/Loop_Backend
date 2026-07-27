@@ -1,6 +1,6 @@
 package com.loop.loop_backend.Chat.controller;
 
-import com.loop.loop_backend.Chat.dto.ChatMessageDto;
+import com.loop.loop_backend.Chat.dto.ChatMessagesResponseDto;
 import com.loop.loop_backend.Chat.dto.ChatRoomResponseDto;
 import com.loop.loop_backend.Chat.dto.CreateChatRoomRequestDto;
 import com.loop.loop_backend.Chat.dto.StartDirectChatRequestDto;
@@ -11,7 +11,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Slice;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -77,8 +76,9 @@ public class ChatRoomController {
     }
 
     @GetMapping("/rooms/{roomId}/messages")
-    @Operation(summary = "채팅 메시지 조회", description = "요청자가 참여자인 경우에만 조회 가능. 최신순 페이지네이션.")
-    public ResponseEntity<CommonResponse<Slice<ChatMessageDto>>> getMessages(
+    @Operation(summary = "채팅 메시지 조회",
+            description = "요청자가 참여자인 경우에만 조회 가능. 최신순 페이지네이션. DIRECT 방의 경우 상대방 관계 상태(탈퇴/차단/신고)를 함께 반환.")
+    public ResponseEntity<CommonResponse<ChatMessagesResponseDto>> getMessages(
             @AuthenticationPrincipal Long userId,
             @PathVariable Long roomId,
             @PageableDefault(size = 30) Pageable pageable) {

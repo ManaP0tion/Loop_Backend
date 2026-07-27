@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+</head>
+<body style="font-family: sans-serif; line-height: 1.6;">
+    <h2>[Loop] 이메일 인증</h2>
+
+    <p>아래 인증 코드를 입력해주세요. (유효시간 3분)</p>
+
+    <p style="font-size: 28px; font-weight: bold; letter-spacing: 4px;" th:text="${code}"></p>
+
+    <p>이 코드를 다른 사람에게 알려주지 마세요.</p>
+    <p>본인이 요청하지 않았다면 이 메일을 무시하셔도 됩니다.</p>
+    <p>이 메일은 발신 전용입니다.</p>
+</body>
+</html>
