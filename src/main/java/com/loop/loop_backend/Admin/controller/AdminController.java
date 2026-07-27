@@ -11,6 +11,7 @@ import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.Concert.kopis.KopisSyncService;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Inquiry.domain.Inquiry;
 import com.loop.loop_backend.Inquiry.domain.InquiryType;
@@ -73,6 +74,7 @@ public class AdminController {
     private final AdminAccessLogRepository accessLogRepository;
     private final AdminAccessLogService accessLog;
     private final S3StorageService s3StorageService;
+    private final KopisSyncService kopisSyncService;
 
     // ================= USERS =================
 
@@ -399,6 +401,14 @@ public class AdminController {
         return ResponseEntity.ok(CommonResponse.success(null));
     }
 
+    @PostMapping("/concerts/sync")
+    public ResponseEntity<CommonResponse<String>> syncKopis(
+            @AuthenticationPrincipal Long adminId, HttpServletRequest req) {
+        kopisSyncService.syncAll();
+        accessLog.log(adminId, req, "SYNC_KOPIS", "CONCERT", null, "KOPIS 공연 정보 수동 동기화");
+        return ResponseEntity.ok(CommonResponse.success("KOPIS 동기화 완료"));
+    }
+
     // ================= COMPANION POSTS =================
 
     @GetMapping("/companion-posts")
@@ -553,12 +563,12 @@ public class AdminController {
                              LocalDate startDate, LocalDate endDate, ConcertCategory category) {}
 
     public record CompanionRow(Long id, Long userId, String userNickname, Long concertId, String concertTitle,
-                               String messageToCompanion, boolean visible, LocalDateTime createdAt) {
+                               String messageToCompanion, boolean visible, boolean sameGenderOnly, LocalDateTime createdAt) {
         static CompanionRow of(CompanionPost p) {
             return new CompanionRow(p.getId(),
                     p.getUser().getId(), p.getUser().getNickname(),
                     p.getConcert().getId(), p.getConcert().getTitle(),
-                    p.getMessageToCompanion(), p.isVisible(), p.getCreatedAt());
+                    p.getMessageToCompanion(), p.isVisible(), p.isSameGenderOnly(), p.getCreatedAt());
         }
     }
 
