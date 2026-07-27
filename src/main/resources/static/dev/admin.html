@@ -990,11 +990,19 @@ sections.concerts = async () => {
         <div class="page-header">
             <div><div class="page-title">공연 관리</div><div class="page-sub">삭제 시 동행 프로필 함께 삭제 · 채팅방은 보존</div></div>
             <div class="spacer" style="flex:1"></div>
+            <button class="btn" id="sync">KOPIS 동기화</button>
             <button class="btn primary" id="new">+ 공연 등록</button>
         </div>
         <div class="card"><div id="slot"></div></div>
     </div>`);
     MAIN().replaceChildren(root);
+    root.querySelector('#sync').onclick = async (e) => {
+        if (!confirm('KOPIS에서 공연 정보를 즉시 동기화합니다. 완료까지 시간이 걸릴 수 있습니다.')) return;
+        const btn = e.target; btn.disabled = true; btn.textContent = '동기화 중…';
+        try { await api.post('/api/admin/concerts/sync'); toast('KOPIS 동기화 완료'); load(); }
+        catch (err) { handleErr(err); }
+        finally { btn.disabled = false; btn.textContent = 'KOPIS 동기화'; }
+    };
 
     async function load() {
         const d = await api.get('/api/admin/concerts', { ...state });
@@ -1098,10 +1106,10 @@ sections.posts = async () => {
     async function load() {
         const d = await api.get('/api/admin/companion-posts', { ...state });
         const t = el(`<table class="data"><thead><tr>
-            <th>ID</th><th>작성자</th><th>공연</th><th>메시지</th><th>공개</th><th>등록일</th><th>작업</th>
+            <th>ID</th><th>작성자</th><th>공연</th><th>메시지</th><th>공개</th><th>동성만 연락받기</th><th>등록일</th><th>작업</th>
         </tr></thead><tbody></tbody></table>`);
         const tb = t.querySelector('tbody');
-        if (!d.items.length) tb.append(el(`<tr><td colspan="7" class="empty">동행 프로필 없음</td></tr>`));
+        if (!d.items.length) tb.append(el(`<tr><td colspan="8" class="empty">동행 프로필 없음</td></tr>`));
         d.items.forEach(p => {
             const tr = el(`<tr>
                 <td>${p.id}</td>
@@ -1109,6 +1117,7 @@ sections.posts = async () => {
                 <td>#${p.concertId} ${esc(p.concertTitle)}</td>
                 <td>${esc((p.messageToCompanion || '').slice(0, 40))}</td>
                 <td>${p.visible ? '<span class="pill green">공개</span>' : '<span class="pill gray">비공개</span>'}</td>
+                <td>${p.sameGenderOnly ? '<span class="pill blue">ON</span>' : '<span class="pill gray">OFF</span>'}</td>
                 <td>${fmtDate(p.createdAt)}</td>
                 <td><button class="btn danger" data-a="del">삭제</button></td>
             </tr>`);
