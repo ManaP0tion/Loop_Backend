@@ -59,6 +59,29 @@ public class MailServiceImpl implements MailService {
     }
 
     @Override
+    public void sendInquiryNotification(Long inquiryId, String userNickname, String type, String title, String content) {
+        Context context = new Context();
+        context.setVariable("inquiryId", inquiryId);
+        context.setVariable("userNickname", userNickname);
+        context.setVariable("type", type);
+        context.setVariable("title", title);
+        context.setVariable("content", content);
+
+        String html = templateEngine.process("mail/inquiry-notification", context);
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setTo(adminEmail);
+            helper.setSubject("[Loop] 문의 접수 (문의 ID: " + inquiryId + ")");
+            helper.setText(html, true);
+            mailSender.send(message);
+        } catch (MessagingException | MailException e) {
+            log.error("문의 알림 메일 발송 실패 (inquiryId={})", inquiryId, e);
+        }
+    }
+
+    @Override
     @Async("mailExecutor")
     public void sendUnreadChatNotification(String toEmail, String recipientNickname,
                                            List<UnreadChatRoomSummary> rooms) {

@@ -27,8 +27,14 @@ public class InquiryController {
     private final InquiryService inquiryService;
 
     @PostMapping
-    @Operation(summary = "고객센터 문의 등록", description = "문의 유형, 제목, 내용을 입력받아 문의를 접수합니다. " +
-            "답변받을 이메일은 온보딩 시 입력한 계정 이메일을 사용합니다.")
+    @Operation(summary = "고객센터 문의 등록", description = """
+            문의 유형, 제목, 내용을 입력받아 문의를 접수합니다. \
+            답변받을 이메일은 온보딩 시 입력한 계정 이메일을 사용합니다.
+
+            | 필드 | 값 (enum) | 설명 |
+            |---|---|---|
+            | type | COMPANION_SEARCH(동행찾기 관련), ACCOUNT_LOGIN(계정/로그인 문제), APP_USAGE(앱 기능/사용 문의), SUGGESTION(제안/피드백), OTHER(기타) | 문의 유형 |
+            """)
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "접수 성공"),
             @ApiResponse(responseCode = "400", description = "유효성 검사 실패",

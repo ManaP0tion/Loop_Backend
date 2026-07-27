@@ -13,6 +13,7 @@ import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Inquiry.domain.Inquiry;
+import com.loop.loop_backend.Inquiry.domain.InquiryType;
 import com.loop.loop_backend.Inquiry.repository.InquiryRepository;
 import com.loop.loop_backend.Report.domain.AppealStatus;
 import com.loop.loop_backend.Report.domain.Report;
@@ -520,7 +521,7 @@ public class AdminController {
     }
 
     public record InquiryRow(Long id, Long userId, String userNickname, String userEmail,
-                             String type, String title, String content, LocalDateTime createdAt) {
+                             InquiryType type, String title, String content, LocalDateTime createdAt) {
         static InquiryRow of(Inquiry i) {
             return new InquiryRow(i.getId(),
                     i.getUser().getId(), i.getUser().getNickname(), i.getUser().getEmail(),

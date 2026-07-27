@@ -79,3 +79,4 @@ aws:
 discord:
   webhook:
     report: ${DISCORD_REPORT_WEBHOOK_URL:}
+    inquiry: ${DISCORD_INQUIRY_WEBHOOK_URL:}

@@ -24,8 +24,9 @@ public class Inquiry {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "type", nullable = false, length = 50)
-    private String type;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", nullable = false, length = 30)
+    private InquiryType type;
 
     @Column(name = "title", nullable = false, length = 100)
     private String title;
@@ -38,7 +39,7 @@ public class Inquiry {
     private LocalDateTime createdAt;
 
     @Builder
-    private Inquiry(User user, String type, String title, String content) {
+    private Inquiry(User user, InquiryType type, String title, String content) {
         this.user = user;
         this.type = type;
         this.title = title;
