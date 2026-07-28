@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,9 +18,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+// 인증 없이 임의 계정(ADMIN 포함)을 생성/로그인시키는 API라 운영(docker) 프로필에서는 빈 자체를 등록하지 않는다.
 @RestController
 @RequestMapping("/api/test")
 @RequiredArgsConstructor
+@Profile("!docker")
 @Tag(name = "Test", description = "스웨거 테스트 전용 API (운영 배포 시 제거 예정)")
 public class TestUserController {
 

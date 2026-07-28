@@ -15,12 +15,15 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -79,6 +82,40 @@ public class SecurityConfig {
                         .requestMatchers("/dev/chat-test.html").denyAll()
                         .anyRequest().permitAll());
         return http.build();
+    }
+
+    /**
+     * local 을 제외한 모든 프로필: 스웨거 문서 자체를 별도 Basic Auth로 게이트.
+     * JWT/ADMIN 롤 체계와 무관한 전용 계정(swagger.username/password) 사용 —
+     * 브라우저가 문서 페이지를 열 때 Authorization 헤더를 자동으로 싣지 않기 때문에
+     * ADMIN 롤 체크로는 애초에 로그인 화면조차 못 띄운다.
+     */
+    @Bean
+    @Order(0)
+    @Profile("!local")
+    public SecurityFilterChain swaggerFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .httpBasic(Customizer.withDefaults());
+        return http.build();
+    }
+
+    @Bean
+    @Profile("!local")
+    public InMemoryUserDetailsManager swaggerUserDetailsManager(
+            @Value("${swagger.username}") String username,
+            @Value("${swagger.password}") String password,
+            PasswordEncoder passwordEncoder) {
+        UserDetails swaggerUser = org.springframework.security.core.userdetails.User
+                .withUsername(username)
+                .password(passwordEncoder.encode(password))
+                .roles("SWAGGER")
+                .build();
+        return new InMemoryUserDetailsManager(swaggerUser);
     }
 
     @Bean
