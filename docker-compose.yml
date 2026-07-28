@@ -28,6 +28,8 @@ services:
       AWS_S3_PRIVATE_BUCKET: ${AWS_S3_PRIVATE_BUCKET:-loop-private-storage}
       DISCORD_REPORT_WEBHOOK_URL: ${DISCORD_REPORT_WEBHOOK_URL}
       DISCORD_INQUIRY_WEBHOOK_URL: ${DISCORD_INQUIRY_WEBHOOK_URL}
+      SWAGGER_USERNAME: ${SWAGGER_USERNAME}
+      SWAGGER_PASSWORD: ${SWAGGER_PASSWORD}
     depends_on:
       mysql:
         condition: service_healthy
