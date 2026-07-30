@@ -21,4 +21,7 @@ public interface MailService {
                                          List<ConcertReminderSummary> concerts);
 
     void sendNewChatNotification(String toEmail, String recipientNickname, String partnerNickname, String concertTitle);
+
+    // 관리자 콘솔 테스트용: 타입별 샘플 데이터로 지정 주소에 발송
+    void sendTest(com.loop.loop_backend.Mail.domain.MailType type, String toEmail);
 }

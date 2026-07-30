@@ -6,6 +6,7 @@ import com.loop.loop_backend.Admin.service.AdminAccessLogService;
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Chat.domain.Message;
+import com.loop.loop_backend.Chat.repository.ChatRoomRepository;
 import com.loop.loop_backend.Chat.repository.MessageRepository;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
@@ -16,6 +17,10 @@ import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Inquiry.domain.Inquiry;
 import com.loop.loop_backend.Inquiry.domain.InquiryType;
 import com.loop.loop_backend.Inquiry.repository.InquiryRepository;
+import com.loop.loop_backend.Mail.domain.MailLog;
+import com.loop.loop_backend.Mail.domain.MailType;
+import com.loop.loop_backend.Mail.repository.MailLogRepository;
+import com.loop.loop_backend.Mail.service.MailService;
 import com.loop.loop_backend.Report.domain.AppealStatus;
 import com.loop.loop_backend.Report.domain.Report;
 import com.loop.loop_backend.Report.domain.ReportAction;
@@ -71,6 +76,9 @@ public class AdminController {
     private final ConcertRepository concertRepository;
     private final CompanionPostRepository companionPostRepository;
     private final MessageRepository messageRepository;
+    private final ChatRoomRepository chatRoomRepository;
+    private final MailLogRepository mailLogRepository;
+    private final MailService mailService;
     private final AdminAccessLogRepository accessLogRepository;
     private final AdminAccessLogService accessLog;
     private final S3StorageService s3StorageService;
@@ -90,7 +98,9 @@ public class AdminController {
                 companionPostRepository.count(),
                 companionPostRepository.countByCreatedAtAfter(weekAgo),
                 inquiryRepository.count(),
-                inquiryRepository.countByCreatedAtAfter(weekAgo));
+                inquiryRepository.countByCreatedAtAfter(weekAgo),
+                chatRoomRepository.count(),
+                chatRoomRepository.countActiveRooms());
         return ResponseEntity.ok(CommonResponse.success(stats));
     }
 
@@ -468,6 +478,33 @@ public class AdminController {
         return ResponseEntity.ok(CommonResponse.success(PageResp.from(p.map(AccessLogRow::of))));
     }
 
+    // ================= MAIL LOGS =================
+
+    @GetMapping("/mail-logs")
+    public ResponseEntity<CommonResponse<PageResp<MailLogRow>>> listMailLogs(
+            @RequestParam(required = false) MailType type,
+            @RequestParam(required = false) Boolean success,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<MailLog> p = mailLogRepository.searchForAdmin(type, success, pageable);
+        return ResponseEntity.ok(CommonResponse.success(PageResp.from(p.map(MailLogRow::of))));
+    }
+
+    /** 테스트용: 선택한 타입의 샘플 메일을 입력한 주소로 발송. 발송 결과는 mail-logs 에 그대로 남는다. */
+    @PostMapping("/mail-logs/test")
+    public ResponseEntity<CommonResponse<Void>> sendTestMail(
+            @AuthenticationPrincipal Long adminId, HttpServletRequest req, @RequestBody TestMailReq body) {
+        if (body == null || body.type() == null || body.email() == null || body.email().isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+        mailService.sendTest(body.type(), body.email().trim());
+        accessLog.log(adminId, req, "SEND_TEST_MAIL", "MAIL", null, body.type() + " → " + body.email().trim());
+        return ResponseEntity.ok(CommonResponse.success(null));
+    }
+
+    public record TestMailReq(MailType type, String email) {}
+
     // ================= ADMIN ACCOUNTS =================
 
     @GetMapping("/admins")
@@ -503,7 +540,8 @@ public class AdminController {
             long pendingReports, long pendingAppeals,
             long totalUsers, long newUsersThisWeek,
             long totalPosts, long newPostsThisWeek,
-            long totalInquiries, long newInquiriesThisWeek) {}
+            long totalInquiries, long newInquiriesThisWeek,
+            long totalChatRooms, long activeChatRooms) {}
 
     public record PageResp<T>(List<T> items, int page, int size, long totalElements, int totalPages) {
         static <T> PageResp<T> from(Page<T> p) {
@@ -602,6 +640,14 @@ public class AdminController {
         static AccessLogRow of(AdminAccessLog l) {
             return new AccessLogRow(l.getId(), l.getAdminId(), l.getIp(), l.getAction(),
                     l.getTargetType(), l.getTargetId(), l.getDescription(), l.getCreatedAt());
+        }
+    }
+
+    public record MailLogRow(Long id, MailType type, String toEmail, String subject,
+                             boolean success, String failReason, LocalDateTime sentAt) {
+        static MailLogRow of(MailLog m) {
+            return new MailLogRow(m.getId(), m.getType(), m.getToEmail(), m.getSubject(),
+                    m.isSuccess(), m.getFailReason(), m.getSentAt());
         }
     }
 }

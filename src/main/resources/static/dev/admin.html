@@ -407,6 +407,7 @@
 
         <div class="nav-section">시스템</div>
         <ul class="nav">
+            <li><a href="#mail-logs" data-section="mail-logs" data-title="메일 발송"><span class="icon">✉</span>메일 발송</a></li>
             <li><a href="#access-logs" data-section="access-logs" data-title="접속 기록"><span class="icon">⎔</span>접속기록</a></li>
             <li><a href="#admins" data-section="admins" data-title="관리자 계정"><span class="icon">✦</span>관리자</a></li>
         </ul>
@@ -601,12 +602,13 @@ sections.dashboard = async () => {
         </a>`);
         return a;
     };
-    // ② KPI — 총계 + 주간 신규
-    const kpi = (n, title, week) => el(`<div class="stat">
+    // ② KPI — 총계 + 서브라인
+    const kpi = (n, title, sub) => el(`<div class="stat">
         <div class="n">${n.toLocaleString()}</div>
         <div class="t">${title}</div>
-        <div class="sub">최근 7일 +${week.toLocaleString()}</div>
+        <div class="sub">${sub}</div>
     </div>`);
+    const wk = v => '최근 7일 +' + v.toLocaleString();
 
     const slot = root.querySelector('#dashSlot');
     slot.replaceChildren(el(`<div>
@@ -621,9 +623,10 @@ sections.dashboard = async () => {
         action('warn', s.pendingAppeals, '대기 중 이의제기', '검토가 필요한 이의제기', 'reports'),
     );
     slot.querySelector('#kGrid').append(
-        kpi(s.totalUsers, '전체 회원', s.newUsersThisWeek),
-        kpi(s.totalPosts, '동행 프로필', s.newPostsThisWeek),
-        kpi(s.totalInquiries, '고객센터 문의', s.newInquiriesThisWeek),
+        kpi(s.totalUsers, '전체 회원', wk(s.newUsersThisWeek)),
+        kpi(s.totalPosts, '동행 프로필', wk(s.newPostsThisWeek)),
+        kpi(s.totalInquiries, '고객센터 문의', wk(s.newInquiriesThisWeek)),
+        kpi(s.totalChatRooms, '채팅방', '활성 ' + s.activeChatRooms.toLocaleString()),
     );
 };
 
@@ -1228,6 +1231,82 @@ sections.posts = async () => {
 };
 
 // ---------- ACCESS LOGS ----------
+// ---------- MAIL LOGS ----------
+const MAIL_TYPES = {
+    REPORT: '신고 알림', INQUIRY: '문의 알림', UNREAD_CHAT: '미확인 채팅',
+    VERIFICATION: '인증코드', CONCERT_REMINDER: '공연 리마인드', NEW_CHAT: '새 채팅',
+};
+sections['mail-logs'] = async () => {
+    const state = { page: 0, size: 50, type: '', success: '' };
+    const typeOpts = Object.entries(MAIL_TYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+    const root = el(`<div>
+        <div class="page-header"><div>
+            <div class="page-title">메일 발송</div>
+            <div class="page-sub">발송 이력(메타데이터만) · 테스트 발송</div>
+        </div></div>
+        <div class="card" style="padding:18px 20px; margin-bottom:16px;">
+            <div style="font-weight:600; margin-bottom:12px;">테스트 발송</div>
+            <div class="toolbar" style="margin:0;">
+                <select id="tType">${typeOpts}</select>
+                <input type="email" id="tEmail" placeholder="받는 사람 이메일" style="min-width:220px;" />
+                <button class="btn primary" id="tSend">발송</button>
+            </div>
+            <div class="page-sub" style="margin-top:8px;">샘플 데이터로 실제 발송됩니다. 결과는 아래 목록에 기록돼요.</div>
+        </div>
+        <div class="toolbar">
+            <select id="type"><option value="">타입 전체</option>${typeOpts}</select>
+            <select id="success"><option value="">결과 전체</option><option value="true">성공</option><option value="false">실패</option></select>
+            <button class="btn primary" id="apply">조회</button>
+        </div>
+        <div class="card"><div id="slot"></div></div>
+    </div>`);
+    MAIN().replaceChildren(root);
+
+    async function load() {
+        const d = await api.get('/api/admin/mail-logs', { ...state });
+        const t = el(`<table class="data"><thead><tr>
+            <th>시각</th><th>타입</th><th>수신</th><th>제목</th><th>결과</th>
+        </tr></thead><tbody></tbody></table>`);
+        const tb = t.querySelector('tbody');
+        if (!d.items.length) tb.append(el(`<tr><td colspan="5" class="empty">기록 없음</td></tr>`));
+        d.items.forEach(m => tb.append(el(`<tr>
+            <td>${fmtDate(m.sentAt)}</td>
+            <td><span class="pill blue">${MAIL_TYPES[m.type] || esc(m.type)}</span></td>
+            <td>${esc(m.toEmail) || '-'}</td>
+            <td>${esc(m.subject) || '-'}</td>
+            <td>${m.success
+                ? '<span class="pill green">성공</span>'
+                : `<span class="pill red">실패</span>${m.failReason ? ` <span class="page-sub" title="${esc(m.failReason)}">${esc(m.failReason).slice(0, 40)}</span>` : ''}`}</td>
+        </tr>`)));
+        const slot = root.querySelector('#slot');
+        slot.replaceChildren(t);
+        const pg = renderPager({ ...d, page: state.page, size: state.size });
+        pg.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { state.page += b.dataset.p === 'next' ? 1 : -1; load(); });
+        slot.append(pg);
+    }
+
+    root.querySelector('#tSend').onclick = async () => {
+        const type = root.querySelector('#tType').value;
+        const email = root.querySelector('#tEmail').value.trim();
+        if (!email) { toast('이메일을 입력하세요', true); return; }
+        const btn = root.querySelector('#tSend');
+        btn.disabled = true;
+        try {
+            await api.post('/api/admin/mail-logs/test', { type, email });
+            toast(`${MAIL_TYPES[type]} 메일을 ${email} 로 발송했어요`);
+            state.page = 0; await load();
+        } catch (e) { handleErr(e, '테스트 발송 실패'); }
+        finally { btn.disabled = false; }
+    };
+    root.querySelector('#apply').onclick = () => {
+        state.type = root.querySelector('#type').value;
+        state.success = root.querySelector('#success').value;
+        state.page = 0;
+        load();
+    };
+    await load();
+};
+
 sections['access-logs'] = async () => {
     const state = { page: 0, size: 50, adminId: '', action: '', from: '', to: '' };
     const root = el(`<div>
