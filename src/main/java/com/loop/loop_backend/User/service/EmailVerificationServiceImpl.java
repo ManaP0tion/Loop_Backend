@@ -18,6 +18,7 @@ import java.time.Duration;
 public class EmailVerificationServiceImpl implements EmailVerificationService {
 
     private static final Duration CODE_TTL = Duration.ofMinutes(3);
+    private static final Duration RESEND_COOLDOWN = Duration.ofSeconds(10);
     private static final int HOURLY_SEND_LIMIT = 5;
     private static final Duration HOURLY_SEND_WINDOW = Duration.ofHours(1);
     private static final int DAILY_SEND_LIMIT = 10;
@@ -44,8 +45,19 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
         return "email_verify_send_count_day:" + userId;
     }
 
+    private String cooldownKey(Long userId) {
+        return "email_verify_cooldown:" + userId;
+    }
+
     @Override
     public void sendCode(Long userId, String email) {
+        // 10초 이내 재요청은 응답까지 평소와 완전히 동일하게, 그냥 조용히 무시한다.
+        Boolean acquired = redisTemplate.opsForValue()
+                .setIfAbsent(cooldownKey(userId), "1", RESEND_COOLDOWN);
+        if (Boolean.FALSE.equals(acquired)) {
+            return;
+        }
+
         enforceSendLimit(hourlySendCountKey(userId), HOURLY_SEND_WINDOW, HOURLY_SEND_LIMIT);
         enforceSendLimit(dailySendCountKey(userId), DAILY_SEND_WINDOW, DAILY_SEND_LIMIT);
 
