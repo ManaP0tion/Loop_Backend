@@ -24,8 +24,13 @@ public class Inquiry {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "type", nullable = false, length = 50)
-    private String type;
+    @Convert(converter = InquiryTypeConverter.class)
+    @Column(name = "type", nullable = false, length = 30)
+    private InquiryType type;
+
+    @Convert(converter = InquiryStatusConverter.class)
+    @Column(name = "status", length = 20)
+    private InquiryStatus status;
 
     @Column(name = "title", nullable = false, length = 100)
     private String title;
@@ -38,10 +43,20 @@ public class Inquiry {
     private LocalDateTime createdAt;
 
     @Builder
-    private Inquiry(User user, String type, String title, String content) {
+    private Inquiry(User user, InquiryType type, String title, String content) {
         this.user = user;
         this.type = type;
         this.title = title;
         this.content = content;
+        this.status = InquiryStatus.PENDING;
+    }
+
+    public void updateStatus(InquiryStatus status) {
+        this.status = status;
+    }
+
+    /** 컨버터 기본값과 별개로, 조회 시 레거시 null 방어 */
+    public InquiryStatus getStatus() {
+        return status == null ? InquiryStatus.PENDING : status;
     }
 }

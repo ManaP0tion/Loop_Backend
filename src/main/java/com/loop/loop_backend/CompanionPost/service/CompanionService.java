@@ -21,6 +21,9 @@ public interface CompanionService {
     PageResponseDto<CompanionResponseDto> getNotWatchingCompanions(Long userId, Long concertId, WatchDay watchDay,
                                                                     Gender gender, List<AgeGroup> ageGroups, Pageable pageable);
 
+    PageResponseDto<CompanionResponseDto> getAllCompanions(Long userId, Long concertId, WatchDay watchDay,
+                                                            Gender gender, List<AgeGroup> ageGroups, Pageable pageable);
+
     CompanionDetailResponseDto getCompanion(Long userId, Long companionId);
 
     CompanionResponseDto updateCompanion(Long userId, Long companionId, CompanionRequestDto requestDto);
@@ -34,4 +37,7 @@ public interface CompanionService {
     void deleteCompanion(Long userId, Long companionId);
 
     boolean existsMyCompanion(Long userId, Long companionId);
+
+    // 조회자가 실제로 볼 수 있는(비공개/차단/탈퇴/동성공개 필터링) 동행 프로필 수
+    long countVisibleCompanions(Long concertId, Long userId);
 }

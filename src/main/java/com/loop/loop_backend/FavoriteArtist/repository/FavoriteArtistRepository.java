@@ -17,4 +17,6 @@ public interface FavoriteArtistRepository extends JpaRepository<FavoriteArtist, 
     boolean existsByUserAndArtist(User user, Artist artist);
 
     Optional<FavoriteArtist> findByIdAndUser(Long id, User user);
+
+    void deleteAllByUser(User user);
 }

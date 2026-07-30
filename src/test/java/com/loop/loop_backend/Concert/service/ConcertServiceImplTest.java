@@ -7,6 +7,7 @@ import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
+import com.loop.loop_backend.CompanionPost.service.CompanionService;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
@@ -43,6 +44,7 @@ class ConcertServiceImplTest {
     @Mock ConcertRepository concertRepository;
     @Mock ArtistRepository artistRepository;
     @Mock CompanionPostRepository companionPostRepository;
+    @Mock CompanionService companionService;
     @Mock S3StorageService s3StorageService;
     @InjectMocks ConcertServiceImpl concertService;
 
@@ -120,29 +122,41 @@ class ConcertServiceImplTest {
     }
 
     @Test
-    void 콘서트_단건_조회시_등록된_동행프로필_수가_함께_반환된다() {
+    void 콘서트_단건_조회시_조회자가_볼_수_있는_동행프로필_수가_반환된다() {
         Concert existing = Concert.builder().title("기존 제목").build();
         ReflectionTestUtils.setField(existing, "id", 20L);
         when(concertRepository.findById(20L)).thenReturn(Optional.of(existing));
-        when(companionPostRepository.countByConcert_Id(20L)).thenReturn(3L);
+        when(companionService.countVisibleCompanions(20L, 100L)).thenReturn(3L);
 
-        ConcertResponseDto result = concertService.getConcertById(20L);
+        ConcertResponseDto result = concertService.getConcertById(20L, 100L);
 
         assertThat(result.getCompanionCount()).isEqualTo(3L);
     }
 
     @Test
-    void 콘서트_전체_목록조회시_각_콘서트별_동행프로필_수가_함께_반환된다() {
+    void 콘서트_단건_조회시_조회자마다_다른_동행프로필_수가_반환된다() {
+        Concert existing = Concert.builder().title("기존 제목").build();
+        ReflectionTestUtils.setField(existing, "id", 20L);
+        when(concertRepository.findById(20L)).thenReturn(Optional.of(existing));
+        when(companionService.countVisibleCompanions(20L, 100L)).thenReturn(3L);
+        when(companionService.countVisibleCompanions(20L, 200L)).thenReturn(1L);
+
+        assertThat(concertService.getConcertById(20L, 100L).getCompanionCount()).isEqualTo(3L);
+        assertThat(concertService.getConcertById(20L, 200L).getCompanionCount()).isEqualTo(1L);
+    }
+
+    @Test
+    void 콘서트_전체_목록조회시_각_콘서트별로_조회자가_볼_수_있는_동행프로필_수가_반환된다() {
         Concert concert1 = Concert.builder().title("콘서트1").build();
         ReflectionTestUtils.setField(concert1, "id", 1L);
         Concert concert2 = Concert.builder().title("콘서트2").build();
         ReflectionTestUtils.setField(concert2, "id", 2L);
 
         when(concertRepository.findUpcomingOrUndated(any())).thenReturn(List.of(concert1, concert2));
-        when(companionPostRepository.countByConcert_Id(1L)).thenReturn(5L);
-        when(companionPostRepository.countByConcert_Id(2L)).thenReturn(0L);
+        when(companionService.countVisibleCompanions(1L, 100L)).thenReturn(5L);
+        when(companionService.countVisibleCompanions(2L, 100L)).thenReturn(0L);
 
-        List<ConcertResponseDto> result = concertService.getAllConcerts();
+        List<ConcertResponseDto> result = concertService.getAllConcerts(100L);
 
         assertThat(result).extracting(ConcertResponseDto::getCompanionCount).containsExactly(5L, 0L);
     }

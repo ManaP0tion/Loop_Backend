@@ -30,12 +30,15 @@ spring:
     port: 587
     username: your-gmail-address@gmail.com
     password: your-gmail-app-password
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
+
+# 로컬에서는 SES 대신 지메일 계정을 그대로 재사용해도 됨 (검증된 SES 발신 주소가 없다면)
+ses:
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: your-gmail-address@gmail.com
+    password: your-gmail-app-password
+    from: your-gmail-address@gmail.com
 
 springdoc:
   api-docs:
@@ -51,7 +54,7 @@ jwt:
 
 kakao:
   client-id: local-kakao-client-id
-  redirect-uri: http://localhost:8080/api/auth/kakao/callback
+  allowed-redirect-uris: http://localhost:8080/api/auth/kakao/callback,http://localhost:3000/oauth/callback
   client-secret: local-kakao-client-secret
   auth-url: https://kauth.kakao.com
   api-url: https://kapi.kakao.com

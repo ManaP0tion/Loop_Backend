@@ -1,0 +1,1593 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Loop Admin</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #F5F5F7;
+            --surface: #FFFFFF;
+            --surface-translucent: rgba(255, 255, 255, 0.72);
+            --sidebar-translucent: rgba(250, 250, 252, 0.78);
+            --border: rgba(0, 0, 0, 0.08);
+            --border-strong: rgba(0, 0, 0, 0.14);
+
+            --text: #1D1D1F;
+            --text-sub: #6E6E73;
+            --text-muted: #86868B;
+
+            --accent: #0071E3;
+            --accent-hover: #0077ED;
+            --accent-tint: rgba(0, 113, 227, 0.10);
+
+            --danger: #FF3B30;
+            --warning: #FF9500;
+            --success: #34C759;
+
+            --radius-sm: 6px;
+            --radius: 10px;
+            --radius-lg: 14px;
+
+            --spring: 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+        }
+
+        html, body { height: 100%; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 14px;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            overflow: hidden;
+        }
+
+        .app {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            grid-template-rows: 52px 1fr;
+            grid-template-areas:
+                "sidebar topbar"
+                "sidebar main";
+            height: 100vh;
+        }
+
+        .sidebar {
+            grid-area: sidebar;
+            background: var(--sidebar-translucent);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border-right: 1px solid var(--border);
+            display: flex; flex-direction: column;
+            overflow-y: auto;
+        }
+        .brand {
+            height: 52px; display: flex; align-items: center;
+            padding: 0 20px; font-size: 17px; font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+        .brand .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 10px; }
+
+        .nav-section {
+            padding: 12px 0 4px 20px;
+            font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+            text-transform: uppercase; color: var(--text-muted);
+        }
+        .nav { list-style: none; padding: 4px 8px; display: flex; flex-direction: column; gap: 1px; }
+        .nav a {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 12px; border-radius: var(--radius-sm);
+            font-size: 13px; font-weight: 500;
+            color: var(--text-sub); text-decoration: none;
+            transition: background var(--spring), color var(--spring);
+        }
+        .nav a:hover { background: rgba(0,0,0,0.04); color: var(--text); }
+        .nav a.active { background: var(--accent-tint); color: var(--accent); font-weight: 600; }
+        .nav a:active { transform: scale(0.985); }
+        .nav .icon { width: 16px; opacity: 0.8; display: inline-block; }
+
+        .topbar {
+            grid-area: topbar;
+            display: flex; align-items: center; padding: 0 24px;
+            background: var(--surface-translucent);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border-bottom: 1px solid var(--border);
+            gap: 16px;
+        }
+        .crumbs { font-size: 13px; color: var(--text-sub); }
+        .crumbs strong { color: var(--text); font-weight: 600; }
+        .spacer { flex: 1; }
+
+        .who { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-sub); }
+        .avatar {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: linear-gradient(135deg, #0071E3, #5AC8FA);
+            color: white; display: grid; place-items: center;
+            font-size: 12px; font-weight: 600;
+        }
+
+        .main {
+            grid-area: main;
+            padding: 28px 32px;
+            overflow-y: auto;
+        }
+        .page-header { margin-bottom: 20px; display: flex; align-items: flex-end; gap: 16px; }
+        .page-title {
+            font-size: 24px; font-weight: 700;
+            letter-spacing: -0.022em; line-height: 1.15;
+        }
+        .page-sub { margin-top: 4px; font-size: 12px; color: var(--text-sub); }
+        .page-header .spacer { flex: 1; }
+
+        /* toolbar */
+        .toolbar {
+            display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+        .toolbar input, .toolbar select {
+            padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            font-size: 13px; background: var(--surface); outline: none;
+            transition: border-color var(--spring);
+        }
+        .toolbar input:focus, .toolbar select:focus { border-color: var(--accent); }
+
+        /* buttons */
+        .btn {
+            padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            font-size: 12px; font-weight: 600; cursor: pointer;
+            background: var(--surface); color: var(--text);
+            transition: background var(--spring), transform var(--spring), border-color var(--spring);
+            white-space: nowrap;
+        }
+        .btn:hover { background: rgba(0,0,0,0.03); }
+        .btn:active { transform: scale(0.97); }
+        .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .btn.primary:hover { background: var(--accent-hover); }
+        .btn.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+        .btn.warning { background: var(--warning); color: #fff; border-color: var(--warning); }
+        .btn.ghost { background: transparent; }
+
+        /* table */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03), 0 8px 24px rgba(0,0,0,0.04);
+            overflow: hidden;
+        }
+        /* ===== 대시보드 ===== */
+        .dash-label {
+            font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+            color: var(--text-muted); text-transform: uppercase;
+            margin: 4px 2px 12px;
+        }
+        .dash-grid {
+            display: grid; gap: 14px;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            margin-bottom: 28px;
+        }
+        .stat {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px 22px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03), 0 8px 24px rgba(0,0,0,0.04);
+            transition: transform var(--spring), box-shadow var(--spring);
+        }
+        .stat .n {
+            font-size: 34px; font-weight: 700; line-height: 1.05;
+            letter-spacing: -0.02em; color: var(--text);
+            font-variant-numeric: tabular-nums;
+        }
+        .stat .t { font-size: 13px; color: var(--text-sub); margin-top: 6px; }
+        .stat .sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        /* 처리 대기 액션 카드 — 클릭 가능, 건수 있으면 강조 */
+        .stat.action { cursor: pointer; display: block; }
+        .stat.action:active { transform: scale(0.98); }
+        .stat.action:hover { box-shadow: 0 2px 4px rgba(0,0,0,0.05), 0 12px 32px rgba(0,0,0,0.07); }
+        .stat.action.alert { border-color: color-mix(in srgb, var(--danger) 40%, transparent); background: color-mix(in srgb, var(--danger) 7%, var(--surface)); }
+        .stat.action.alert .n { color: var(--danger); }
+        .stat.action.warn { border-color: color-mix(in srgb, var(--warning) 45%, transparent); background: color-mix(in srgb, var(--warning) 8%, var(--surface)); }
+        .stat.action.warn .n { color: var(--warning); }
+        .stat.action.clear .n { color: var(--text-muted); }
+        @media (prefers-reduced-motion: reduce) {
+            .stat, .stat.action:active { transition: none; transform: none; }
+        }
+        table.data {
+            width: 100%; border-collapse: collapse;
+            font-size: 13px;
+        }
+        table.data thead th {
+            text-align: left; padding: 10px 14px;
+            background: rgba(0,0,0,0.02);
+            font-weight: 600; font-size: 11px;
+            letter-spacing: 0.04em; text-transform: uppercase;
+            color: var(--text-sub);
+            border-bottom: 1px solid var(--border);
+        }
+        table.data tbody td {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+        }
+        table.data tbody tr:last-child td { border-bottom: 0; }
+        table.data tbody tr { transition: background var(--spring); }
+        table.data tbody tr:hover { background: rgba(0,0,0,0.02); }
+        table.data td .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        table.data td .row-actions .btn { padding: 4px 8px; font-size: 11px; }
+
+        .pager {
+            display: flex; align-items: center; gap: 8px;
+            padding: 12px 14px; color: var(--text-sub); font-size: 12px;
+            border-top: 1px solid var(--border);
+            background: rgba(0,0,0,0.01);
+        }
+
+        /* pills */
+        .pill {
+            display: inline-flex; align-items: center;
+            padding: 2px 8px; border-radius: 999px;
+            font-size: 11px; font-weight: 600;
+            background: rgba(0,0,0,0.06); color: var(--text-sub);
+        }
+        .pill.green { background: rgba(52,199,89,0.15); color: #248A3D; }
+        .pill.red { background: rgba(255,59,48,0.12); color: #B4231A; }
+        .pill.orange { background: rgba(255,149,0,0.15); color: #A96500; }
+        .pill.blue { background: rgba(0,113,227,0.12); color: #005BB5; }
+        .pill.gray { background: rgba(0,0,0,0.06); color: var(--text-sub); }
+
+        /* hidden 속성은 display: none 과 동등하지만, 아래 .login-wrap/.app 의 display: grid 가
+           덮어써서 실제로 숨겨지지 않는다. 어트리뷰트 셀렉터로 다시 강제. */
+        [hidden] { display: none !important; }
+
+        /* login */
+        .login-wrap {
+            position: fixed; inset: 0;
+            display: grid; place-items: center;
+            background: var(--bg);
+        }
+        .login-card {
+            width: 380px; padding: 28px;
+            background: var(--surface);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 40px rgba(0,0,0,0.08);
+        }
+        .login-card h2 { font-size: 20px; letter-spacing: -0.02em; margin-bottom: 4px; }
+        .login-card p { font-size: 12px; color: var(--text-sub); margin-bottom: 20px; }
+        .login-card label { display: block; font-size: 11px; color: var(--text-sub); margin: 12px 0 4px; }
+        .login-card input {
+            width: 100%; padding: 8px 12px;
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            font-size: 13px; background: var(--surface); outline: none;
+            transition: border-color var(--spring);
+        }
+        .login-card input:focus { border-color: var(--accent); }
+        .login-card .btn { width: 100%; margin-top: 16px; padding: 10px; font-size: 13px; }
+        .login-card .hint { margin-top: 12px; font-size: 11px; color: var(--text-muted); text-align: center; }
+
+        /* modal */
+        .modal-scrim {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.36);
+            display: grid; place-items: center;
+            z-index: 50;
+            animation: fade var(--spring);
+        }
+        @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
+        .modal {
+            width: min(560px, 92vw);
+            max-height: 84vh;
+            background: var(--surface);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 24px 80px rgba(0,0,0,0.24);
+            overflow: hidden;
+            display: flex; flex-direction: column;
+            transform: scale(0.96);
+            animation: pop var(--spring) forwards;
+        }
+        @keyframes pop { to { transform: scale(1) } }
+        .modal header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 12px;
+        }
+        .modal header h3 { font-size: 16px; letter-spacing: -0.01em; }
+        .modal header .close { margin-left: auto; }
+        .modal .body { padding: 16px 20px; overflow-y: auto; }
+        .modal .footer {
+            padding: 12px 20px;
+            border-top: 1px solid var(--border);
+            display: flex; gap: 8px; justify-content: flex-end;
+        }
+        .kv { display: grid; grid-template-columns: 100px 1fr; gap: 6px 12px; font-size: 13px; }
+        .kv .k { color: var(--text-sub); }
+        .kv .v { color: var(--text); word-break: break-all; }
+
+        .form-row { margin-bottom: 12px; }
+        .form-row label { display: block; font-size: 11px; color: var(--text-sub); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+        .form-row input, .form-row select, .form-row textarea {
+            width: 100%; padding: 8px 12px;
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            font-size: 13px; background: var(--surface); outline: none;
+            font-family: inherit;
+            transition: border-color var(--spring);
+        }
+        .form-row textarea { min-height: 80px; resize: vertical; }
+        .form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color: var(--accent); }
+
+        .empty {
+            padding: 32px; text-align: center;
+            color: var(--text-muted); font-size: 13px;
+        }
+
+        .chat-log { max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column-reverse; gap: 8px; padding: 4px 0; }
+        .chat-msg { padding: 8px 10px; border-radius: 8px; background: rgba(0,0,0,0.03); font-size: 13px; }
+        .chat-msg .meta { font-size: 10px; color: var(--text-muted); margin-bottom: 2px; }
+
+        .toast {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+            background: rgba(29,29,31,0.92);
+            color: #fff; padding: 10px 16px; border-radius: 10px;
+            font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,0.24);
+            z-index: 200;
+            animation: fade var(--spring);
+        }
+        .toast.err { background: var(--danger); }
+
+        @media (prefers-reduced-motion: reduce) { * { transition-duration: 0.001s !important; animation: none !important; } }
+        @media (prefers-reduced-transparency: reduce) {
+            .sidebar, .topbar { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #1C1C1E;
+                --surface: #2C2C2E;
+                --surface-translucent: rgba(44,44,46,0.72);
+                --sidebar-translucent: rgba(28,28,30,0.78);
+                --border: rgba(255,255,255,0.10);
+                --text: #F5F5F7;
+                --text-sub: #AEAEB2;
+                --text-muted: #8E8E93;
+                --accent-tint: rgba(10,132,255,0.18);
+            }
+            table.data thead th { background: rgba(255,255,255,0.02); }
+            table.data tbody tr:hover { background: rgba(255,255,255,0.03); }
+            .pager { background: rgba(255,255,255,0.02); }
+        }
+    </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginWrap" class="login-wrap" hidden>
+    <div class="login-card">
+        <h2>Loop Admin</h2>
+        <p>카카오 계정으로 로그인하세요. (ADMIN 권한 필요)</p>
+        <button class="btn primary" id="kakaoLoginBtn" style="width:100%;margin-top:12px;background:#FEE500;color:#191919;border:none;">카카오로 로그인</button>
+        <details style="margin-top:16px;">
+            <summary style="font-size:11px;color:var(--text-muted);cursor:pointer;">로컬 관리자 로그인</summary>
+            <div style="margin-top:8px;">
+                <label>아이디</label>
+                <input id="loginUserId" type="text" autocomplete="username" />
+                <label>비밀번호</label>
+                <input id="loginPassword" type="password" autocomplete="current-password" />
+                <button class="btn" id="loginSubmit" style="width:100%;margin-top:8px;">로그인</button>
+            </div>
+        </details>
+    </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="app" hidden>
+    <aside class="sidebar">
+        <div class="brand"><span class="dot"></span>Loop Admin</div>
+
+        <ul class="nav" style="margin-top:8px;">
+            <li><a href="#dashboard" data-section="dashboard" data-title="대시보드"><span class="icon">◉</span>대시보드</a></li>
+        </ul>
+
+        <div class="nav-section">회원 · 신고</div>
+        <ul class="nav">
+            <li><a href="#users" data-section="users" data-title="회원 관리"><span class="icon">◐</span>회원</a></li>
+            <li><a href="#reports" data-section="reports" data-title="신고 관리"><span class="icon">◈</span>신고</a></li>
+            <li><a href="#inquiries" data-section="inquiries" data-title="고객센터 문의"><span class="icon">◇</span>고객센터</a></li>
+        </ul>
+
+        <div class="nav-section">콘텐츠</div>
+        <ul class="nav">
+            <li><a href="#artists" data-section="artists" data-title="아티스트 관리"><span class="icon">♪</span>아티스트</a></li>
+            <li><a href="#concerts" data-section="concerts" data-title="공연 관리"><span class="icon">♬</span>공연</a></li>
+            <li><a href="#posts" data-section="posts" data-title="동행 프로필"><span class="icon">✚</span>동행 프로필</a></li>
+        </ul>
+
+        <div class="nav-section">시스템</div>
+        <ul class="nav">
+            <li><a href="#mail-logs" data-section="mail-logs" data-title="메일 발송"><span class="icon">✉</span>메일 발송</a></li>
+            <li><a href="#access-logs" data-section="access-logs" data-title="접속 기록"><span class="icon">⎔</span>접속기록</a></li>
+            <li><a href="#admins" data-section="admins" data-title="관리자 계정"><span class="icon">✦</span>관리자</a></li>
+        </ul>
+
+        <div style="margin-top:auto; padding:16px 20px; font-size:11px; color:var(--text-muted); border-top:1px solid var(--border);">
+            <div>API: <code>/api/admin</code></div>
+        </div>
+    </aside>
+
+    <header class="topbar">
+        <div class="crumbs">Loop · <strong id="crumb-current">회원 관리</strong></div>
+        <div class="spacer"></div>
+        <div class="who">
+            <span id="sessionTimer" title="자동 로그아웃까지 남은 시간"
+                  style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; color: var(--text-sub); padding: 4px 8px; border:1px solid var(--border); border-radius:6px; margin-right:8px;">--:--</span>
+            <div class="avatar" id="meAvatar">?</div>
+            <span id="meLabel">-</span>
+            <button class="btn ghost" id="logoutBtn" style="margin-left:8px;">로그아웃</button>
+        </div>
+    </header>
+
+    <main class="main" id="main-content"><!-- rendered by JS --></main>
+</div>
+
+<div id="modalRoot"></div>
+
+<script>
+// ============ API ============
+const API_BASE = '';
+const TOKEN_KEY = 'loop-admin-token';
+const ME_KEY = 'loop-admin-me';
+const LAST_ACT_KEY = 'loop-admin-last-act';
+const IDLE_MS = 15 * 60 * 1000; // 15분 무동작 시 자동 로그아웃
+
+const api = {
+    _token: () => localStorage.getItem(TOKEN_KEY),
+    _headers: (json = true) => {
+        const h = { 'Authorization': 'Bearer ' + api._token() };
+        if (json) h['Content-Type'] = 'application/json';
+        return h;
+    },
+    _url: (path, params) => {
+        const url = new URL(API_BASE + path, location.origin);
+        if (params) Object.entries(params).forEach(([k, v]) => {
+            if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
+        });
+        return url.pathname + url.search;
+    },
+    async _req(method, path, body, params) {
+        const res = await fetch(api._url(path, params), {
+            method,
+            headers: api._headers(!!body),
+            body: body ? JSON.stringify(body) : undefined,
+        });
+        const ct = res.headers.get('content-type') || '';
+        const payload = ct.includes('json') ? await res.json().catch(() => null) : await res.text();
+        if (!res.ok) throw { status: res.status, payload };
+        return payload && payload.data !== undefined ? payload.data : payload;
+    },
+    get: (p, params) => api._req('GET', p, null, params),
+    post: (p, b) => api._req('POST', p, b),
+    put: (p, b) => api._req('PUT', p, b),
+    patch: (p, b) => api._req('PATCH', p, b),
+    del: (p) => api._req('DELETE', p),
+    async upload(path, file, field = 'image') {
+        const fd = new FormData();
+        fd.append(field, file);
+        const res = await fetch(api._url(path), {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + api._token() },
+            body: fd,
+        });
+        const payload = await res.json().catch(() => null);
+        if (!res.ok) throw { status: res.status, payload };
+        return payload && payload.data !== undefined ? payload.data : payload;
+    },
+};
+
+// ============ Toast ============
+function toast(msg, isErr = false) {
+    const t = document.createElement('div');
+    t.className = 'toast' + (isErr ? ' err' : '');
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2400);
+}
+
+function handleErr(e, fallback = '오류가 발생했습니다.') {
+    const msg = e && e.payload && e.payload.message ? e.payload.message : (e && e.status === 403 ? '권한이 없습니다.' : fallback);
+    toast(msg, true);
+    console.error(e);
+}
+
+// ============ Modal ============
+const modal = {
+    open({ title, body, footer, wide }) {
+        modal.close();
+        const scrim = document.createElement('div');
+        scrim.className = 'modal-scrim';
+        scrim.innerHTML = `
+            <div class="modal" style="${wide ? 'width:min(760px,92vw)' : ''}">
+                <header>
+                    <h3>${title}</h3>
+                    <button class="btn ghost close">닫기</button>
+                </header>
+                <div class="body"></div>
+                <div class="footer"></div>
+            </div>`;
+        scrim.querySelector('.body').append(body);
+        if (footer) scrim.querySelector('.footer').append(footer);
+        else scrim.querySelector('.footer').remove();
+        scrim.querySelector('.close').onclick = modal.close;
+        scrim.addEventListener('click', e => { if (e.target === scrim) modal.close(); });
+        document.getElementById('modalRoot').append(scrim);
+    },
+    close() {
+        const root = document.getElementById('modalRoot');
+        while (root.firstChild) root.removeChild(root.firstChild);
+    },
+};
+
+function el(html) {
+    const t = document.createElement('template');
+    t.innerHTML = html.trim();
+    return t.content.firstChild;
+}
+
+function fmtDate(s) {
+    if (!s) return '-';
+    const d = new Date(s);
+    return d.toLocaleString('ko-KR', { hour12: false });
+}
+function esc(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+function statusPill(s) {
+    const map = { ACTIVE: 'green', SUSPENDED: 'orange', WITHDRAWN: 'gray', INACTIVE: 'gray',
+                  RECEIVED: 'blue', PROCESSING: 'orange', ACTION_TAKEN: 'green', CLOSED: 'gray',
+                  NONE: 'gray', RAISED: 'orange', UPHELD: 'red', OVERTURNED: 'green' };
+    return `<span class="pill ${map[s] || 'gray'}">${esc(s || '-')}</span>`;
+}
+
+// ============ Pager ============
+function renderPager(state, onChange) {
+    return el(`<div class="pager">
+        <span>${state.page * state.size + 1}–${Math.min((state.page + 1) * state.size, state.totalElements)} / ${state.totalElements}건</span>
+        <span class="spacer" style="flex:1"></span>
+        <button class="btn ghost" ${state.page === 0 ? 'disabled' : ''} data-p="prev">이전</button>
+        <span>페이지 ${state.page + 1} / ${Math.max(state.totalPages, 1)}</span>
+        <button class="btn ghost" ${state.page + 1 >= state.totalPages ? 'disabled' : ''} data-p="next">다음</button>
+    </div>`);
+}
+
+// ============ Sections ============
+const sections = {};
+const MAIN = () => document.getElementById('main-content');
+
+function setActive(name) {
+    document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('active', a.dataset.section === name));
+    const a = document.querySelector(`.nav a[data-section="${name}"]`);
+    if (a) document.getElementById('crumb-current').textContent = a.dataset.title;
+}
+
+async function route() {
+    const hash = location.hash.slice(1) || 'dashboard';
+    const [name, ...rest] = hash.split('/');
+    if (!sections[name]) { location.hash = 'dashboard'; return; }
+    setActive(name);
+    try { await sections[name](rest); } catch (e) { handleErr(e, '섹션 로드 실패'); }
+}
+
+// ---------- DASHBOARD ----------
+sections.dashboard = async () => {
+    const root = el(`<div>
+        <div class="page-header">
+            <div><div class="page-title">대시보드</div><div class="page-sub">지금 처리해야 할 일과 서비스 현황</div></div>
+        </div>
+        <div id="dashSlot"><div class="card"><div class="empty" style="padding:40px;">불러오는 중…</div></div></div>
+    </div>`);
+    MAIN().replaceChildren(root);
+
+    const s = await api.get('/api/admin/dashboard');
+
+    // ① 처리 대기 큐 — 건수 있으면 색 강조, 클릭 시 해당 섹션으로
+    const action = (cls, n, title, sub, hash) => {
+        const on = n > 0;
+        const a = el(`<a href="#${hash}" class="stat action ${on ? cls : 'clear'}">
+            <div class="n">${n}</div>
+            <div class="t">${title}</div>
+            <div class="sub">${on ? sub : '대기 없음'}</div>
+        </a>`);
+        return a;
+    };
+    // ② KPI — 총계 + 서브라인
+    const kpi = (n, title, sub) => el(`<div class="stat">
+        <div class="n">${n.toLocaleString()}</div>
+        <div class="t">${title}</div>
+        <div class="sub">${sub}</div>
+    </div>`);
+    const wk = v => '최근 7일 +' + v.toLocaleString();
+
+    const slot = root.querySelector('#dashSlot');
+    slot.replaceChildren(el(`<div>
+        <div class="dash-label">처리 대기</div>
+        <div class="dash-grid" id="qGrid"></div>
+        <div class="dash-label">서비스 현황</div>
+        <div class="dash-grid" id="kGrid"></div>
+    </div>`));
+
+    slot.querySelector('#qGrid').append(
+        action('alert', s.pendingReports, '처리 대기 신고', '접수·처리중인 신고', 'reports'),
+        action('warn', s.pendingAppeals, '대기 중 이의제기', '검토가 필요한 이의제기', 'reports'),
+    );
+    slot.querySelector('#kGrid').append(
+        kpi(s.totalUsers, '전체 회원', wk(s.newUsersThisWeek)),
+        kpi(s.totalPosts, '동행 프로필', wk(s.newPostsThisWeek)),
+        kpi(s.totalInquiries, '고객센터 문의', wk(s.newInquiriesThisWeek)),
+        kpi(s.totalChatRooms, '채팅방', '활성 ' + s.activeChatRooms.toLocaleString()),
+    );
+};
+
+// ---------- USERS ----------
+sections.users = async () => {
+    const state = { page: 0, size: 20, status: '', role: '', q: '' };
+    const root = el(`<div>
+        <div class="page-header">
+            <div><div class="page-title">회원 관리</div><div class="page-sub">개인정보 접근 기록이 남습니다 (처리방침 제10조 5항)</div></div>
+        </div>
+        <div class="toolbar">
+            <input placeholder="닉네임/이메일/아이디 검색" id="q" />
+            <select id="status"><option value="">상태 전체</option><option>ACTIVE</option><option>SUSPENDED</option><option>WITHDRAWN</option><option>INACTIVE</option></select>
+            <select id="role"><option value="">역할 전체</option><option>USER</option><option>ADMIN</option></select>
+            <button class="btn primary" id="apply">조회</button>
+        </div>
+        <div class="card"><div id="tableSlot"></div></div>
+    </div>`);
+    MAIN().replaceChildren(root);
+
+    async function load() {
+        const data = await api.get('/api/admin/users', { ...state });
+        const table = el(`<table class="data">
+            <thead><tr>
+                <th>ID</th><th>닉네임</th><th>이메일</th><th>성별</th><th>생년월일</th><th>상태</th><th>역할</th><th>가입일</th><th>작업</th>
+            </tr></thead><tbody></tbody></table>`);
+        const tbody = table.querySelector('tbody');
+        if (!data.items.length) tbody.append(el(`<tr><td colspan="9" class="empty">데이터 없음</td></tr>`));
+        data.items.forEach(u => {
+            const tr = el(`<tr>
+                <td>${u.id}</td>
+                <td>${esc(u.nickname)}</td>
+                <td>${esc(u.email) || '-'}</td>
+                <td>${esc(u.gender) || '-'}</td>
+                <td>${esc(u.birthDate) || '-'}</td>
+                <td>${statusPill(u.status)}${u.suspendedUntil ? ` <span class="pill gray">~${fmtDate(u.suspendedUntil)}</span>` : ''}</td>
+                <td>${statusPill(u.role)}</td>
+                <td>${fmtDate(u.createdAt)}</td>
+                <td><div class="row-actions">
+                    <button class="btn" data-a="view">조회</button>
+                    <button class="btn" data-a="edit">수정</button>
+                    <button class="btn warning" data-a="suspend">정지</button>
+                    <button class="btn ghost" data-a="lift">해제</button>
+                    <button class="btn danger" data-a="terminate">해지</button>
+                </div></td>
+            </tr>`);
+            tr.querySelectorAll('button[data-a]').forEach(b => b.onclick = () => userAction(b.dataset.a, u, load));
+            tbody.append(tr);
+        });
+        const slot = root.querySelector('#tableSlot');
+        slot.replaceChildren(table);
+        const pager = renderPager({ ...data, page: state.page, size: state.size });
+        pager.querySelectorAll('button[data-p]').forEach(b => b.onclick = () => {
+            state.page += b.dataset.p === 'next' ? 1 : -1;
+            load();
+        });
+        slot.append(pager);
+    }
+    root.querySelector('#apply').onclick = () => {
+        state.q = root.querySelector('#q').value;
+        state.status = root.querySelector('#status').value;
+        state.role = root.querySelector('#role').value;
+        state.page = 0;
+        load();
+    };
+    await load();
+};
+
+async function userAction(a, u, refresh) {
+    if (a === 'view') {
+        try {
+            const detail = await api.get(`/api/admin/users/${u.id}`);
+            const body = el(`<div class="kv">
+                <span class="k">ID</span><span class="v">${detail.id}</span>
+                <span class="k">닉네임</span><span class="v">${esc(detail.nickname)}</span>
+                <span class="k">아이디</span><span class="v">${esc(detail.userId) || '-'}</span>
+                <span class="k">이메일</span><span class="v">${esc(detail.email) || '-'}</span>
+                <span class="k">성별</span><span class="v">${esc(detail.gender) || '-'}</span>
+                <span class="k">생년월일</span><span class="v">${esc(detail.birthDate) || '-'}</span>
+                <span class="k">상태</span><span class="v">${statusPill(detail.status)}</span>
+                <span class="k">역할</span><span class="v">${statusPill(detail.role)}</span>
+                <span class="k">정지만료</span><span class="v">${fmtDate(detail.suspendedUntil)}</span>
+                <span class="k">가입일</span><span class="v">${fmtDate(detail.createdAt)}</span>
+            </div>`);
+            modal.open({ title: `회원 #${detail.id}`, body });
+        } catch (e) { handleErr(e); }
+        return;
+    }
+    if (a === 'edit') {
+        const body = el(`<div>
+            <div class="form-row"><label>생년월일</label><input type="date" id="bd" value="${u.birthDate || ''}" /></div>
+            <div class="form-row"><label>성별</label>
+                <select id="g">
+                    <option value="">변경 없음</option>
+                    <option value="MALE" ${u.gender === 'MALE' ? 'selected' : ''}>MALE</option>
+                    <option value="FEMALE" ${u.gender === 'FEMALE' ? 'selected' : ''}>FEMALE</option>
+                </select>
+            </div>
+        </div>`);
+        const foot = el(`<div><button class="btn primary" id="save">저장</button></div>`);
+        foot.querySelector('#save').onclick = async () => {
+            try {
+                await api.patch(`/api/admin/users/${u.id}`, {
+                    birthDate: body.querySelector('#bd').value || null,
+                    gender: body.querySelector('#g').value || null,
+                });
+                toast('수정되었습니다.'); modal.close(); refresh();
+            } catch (e) { handleErr(e); }
+        };
+        modal.open({ title: `#${u.id} 성별·생년월일 수정 (약관 제6조 3항)`, body, footer: foot });
+        return;
+    }
+    if (a === 'suspend') {
+        const body = el(`<div>
+            <div class="form-row"><label>정지 기간 (일). 비우면 영구</label><input type="number" id="d" value="30" min="1" /></div>
+            <div class="form-row"><label>사유</label><textarea id="r" placeholder="예: 신고 #12 관련 이용약관 위반"></textarea></div>
+        </div>`);
+        const foot = el(`<div><button class="btn warning" id="ok">정지 적용</button></div>`);
+        foot.querySelector('#ok').onclick = async () => {
+            try {
+                const d = body.querySelector('#d').value;
+                await api.post(`/api/admin/users/${u.id}/suspend`, {
+                    days: d === '' ? null : Number(d),
+                    reason: body.querySelector('#r').value,
+                });
+                toast('정지되었습니다.'); modal.close(); refresh();
+            } catch (e) { handleErr(e); }
+        };
+        modal.open({ title: `#${u.id} 이용정지`, body, footer: foot });
+        return;
+    }
+    if (a === 'lift') {
+        if (!confirm('정지를 해제하시겠습니까?')) return;
+        try { await api.post(`/api/admin/users/${u.id}/lift`, {}); toast('해제되었습니다.'); refresh(); }
+        catch (e) { handleErr(e); }
+        return;
+    }
+    if (a === 'terminate') {
+        if (!confirm('계정을 해지(탈퇴 처리)하시겠습니까?')) return;
+        try { await api.post(`/api/admin/users/${u.id}/terminate`, {}); toast('해지되었습니다.'); refresh(); }
+        catch (e) { handleErr(e); }
+    }
+}
+
+// ---------- REPORTS ----------
+sections.reports = async () => {
+    const state = { page: 0, size: 20, status: '', appeal: '' };
+    const root = el(`<div>
+        <div class="page-header">
+            <div><div class="page-title">신고 관리</div><div class="page-sub">접수 · 처리중 · 조치완료 · 종결 · 이의제기</div></div>
+        </div>
+        <div class="toolbar">
+            <select id="status"><option value="">상태 전체</option><option>RECEIVED</option><option>PROCESSING</option><option>ACTION_TAKEN</option><option>CLOSED</option></select>
+            <select id="appeal"><option value="">이의제기 전체</option><option>NONE</option><option>RAISED</option><option>UPHELD</option><option>OVERTURNED</option></select>
+            <button class="btn primary" id="apply">조회</button>
+        </div>
+        <div class="card"><div id="tableSlot"></div></div>
+    </div>`);
+    MAIN().replaceChildren(root);
+
+    async function load() {
+        const data = await api.get('/api/admin/reports', { ...state });
+        const table = el(`<table class="data">
+            <thead><tr>
+                <th>ID</th><th>신고자</th><th>피신고자</th><th>사유</th>
+                <th>상태</th><th>조치</th><th>이의제기</th><th>접수일</th><th>작업</th>
+            </tr></thead><tbody></tbody></table>`);
+        const tb = table.querySelector('tbody');
+        if (!data.items.length) tb.append(el(`<tr><td colspan="9" class="empty">신고 없음</td></tr>`));
+        data.items.forEach(r => {
+            const tr = el(`<tr>
+                <td>${r.id}</td>
+                <td>#${r.reporterId} ${esc(r.reporterNickname)}</td>
+                <td>#${r.targetId} ${esc(r.targetNickname)}</td>
+                <td>${esc((r.reason || '').slice(0, 30))}</td>
+                <td>${statusPill(r.status)}</td>
+                <td>${statusPill(r.action)}</td>
+                <td>${statusPill(r.appealStatus)}</td>
+                <td>${fmtDate(r.createdAt)}</td>
+                <td><div class="row-actions">
+                    <button class="btn" data-a="view">상세</button>
+                    <button class="btn" data-a="chat">채팅</button>
+                    <button class="btn warning" data-a="act">조치</button>
+                    <button class="btn ghost" data-a="close">종결</button>
+                    <button class="btn ghost" data-a="appeal">이의제기</button>
+                </div></td>
+            </tr>`);
+            tr.querySelectorAll('button[data-a]').forEach(b => b.onclick = () => reportAction(b.dataset.a, r, load));
+            tb.append(tr);
+        });
+        const slot = root.querySelector('#tableSlot');
+        slot.replaceChildren(table);
+        const pager = renderPager({ ...data, page: state.page, size: state.size });
+        pager.querySelectorAll('button[data-p]').forEach(b => b.onclick = () => {
+            state.page += b.dataset.p === 'next' ? 1 : -1; load();
+        });
+        slot.append(pager);
+    }
+    root.querySelector('#apply').onclick = () => {
+        state.status = root.querySelector('#status').value;
+        state.appeal = root.querySelector('#appeal').value;
+        state.page = 0; load();
+    };
+    await load();
+};
+
+async function reportAction(a, r, refresh) {
+    if (a === 'view') {
+        try {
+            const d = await api.get(`/api/admin/reports/${r.id}`);
+            const body = el(`<div class="kv">
+                <span class="k">ID</span><span class="v">${d.id}</span>
+                <span class="k">신고자</span><span class="v">#${d.reporterId} ${esc(d.reporterNickname)}</span>
+                <span class="k">피신고자</span><span class="v">#${d.targetId} ${esc(d.targetNickname)}</span>
+                <span class="k">사유</span><span class="v">${esc(d.reason)}</span>
+                <span class="k">상세</span><span class="v" style="white-space:pre-wrap;">${esc(d.detail)}</span>
+                <span class="k">상태</span><span class="v">${statusPill(d.status)}</span>
+                <span class="k">조치</span><span class="v">${statusPill(d.action)}</span>
+                <span class="k">이의제기</span><span class="v">${statusPill(d.appealStatus)}</span>
+                <span class="k">관리자 메모</span><span class="v" style="white-space:pre-wrap;">${esc(d.adminNote) || '-'}</span>
+                <span class="k">첨부 이미지</span><span class="v">${(d.imageUrls || []).length ? (d.imageUrls).map(u => `<a href="${u}" target="_blank" rel="noreferrer"><img src="${u}" style="max-height:120px;margin:4px;border-radius:6px;" /></a>`).join('') : '-'}</span>
+                <span class="k">접수</span><span class="v">${fmtDate(d.createdAt)}</span>
+                <span class="k">처리</span><span class="v">${fmtDate(d.processedAt)}</span>
+            </div>`);
+            modal.open({ title: `신고 #${d.id}`, body });
+        } catch (e) { handleErr(e); }
+        return;
+    }
+    if (a === 'chat') {
+        try {
+            const msgs = await api.get(`/api/admin/reports/${r.id}/chat`);
+            const body = el(`<div>
+                <div style="font-size:12px;color:var(--text-sub);margin-bottom:8px;">
+                    ${msgs.length ? `${msgs.length}건 (최신순 상위 200건). 열람 사실은 감사 로그에 기록됩니다.` : '이 신고에 연결된 채팅이 없습니다.'}
+                </div>
+                <div class="chat-log"></div>
+            </div>`);
+            const log = body.querySelector('.chat-log');
+            msgs.forEach(m => log.append(el(`<div class="chat-msg">
+                <div class="meta">#${m.senderId} ${esc(m.senderNickname)} · ${fmtDate(m.createdAt)}</div>
+                <div>${esc(m.content)}</div>
+            </div>`)));
+            modal.open({ title: `신고 #${r.id} 채팅 열람`, body, wide: true });
+        } catch (e) { handleErr(e); }
+        return;
+    }
+    if (a === 'act') {
+        const body = el(`<div>
+            <div class="form-row"><label>조치</label>
+                <select id="act">
+                    <option value="NONE">NONE (기록만)</option>
+                    <option value="SUSPEND_30D" selected>SUSPEND_30D (30일 정지)</option>
+                    <option value="PERMANENT">PERMANENT (영구정지, 약관 제12조 2항)</option>
+                </select>
+            </div>
+            <div class="form-row"><label>관리자 메모</label><textarea id="note"></textarea></div>
+        </div>`);
+        const foot = el(`<div><button class="btn warning" id="ok">조치 적용</button></div>`);
+        foot.querySelector('#ok').onclick = async () => {
+            try {
+                await api.post(`/api/admin/reports/${r.id}/action`, {
+                    action: body.querySelector('#act').value,
+                    note: body.querySelector('#note').value,
+                });
+                toast('조치가 반영되었습니다.'); modal.close(); refresh();
+            } catch (e) { handleErr(e); }
+        };
+        modal.open({ title: `신고 #${r.id} 조치`, body, footer: foot });
+        return;
+    }
+    if (a === 'close') {
+        const body = el(`<div><div class="form-row"><label>사유 (자료 미제출 등 · 약관 제11조 5항)</label><textarea id="note"></textarea></div></div>`);
+        const foot = el(`<div><button class="btn" id="ok">종결</button></div>`);
+        foot.querySelector('#ok').onclick = async () => {
+            try {
+                await api.post(`/api/admin/reports/${r.id}/close`, { note: body.querySelector('#note').value });
+                toast('종결되었습니다.'); modal.close(); refresh();
+            } catch (e) { handleErr(e); }
+        };
+        modal.open({ title: `신고 #${r.id} 종결`, body, footer: foot });
+        return;
+    }
+    if (a === 'appeal') {
+        const body = el(`<div>
+            <p style="font-size:12px;color:var(--text-sub);margin-bottom:12px;">
+                이의제기 접수 후 처리 결과를 저장합니다 (약관 제12조 4·5항).
+            </p>
+            <div class="form-row"><label>단계</label>
+                <select id="step">
+                    <option value="raise">1) 접수만 (RAISED)</option>
+                    <option value="UPHELD">2) 조치유지</option>
+                    <option value="OVERTURNED">3) 조치해제 (대상 정지 자동 해제)</option>
+                </select>
+            </div>
+            <div class="form-row"><label>메모</label><textarea id="note"></textarea></div>
+        </div>`);
+        const foot = el(`<div><button class="btn primary" id="ok">저장</button></div>`);
+        foot.querySelector('#ok').onclick = async () => {
+            try {
+                const step = body.querySelector('#step').value;
+                if (step === 'raise') {
+                    await api.post(`/api/admin/reports/${r.id}/appeal/raise`, {});
+                } else {
+                    await api.post(`/api/admin/reports/${r.id}/appeal/resolve`, {
+                        resolution: step, note: body.querySelector('#note').value,
+                    });
+                }
+                toast('이의제기 상태가 변경되었습니다.'); modal.close(); refresh();
+            } catch (e) { handleErr(e); }
+        };
+        modal.open({ title: `신고 #${r.id} 이의제기`, body, footer: foot });
+    }
+}
+
+// ---------- INQUIRIES ----------
+const INQUIRY_TYPE_LABEL = {
+    COMPANION_SEARCH: '동행찾기 관련', ACCOUNT_LOGIN: '계정/로그인 문제',
+    APP_USAGE: '앱 기능/사용 문의', SUGGESTION: '제안/피드백', OTHER: '기타',
+};
+const inquiryTypeLabel = t => INQUIRY_TYPE_LABEL[t] || t || '-';
+const INQUIRY_STATUS_LABEL = { PENDING: '진행 중', DONE: '완료' };
+const inquiryStatusLabel = s => INQUIRY_STATUS_LABEL[s] || '진행 중';
+sections.inquiries = async () => {
+    const state = { page: 0, size: 20 };
+    const root = el(`<div>
+        <div class="page-header"><div><div class="page-title">고객센터 문의</div><div class="page-sub">개인정보 포함 시 조회 기록이 남습니다</div></div></div>
+        <div class="card"><div id="slot"></div></div>
+    </div>`);
+    MAIN().replaceChildren(root);
+
+    async function load() {
+        const d = await api.get('/api/admin/inquiries', { ...state });
+        const t = el(`<table class="data"><thead><tr>
+            <th>ID</th><th>사용자</th><th>유형</th><th>제목</th><th>진행 현황</th><th>등록일</th><th>작업</th>
+        </tr></thead><tbody></tbody></table>`);
+        const tb = t.querySelector('tbody');
+        if (!d.items.length) tb.append(el(`<tr><td colspan="7" class="empty">문의 없음</td></tr>`));
+        d.items.forEach(i => {
+            const done = i.status === 'DONE';
+            const tr = el(`<tr>
+                <td>${i.id}</td><td>#${i.userId} ${esc(i.userNickname)}</td>
+                <td>${esc(inquiryTypeLabel(i.type))}</td><td>${esc(i.title)}</td>
+                <td><span class="pill ${done ? 'gray' : ''}">${inquiryStatusLabel(i.status)}</span></td>
+                <td>${fmtDate(i.createdAt)}</td>
+                <td class="row-actions">
+                    <button class="btn" data-a="view">상세</button>
+                    <button class="btn" data-a="toggle">${done ? '진행 중으로' : '완료 처리'}</button>
+                </td>
+            </tr>`);
+            tr.querySelector('[data-a=toggle]').onclick = async () => {
+                try {
+                    await api.patch(`/api/admin/inquiries/${i.id}/status`, { status: done ? 'PENDING' : 'DONE' });
+                    toast('상태가 변경되었습니다.');
+                    load();
+                } catch (e) { handleErr(e); }
+            };
+            tr.querySelector('[data-a=view]').onclick = async () => {
+                try {
+                    const de = await api.get(`/api/admin/inquiries/${i.id}`);
+                    const body = el(`<div class="kv">
+                        <span class="k">사용자</span><span class="v">#${de.userId} ${esc(de.userNickname)} (${esc(de.userEmail) || '-'})</span>
+                        <span class="k">유형</span><span class="v">${esc(inquiryTypeLabel(de.type))}</span>
+                        <span class="k">진행 현황</span><span class="v">${inquiryStatusLabel(de.status)}</span>
+                        <span class="k">제목</span><span class="v">${esc(de.title)}</span>
+                        <span class="k">내용</span><span class="v" style="white-space:pre-wrap;">${esc(de.content)}</span>
+                        <span class="k">등록</span><span class="v">${fmtDate(de.createdAt)}</span>
+                    </div>`);
+                    modal.open({ title: `문의 #${de.id}`, body });
+                } catch (e) { handleErr(e); }
+            };
+            tb.append(tr);
+        });
+        const slot = root.querySelector('#slot');
+        slot.replaceChildren(t);
+        const p = renderPager({ ...d, page: state.page, size: state.size });
+        p.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { state.page += b.dataset.p === 'next' ? 1 : -1; load(); });
+        slot.append(p);
+    }
+    await load();
+};
+
+// ---------- ARTISTS ----------
+sections.artists = async () => {
+    const root = el(`<div>
+        <div class="page-header">
+            <div><div class="page-title">아티스트 관리</div><div class="page-sub">삭제 시 관련 콘서트 함께 삭제 (cascade)</div></div>
+            <div class="spacer" style="flex:1"></div>
+            <button class="btn primary" id="new">+ 아티스트 등록</button>
+        </div>
+        <div class="toolbar">
+            <input placeholder="이름/Base/한글/Alias 검색" id="q" />
+        </div>
+        <div class="card"><div id="slot"></div></div>
+    </div>`);
+    MAIN().replaceChildren(root);
+
+    let all = [];
+    root.querySelector('#q').oninput = render;
+
+    async function load() {
+        all = await api.get('/api/admin/artists');
+        render();
+    }
+
+    function render() {
+        const q = root.querySelector('#q').value.trim().toLowerCase();
+        const arr = q
+            ? all.filter(a => [a.name, a.baseName, a.nameKo, a.nameAlias]
+                .some(v => (v || '').toLowerCase().includes(q)))
+            : all;
+        const t = el(`<table class="data"><thead><tr>
+            <th>ID</th><th>이름</th><th>Base</th><th>한글</th><th>카테고리</th><th>이미지</th><th>작업</th>
+        </tr></thead><tbody></tbody></table>`);
+        const tb = t.querySelector('tbody');
+        if (!arr.length) tb.append(el(`<tr><td colspan="7" class="empty">아티스트 없음</td></tr>`));
+        arr.forEach(a => {
+            const thumb = a.imageUrl
+                ? `<a href="${esc(a.imageUrl)}" target="_blank" title="원본 열기"><img src="${esc(a.imageUrl)}" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--border);display:block;" /></a>`
+                : '<span style="color:var(--text-muted);">-</span>';
+            const tr = el(`<tr>
+                <td>${a.id}</td><td>${esc(a.name)}</td><td>${esc(a.baseName) || '-'}</td>
+                <td>${esc(a.nameKo) || '-'}</td><td><span class="pill blue">${esc(a.category)}</span></td>
+                <td>${thumb}</td>
+                <td><div class="row-actions">
+                    <button class="btn" data-a="edit">수정</button>
+                    <button class="btn danger" data-a="del">삭제</button>
+                </div></td>
+            </tr>`);
+            tr.querySelector('[data-a=edit]').onclick = () => artistForm(a, load);
+            tr.querySelector('[data-a=del]').onclick = async () => {
+                if (!confirm('아티스트를 삭제합니다. 관련 콘서트도 함께 삭제됩니다.')) return;
+                try { await api.del(`/api/admin/artists/${a.id}`); toast('삭제되었습니다.'); load(); }
+                catch (e) { handleErr(e); }
+            };
+            tb.append(tr);
+        });
+        root.querySelector('#slot').replaceChildren(t);
+    }
+    root.querySelector('#new').onclick = () => artistForm(null, load);
+    await load();
+};
+
+function artistForm(a, refresh) {
+    const cats = ['J_POP_ARTIST', 'DOMESTIC_ARTIST', 'JAPAN_FESTIVAL', 'DOMESTIC_FESTIVAL'];
+    const body = el(`<div>
+        <div class="form-row"><label>이름 (필수)</label><input id="name" value="${esc(a?.name || '')}" /></div>
+        <div class="form-row"><label>Base Name</label><input id="baseName" value="${esc(a?.baseName || '')}" /></div>
+        <div class="form-row"><label>한글명</label><input id="nameKo" value="${esc(a?.nameKo || '')}" /></div>
+        <div class="form-row"><label>Alias</label><input id="nameAlias" value="${esc(a?.nameAlias || '')}" /></div>
+        <div class="form-row"><label>이미지 URL (자동 채워짐)</label><input id="imageUrl" value="${esc(a?.imageUrl || '')}" placeholder="파일 업로드 시 자동 갱신" /></div>
+        <div class="form-row">
+            <label>이미지 파일 (jpg/png/webp, 5MB 이하)</label>
+            <input id="imageFile" type="file" accept="image/jpeg,image/png,image/webp" />
+            ${a?.imageUrl ? `<div style="margin-top:8px;"><img src="${esc(a.imageUrl)}" alt="" style="max-height:120px;border-radius:6px;" /></div>` : ''}
+        </div>
+        <div class="form-row"><label>카테고리</label>
+            <select id="category">${cats.map(c => `<option ${a?.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
+        </div>
+    </div>`);
+    const foot = el(`<div><button class="btn primary" id="ok">${a ? '저장' : '등록'}</button></div>`);
+    foot.querySelector('#ok').onclick = async () => {
+        const file = body.querySelector('#imageFile').files[0];
+        const payload = {
+            name: body.querySelector('#name').value,
+            baseName: body.querySelector('#baseName').value || null,
+            nameKo: body.querySelector('#nameKo').value || null,
+            nameAlias: body.querySelector('#nameAlias').value || null,
+            imageUrl: body.querySelector('#imageUrl').value || null,
+            category: body.querySelector('#category').value,
+        };
+        try {
+            // 1) 먼저 JSON으로 저장(신규는 id 확보) 2) 파일이 있으면 S3 업로드 → 서버가 imageUrl 갱신
+            const saved = a
+                ? await api.put(`/api/admin/artists/${a.id}`, payload)
+                : await api.post('/api/admin/artists', payload);
+            if (file) {
+                await api.upload(`/api/admin/artists/${saved.id}/image`, file);
+            }
+            toast('저장되었습니다.'); modal.close(); refresh();
+        } catch (e) { handleErr(e); }
+    };
+    modal.open({ title: a ? `아티스트 #${a.id} 수정` : '아티스트 등록', body, footer: foot });
+}
+
+// ---------- CONCERTS ----------
+sections.concerts = async () => {
+    const state = { page: 0, size: 20, q: '' };
+    const root = el(`<div>
+        <div class="page-header">
+            <div><div class="page-title">공연 관리</div><div class="page-sub">삭제 시 동행 프로필 함께 삭제 · 채팅방은 보존</div></div>
+            <div class="spacer" style="flex:1"></div>
+            <button class="btn" id="sync">KOPIS 동기화</button>
+            <button class="btn primary" id="new">+ 공연 등록</button>
+        </div>
+        <div class="toolbar">
+            <input placeholder="공연명/장소/아티스트 검색" id="q" />
+            <button class="btn primary" id="apply">조회</button>
+        </div>
+        <div class="card"><div id="slot"></div></div>
+    </div>`);
+    MAIN().replaceChildren(root);
+    root.querySelector('#apply').onclick = () => { state.q = root.querySelector('#q').value; state.page = 0; load(); };
+    root.querySelector('#q').onkeydown = (e) => { if (e.key === 'Enter') root.querySelector('#apply').click(); };
+    root.querySelector('#sync').onclick = async (e) => {
+        if (!confirm('KOPIS에서 공연 정보를 즉시 동기화합니다. 완료까지 시간이 걸릴 수 있습니다.')) return;
+        const btn = e.target; btn.disabled = true; btn.textContent = '동기화 중…';
+        try { await api.post('/api/admin/concerts/sync'); toast('KOPIS 동기화 완료'); load(); }
+        catch (err) { handleErr(err); }
+        finally { btn.disabled = false; btn.textContent = 'KOPIS 동기화'; }
+    };
+
+    async function load() {
+        const d = await api.get('/api/admin/concerts', { ...state });
+        const t = el(`<table class="data"><thead><tr>
+            <th>ID</th><th>아티스트</th><th>제목</th><th>장소</th><th>일자</th><th>카테고리</th><th>포스터</th><th>작업</th>
+        </tr></thead><tbody></tbody></table>`);
+        const tb = t.querySelector('tbody');
+        if (!d.items.length) tb.append(el(`<tr><td colspan="8" class="empty">공연 없음</td></tr>`));
+        d.items.forEach(c => {
+            const tr = el(`<tr>
+                <td>${c.id}</td>
+                <td>#${c.artistId || '-'} ${esc(c.artistName) || ''}</td>
+                <td>${esc(c.title)}</td>
+                <td>${esc(c.venue) || '-'}</td>
+                <td>${esc(c.startDate) || '-'} ~ ${esc(c.endDate) || '-'}</td>
+                <td><span class="pill blue">${esc(c.category)}</span></td>
+                <td>${c.posterUrl ? `<a href="${esc(c.posterUrl)}" target="_blank">보기</a>` : '-'}</td>
+                <td><div class="row-actions">
+                    <button class="btn" data-a="edit">수정</button>
+                    <button class="btn danger" data-a="del">삭제</button>
+                </div></td>
+            </tr>`);
+            tr.querySelector('[data-a=edit]').onclick = async () => concertForm(c, load);
+            tr.querySelector('[data-a=del]').onclick = async () => {
+                if (!confirm('공연을 삭제합니다. 동행 프로필도 함께 삭제됩니다.')) return;
+                try { await api.del(`/api/admin/concerts/${c.id}`); toast('삭제되었습니다.'); load(); }
+                catch (e) { handleErr(e); }
+            };
+            tb.append(tr);
+        });
+        const slot = root.querySelector('#slot');
+        slot.replaceChildren(t);
+        const p = renderPager({ ...d, page: state.page, size: state.size });
+        p.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { state.page += b.dataset.p === 'next' ? 1 : -1; load(); });
+        slot.append(p);
+    }
+    root.querySelector('#new').onclick = () => concertForm(null, load);
+    await load();
+};
+
+async function concertForm(c, refresh) {
+    const artists = await api.get('/api/admin/artists');
+    const cats = ['J_POP_ARTIST', 'DOMESTIC_ARTIST', 'JAPAN_FESTIVAL', 'DOMESTIC_FESTIVAL'];
+    const body = el(`<div>
+        <div class="form-row"><label>아티스트 (페스티벌은 미선택 가능)</label>
+            <select id="artistId"><option value="" ${!c?.artistId ? 'selected' : ''}>-</option>${artists.map(a => `<option value="${a.id}" ${c?.artistId === a.id ? 'selected' : ''}>#${a.id} ${esc(a.name)}</option>`).join('')}</select>
+        </div>
+        <div class="form-row"><label>공연명</label><input id="title" value="${esc(c?.title || '')}" /></div>
+        <div class="form-row"><label>포스터 URL (자동 채워짐)</label><input id="posterUrl" value="${esc(c?.posterUrl || '')}" placeholder="파일 업로드 시 자동 갱신" /></div>
+        <div class="form-row">
+            <label>포스터 이미지 (jpg/png/webp, 5MB 이하)</label>
+            <input id="imageFile" type="file" accept="image/jpeg,image/png,image/webp" />
+            ${c?.posterUrl ? `<div style="margin-top:8px;"><img src="${esc(c.posterUrl)}" alt="" style="max-height:120px;border-radius:6px;" /></div>` : ''}
+        </div>
+        <div class="form-row"><label>장소</label><input id="venue" value="${esc(c?.venue || '')}" /></div>
+        <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div><label>시작일</label><input id="startDate" type="date" value="${c?.startDate || ''}" /></div>
+            <div><label>종료일</label><input id="endDate" type="date" value="${c?.endDate || ''}" /></div>
+        </div>
+        <div class="form-row"><label>카테고리 (미선택 시 아티스트 카테고리 사용)</label>
+            <select id="category"><option value="">(자동)</option>${cats.map(x => `<option ${c?.category === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
+        </div>
+    </div>`);
+    const foot = el(`<div><button class="btn primary" id="ok">${c ? '저장' : '등록'}</button></div>`);
+    foot.querySelector('#ok').onclick = async () => {
+        const file = body.querySelector('#imageFile').files[0];
+        const payload = {
+            artistId: body.querySelector('#artistId').value ? Number(body.querySelector('#artistId').value) : null,
+            title: body.querySelector('#title').value,
+            posterUrl: body.querySelector('#posterUrl').value || null,
+            venue: body.querySelector('#venue').value || null,
+            startDate: body.querySelector('#startDate').value || null,
+            endDate: body.querySelector('#endDate').value || null,
+            category: body.querySelector('#category').value || null,
+        };
+        try {
+            const saved = c
+                ? await api.put(`/api/admin/concerts/${c.id}`, payload)
+                : await api.post('/api/admin/concerts', payload);
+            if (file) {
+                await api.upload(`/api/admin/concerts/${saved.id}/image`, file);
+            }
+            toast('저장되었습니다.'); modal.close(); refresh();
+        } catch (e) { handleErr(e); }
+    };
+    modal.open({ title: c ? `공연 #${c.id} 수정` : '공연 등록', body, footer: foot, wide: true });
+}
+
+// ---------- COMPANION POSTS ----------
+sections.posts = async () => {
+    const state = { page: 0, size: 20 };
+    const root = el(`<div>
+        <div class="page-header"><div>
+            <div class="page-title">동행 프로필</div>
+            <div class="page-sub">관리자 삭제는 약관 위반 게시물 한정 (약관 제13조 3항). 삭제 시 감사 로그.</div>
+        </div></div>
+        <div class="card"><div id="slot"></div></div>
+    </div>`);
+    MAIN().replaceChildren(root);
+
+    async function load() {
+        const d = await api.get('/api/admin/companion-posts', { ...state });
+        const t = el(`<table class="data"><thead><tr>
+            <th>ID</th><th>작성자</th><th>공연</th><th>메시지</th><th>공개</th><th>동성만 연락받기</th><th>등록일</th><th>작업</th>
+        </tr></thead><tbody></tbody></table>`);
+        const tb = t.querySelector('tbody');
+        if (!d.items.length) tb.append(el(`<tr><td colspan="8" class="empty">동행 프로필 없음</td></tr>`));
+        d.items.forEach(p => {
+            const tr = el(`<tr>
+                <td>${p.id}</td>
+                <td>#${p.userId} ${esc(p.userNickname)}</td>
+                <td>#${p.concertId} ${esc(p.concertTitle)}</td>
+                <td>${esc((p.messageToCompanion || '').slice(0, 40))}</td>
+                <td>${p.visible ? '<span class="pill green">공개</span>' : '<span class="pill gray">비공개</span>'}</td>
+                <td>${p.sameGenderOnly ? '<span class="pill blue">ON</span>' : '<span class="pill gray">OFF</span>'}</td>
+                <td>${fmtDate(p.createdAt)}</td>
+                <td><button class="btn danger" data-a="del">삭제</button></td>
+            </tr>`);
+            tr.querySelector('[data-a=del]').onclick = async () => {
+                if (!confirm('이 게시물이 약관 위반으로 확인되었습니까? 삭제 시 감사 로그가 남습니다.')) return;
+                try { await api.del(`/api/admin/companion-posts/${p.id}`); toast('삭제되었습니다.'); load(); }
+                catch (e) { handleErr(e); }
+            };
+            tb.append(tr);
+        });
+        const slot = root.querySelector('#slot');
+        slot.replaceChildren(t);
+        const pg = renderPager({ ...d, page: state.page, size: state.size });
+        pg.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { state.page += b.dataset.p === 'next' ? 1 : -1; load(); });
+        slot.append(pg);
+    }
+    await load();
+};
+
+// ---------- ACCESS LOGS ----------
+// ---------- MAIL LOGS ----------
+const MAIL_TYPES = {
+    REPORT: '신고 알림', INQUIRY: '문의 알림', UNREAD_CHAT: '미확인 채팅',
+    VERIFICATION: '인증코드', CONCERT_REMINDER: '공연 리마인드', NEW_CHAT: '새 채팅',
+};
+sections['mail-logs'] = async () => {
+    const state = { page: 0, size: 50, type: '', success: '' };
+    const typeOpts = Object.entries(MAIL_TYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+    const root = el(`<div>
+        <div class="page-header"><div>
+            <div class="page-title">메일 발송</div>
+            <div class="page-sub">발송 이력(메타데이터만) · 테스트 발송</div>
+        </div></div>
+        <div class="card" style="padding:18px 20px; margin-bottom:16px;">
+            <div style="font-weight:600; margin-bottom:12px;">테스트 발송</div>
+            <div class="toolbar" style="margin:0;">
+                <select id="tType">${typeOpts}</select>
+                <input type="email" id="tEmail" placeholder="받는 사람 이메일" style="min-width:220px;" />
+                <button class="btn primary" id="tSend">발송</button>
+            </div>
+            <div class="page-sub" style="margin-top:8px;">샘플 데이터로 실제 발송됩니다. 결과는 아래 목록에 기록돼요.</div>
+        </div>
+        <div class="toolbar">
+            <select id="type"><option value="">타입 전체</option>${typeOpts}</select>
+            <select id="success"><option value="">결과 전체</option><option value="true">성공</option><option value="false">실패</option></select>
+            <button class="btn primary" id="apply">조회</button>
+        </div>
+        <div class="card"><div id="slot"></div></div>
+    </div>`);
+    MAIN().replaceChildren(root);
+
+    async function load() {
+        const d = await api.get('/api/admin/mail-logs', { ...state });
+        const t = el(`<table class="data"><thead><tr>
+            <th>시각</th><th>타입</th><th>수신</th><th>제목</th><th>결과</th>
+        </tr></thead><tbody></tbody></table>`);
+        const tb = t.querySelector('tbody');
+        if (!d.items.length) tb.append(el(`<tr><td colspan="5" class="empty">기록 없음</td></tr>`));
+        d.items.forEach(m => tb.append(el(`<tr>
+            <td>${fmtDate(m.sentAt)}</td>
+            <td><span class="pill blue">${MAIL_TYPES[m.type] || esc(m.type)}</span></td>
+            <td>${esc(m.toEmail) || '-'}</td>
+            <td>${esc(m.subject) || '-'}</td>
+            <td>${m.success
+                ? '<span class="pill green">성공</span>'
+                : `<span class="pill red">실패</span>${m.failReason ? ` <span class="page-sub" title="${esc(m.failReason)}">${esc(m.failReason).slice(0, 40)}</span>` : ''}`}</td>
+        </tr>`)));
+        const slot = root.querySelector('#slot');
+        slot.replaceChildren(t);
+        const pg = renderPager({ ...d, page: state.page, size: state.size });
+        pg.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { state.page += b.dataset.p === 'next' ? 1 : -1; load(); });
+        slot.append(pg);
+    }
+
+    root.querySelector('#tSend').onclick = async () => {
+        const type = root.querySelector('#tType').value;
+        const email = root.querySelector('#tEmail').value.trim();
+        if (!email) { toast('이메일을 입력하세요', true); return; }
+        const btn = root.querySelector('#tSend');
+        btn.disabled = true;
+        try {
+            await api.post('/api/admin/mail-logs/test', { type, email });
+            toast(`${MAIL_TYPES[type]} 메일을 ${email} 로 발송했어요`);
+            state.page = 0; await load();
+        } catch (e) { handleErr(e, '테스트 발송 실패'); }
+        finally { btn.disabled = false; }
+    };
+    root.querySelector('#apply').onclick = () => {
+        state.type = root.querySelector('#type').value;
+        state.success = root.querySelector('#success').value;
+        state.page = 0;
+        load();
+    };
+    await load();
+};
+
+sections['access-logs'] = async () => {
+    const state = { page: 0, size: 50, adminId: '', action: '', from: '', to: '' };
+    const root = el(`<div>
+        <div class="page-header"><div>
+            <div class="page-title">관리자 접속 기록</div>
+            <div class="page-sub">1년 보관 · 월 1회 점검 (처리방침 제10조 5항)</div>
+        </div></div>
+        <div class="toolbar">
+            <input placeholder="관리자 ID" id="adminId" style="width:100px;" />
+            <input placeholder="Action (예: VIEW_USER)" id="action" />
+            <input type="date" id="from" />
+            <input type="date" id="to" />
+            <button class="btn primary" id="apply">조회</button>
+        </div>
+        <div class="card"><div id="slot"></div></div>
+    </div>`);
+    MAIN().replaceChildren(root);
+
+    async function load() {
+        const d = await api.get('/api/admin/access-logs', { ...state });
+        const t = el(`<table class="data"><thead><tr>
+            <th>시각</th><th>관리자</th><th>IP</th><th>Action</th><th>대상</th><th>설명</th>
+        </tr></thead><tbody></tbody></table>`);
+        const tb = t.querySelector('tbody');
+        if (!d.items.length) tb.append(el(`<tr><td colspan="6" class="empty">기록 없음</td></tr>`));
+        d.items.forEach(l => tb.append(el(`<tr>
+            <td>${fmtDate(l.createdAt)}</td>
+            <td>#${l.adminId}</td>
+            <td><code style="font-size:11px;">${esc(l.ip) || '-'}</code></td>
+            <td><span class="pill blue">${esc(l.action)}</span></td>
+            <td>${l.targetType ? `${esc(l.targetType)} #${l.targetId ?? '-'}` : '-'}</td>
+            <td>${esc(l.description) || '-'}</td>
+        </tr>`)));
+        const slot = root.querySelector('#slot');
+        slot.replaceChildren(t);
+        const pg = renderPager({ ...d, page: state.page, size: state.size });
+        pg.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { state.page += b.dataset.p === 'next' ? 1 : -1; load(); });
+        slot.append(pg);
+    }
+    root.querySelector('#apply').onclick = () => {
+        state.adminId = root.querySelector('#adminId').value;
+        state.action = root.querySelector('#action').value;
+        state.from = root.querySelector('#from').value;
+        state.to = root.querySelector('#to').value;
+        state.page = 0;
+        load();
+    };
+    await load();
+};
+
+// ---------- ADMINS ----------
+sections.admins = async () => {
+    const root = el(`<div>
+        <div class="page-header">
+            <div><div class="page-title">관리자 계정</div><div class="page-sub">권한 부여·해제. PM 기본 부여.</div></div>
+            <div class="spacer" style="flex:1"></div>
+            <button class="btn primary" id="add">+ 관리자 지정</button>
+        </div>
+        <div class="card"><div id="slot"></div></div>
+    </div>`);
+    MAIN().replaceChildren(root);
+
+    async function load() {
+        const arr = await api.get('/api/admin/admins');
+        const t = el(`<table class="data"><thead><tr>
+            <th>ID</th><th>닉네임</th><th>이메일</th><th>가입일</th><th>작업</th>
+        </tr></thead><tbody></tbody></table>`);
+        const tb = t.querySelector('tbody');
+        if (!arr.length) tb.append(el(`<tr><td colspan="5" class="empty">관리자 없음</td></tr>`));
+        arr.forEach(u => {
+            const tr = el(`<tr>
+                <td>${u.id}</td>
+                <td>${esc(u.nickname)}</td>
+                <td>${esc(u.email) || '-'}</td>
+                <td>${fmtDate(u.createdAt)}</td>
+                <td><button class="btn danger" data-a="revoke">권한 해제</button></td>
+            </tr>`);
+            tr.querySelector('[data-a=revoke]').onclick = async () => {
+                if (!confirm(`#${u.id} 의 관리자 권한을 해제합니다.`)) return;
+                try { await api.post(`/api/admin/admins/${u.id}/revoke`, {}); toast('해제되었습니다.'); load(); }
+                catch (e) { handleErr(e); }
+            };
+            tb.append(tr);
+        });
+        root.querySelector('#slot').replaceChildren(t);
+    }
+    root.querySelector('#add').onclick = () => {
+        const body = el(`<div>
+            <p style="font-size:12px;color:var(--text-sub);margin-bottom:12px;">부여할 회원의 사용자 ID를 입력하세요.</p>
+            <div class="form-row"><label>사용자 ID</label><input id="uid" type="number" /></div>
+        </div>`);
+        const foot = el(`<div><button class="btn primary" id="ok">권한 부여</button></div>`);
+        foot.querySelector('#ok').onclick = async () => {
+            const uid = body.querySelector('#uid').value;
+            if (!uid) return;
+            try { await api.post(`/api/admin/admins/${uid}/grant`, {}); toast('부여되었습니다.'); modal.close(); load(); }
+            catch (e) { handleErr(e); }
+        };
+        modal.open({ title: '관리자 지정', body, footer: foot });
+    };
+    await load();
+};
+
+// ============ Login / bootstrap ============
+async function login(userId, password) {
+    const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, password }),
+    });
+    const payload = await res.json();
+    if (!res.ok) throw { status: res.status, payload };
+    const token = payload?.data?.accessToken;
+    if (!token) throw new Error('토큰 없음');
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(LAST_ACT_KEY, Date.now());
+    return token;
+}
+
+function showLogin() {
+    document.getElementById('loginWrap').hidden = false;
+    document.getElementById('app').hidden = true;
+}
+async function showApp() {
+    document.getElementById('loginWrap').hidden = true;
+    document.getElementById('app').hidden = false;
+    // 로그인/카카오 응답엔 닉네임이 없어서(accessToken만) 서버에서 내 정보를 받아와 캐시한다.
+    let me = JSON.parse(localStorage.getItem(ME_KEY) || 'null');
+    if (!me) {
+        try {
+            me = await api.get('/api/users/me');
+            localStorage.setItem(ME_KEY, JSON.stringify(me));
+        } catch (e) { console.error('내 정보 조회 실패:', e); }
+    }
+    const nick = (me && me.nickname) || '관리자';
+    document.getElementById('meLabel').textContent = nick;
+    document.getElementById('meAvatar').textContent = nick.slice(0, 2).toUpperCase();
+}
+
+async function ensureAuthed() {
+    if (!api._token()) { showLogin(); return false; }
+    // 토큰 유효성 quick check — /api/admin/access-logs 가장 가벼움
+    try {
+        await api.get('/api/admin/access-logs', { page: 0, size: 1 });
+        showApp(); return true;
+    } catch (e) {
+        localStorage.removeItem(TOKEN_KEY);
+        showLogin();
+        // 어떤 이유든 사용자가 로그인창이 왜 다시 떴는지 알 수 있게 상세 표시.
+        const msg = e && e.payload && e.payload.message
+                ? e.payload.message
+                : `인증 확인 실패 (status=${e && e.status || 'network'})`;
+        toast(msg, true);
+        console.error('ensureAuthed failed:', e);
+        return false;
+    }
+}
+
+document.getElementById('loginSubmit').onclick = async () => {
+    const uid = document.getElementById('loginUserId').value.trim();
+    const pw = document.getElementById('loginPassword').value;
+    if (!uid || !pw) return toast('아이디/비밀번호를 입력하세요.', true);
+    try {
+        await login(uid, pw);
+        if (await ensureAuthed()) route();
+    } catch (e) { handleErr(e, '로그인 실패'); }
+};
+
+function adminRedirectUri() { return location.origin + location.pathname; }
+
+document.getElementById('kakaoLoginBtn').onclick = async () => {
+    try {
+        const res = await fetch('/api/auth/kakao/client-id');
+        const payload = await res.json();
+        const clientId = payload?.data?.clientId;
+        if (!clientId) return toast('카카오 client-id 설정이 없습니다.', true);
+        const url = `https://kauth.kakao.com/oauth/authorize?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(adminRedirectUri())}&response_type=code`;
+        location.href = url;
+    } catch (e) { handleErr(e, '카카오 로그인 시작 실패'); }
+};
+
+async function handleKakaoCallback() {
+    const params = new URLSearchParams(location.search);
+    const code = params.get('code');
+    if (!code) return false;
+    // URL에서 code 제거 (새로고침 시 재사용 방지)
+    history.replaceState({}, '', location.pathname);
+    try {
+        const res = await fetch('/api/auth/kakao/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, redirectUri: adminRedirectUri() }),
+        });
+        const payload = await res.json();
+        if (!res.ok) throw { status: res.status, payload };
+        const token = payload?.data?.accessToken;
+        if (!token) throw new Error('토큰 없음');
+        localStorage.setItem(TOKEN_KEY, token);
+        localStorage.setItem(LAST_ACT_KEY, Date.now());
+        return true;
+    } catch (e) { handleErr(e, '카카오 로그인 실패'); return false; }
+}
+function doLogout(reason) {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(ME_KEY);
+    localStorage.removeItem(LAST_ACT_KEY);
+    showLogin();
+    if (reason) toast(reason, true);
+}
+document.getElementById('logoutBtn').onclick = () => doLogout();
+
+// ===== 15분 무동작 자동 로그아웃 + 남은 시간 타이머 =====
+const touchAct = () => { if (api._token()) localStorage.setItem(LAST_ACT_KEY, Date.now()); };
+['click', 'keydown', 'mousemove', 'touchstart'].forEach(ev =>
+    document.addEventListener(ev, touchAct, { passive: true }));
+setInterval(() => {
+    const timerEl = document.getElementById('sessionTimer');
+    if (!api._token()) { if (timerEl) timerEl.textContent = '--:--'; return; }
+    const last = +localStorage.getItem(LAST_ACT_KEY) || 0;
+    const remain = IDLE_MS - (Date.now() - last);
+    if (last && remain <= 0) { doLogout('세션이 만료되어 로그아웃되었습니다.'); return; }
+    if (timerEl) {
+        const s = Math.max(0, Math.floor(remain / 1000));
+        timerEl.textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+        timerEl.style.color = s <= 60 ? 'var(--danger, #e5484d)' : 'var(--text-sub)';
+    }
+}, 1000);
+
+document.querySelectorAll('.nav a[data-section]').forEach(a => {
+    a.addEventListener('click', e => { /* hash change triggers route() */ });
+});
+window.addEventListener('hashchange', route);
+
+(async function boot() {
+    await handleKakaoCallback();
+    if (await ensureAuthed()) {
+        if (!location.hash) location.hash = 'dashboard';
+        else route();
+    }
+})();
+</script>
+</body>
+</html>

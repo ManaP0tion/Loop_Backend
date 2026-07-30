@@ -258,6 +258,72 @@
         }
         .modal input:focus { border-color: var(--accent); }
         .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+        .modal textarea {
+            width: 100%; padding: 8px 10px; margin-top: 8px;
+            border: 1.5px solid var(--border); border-radius: 6px;
+            font-size: 13px; outline: none; resize: vertical; min-height: 60px;
+            font-family: inherit;
+        }
+        .modal textarea:focus { border-color: var(--accent); }
+        .modal-hint { font-size: 12px; color: var(--text-sub); line-height: 1.5; margin-bottom: 12px; }
+        .modal .check { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12px; color: var(--text-sub); cursor:pointer; }
+        .modal .check input[type="checkbox"] { width: auto; margin: 0; }
+
+        /* Header overflow menu — familiar dropdown, anchored to trigger.
+           :active 스케일로 즉각 피드백(Response 원칙). */
+        .header-actions { position: relative; }
+        .icon-btn {
+            width: 30px; height: 30px; border-radius: 50%;
+            background: transparent; border: none; cursor: pointer;
+            color: var(--text-sub); font-size: 16px;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.12s, transform 100ms ease-out;
+        }
+        .icon-btn:hover { background: rgba(0,0,0,0.05); color: var(--text); }
+        .icon-btn:active { transform: scale(0.94); }
+
+        .menu {
+            position: absolute; top: calc(100% + 6px); right: 0;
+            min-width: 160px; padding: 6px;
+            background: var(--surface);
+            border: 1px solid var(--border); border-radius: 10px;
+            box-shadow: 0 10px 32px rgba(0,0,0,0.12);
+            z-index: 200;
+            /* Anchor origin at the trigger (top-right) — Spatial consistency */
+            transform-origin: top right;
+            animation: menuIn 180ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        @keyframes menuIn {
+            from { opacity: 0; transform: scale(0.94) translateY(-2px); }
+            to   { opacity: 1; transform: scale(1)    translateY(0); }
+        }
+        .menu-item {
+            display: flex; align-items: center; gap: 10px;
+            width: 100%; padding: 8px 10px;
+            background: transparent; border: none; cursor: pointer;
+            font-size: 13px; color: var(--text); text-align: left;
+            border-radius: 6px;
+            transition: background 0.1s, transform 100ms ease-out;
+        }
+        .menu-item:hover { background: var(--accent-light); }
+        .menu-item:active { transform: scale(0.98); }
+        .menu-item.danger { color: var(--danger); }
+        .menu-item.danger:hover { background: rgba(239,68,68,0.08); }
+        .menu-item .glyph { width: 16px; text-align: center; opacity: 0.75; }
+
+        /* Modal materialize — subtle scale+opacity so it reads as a real surface arriving. */
+        .modal {
+            animation: modalIn 200ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.96); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .menu, .modal, .toast { animation: none; }
+            .icon-btn:active, .menu-item:active { transform: none; }
+        }
     </style>
 </head>
 <body>
@@ -304,6 +370,14 @@
             </div>
             <div class="spacer"></div>
             <button class="btn btn-ghost" style="font-size:11px;" onclick="markAsRead()">읽음 처리</button>
+            <div class="header-actions">
+                <button class="icon-btn" id="menuTrigger" onclick="toggleActionsMenu(event)" aria-label="더보기">⋯</button>
+                <div class="menu" id="actionsMenu" style="display:none;">
+                    <button class="menu-item" onclick="openReportModal()"><span class="glyph">⚑</span>신고</button>
+                    <button class="menu-item danger" onclick="openBlockModal()"><span class="glyph">⊘</span>차단</button>
+                    <button class="menu-item danger" onclick="openLeaveModal()"><span class="glyph">↩</span>채팅방 나가기</button>
+                </div>
+            </div>
         </div>
 
         <div id="placeholder" class="placeholder">
@@ -331,6 +405,45 @@
         <div class="modal-actions">
             <button class="btn btn-ghost" onclick="document.getElementById('directModal').style.display='none'">취소</button>
             <button class="btn btn-primary" onclick="startDirect()">시작</button>
+        </div>
+    </div>
+</div>
+
+<!-- 신고 Modal -->
+<div class="modal-overlay" id="reportModal" style="display:none;" onclick="if(event.target===this)closeReportModal()">
+    <div class="modal">
+        <h3>사용자 신고</h3>
+        <div class="modal-hint">신고 사유를 남겨주세요. 관리자가 확인 후 처리합니다.</div>
+        <input id="reportReason" type="text" placeholder="신고 사유 (예: 부적절한 언행)" />
+        <textarea id="reportDetail" placeholder="상세 설명 (선택)"></textarea>
+        <label class="check"><input id="reportBlockToo" type="checkbox" checked /> 신고와 함께 차단하기</label>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeReportModal()">취소</button>
+            <button class="btn btn-danger" onclick="submitReport()">신고</button>
+        </div>
+    </div>
+</div>
+
+<!-- 차단 Modal -->
+<div class="modal-overlay" id="blockModal" style="display:none;" onclick="if(event.target===this)closeBlockModal()">
+    <div class="modal">
+        <h3>사용자 차단</h3>
+        <div class="modal-hint" id="blockHint">차단하면 서로 메시지를 주고받을 수 없습니다.</div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeBlockModal()">취소</button>
+            <button class="btn btn-danger" onclick="submitBlock()">차단</button>
+        </div>
+    </div>
+</div>
+
+<!-- 나가기 Modal -->
+<div class="modal-overlay" id="leaveModal" style="display:none;" onclick="if(event.target===this)closeLeaveModal()">
+    <div class="modal">
+        <h3>채팅방 나가기</h3>
+        <div class="modal-hint" id="leaveHint">채팅방에서 나가면 이 채팅방이 목록에서 사라집니다.</div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeLeaveModal()">취소</button>
+            <button class="btn btn-danger" onclick="submitLeave()">나가기</button>
         </div>
     </div>
 </div>
@@ -492,7 +605,7 @@
             const res = await fetch(`/api/chat/rooms/${roomId}/messages?page=0&size=30`, { headers: authHeaders() });
             const data = await res.json();
             if (!data.success) throw new Error(data.message);
-            const messages = data.data?.content || [];
+            const messages = data.data?.messages?.content || [];
             if (messages.length) {
                 addDivider('이전 메시지');
                 // API는 최신순 → 화면에는 오래된 순으로
@@ -695,6 +808,134 @@
     }
 
     $('token').addEventListener('change', onTokenChange);
+
+    // ============ Header overflow menu: 신고 / 차단 / 나가기 ============
+    // 메뉴는 트리거 앵커 기준(top-right)에서 열리고, 밖 클릭·ESC 로 즉시 닫힘.
+    function toggleActionsMenu(e) {
+        e.stopPropagation();
+        const menu = $('actionsMenu');
+        const opening = menu.style.display === 'none';
+        menu.style.display = opening ? 'block' : 'none';
+        if (opening) {
+            document.addEventListener('click', closeActionsMenuOnce, { once: true });
+        }
+    }
+    function closeActionsMenu() { $('actionsMenu').style.display = 'none'; }
+    function closeActionsMenuOnce() { closeActionsMenu(); }
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeActionsMenu();
+            ['reportModal', 'blockModal', 'leaveModal'].forEach(id => $(id).style.display = 'none');
+        }
+    });
+
+    function currentOther() {
+        const room = roomsCache.get(currentRoomId);
+        return room ? { userId: room.otherUserId, nickname: room.otherUserNickname } : null;
+    }
+    function requireRoomAndOther() {
+        if (!currentRoomId) { toast('먼저 채팅방을 선택하세요', 'error'); return null; }
+        const o = currentOther();
+        if (!o?.userId) { toast('상대 유저 정보를 찾을 수 없습니다', 'error'); return null; }
+        return o;
+    }
+
+    // ---------- 신고 ----------
+    function openReportModal() {
+        closeActionsMenu();
+        const o = requireRoomAndOther(); if (!o) return;
+        $('reportReason').value = '';
+        $('reportDetail').value = '';
+        $('reportBlockToo').checked = true;
+        $('reportModal').style.display = 'flex';
+        setTimeout(() => $('reportReason').focus(), 30);
+    }
+    function closeReportModal() { $('reportModal').style.display = 'none'; }
+    async function submitReport() {
+        const o = requireRoomAndOther(); if (!o) return;
+        const reason = $('reportReason').value.trim();
+        if (!reason) { toast('신고 사유를 입력하세요', 'error'); return; }
+        // ReportController 는 multipart 만 받으므로 FormData 로 전송 (이미지 없이 request 파트만).
+        const form = new FormData();
+        const request = {
+            targetUserId: o.userId,
+            reason,
+            detail: $('reportDetail').value.trim() || null,
+            blockToo: $('reportBlockToo').checked,
+        };
+        form.append('request', new Blob([JSON.stringify(request)], { type: 'application/json' }));
+        try {
+            const res = await fetch('/api/users/me/reports', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token() },
+                body: form,
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.message);
+            closeReportModal();
+            toast('신고가 접수되었습니다', 'success');
+            await loadRooms();
+        } catch (e) {
+            toast('신고 실패: ' + e.message, 'error');
+        }
+    }
+
+    // ---------- 차단 ----------
+    function openBlockModal() {
+        closeActionsMenu();
+        const o = requireRoomAndOther(); if (!o) return;
+        $('blockHint').textContent = `${o.nickname || '이 사용자'}(ID ${o.userId})를 차단합니다. 서로 메시지를 주고받을 수 없게 됩니다.`;
+        $('blockModal').style.display = 'flex';
+    }
+    function closeBlockModal() { $('blockModal').style.display = 'none'; }
+    async function submitBlock() {
+        const o = requireRoomAndOther(); if (!o) return;
+        try {
+            const res = await fetch('/api/users/me/blocks', {
+                method: 'POST', headers: authHeaders(),
+                body: JSON.stringify({ targetUserId: o.userId }),
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.message);
+            closeBlockModal();
+            toast('차단되었습니다', 'success');
+            await loadRooms();
+        } catch (e) {
+            toast('차단 실패: ' + e.message, 'error');
+        }
+    }
+
+    // ---------- 나가기 ----------
+    function openLeaveModal() {
+        closeActionsMenu();
+        if (!currentRoomId) { toast('먼저 채팅방을 선택하세요', 'error'); return; }
+        $('leaveHint').textContent = `방 #${currentRoomId} 에서 나갑니다. DIRECT 방은 상대가 다시 말을 걸면 이 방이 다시 나타납니다.`;
+        $('leaveModal').style.display = 'flex';
+    }
+    function closeLeaveModal() { $('leaveModal').style.display = 'none'; }
+    async function submitLeave() {
+        if (!currentRoomId) return;
+        try {
+            const res = await fetch(`/api/chat/rooms/${currentRoomId}/leave`, {
+                method: 'PATCH', headers: authHeaders(),
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.message);
+            const leftRoomId = currentRoomId;
+            closeLeaveModal();
+            toast('채팅방에서 나갔습니다', 'success');
+            // 상태 초기화 후 목록 재조회
+            currentSub?.unsubscribe(); currentSub = null;
+            currentRoomId = null;
+            $('chatHeader').style.display = 'none';
+            $('messages').style.display = 'none';
+            $('inputArea').style.display = 'none';
+            $('placeholder').style.display = 'flex';
+            await loadRooms();
+        } catch (e) {
+            toast('나가기 실패: ' + e.message, 'error');
+        }
+    }
 </script>
 </body>
 </html>

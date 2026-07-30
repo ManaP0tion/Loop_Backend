@@ -19,8 +19,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
@@ -52,25 +50,7 @@ public class UserController {
     }
 
 
-    @GetMapping
-    @Operation(summary = "전체 사용자 조회", description = "모든 사용자 목록을 반환합니다")
-    @ApiResponse(responseCode = "200", description = "조회 성공")
-    public ResponseEntity<CommonResponse<List<UserResponseDto>>> getAllUsers() {
-        return ResponseEntity.ok(CommonResponse.success(userService.getAllUsers()));
-    }
-
-    @GetMapping("/{id}")
-    @Operation(summary = "사용자 조회 (PK)", description = "PK로 사용자를 조회합니다")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 성공"),
-            @ApiResponse(responseCode = "404", description = "사용자 없음",
-                    content = @Content(examples = @ExampleObject(
-                            value = "{\"success\":false,\"message\":\"사용자를 찾을 수 없습니다.\",\"code\":404}")))
-    })
-    public ResponseEntity<CommonResponse<UserResponseDto>> getUserById(
-            @Parameter(description = "사용자 PK") @PathVariable Long id) {
-        return ResponseEntity.ok(CommonResponse.success(userService.getUserById(id)));
-    }
+    // GET /api/users, GET /api/users/{id} 는 관리자 전용 /api/admin/users 로 이관 (처리방침 제10조 6항).
 
 //    @GetMapping("/search")
 //    @Operation(summary = "사용자 조회 (아이디)", description = "로그인 아이디로 이메일 사용자를 조회합니다")
@@ -82,6 +62,16 @@ public class UserController {
 //            @Parameter(description = "로그인 아이디") @RequestParam String userId) {
 //        return ResponseEntity.ok(CommonResponse.success(userService.getUserByUserId(userId)));
 //    }
+
+    @GetMapping("/me/nickname-check")
+    @Operation(summary = "닉네임 중복 확인", description = "입력한 닉네임을 지금 저장해도 되는지 미리 확인합니다.")
+    @ApiResponse(responseCode = "200", description = "확인 성공")
+    public ResponseEntity<CommonResponse<NicknameCheckResponseDto>> checkNicknameAvailable(
+            @AuthenticationPrincipal Long userId,
+            @Parameter(description = "확인할 닉네임") @RequestParam String nickname) {
+        boolean available = userService.isNicknameAvailable(userId, nickname);
+        return ResponseEntity.ok(CommonResponse.success(new NicknameCheckResponseDto(available)));
+    }
 
     @PutMapping("/me/profile")
     @Operation(summary = "프로필 수정", description = "로그인한 본인의 닉네임, 프로필 이미지를 수정합니다")
@@ -133,6 +123,25 @@ public class UserController {
             @AuthenticationPrincipal Long userId,
             @Valid @RequestBody OnboardingRequestDto requestDto) {
         return ResponseEntity.ok(CommonResponse.success(userService.completeOnboarding(userId, requestDto)));
+    }
+
+    @PatchMapping("/me/agreements")
+    @Operation(summary = "약관 동의", description = "첫 로그인 시 약관 동의 여부를 저장합니다. " +
+            "만 19세 이상/이용약관/개인정보 수집동의는 필수이고, 프로필 정보 수집동의는 선택입니다. " +
+            "필수 항목 중 하나라도 false면 저장되지 않습니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "동의 저장 성공"),
+            @ApiResponse(responseCode = "400", description = "필수 약관 미동의",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"필수 약관에 모두 동의해야 합니다.\",\"code\":400}"))),
+            @ApiResponse(responseCode = "404", description = "사용자 없음",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"사용자를 찾을 수 없습니다.\",\"code\":404}")))
+    })
+    public ResponseEntity<CommonResponse<UserResponseDto>> agreeToTerms(
+            @AuthenticationPrincipal Long userId,
+            @RequestBody TermsAgreementRequestDto requestDto) {
+        return ResponseEntity.ok(CommonResponse.success(userService.agreeToTerms(userId, requestDto)));
     }
 
     @PatchMapping("/me/notifications")

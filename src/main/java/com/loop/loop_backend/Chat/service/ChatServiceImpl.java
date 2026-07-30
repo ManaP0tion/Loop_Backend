@@ -13,6 +13,7 @@ import com.loop.loop_backend.Chat.dto.ChatMessagesResponseDto;
 import com.loop.loop_backend.Chat.dto.ChatOtherUserRelationDto;
 import com.loop.loop_backend.Chat.dto.ChatReadEventDto;
 import com.loop.loop_backend.Chat.dto.ChatRoomResponseDto;
+import com.loop.loop_backend.Chat.dto.ChatRoomSummaryDto;
 import com.loop.loop_backend.Chat.dto.CreateChatRoomRequestDto;
 import com.loop.loop_backend.Chat.dto.StartDirectChatRequestDto;
 import com.loop.loop_backend.Chat.repository.ChatParticipantRepository;
@@ -21,6 +22,7 @@ import com.loop.loop_backend.Chat.repository.MessageRepository;
 import com.loop.loop_backend.Block.repository.BlockRepository;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
+import com.loop.loop_backend.Mail.service.MailService;
 import com.loop.loop_backend.Report.repository.ReportRepository;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
@@ -34,6 +36,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -53,6 +56,7 @@ public class ChatServiceImpl implements ChatService {
     private final ReportRepository reportRepository;
     private final UserRepository userRepository;
     private final CompanionPostRepository companionPostRepository;
+    private final MailService mailService;
     private final EntityManager em;
     private final SimpMessagingTemplate messagingTemplate;
     private final TransactionTemplate transactionTemplate;
@@ -96,6 +100,13 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
+    // 클래스 레벨 @Transactional(readOnly=true) 를 이 메서드에서 suspend.
+    //  1) 안 하면 transactionTemplate.execute 안의 INSERT 가 readOnly connection 에서 거부됨.
+    //  2) 대신 @Transactional 만 붙이면 tx commit 이 메서드 반환 시점 = synchronized 블록 이후라
+    //     mutex 를 놓은 순간에도 다른 스레드에게 room 이 안 보여 중복 생성이 재발함.
+    //  → NOT_SUPPORTED 로 바깥 tx 를 걸어두지 않고, 안쪽 transactionTemplate 가 REQUIRED 로
+    //     자기 tx 를 만들어 execute() 반환 시(=synchronized 안) 커밋되도록 보장.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public ChatRoomResponseDto startDirectChat(Long myUserId, StartDirectChatRequestDto request) {
         Long targetId = request.getTargetUserId();
         if (myUserId.equals(targetId)) {
@@ -107,6 +118,8 @@ public class ChatServiceImpl implements ChatService {
         String pairKey = ("chat:direct:"
                 + Math.min(myUserId, targetId) + ":" + Math.max(myUserId, targetId)).intern();
         Long roomId;
+        boolean[] isNewRoom = {false}; //새 채팅 메일링 용
+        String[] concertTitleHolder = {null}; //새 채팅 메일링 용 — post.concert는 LAZY라 tx 안에서 미리 읽어둠
         synchronized (pairKey) {
             roomId = transactionTemplate.execute(status -> {
                 // LINE 방식: DIRECT는 페어당 방 1개. hide된(내 participant=LEFT) 방이면 rejoin.
@@ -114,6 +127,7 @@ public class ChatServiceImpl implements ChatService {
                 ChatRoom room;
                 if (existing.isEmpty()) {
                     room = createDirectRoom(myUserId, targetId);
+                    isNewRoom[0] = true;  //새 채팅 메일링 용
                 } else {
                     room = existing.get(0);
                     chatParticipantRepository.findByChatRoom_IdAndUser_Id(room.getId(), myUserId)
@@ -127,16 +141,24 @@ public class ChatServiceImpl implements ChatService {
                         throw new BusinessException(ErrorCode.FORBIDDEN);
                     }
                     room.assignPost(post);
+                    concertTitleHolder[0] = post.getConcert().getTitle();
                 }
                 return room.getId();
             });
         }
 
-        ChatRoom room = chatRoomRepository.findById(roomId)
+        ChatRoomSummaryDto summary = chatRoomRepository.findSummaryById(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         User otherUser = userRepository.findById(targetId).orElse(null);
         ChatOtherUserRelationDto relation = buildRelation(myUserId, targetId, otherUser);
-        return ChatRoomResponseDto.from(room, targetId, otherUser, relation);
+
+        // 진짜 신규 생성(재입장 아님)일 때만, 채팅을 받은 쪽(상대방)에게 알림 메일 발송.
+        if (isNewRoom[0] && otherUser != null) {
+            String myNickname = userRepository.findById(myUserId).map(User::getNickname).orElse("회원");
+            mailService.sendNewChatNotification(otherUser.getEmail(), otherUser.getNickname(), myNickname, concertTitleHolder[0]);
+        }
+
+        return ChatRoomResponseDto.fromSummary(summary, targetId, otherUser, relation);
     }
 
     private ChatRoom createDirectRoom(Long myUserId, Long targetId) {

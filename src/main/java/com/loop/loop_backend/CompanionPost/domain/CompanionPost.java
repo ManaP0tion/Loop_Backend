@@ -52,6 +52,7 @@ public class CompanionPost {
             name = "companion_post_activities",
             joinColumns = @JoinColumn(name = "companion_post_id")
     )
+    @OnDelete(action = OnDeleteAction.CASCADE)
     @Enumerated(EnumType.STRING)
     @Column(name = "activity")
     @NotNull
@@ -108,5 +109,18 @@ public class CompanionPost {
         this.sameGenderOnly = sameGenderOnly;
     }
 
+    // 콘서트 날짜가 미정이면(startDate == null) 관람일도 정할 수 없으므로 null
+    public LocalDate getWatchDate() {
+        LocalDate startDate = concert.getStartDate();
+        return startDate == null ? null : startDate.plusDays(watchDay.ordinal());
+    }
 
+    // 관람일 다음날 오전 10시까지는 노출, 그 이후 만료 처리
+    public boolean isExpired(LocalDateTime now) {
+        LocalDate watchDate = getWatchDate();
+        if (watchDate == null) {
+            return false;
+        }
+        return !now.isBefore(watchDate.plusDays(1).atTime(10, 0));
+    }
 }

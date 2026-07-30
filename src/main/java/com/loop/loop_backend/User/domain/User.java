@@ -34,6 +34,15 @@ public class User {
     @Column(name = "status", nullable = false, length = 10)
     private Status status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 10)
+    @org.hibernate.annotations.ColumnDefault("'USER'")
+    private Role role;
+
+    // 정지 자동 해제 시각 (SUSPENDED 상태에서만 의미). null 이면 영구정지.
+    @Column(name = "suspended_until")
+    private LocalDateTime suspendedUntil;
+
     // 추후 확장 대비
     @Column(name = "user_id", length = 50, unique = true)
     private String userId;
@@ -73,6 +82,23 @@ public class User {
     @Column(name = "chat_notification_email", nullable = false)
     private boolean chatNotificationEmail = true;
 
+    // 약관 동의 (첫 로그인 시 저장) - 나이/이용약관/개인정보 수집은 필수, 프로필 정보 수집은 선택
+    @Column(name = "age19_agreed", nullable = false)
+    private boolean age19Agreed;
+    @Column(name = "terms_agreed", nullable = false)
+    private boolean termsAgreed;
+    @Column(name = "privacy_agreed", nullable = false)
+    private boolean privacyAgreed;
+    @Column(name = "profile_info_agreed", nullable = false)
+    private boolean profileInfoAgreed;
+
+    // 필수 약관(나이/이용약관/개인정보) 동의를 모두 마쳤는지 - onboardingCompleted와 같은 패턴
+    @Column(name = "agreements_completed", nullable = false)
+    private boolean agreementsCompleted;
+
+    @Column(name = "agreed_at")
+    private LocalDateTime agreedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -82,10 +108,11 @@ public class User {
     private LocalDateTime updatedAt;
 
     @Builder
-    private User(AuthProvider authProvider, String providerId,Status status, boolean onboardingCompleted) {
+    private User(AuthProvider authProvider, String providerId,Status status, boolean onboardingCompleted, Role role) {
         this.authProvider = authProvider;
         this.providerId = providerId;
         this.status = status != null ? status : Status.ACTIVE;
+        this.role = role != null ? role : Role.USER;
         this.onboardingCompleted = onboardingCompleted;
     }
 
@@ -105,7 +132,28 @@ public class User {
         this.email = email;
     }
 
+    // 이메일 인증 완료 여부를 별도 플래그 없이 email 존재 여부로 판단 (verifyEmail()에서만 email이 세팅됨)
+    public boolean isEmailVerified() {
+        return email != null;
+    }
+
+    // 필수 항목(age19/terms/privacy) 검증은 서비스 계층에서 하고, 여기선 값 반영만 한다
+    public void agreeToTerms(boolean age19Agreed, boolean termsAgreed, boolean privacyAgreed, boolean profileInfoAgreed) {
+        this.age19Agreed = age19Agreed;
+        this.termsAgreed = termsAgreed;
+        this.privacyAgreed = privacyAgreed;
+        this.profileInfoAgreed = profileInfoAgreed;
+        this.agreementsCompleted = age19Agreed && termsAgreed && privacyAgreed;
+        this.agreedAt = LocalDateTime.now();
+    }
+
     public void changePassword(String encodedPassword) {
+        this.password = encodedPassword;
+    }
+
+    /** dev 전용: 테스트 유저에 로그인 자격(userId/password) 주입. */
+    public void assignEmailCredentials(String userId, String encodedPassword) {
+        this.userId = userId;
         this.password = encodedPassword;
     }
 
@@ -119,12 +167,64 @@ public class User {
                 : null;
     }
 
+    // 차단/제재 이력, 재가입 매칭에 쓰이는 authProvider/providerId는 남기고 나머지 개인정보는 즉시 삭제.
     public void withdraw() {
         this.status = Status.WITHDRAWN;
+        this.email = null;
+        this.nickname = null;
+        this.birthDate = null;
+        this.gender = null;
+        this.profileImageUrl = null;
+        this.userId = null;
+        this.password = null;
+    }
+
+    // 탈퇴 계정 재가입: 같은 계정을 살리되 온보딩부터 새로 하도록 초기화 (약관 동의도 다시 받아야 함)
+    public void reactivate() {
+        this.status = Status.ACTIVE;
+        this.onboardingCompleted = false;
+        this.nickname = null;
+        this.birthDate = null;
+        this.gender = null;
+        this.age19Agreed = false;
+        this.termsAgreed = false;
+        this.privacyAgreed = false;
+        this.profileInfoAgreed = false;
+        this.agreementsCompleted = false;
+        this.agreedAt = null;
     }
 
     public void updateNotificationSettings(Boolean concertReminderEmail, Boolean chatNotificationEmail) {
         if (concertReminderEmail != null) this.concertReminderEmail = concertReminderEmail;
         if (chatNotificationEmail != null) this.chatNotificationEmail = chatNotificationEmail;
+    }
+
+    // 관리자 조작
+    public void suspend(LocalDateTime until) {
+        this.status = Status.SUSPENDED;
+        this.suspendedUntil = until;   // null 이면 영구
+    }
+
+    public void liftSuspension() {
+        this.status = Status.ACTIVE;
+        this.suspendedUntil = null;
+    }
+
+    // suspendedUntil 지났으면 true. null(영구) 이면 false.
+    public boolean isSuspensionExpired() {
+        return status == Status.SUSPENDED && suspendedUntil != null && suspendedUntil.isBefore(LocalDateTime.now());
+    }
+
+    public void terminate() {
+        this.status = Status.WITHDRAWN;
+    }
+
+    public void changeRole(Role role) {
+        this.role = role;
+    }
+
+    public void updateBirthAndGender(java.time.LocalDate birthDate, Gender gender) {
+        if (birthDate != null) this.birthDate = birthDate;
+        if (gender != null) this.gender = gender;
     }
 }

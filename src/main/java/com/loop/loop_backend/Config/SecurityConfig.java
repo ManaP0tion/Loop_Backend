@@ -3,6 +3,7 @@ package com.loop.loop_backend.Config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import com.loop.loop_backend.common.exception.ErrorCode;
+import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.jwt.JwtAuthenticationFilter;
 import com.loop.loop_backend.common.jwt.JwtTokenProvider;
 import jakarta.servlet.http.HttpServletResponse;
@@ -14,12 +15,15 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -39,19 +43,18 @@ public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper;
+    private final UserRepository userRepository;
 
     @Value("${chat.allowed-origins}")
     private String[] allowedOrigins;
 
     /**
-     * 개발/로컬 프로파일에서만 활성화되는 체인.
-     * /api/test/**(테스트 유저 생성) 와 /dev/**(chat-test.html 등 개발 페이지)를 permitAll 처리.
-     * prod 환경에서는 등록되지 않아 자동 차단됨.
+     * local 전용: chat-test.html 포함 /dev/** 전부 개방.
      */
     @Bean
     @Order(1)
-    @Profile({"local", "dev","docker"})
-    public SecurityFilterChain devToolsFilterChain(HttpSecurity http) throws Exception {
+    @Profile("local")
+    public SecurityFilterChain devToolsFilterChainLocal(HttpSecurity http) throws Exception {
         http
                 .securityMatcher("/api/test/**", "/dev/**")
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -60,6 +63,59 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
         return http.build();
+    }
+
+    /**
+     * dev/docker: chat-test.html 은 차단하고 admin.html 등 나머지 /dev/** 만 허용.
+     */
+    @Bean
+    @Order(1)
+    @Profile({"dev", "docker"})
+    public SecurityFilterChain devToolsFilterChainRemote(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/api/test/**", "/dev/**")
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/dev/chat-test.html").denyAll()
+                        .anyRequest().permitAll());
+        return http.build();
+    }
+
+    /**
+     * local 을 제외한 모든 프로필: 스웨거 문서 자체를 별도 Basic Auth로 게이트.
+     * JWT/ADMIN 롤 체계와 무관한 전용 계정(swagger.username/password) 사용 —
+     * 브라우저가 문서 페이지를 열 때 Authorization 헤더를 자동으로 싣지 않기 때문에
+     * ADMIN 롤 체크로는 애초에 로그인 화면조차 못 띄운다.
+     */
+    @Bean
+    @Order(0)
+    @Profile("!local")
+    public SecurityFilterChain swaggerFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .httpBasic(Customizer.withDefaults());
+        return http.build();
+    }
+
+    @Bean
+    @Profile("!local")
+    public InMemoryUserDetailsManager swaggerUserDetailsManager(
+            @Value("${swagger.username}") String username,
+            @Value("${swagger.password}") String password,
+            PasswordEncoder passwordEncoder) {
+        UserDetails swaggerUser = org.springframework.security.core.userdetails.User
+                .withUsername(username)
+                .password(passwordEncoder.encode(password))
+                .roles("SWAGGER")
+                .build();
+        return new InMemoryUserDetailsManager(swaggerUser);
     }
 
     @Bean
@@ -83,17 +139,19 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/api/auth/login",
                                 "/api/auth/kakao/login",
+                                "/api/auth/kakao/client-id",
                                 "/api/auth/refresh",
                                 "/api/users/register",
                                 "/api/users/kakao",
                                 "/ws/chat/**",
-                                "/api/artists/**",
-                                "/api/concerts/**"
+                                "/api/artists/**"
                         ).permitAll()
+                        // 개인정보 접근 경로 — 관리자 전용 (처리방침 제10조 6항). 회원 조회는 /api/admin/users 로 이관.
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(
-                        new JwtAuthenticationFilter(jwtTokenProvider),
+                        new JwtAuthenticationFilter(jwtTokenProvider, userRepository),
                         UsernamePasswordAuthenticationFilter.class
                 );
 

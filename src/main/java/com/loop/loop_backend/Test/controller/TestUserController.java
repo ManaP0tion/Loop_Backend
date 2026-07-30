@@ -2,7 +2,6 @@ package com.loop.loop_backend.Test.controller;
 
 import com.loop.loop_backend.Test.dto.TestUserResponseDto;
 import com.loop.loop_backend.Test.service.TestUserService;
-import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.auth.service.RefreshTokenService;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import com.loop.loop_backend.common.jwt.JwtTokenProvider;
@@ -11,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,9 +18,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+// 인증 없이 임의 계정(ADMIN 포함)을 생성/로그인시키는 API라 운영(docker) 프로필에서는 빈 자체를 등록하지 않는다.
 @RestController
 @RequestMapping("/api/test")
 @RequiredArgsConstructor
+@Profile("!docker")
 @Tag(name = "Test", description = "스웨거 테스트 전용 API (운영 배포 시 제거 예정)")
 public class TestUserController {
 
@@ -36,16 +38,22 @@ public class TestUserController {
                     "\"Bearer {accessToken}\" 형태로 입력한 뒤 다른 API를 바로 테스트하면 됩니다. 닉네임 미입력 시 랜덤 생성됩니다.")
     public ResponseEntity<CommonResponse<TestUserResponseDto>> createTestUser(
             @Parameter(description = "테스트 사용자 닉네임 (5자 이하, 미입력 시 랜덤 생성)")
-            @RequestParam(required = false) String nickname) {
+            @RequestParam(required = false) String nickname,
+            @Parameter(description = "true 이면 ADMIN 권한으로 생성 (dev 전용)")
+            @RequestParam(required = false, defaultValue = "false") boolean admin,
+            @Parameter(description = "로그인 아이디 (미입력 시 자동)") @RequestParam(required = false) String loginId,
+            @Parameter(description = "로그인 비밀번호 (미입력 시 기본 test1234!)") @RequestParam(required = false) String password) {
 
-        User user = testUserService.createTestUser(nickname);
+        var created = testUserService.create(nickname, admin, loginId, password);
 
-        String accessToken = jwtTokenProvider.createAccessToken(user.getId());
-        String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
-        refreshTokenService.save(user.getId(), refreshToken);
+        Long id = created.user().getId();
+        String accessToken = jwtTokenProvider.createAccessToken(id);
+        String refreshToken = jwtTokenProvider.createRefreshToken(id);
+        refreshTokenService.save(id, refreshToken);
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookieUtil.createRefreshTokenCookie(refreshToken).toString())
-                .body(CommonResponse.success("테스트 사용자가 생성되었습니다.", new TestUserResponseDto(user, accessToken)));
+                .body(CommonResponse.success("테스트 사용자가 생성되었습니다.",
+                        new TestUserResponseDto(created.user(), created.loginId(), created.plainPassword(), accessToken)));
     }
 }

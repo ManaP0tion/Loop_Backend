@@ -13,14 +13,17 @@ import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostSpecifications;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
+import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.User.domain.AgeGroup;
 import com.loop.loop_backend.User.domain.Gender;
+import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.dto.PageResponseDto;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
+import com.loop.loop_backend.common.time.ExpiryCutoff;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
@@ -28,6 +31,8 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -38,10 +43,13 @@ import java.util.Collections;
 @Transactional(readOnly = true)
 public class CompanionServiceImpl implements CompanionService {
 
+    private static final ZoneId ZONE_KST = ZoneId.of("Asia/Seoul");
+
     private final CompanionPostRepository companionPostRepository;
     private final UserRepository userRepository;
     private final ConcertRepository concertRepository;
     private final UserHashtagRepository userHashtagRepository;
+    private final FavoriteArtistRepository favoriteArtistRepository;
     private final BlockRepository blockRepository;
     private final CompanionHeartRepository companionHeartRepository;
 
@@ -86,10 +94,7 @@ public class CompanionServiceImpl implements CompanionService {
                 CompanionPostSpecifications.concertIdEquals(concertId),
                 CompanionPostSpecifications.watchDayEquals(watchDay),
                 CompanionPostSpecifications.hasActivity(CompanionActivity.CONCERT),
-                CompanionPostSpecifications.userIdNotEquals(userId),
-                CompanionPostSpecifications.isVisible(),
-                CompanionPostSpecifications.hasNoBlockRelationWith(userId),
-                CompanionPostSpecifications.respectsSameGenderOnly(viewerGender),
+                visibleToViewer(userId, viewerGender),
                 CompanionPostSpecifications.authorGenderEquals(gender),
                 CompanionPostSpecifications.ageGroupIn(ageGroups));
 
@@ -125,10 +130,7 @@ public class CompanionServiceImpl implements CompanionService {
                 CompanionPostSpecifications.concertIdEquals(concertId),
                 CompanionPostSpecifications.watchDayEquals(watchDay),
                 CompanionPostSpecifications.doesNotHaveActivity(CompanionActivity.CONCERT),
-                CompanionPostSpecifications.userIdNotEquals(userId),
-                CompanionPostSpecifications.isVisible(),
-                CompanionPostSpecifications.hasNoBlockRelationWith(userId),
-                CompanionPostSpecifications.respectsSameGenderOnly(viewerGender),
+                visibleToViewer(userId, viewerGender),
                 CompanionPostSpecifications.authorGenderEquals(gender),
                 CompanionPostSpecifications.ageGroupIn(ageGroups));
 
@@ -139,6 +141,57 @@ public class CompanionServiceImpl implements CompanionService {
                 .orElse(null);
 
         return paginate(userId, filtered, defaultComparator(myPost), pageable);
+    }
+
+    @Override
+    public PageResponseDto<CompanionResponseDto> getAllCompanions(Long userId, Long concertId, WatchDay watchDay,
+                                                                    Gender gender, List<AgeGroup> ageGroups, Pageable pageable) {
+        Gender viewerGender = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
+                .getGender();
+
+        // 공연 관람 여부(hasActivity/doesNotHaveActivity) 구분 없이 전체 조회 - 아직 내 프로필을 등록하기 전에 보여주는 목록이라
+        // watching처럼 내 관람스타일 기준으로 정렬할 근거가 없으므로 등록일자 최신순 고정
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concertId),
+                CompanionPostSpecifications.watchDayEquals(watchDay),
+                visibleToViewer(userId, viewerGender),
+                CompanionPostSpecifications.authorGenderEquals(gender),
+                CompanionPostSpecifications.ageGroupIn(ageGroups));
+
+        List<CompanionPost> filtered = companionPostRepository.findAll(spec);
+
+        return paginate(userId, filtered, Comparator.comparing(CompanionPost::getCreatedAt, Comparator.reverseOrder()), pageable);
+    }
+
+    // 조회자가 대상 프로필을 볼 수 있는지를 결정하는 공통 신원 기반 필터 (매칭 목록 전용 - 본인 글은 매칭 상대가 아니므로 제외)
+    private Specification<CompanionPost> visibleToViewer(Long userId, Gender viewerGender) {
+        return Specification.allOf(
+                CompanionPostSpecifications.userIdNotEquals(userId),
+                CompanionPostSpecifications.isVisible(),
+                CompanionPostSpecifications.authorNotWithdrawn(),
+                CompanionPostSpecifications.hasNoBlockRelationWith(userId),
+                CompanionPostSpecifications.respectsSameGenderOnly(viewerGender),
+                CompanionPostSpecifications.watchDayNotExpired(ExpiryCutoff.cutoffDate()));
+    }
+
+    @Override
+    public long countVisibleCompanions(Long concertId, Long userId) {
+        Gender viewerGender = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
+                .getGender();
+
+        // 목록(visibleToViewer)과 달리 본인 글도 포함해서 셈 - 단, isVisible/authorNotWithdrawn/watchDayNotExpired는 그대로 적용되고,
+        // hasNoBlockRelationWith·respectsSameGenderOnly는 본인 글에는 항상 자명하게 통과한다(자기 자신과는 차단·이성공개제한이 성립하지 않음)
+        Specification<CompanionPost> spec = Specification.allOf(
+                CompanionPostSpecifications.concertIdEquals(concertId),
+                CompanionPostSpecifications.isVisible(),
+                CompanionPostSpecifications.authorNotWithdrawn(),
+                CompanionPostSpecifications.hasNoBlockRelationWith(userId),
+                CompanionPostSpecifications.respectsSameGenderOnly(viewerGender),
+                CompanionPostSpecifications.watchDayNotExpired(ExpiryCutoff.cutoffDate()));
+
+        return companionPostRepository.count(spec);
     }
 
     // 관람 스타일 우선순위가 적용되지 않는 기본 정렬: 내 프로필이 있으면 공통 활동 많은 순, 없으면 등록일자 최신순
@@ -182,7 +235,16 @@ public class CompanionServiceImpl implements CompanionService {
         CompanionPost post = companionPostRepository.findById(companionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND));
 
+        // 관람일이 지난 프로필은 삭제된 것과 동일하게 취급 (채팅방의 프로필 조회 링크 포함)
+        if (post.isExpired(LocalDateTime.now(ZONE_KST))) {
+            throw new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND);
+        }
+
         Long authorId = post.getUser().getId();
+
+        if (post.getUser().getStatus() == Status.WITHDRAWN) {
+            throw new BusinessException(ErrorCode.WITHDRAWN_USER);
+        }
 
         if (!userId.equals(authorId) && blockRepository.existsBlockBetween(userId, List.of(authorId))) {
             throw new BusinessException(ErrorCode.BLOCKED_USER);
@@ -197,9 +259,14 @@ public class CompanionServiceImpl implements CompanionService {
                 .map(tag -> new CompanionDetailResponseDto.HashtagSummary(tag.getId(), tag.getTag()))
                 .toList();
 
+        List<String> preferredArtistNames = favoriteArtistRepository.findAllByUser(post.getUser())
+                .stream()
+                .map(fa -> fa.getArtist().getName())
+                .toList();
+
         boolean isHearted = companionHeartRepository.existsByUser_IdAndCompanionPost_Id(userId, companionId);
 
-        return new CompanionDetailResponseDto(post, hashtags, isHearted);
+        return new CompanionDetailResponseDto(post, hashtags, preferredArtistNames, isHearted);
     }
 
     @Override
@@ -237,7 +304,10 @@ public class CompanionServiceImpl implements CompanionService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        List<CompanionPost> posts = companionPostRepository.findAllByUser(user);
+        LocalDateTime now = LocalDateTime.now(ZONE_KST);
+        List<CompanionPost> posts = companionPostRepository.findAllByUser(user).stream()
+                .filter(post -> !post.isExpired(now))
+                .toList();
         if (posts.isEmpty()) {
             throw new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND);
         }
@@ -252,6 +322,11 @@ public class CompanionServiceImpl implements CompanionService {
     public CompanionResponseDto getMyCompanion(Long userId, Long concertId, WatchDay watchDay) {
         CompanionPost post = companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(userId, concertId, watchDay)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND));
+
+        if (post.isExpired(LocalDateTime.now(ZONE_KST))) {
+            throw new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND);
+        }
+
         // 본인 글이라 하트 자체가 불가능하므로 항상 false
         return new CompanionResponseDto(post, false);
     }

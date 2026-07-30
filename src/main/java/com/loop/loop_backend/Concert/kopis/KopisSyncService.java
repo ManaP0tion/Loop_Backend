@@ -63,9 +63,22 @@ public class KopisSyncService {
                     .collect(Collectors.toList());
         }
 
+        // 3단계: 페스티벌 마커 + 국내 아티스트 매칭 → DOMESTIC_FESTIVAL, artist=null 단일 저장
+        if (isFestivalTitle(perf.getTitle())
+                && matched.stream().anyMatch(a -> a.getCategory() == ConcertCategory.DOMESTIC_ARTIST)) {
+            upsertDomesticFestival(perf);
+            return;
+        }
+
         for (Artist artist : matched) {
             upsert(artist, perf);
         }
+    }
+
+    private boolean isFestivalTitle(String title) {
+        if (title == null) return false;
+        String upper = title.toUpperCase();
+        return title.contains("페스티벌") || upper.contains("FESTIVAL") || upper.contains("FEST");
     }
 
     private void upsert(Artist artist, KopisPerformance perf) {
@@ -91,12 +104,19 @@ public class KopisSyncService {
     }
 
     private void upsertJapanFestival(KopisPerformance perf) {
+        upsertFestival(perf, ConcertCategory.JAPAN_FESTIVAL);
+    }
+
+    private void upsertDomesticFestival(KopisPerformance perf) {
+        upsertFestival(perf, ConcertCategory.DOMESTIC_FESTIVAL);
+    }
+
+    private void upsertFestival(KopisPerformance perf, ConcertCategory category) {
         concertRepository.findByKopisIdAndArtistIsNull(perf.getKopisId())
                 .ifPresentOrElse(
                         existing -> existing.updateFromKopis(
                                 perf.getTitle(), perf.getPosterUrl(), perf.getVenue(),
-                                perf.getStartDate(), perf.getEndDate(),
-                                ConcertCategory.JAPAN_FESTIVAL),
+                                perf.getStartDate(), perf.getEndDate(), category),
                         () -> concertRepository.save(Concert.builder()
                                 .artist(null)
                                 .kopisId(perf.getKopisId())
@@ -105,7 +125,7 @@ public class KopisSyncService {
                                 .venue(perf.getVenue())
                                 .startDate(perf.getStartDate())
                                 .endDate(perf.getEndDate())
-                                .category(ConcertCategory.JAPAN_FESTIVAL)
+                                .category(category)
                                 .build())
                 );
     }

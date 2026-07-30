@@ -1,6 +1,8 @@
 package com.loop.loop_backend.User.service;
 
 import com.loop.loop_backend.Chat.service.ChatService;
+import com.loop.loop_backend.CompanionHeart.repository.CompanionHeartRepository;
+import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.Storage.dto.ImageUploadResponseDto;
@@ -10,6 +12,7 @@ import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.User.dto.*;
+import com.loop.loop_backend.auth.service.RefreshTokenService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -29,9 +32,12 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final UserHashtagRepository userHashtagRepository;
     private final FavoriteArtistRepository favoriteArtistRepository;
+    private final CompanionPostRepository companionPostRepository;
+    private final CompanionHeartRepository companionHeartRepository;
     private final PasswordEncoder passwordEncoder;
     private final S3StorageService s3StorageService;
     private final ChatService chatService;
+    private final RefreshTokenService refreshTokenService;
 
 //    @Override
 //    @Transactional
@@ -95,10 +101,34 @@ public class UserServiceImpl implements UserService {
         return toResponseDto(user);
     }
 
+    @Override
+    @Transactional
+    public UserResponseDto agreeToTerms(Long id, TermsAgreementRequestDto requestDto) {
+        User user = findUserOrThrow(id);
+
+        if (!requestDto.isAge19Agreed() || !requestDto.isTermsAgreed() || !requestDto.isPrivacyAgreed()) {
+            throw new BusinessException(ErrorCode.AGREEMENT_REQUIRED);
+        }
+
+        user.agreeToTerms(requestDto.isAge19Agreed(), requestDto.isTermsAgreed(),
+                requestDto.isPrivacyAgreed(), requestDto.isProfileInfoAgreed());
+        return toResponseDto(user);
+    }
+
     private void checkNicknameAvailable(User user, String nickname) {
-        if (!nickname.equals(user.getNickname()) && userRepository.existsByNickname(nickname)) {
+        if (isNicknameTaken(user, nickname)) {
             throw new BusinessException(ErrorCode.DUPLICATE_NICKNAME);
         }
+    }
+
+    @Override
+    public boolean isNicknameAvailable(Long id, String nickname) {
+        return !isNicknameTaken(findUserOrThrow(id), nickname);
+    }
+
+    // 본인이 이미 쓰고 있는 닉네임은 "중복"으로 치지 않는다 (수정 시 그대로 두는 경우 포함)
+    private boolean isNicknameTaken(User user, String nickname) {
+        return !nickname.equals(user.getNickname()) && userRepository.existsByNickname(nickname);
     }
 
     @Override
@@ -147,7 +177,18 @@ public class UserServiceImpl implements UserService {
     public void withdrawUser(Long id) {
         User user = findUserOrThrow(id);
         chatService.handleUserWithdrawn(id);
+
+        // 탈퇴 시점에 잔존 데이터를 정리한다 (재가입 여부와 무관하게 즉시 정리).
+        // 삭제 순서 주의: 내 글을 참조하는 하트부터 지운 뒤에 글을 지워야 FK 위반이 안 남
+        // 차단(Block)은 재가입해도 유지되어야 하므로 여기서 지우지 않는다
+        companionHeartRepository.deleteAllByCompanionPost_User(user);
+        companionHeartRepository.deleteAllByUser(user);
+        companionPostRepository.deleteAllByUser(user);
+        userHashtagRepository.deleteAllByUser(user);
+        favoriteArtistRepository.deleteAllByUser(user);
+
         user.withdraw();
+        refreshTokenService.delete(id);
     }
 
     private User findUserOrThrow(Long id) {

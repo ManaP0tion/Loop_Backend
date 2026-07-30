@@ -4,6 +4,7 @@ import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.dto.ConcertCategoryDto;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
+import com.loop.loop_backend.Concert.dto.ConcertSort;
 import com.loop.loop_backend.Concert.kopis.KopisSyncService;
 import com.loop.loop_backend.Concert.service.ConcertService;
 import com.loop.loop_backend.common.exception.CommonResponse;
@@ -19,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -83,14 +85,18 @@ public class ConcertController {
     }
 
     @GetMapping
-    @Operation(summary = "콘서트 목록 조회", description = "카테고리 파라미터가 있으면 카테고리로 필터링, 없으면 전체를 반환합니다")
+    @Operation(summary = "콘서트 목록 조회", description = "카테고리 파라미터가 있으면 카테고리로 필터링, 없으면 전체를 반환합니다. " +
+            "sort로 정렬 기준을 지정합니다 (IMMINENT 임박순 / LATEST 최신순 / POPULAR 인기순, 기본값 IMMINENT)")
     @ApiResponse(responseCode = "200", description = "조회 성공")
     public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> getConcerts(
             @Parameter(description = "콘서트 카테고리 (J_POP_ARTIST / DOMESTIC_ARTIST / JAPAN_FESTIVAL / DOMESTIC_FESTIVAL)")
-            @RequestParam(required = false) ConcertCategory category) {
+            @RequestParam(required = false) ConcertCategory category,
+            @Parameter(description = "정렬 기준 (IMMINENT 임박순 / LATEST 최신순 / POPULAR 인기순)")
+            @RequestParam(required = false, defaultValue = "IMMINENT") ConcertSort sort,
+            @AuthenticationPrincipal Long userId) {
         List<ConcertResponseDto> concerts = (category != null)
-                ? concertService.getConcertsByCategory(category)
-                : concertService.getAllConcerts();
+                ? concertService.getConcertsByCategory(category, userId, sort)
+                : concertService.getAllConcerts(userId, sort);
         return ResponseEntity.ok(CommonResponse.success(concerts));
     }
 
@@ -111,8 +117,9 @@ public class ConcertController {
             @ApiResponse(responseCode = "404", description = "콘서트 없음")
     })
     public ResponseEntity<CommonResponse<ConcertResponseDto>> getConcertById(
-            @Parameter(description = "콘서트 PK") @PathVariable Long id) {
-        return ResponseEntity.ok(CommonResponse.success(concertService.getConcertById(id)));
+            @Parameter(description = "콘서트 PK") @PathVariable Long id,
+        @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.getConcertById(id, userId)));
     }
 
     @GetMapping("/search")
@@ -121,8 +128,9 @@ public class ConcertController {
                     "예) 'King Gnu' 공연은 '킹누'로도 검색 가능")
     @ApiResponse(responseCode = "200", description = "조회 성공")
     public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> searchConcerts(
-            @Parameter(description = "검색 키워드 (콘서트 제목 또는 아티스트명)") @RequestParam String title) {
-        return ResponseEntity.ok(CommonResponse.success(concertService.searchConcertsByTitle(title)));
+            @Parameter(description = "검색 키워드 (콘서트 제목 또는 아티스트명)") @RequestParam String title,
+            @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.searchConcertsByTitle(title, userId)));
     }
 
     @GetMapping("/artist/{artistId}")
@@ -132,8 +140,9 @@ public class ConcertController {
             @ApiResponse(responseCode = "404", description = "아티스트 없음")
     })
     public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> getConcertsByArtist(
-            @Parameter(description = "아티스트 PK") @PathVariable Long artistId) {
-        return ResponseEntity.ok(CommonResponse.success(concertService.getConcertsByArtist(artistId)));
+            @Parameter(description = "아티스트 PK") @PathVariable Long artistId,
+            @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.getConcertsByArtist(artistId, userId)));
     }
 
     @PostMapping("/sync")

@@ -13,13 +13,14 @@ public class CompanionDetailResponseDto extends CompanionResponseDto {
     @Schema(description = "작성자 해시태그 목록")
     private final List<HashtagSummary> hashtags;
 
-    @Schema(description = "작성자 관심 아티스트 ID 목록 (아직 연관관계 미구현으로 항상 빈 배열)")
-    private final List<String> preferredArtistIds;
+    @Schema(description = "작성자 관심 아티스트 이름 목록")
+    private final List<String> preferredArtistNames;
 
-    public CompanionDetailResponseDto(CompanionPost post, List<HashtagSummary> hashtags, boolean hearted) {
+    public CompanionDetailResponseDto(CompanionPost post, List<HashtagSummary> hashtags,
+                                       List<String> preferredArtistNames, boolean hearted) {
         super(post, hearted);
         this.hashtags = hashtags;
-        this.preferredArtistIds = List.of();
+        this.preferredArtistNames = preferredArtistNames;
     }
 
     @Getter

@@ -4,8 +4,10 @@ import com.loop.loop_backend.Block.domain.Block;
 import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
+import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.User.domain.AgeGroup;
 import com.loop.loop_backend.User.domain.Gender;
+import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.Predicate;
@@ -14,6 +16,7 @@ import jakarta.persistence.criteria.Subquery;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 
 public final class CompanionPostSpecifications {
@@ -43,6 +46,11 @@ public final class CompanionPostSpecifications {
 
     public static Specification<CompanionPost> userIdNotEquals(Long userId) {
         return (root, query, cb) -> cb.notEqual(root.get("user").get("id"), userId);
+    }
+
+    // 작성자가 탈퇴한 프로필은 목록에서 제외
+    public static Specification<CompanionPost> authorNotWithdrawn() {
+        return (root, query, cb) -> cb.notEqual(root.get("user").get("status"), Status.WITHDRAWN);
     }
 
     // 나와 작성자 사이에 어느 방향으로든 차단 관계가 있으면 제외
@@ -75,6 +83,25 @@ public final class CompanionPostSpecifications {
             Join<CompanionPost, User> user = root.join("user");
             Predicate sameGenderAsViewer = cb.equal(user.get("gender"), viewerGender);
             return cb.or(notSameGenderOnly, sameGenderAsViewer);
+        };
+    }
+
+    // 관람일(콘서트 startDate + watchDay)이 지나지 않은 프로필만 (매칭용 목록/카운트 전용, 상세 조회는 별도 처리)
+    // cutoff 날짜를 cutoff.minusDays(N)으로 역산해서 비교 - DB 방언에 상관없이 동작하도록 DB 컬럼 연산 대신 파라미터 쪽에서 계산.
+    // cutoff는 ExpiryCutoff.cutoffDate()로 계산한다(관람일 다음날 오전 10시까지는 유효).
+    public static Specification<CompanionPost> watchDayNotExpired(LocalDate cutoff) {
+        return (root, query, cb) -> {
+            Join<CompanionPost, Concert> concert = root.join("concert");
+
+            Predicate[] perDay = Arrays.stream(WatchDay.values())
+                    .map(day -> cb.and(
+                            cb.equal(root.get("watchDay"), day),
+                            cb.or(
+                                    cb.isNull(concert.get("startDate")),
+                                    cb.greaterThanOrEqualTo(concert.get("startDate"), cutoff.minusDays(day.ordinal())))))
+                    .toArray(Predicate[]::new);
+
+            return cb.or(perDay);
         };
     }
 
