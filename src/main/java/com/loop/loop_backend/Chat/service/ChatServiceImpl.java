@@ -120,6 +120,7 @@ public class ChatServiceImpl implements ChatService {
         Long roomId;
         boolean[] isNewRoom = {false}; //새 채팅 메일링 용
         String[] concertTitleHolder = {null}; //새 채팅 메일링 용 — post.concert는 LAZY라 tx 안에서 미리 읽어둠
+        boolean[] rejoined = {false};
         synchronized (pairKey) {
             roomId = transactionTemplate.execute(status -> {
                 // LINE 방식: DIRECT는 페어당 방 1개. hide된(내 participant=LEFT) 방이면 rejoin.
@@ -132,7 +133,10 @@ public class ChatServiceImpl implements ChatService {
                     room = existing.get(0);
                     chatParticipantRepository.findByChatRoom_IdAndUser_Id(room.getId(), myUserId)
                             .filter(p -> p.getStatus() == ParticipantStatus.LEFT)
-                            .ifPresent(ChatParticipant::rejoin);
+                            .ifPresent(p -> {
+                                p.rejoin();
+                                rejoined[0] = true;
+                            });
                 }
                 if (request.getCompanionPostId() != null) {
                     CompanionPost post = companionPostRepository.findById(request.getCompanionPostId())
@@ -145,6 +149,15 @@ public class ChatServiceImpl implements ChatService {
                 }
                 return room.getId();
             });
+        }
+
+        // 커밋 후 브로드캐스트: 나갔던 내가 돌아왔음을 상대에게 알려 입력창 unblock 하도록.
+        if (rejoined[0]) {
+            messagingTemplate.convertAndSend("/sub/chat/room/" + roomId, ChatLeaveEventDto.builder()
+                    .type(ChatLeaveEventDto.Type.REJOIN)
+                    .roomId(roomId)
+                    .leaverId(myUserId)
+                    .build());
         }
 
         ChatRoomSummaryDto summary = chatRoomRepository.findSummaryById(roomId)
