@@ -1430,14 +1430,20 @@ function showLogin() {
     document.getElementById('loginWrap').hidden = false;
     document.getElementById('app').hidden = true;
 }
-function showApp() {
+async function showApp() {
     document.getElementById('loginWrap').hidden = true;
     document.getElementById('app').hidden = false;
-    const me = JSON.parse(localStorage.getItem(ME_KEY) || 'null');
-    if (me) {
-        document.getElementById('meLabel').textContent = me.nickname || '관리자';
-        document.getElementById('meAvatar').textContent = (me.nickname || 'PM').slice(0, 2).toUpperCase();
+    // 로그인/카카오 응답엔 닉네임이 없어서(accessToken만) 서버에서 내 정보를 받아와 캐시한다.
+    let me = JSON.parse(localStorage.getItem(ME_KEY) || 'null');
+    if (!me) {
+        try {
+            me = await api.get('/api/users/me');
+            localStorage.setItem(ME_KEY, JSON.stringify(me));
+        } catch (e) { console.error('내 정보 조회 실패:', e); }
     }
+    const nick = (me && me.nickname) || '관리자';
+    document.getElementById('meLabel').textContent = nick;
+    document.getElementById('meAvatar').textContent = nick.slice(0, 2).toUpperCase();
 }
 
 async function ensureAuthed() {
