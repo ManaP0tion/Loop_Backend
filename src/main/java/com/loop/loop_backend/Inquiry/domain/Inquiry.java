@@ -24,7 +24,7 @@ public class Inquiry {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = InquiryTypeConverter.class)
     @Column(name = "type", nullable = false, length = 30)
     private InquiryType type;
 
