@@ -76,6 +76,24 @@ public class AdminController {
     private final S3StorageService s3StorageService;
     private final KopisSyncService kopisSyncService;
 
+    // ================= DASHBOARD =================
+
+    /** 관리자 진입 시 한눈에 보는 요약. 처리 대기 큐(신고·이의제기) + 서비스 KPI. 모두 카운트 쿼리라 캐시 불필요. */
+    @GetMapping("/dashboard")
+    public ResponseEntity<CommonResponse<DashboardStats>> dashboard() {
+        LocalDateTime weekAgo = LocalDateTime.now().minusDays(7);
+        DashboardStats stats = new DashboardStats(
+                reportRepository.countByStatusIn(List.of(ReportStatus.RECEIVED, ReportStatus.PROCESSING)),
+                reportRepository.countByAppealStatus(AppealStatus.RAISED),
+                userRepository.count(),
+                userRepository.countByCreatedAtAfter(weekAgo),
+                companionPostRepository.count(),
+                companionPostRepository.countByCreatedAtAfter(weekAgo),
+                inquiryRepository.count(),
+                inquiryRepository.countByCreatedAtAfter(weekAgo));
+        return ResponseEntity.ok(CommonResponse.success(stats));
+    }
+
     // ================= USERS =================
 
     @GetMapping("/users")
@@ -479,6 +497,13 @@ public class AdminController {
     }
 
     // ================= DTOs (records) =================
+
+    /** ① 처리 대기 큐(pendingReports·pendingAppeals) + ② 서비스 KPI */
+    public record DashboardStats(
+            long pendingReports, long pendingAppeals,
+            long totalUsers, long newUsersThisWeek,
+            long totalPosts, long newPostsThisWeek,
+            long totalInquiries, long newInquiriesThisWeek) {}
 
     public record PageResp<T>(List<T> items, int page, int size, long totalElements, int totalPages) {
         static <T> PageResp<T> from(Page<T> p) {

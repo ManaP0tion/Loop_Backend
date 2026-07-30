@@ -159,6 +159,44 @@
             box-shadow: 0 1px 2px rgba(0,0,0,0.03), 0 8px 24px rgba(0,0,0,0.04);
             overflow: hidden;
         }
+        /* ===== 대시보드 ===== */
+        .dash-label {
+            font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+            color: var(--text-muted); text-transform: uppercase;
+            margin: 4px 2px 12px;
+        }
+        .dash-grid {
+            display: grid; gap: 14px;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            margin-bottom: 28px;
+        }
+        .stat {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px 22px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03), 0 8px 24px rgba(0,0,0,0.04);
+            transition: transform var(--spring), box-shadow var(--spring);
+        }
+        .stat .n {
+            font-size: 34px; font-weight: 700; line-height: 1.05;
+            letter-spacing: -0.02em; color: var(--text);
+            font-variant-numeric: tabular-nums;
+        }
+        .stat .t { font-size: 13px; color: var(--text-sub); margin-top: 6px; }
+        .stat .sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        /* 처리 대기 액션 카드 — 클릭 가능, 건수 있으면 강조 */
+        .stat.action { cursor: pointer; display: block; }
+        .stat.action:active { transform: scale(0.98); }
+        .stat.action:hover { box-shadow: 0 2px 4px rgba(0,0,0,0.05), 0 12px 32px rgba(0,0,0,0.07); }
+        .stat.action.alert { border-color: color-mix(in srgb, var(--danger) 40%, transparent); background: color-mix(in srgb, var(--danger) 7%, var(--surface)); }
+        .stat.action.alert .n { color: var(--danger); }
+        .stat.action.warn { border-color: color-mix(in srgb, var(--warning) 45%, transparent); background: color-mix(in srgb, var(--warning) 8%, var(--surface)); }
+        .stat.action.warn .n { color: var(--warning); }
+        .stat.action.clear .n { color: var(--text-muted); }
+        @media (prefers-reduced-motion: reduce) {
+            .stat, .stat.action:active { transition: none; transform: none; }
+        }
         table.data {
             width: 100%; border-collapse: collapse;
             font-size: 13px;
@@ -349,6 +387,10 @@
     <aside class="sidebar">
         <div class="brand"><span class="dot"></span>Loop Admin</div>
 
+        <ul class="nav" style="margin-top:8px;">
+            <li><a href="#dashboard" data-section="dashboard" data-title="대시보드"><span class="icon">◉</span>대시보드</a></li>
+        </ul>
+
         <div class="nav-section">회원 · 신고</div>
         <ul class="nav">
             <li><a href="#users" data-section="users" data-title="회원 관리"><span class="icon">◐</span>회원</a></li>
@@ -530,12 +572,60 @@ function setActive(name) {
 }
 
 async function route() {
-    const hash = location.hash.slice(1) || 'users';
+    const hash = location.hash.slice(1) || 'dashboard';
     const [name, ...rest] = hash.split('/');
-    if (!sections[name]) { location.hash = 'users'; return; }
+    if (!sections[name]) { location.hash = 'dashboard'; return; }
     setActive(name);
     try { await sections[name](rest); } catch (e) { handleErr(e, '섹션 로드 실패'); }
 }
+
+// ---------- DASHBOARD ----------
+sections.dashboard = async () => {
+    const root = el(`<div>
+        <div class="page-header">
+            <div><div class="page-title">대시보드</div><div class="page-sub">지금 처리해야 할 일과 서비스 현황</div></div>
+        </div>
+        <div id="dashSlot"><div class="card"><div class="empty" style="padding:40px;">불러오는 중…</div></div></div>
+    </div>`);
+    MAIN().replaceChildren(root);
+
+    const s = await api.get('/api/admin/dashboard');
+
+    // ① 처리 대기 큐 — 건수 있으면 색 강조, 클릭 시 해당 섹션으로
+    const action = (cls, n, title, sub, hash) => {
+        const on = n > 0;
+        const a = el(`<a href="#${hash}" class="stat action ${on ? cls : 'clear'}">
+            <div class="n">${n}</div>
+            <div class="t">${title}</div>
+            <div class="sub">${on ? sub : '대기 없음'}</div>
+        </a>`);
+        return a;
+    };
+    // ② KPI — 총계 + 주간 신규
+    const kpi = (n, title, week) => el(`<div class="stat">
+        <div class="n">${n.toLocaleString()}</div>
+        <div class="t">${title}</div>
+        <div class="sub">최근 7일 +${week.toLocaleString()}</div>
+    </div>`);
+
+    const slot = root.querySelector('#dashSlot');
+    slot.replaceChildren(el(`<div>
+        <div class="dash-label">처리 대기</div>
+        <div class="dash-grid" id="qGrid"></div>
+        <div class="dash-label">서비스 현황</div>
+        <div class="dash-grid" id="kGrid"></div>
+    </div>`));
+
+    slot.querySelector('#qGrid').append(
+        action('alert', s.pendingReports, '처리 대기 신고', '접수·처리중인 신고', 'reports'),
+        action('warn', s.pendingAppeals, '대기 중 이의제기', '검토가 필요한 이의제기', 'reports'),
+    );
+    slot.querySelector('#kGrid').append(
+        kpi(s.totalUsers, '전체 회원', s.newUsersThisWeek),
+        kpi(s.totalPosts, '동행 프로필', s.newPostsThisWeek),
+        kpi(s.totalInquiries, '고객센터 문의', s.newInquiriesThisWeek),
+    );
+};
 
 // ---------- USERS ----------
 sections.users = async () => {
@@ -1368,7 +1458,7 @@ window.addEventListener('hashchange', route);
 (async function boot() {
     await handleKakaoCallback();
     if (await ensureAuthed()) {
-        if (!location.hash) location.hash = 'users';
+        if (!location.hash) location.hash = 'dashboard';
         else route();
     }
 })();

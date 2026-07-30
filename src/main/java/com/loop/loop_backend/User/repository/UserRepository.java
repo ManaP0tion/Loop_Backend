@@ -47,4 +47,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByRole(Role role);
 
     List<User> findByStatusAndSuspendedUntilBefore(Status status, LocalDateTime cutoff);
+
+    long countByCreatedAtAfter(LocalDateTime cutoff); // 대시보드: 주간 신규회원
 }
