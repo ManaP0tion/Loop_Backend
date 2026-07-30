@@ -942,6 +942,11 @@ async function reportAction(a, r, refresh) {
 }
 
 // ---------- INQUIRIES ----------
+const INQUIRY_TYPE_LABEL = {
+    COMPANION_SEARCH: '동행찾기 관련', ACCOUNT_LOGIN: '계정/로그인 문제',
+    APP_USAGE: '앱 기능/사용 문의', SUGGESTION: '제안/피드백', OTHER: '기타',
+};
+const inquiryTypeLabel = t => INQUIRY_TYPE_LABEL[t] || t || '-';
 sections.inquiries = async () => {
     const state = { page: 0, size: 20 };
     const root = el(`<div>
@@ -960,7 +965,7 @@ sections.inquiries = async () => {
         d.items.forEach(i => {
             const tr = el(`<tr>
                 <td>${i.id}</td><td>#${i.userId} ${esc(i.userNickname)}</td>
-                <td>${esc(i.type)}</td><td>${esc(i.title)}</td>
+                <td>${esc(inquiryTypeLabel(i.type))}</td><td>${esc(i.title)}</td>
                 <td>${fmtDate(i.createdAt)}</td>
                 <td><button class="btn" data-a="view">상세</button></td>
             </tr>`);
@@ -969,7 +974,7 @@ sections.inquiries = async () => {
                     const de = await api.get(`/api/admin/inquiries/${i.id}`);
                     const body = el(`<div class="kv">
                         <span class="k">사용자</span><span class="v">#${de.userId} ${esc(de.userNickname)} (${esc(de.userEmail) || '-'})</span>
-                        <span class="k">유형</span><span class="v">${esc(de.type)}</span>
+                        <span class="k">유형</span><span class="v">${esc(inquiryTypeLabel(de.type))}</span>
                         <span class="k">제목</span><span class="v">${esc(de.title)}</span>
                         <span class="k">내용</span><span class="v" style="white-space:pre-wrap;">${esc(de.content)}</span>
                         <span class="k">등록</span><span class="v">${fmtDate(de.createdAt)}</span>
