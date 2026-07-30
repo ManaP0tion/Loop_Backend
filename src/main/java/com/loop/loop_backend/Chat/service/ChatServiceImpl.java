@@ -166,7 +166,8 @@ public class ChatServiceImpl implements ChatService {
         ChatOtherUserRelationDto relation = buildRelation(myUserId, targetId, otherUser);
 
         // 진짜 신규 생성(재입장 아님)일 때만, 채팅을 받은 쪽(상대방)에게 알림 메일 발송.
-        if (isNewRoom[0] && otherUser != null) {
+        // 상대방이 채팅 알림 메일을 꺼뒀으면 보내지 않는다.
+        if (isNewRoom[0] && otherUser != null && otherUser.isChatNotificationEmail()) {
             String myNickname = userRepository.findById(myUserId).map(User::getNickname).orElse("회원");
             mailService.sendNewChatNotification(otherUser.getEmail(), otherUser.getNickname(), myNickname, concertTitleHolder[0]);
         }
