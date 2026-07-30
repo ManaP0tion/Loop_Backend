@@ -22,6 +22,7 @@ import com.loop.loop_backend.Chat.repository.MessageRepository;
 import com.loop.loop_backend.Block.repository.BlockRepository;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
+import com.loop.loop_backend.Mail.service.MailService;
 import com.loop.loop_backend.Report.repository.ReportRepository;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
@@ -55,6 +56,7 @@ public class ChatServiceImpl implements ChatService {
     private final ReportRepository reportRepository;
     private final UserRepository userRepository;
     private final CompanionPostRepository companionPostRepository;
+    private final MailService mailService;
     private final EntityManager em;
     private final SimpMessagingTemplate messagingTemplate;
     private final TransactionTemplate transactionTemplate;
@@ -116,6 +118,8 @@ public class ChatServiceImpl implements ChatService {
         String pairKey = ("chat:direct:"
                 + Math.min(myUserId, targetId) + ":" + Math.max(myUserId, targetId)).intern();
         Long roomId;
+        boolean[] isNewRoom = {false}; //새 채팅 메일링 용
+        String[] concertTitleHolder = {null}; //새 채팅 메일링 용 — post.concert는 LAZY라 tx 안에서 미리 읽어둠
         synchronized (pairKey) {
             roomId = transactionTemplate.execute(status -> {
                 // LINE 방식: DIRECT는 페어당 방 1개. hide된(내 participant=LEFT) 방이면 rejoin.
@@ -123,6 +127,7 @@ public class ChatServiceImpl implements ChatService {
                 ChatRoom room;
                 if (existing.isEmpty()) {
                     room = createDirectRoom(myUserId, targetId);
+                    isNewRoom[0] = true;  //새 채팅 메일링 용
                 } else {
                     room = existing.get(0);
                     chatParticipantRepository.findByChatRoom_IdAndUser_Id(room.getId(), myUserId)
@@ -136,6 +141,7 @@ public class ChatServiceImpl implements ChatService {
                         throw new BusinessException(ErrorCode.FORBIDDEN);
                     }
                     room.assignPost(post);
+                    concertTitleHolder[0] = post.getConcert().getTitle();
                 }
                 return room.getId();
             });
@@ -145,6 +151,13 @@ public class ChatServiceImpl implements ChatService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         User otherUser = userRepository.findById(targetId).orElse(null);
         ChatOtherUserRelationDto relation = buildRelation(myUserId, targetId, otherUser);
+
+        // 진짜 신규 생성(재입장 아님)일 때만, 채팅을 받은 쪽(상대방)에게 알림 메일 발송.
+        if (isNewRoom[0] && otherUser != null) {
+            String myNickname = userRepository.findById(myUserId).map(User::getNickname).orElse("회원");
+            mailService.sendNewChatNotification(otherUser.getEmail(), otherUser.getNickname(), myNickname, concertTitleHolder[0]);
+        }
+
         return ChatRoomResponseDto.fromSummary(summary, targetId, otherUser, relation);
     }
 

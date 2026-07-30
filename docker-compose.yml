@@ -30,6 +30,11 @@ services:
       DISCORD_INQUIRY_WEBHOOK_URL: ${DISCORD_INQUIRY_WEBHOOK_URL}
       SWAGGER_USERNAME: ${SWAGGER_USERNAME}
       SWAGGER_PASSWORD: ${SWAGGER_PASSWORD}
+      SES_MAIL_HOST: ${SES_MAIL_HOST}
+      SES_MAIL_PORT: ${SES_MAIL_PORT:-587}
+      SES_MAIL_USERNAME: ${SES_MAIL_USERNAME}
+      SES_MAIL_PASSWORD: ${SES_MAIL_PASSWORD}
+      SES_MAIL_FROM: ${SES_MAIL_FROM:-no-reply@loop.io.kr}
     depends_on:
       mysql:
         condition: service_healthy

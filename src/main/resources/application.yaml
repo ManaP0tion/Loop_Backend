@@ -23,20 +23,20 @@ spring:
     port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
 
   servlet:
     multipart:
       max-file-size: 5MB
       max-request-size: 5MB
+
+# 발신 전용 SES 계정 — 공연 리마인드/미확인 채팅/이메일 인증코드 발송용 (신고·문의 알림은 위 spring.mail(Gmail) 유지)
+ses:
+  mail:
+    host: ${SES_MAIL_HOST}
+    port: ${SES_MAIL_PORT:587}
+    username: ${SES_MAIL_USERNAME}
+    password: ${SES_MAIL_PASSWORD}
+    from: ${SES_MAIL_FROM}
 
 springdoc:
   api-docs:

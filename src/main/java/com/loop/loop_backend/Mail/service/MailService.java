@@ -19,4 +19,6 @@ public interface MailService {
 
     void sendConcertReminderNotification(String toEmail, String recipientNickname,
                                          List<ConcertReminderSummary> concerts);
+
+    void sendNewChatNotification(String toEmail, String recipientNickname, String partnerNickname, String concertTitle);
 }
