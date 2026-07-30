@@ -167,8 +167,16 @@ public class User {
                 : null;
     }
 
+    // 차단/제재 이력, 재가입 매칭에 쓰이는 authProvider/providerId는 남기고 나머지 개인정보는 즉시 삭제.
     public void withdraw() {
         this.status = Status.WITHDRAWN;
+        this.email = null;
+        this.nickname = null;
+        this.birthDate = null;
+        this.gender = null;
+        this.profileImageUrl = null;
+        this.userId = null;
+        this.password = null;
     }
 
     // 탈퇴 계정 재가입: 같은 계정을 살리되 온보딩부터 새로 하도록 초기화 (약관 동의도 다시 받아야 함)
