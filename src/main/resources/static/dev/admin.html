@@ -947,6 +947,8 @@ const INQUIRY_TYPE_LABEL = {
     APP_USAGE: '앱 기능/사용 문의', SUGGESTION: '제안/피드백', OTHER: '기타',
 };
 const inquiryTypeLabel = t => INQUIRY_TYPE_LABEL[t] || t || '-';
+const INQUIRY_STATUS_LABEL = { PENDING: '진행 중', DONE: '완료' };
+const inquiryStatusLabel = s => INQUIRY_STATUS_LABEL[s] || '진행 중';
 sections.inquiries = async () => {
     const state = { page: 0, size: 20 };
     const root = el(`<div>
@@ -958,23 +960,36 @@ sections.inquiries = async () => {
     async function load() {
         const d = await api.get('/api/admin/inquiries', { ...state });
         const t = el(`<table class="data"><thead><tr>
-            <th>ID</th><th>사용자</th><th>유형</th><th>제목</th><th>등록일</th><th>작업</th>
+            <th>ID</th><th>사용자</th><th>유형</th><th>제목</th><th>진행 현황</th><th>등록일</th><th>작업</th>
         </tr></thead><tbody></tbody></table>`);
         const tb = t.querySelector('tbody');
-        if (!d.items.length) tb.append(el(`<tr><td colspan="6" class="empty">문의 없음</td></tr>`));
+        if (!d.items.length) tb.append(el(`<tr><td colspan="7" class="empty">문의 없음</td></tr>`));
         d.items.forEach(i => {
+            const done = i.status === 'DONE';
             const tr = el(`<tr>
                 <td>${i.id}</td><td>#${i.userId} ${esc(i.userNickname)}</td>
                 <td>${esc(inquiryTypeLabel(i.type))}</td><td>${esc(i.title)}</td>
+                <td><span class="pill ${done ? 'gray' : ''}">${inquiryStatusLabel(i.status)}</span></td>
                 <td>${fmtDate(i.createdAt)}</td>
-                <td><button class="btn" data-a="view">상세</button></td>
+                <td class="row-actions">
+                    <button class="btn" data-a="view">상세</button>
+                    <button class="btn" data-a="toggle">${done ? '진행 중으로' : '완료 처리'}</button>
+                </td>
             </tr>`);
+            tr.querySelector('[data-a=toggle]').onclick = async () => {
+                try {
+                    await api.patch(`/api/admin/inquiries/${i.id}/status`, { status: done ? 'PENDING' : 'DONE' });
+                    toast('상태가 변경되었습니다.');
+                    load();
+                } catch (e) { handleErr(e); }
+            };
             tr.querySelector('[data-a=view]').onclick = async () => {
                 try {
                     const de = await api.get(`/api/admin/inquiries/${i.id}`);
                     const body = el(`<div class="kv">
                         <span class="k">사용자</span><span class="v">#${de.userId} ${esc(de.userNickname)} (${esc(de.userEmail) || '-'})</span>
                         <span class="k">유형</span><span class="v">${esc(inquiryTypeLabel(de.type))}</span>
+                        <span class="k">진행 현황</span><span class="v">${inquiryStatusLabel(de.status)}</span>
                         <span class="k">제목</span><span class="v">${esc(de.title)}</span>
                         <span class="k">내용</span><span class="v" style="white-space:pre-wrap;">${esc(de.content)}</span>
                         <span class="k">등록</span><span class="v">${fmtDate(de.createdAt)}</span>
@@ -1001,12 +1016,27 @@ sections.artists = async () => {
             <div class="spacer" style="flex:1"></div>
             <button class="btn primary" id="new">+ 아티스트 등록</button>
         </div>
+        <div class="toolbar">
+            <input placeholder="이름/Base/한글/Alias 검색" id="q" />
+        </div>
         <div class="card"><div id="slot"></div></div>
     </div>`);
     MAIN().replaceChildren(root);
 
+    let all = [];
+    root.querySelector('#q').oninput = render;
+
     async function load() {
-        const arr = await api.get('/api/admin/artists');
+        all = await api.get('/api/admin/artists');
+        render();
+    }
+
+    function render() {
+        const q = root.querySelector('#q').value.trim().toLowerCase();
+        const arr = q
+            ? all.filter(a => [a.name, a.baseName, a.nameKo, a.nameAlias]
+                .some(v => (v || '').toLowerCase().includes(q)))
+            : all;
         const t = el(`<table class="data"><thead><tr>
             <th>ID</th><th>이름</th><th>Base</th><th>한글</th><th>카테고리</th><th>이미지</th><th>작업</th>
         </tr></thead><tbody></tbody></table>`);
@@ -1083,7 +1113,7 @@ function artistForm(a, refresh) {
 
 // ---------- CONCERTS ----------
 sections.concerts = async () => {
-    const state = { page: 0, size: 20 };
+    const state = { page: 0, size: 20, q: '' };
     const root = el(`<div>
         <div class="page-header">
             <div><div class="page-title">공연 관리</div><div class="page-sub">삭제 시 동행 프로필 함께 삭제 · 채팅방은 보존</div></div>
@@ -1091,9 +1121,15 @@ sections.concerts = async () => {
             <button class="btn" id="sync">KOPIS 동기화</button>
             <button class="btn primary" id="new">+ 공연 등록</button>
         </div>
+        <div class="toolbar">
+            <input placeholder="공연명/장소/아티스트 검색" id="q" />
+            <button class="btn primary" id="apply">조회</button>
+        </div>
         <div class="card"><div id="slot"></div></div>
     </div>`);
     MAIN().replaceChildren(root);
+    root.querySelector('#apply').onclick = () => { state.q = root.querySelector('#q').value; state.page = 0; load(); };
+    root.querySelector('#q').onkeydown = (e) => { if (e.key === 'Enter') root.querySelector('#apply').click(); };
     root.querySelector('#sync').onclick = async (e) => {
         if (!confirm('KOPIS에서 공연 정보를 즉시 동기화합니다. 완료까지 시간이 걸릴 수 있습니다.')) return;
         const btn = e.target; btn.disabled = true; btn.textContent = '동기화 중…';

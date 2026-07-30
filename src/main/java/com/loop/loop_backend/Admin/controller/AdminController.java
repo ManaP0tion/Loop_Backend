@@ -15,6 +15,7 @@ import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.kopis.KopisSyncService;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Inquiry.domain.Inquiry;
+import com.loop.loop_backend.Inquiry.domain.InquiryStatus;
 import com.loop.loop_backend.Inquiry.domain.InquiryType;
 import com.loop.loop_backend.Inquiry.repository.InquiryRepository;
 import com.loop.loop_backend.Mail.domain.MailLog;
@@ -97,7 +98,7 @@ public class AdminController {
                 userRepository.countByCreatedAtAfter(weekAgo),
                 companionPostRepository.count(),
                 companionPostRepository.countByCreatedAtAfter(weekAgo),
-                inquiryRepository.count(),
+                inquiryRepository.countPending(),
                 inquiryRepository.countByCreatedAtAfter(weekAgo),
                 chatRoomRepository.count(),
                 chatRoomRepository.countActiveRooms());
@@ -312,6 +313,15 @@ public class AdminController {
         return ResponseEntity.ok(CommonResponse.success(InquiryRow.of(i)));
     }
 
+    @PatchMapping("/inquiries/{id}/status")
+    @Transactional
+    public ResponseEntity<CommonResponse<InquiryRow>> updateInquiryStatus(
+            @PathVariable Long id, @RequestBody InquiryStatusReq body) {
+        Inquiry i = inquiryRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.INQUIRY_NOT_FOUND));
+        i.updateStatus(body.status());
+        return ResponseEntity.ok(CommonResponse.success(InquiryRow.of(i)));
+    }
+
     // ================= ARTISTS (Concert 있는 삭제도 cascade — 도메인 FK가 처리) =================
 
     @GetMapping("/artists")
@@ -368,8 +378,10 @@ public class AdminController {
     @GetMapping("/concerts")
     @Transactional(readOnly = true)
     public ResponseEntity<CommonResponse<PageResp<ConcertRow>>> listConcerts(
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-        Page<Concert> p = concertRepository.findAll(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id")));
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q) {
+        String query = (q == null || q.isBlank()) ? null : q.trim();
+        Page<Concert> p = concertRepository.searchForAdmin(query, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id")));
         return ResponseEntity.ok(CommonResponse.success(PageResp.from(p.map(ConcertRow::of))));
     }
 
@@ -594,13 +606,16 @@ public class AdminController {
     }
 
     public record InquiryRow(Long id, Long userId, String userNickname, String userEmail,
-                             InquiryType type, String title, String content, LocalDateTime createdAt) {
+                             InquiryType type, InquiryStatus status, String title, String content,
+                             LocalDateTime createdAt) {
         static InquiryRow of(Inquiry i) {
             return new InquiryRow(i.getId(),
                     i.getUser().getId(), i.getUser().getNickname(), i.getUser().getEmail(),
-                    i.getType(), i.getTitle(), i.getContent(), i.getCreatedAt());
+                    i.getType(), i.getStatus(), i.getTitle(), i.getContent(), i.getCreatedAt());
         }
     }
+
+    public record InquiryStatusReq(InquiryStatus status) {}
 
     public record ArtistRow(Long id, String name, String baseName, String nameKo, String nameAlias,
                             String imageUrl, ConcertCategory category) {

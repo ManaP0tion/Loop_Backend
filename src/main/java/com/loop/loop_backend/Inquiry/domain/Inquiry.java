@@ -28,6 +28,10 @@ public class Inquiry {
     @Column(name = "type", nullable = false, length = 30)
     private InquiryType type;
 
+    @Convert(converter = InquiryStatusConverter.class)
+    @Column(name = "status", length = 20)
+    private InquiryStatus status;
+
     @Column(name = "title", nullable = false, length = 100)
     private String title;
 
@@ -44,5 +48,15 @@ public class Inquiry {
         this.type = type;
         this.title = title;
         this.content = content;
+        this.status = InquiryStatus.PENDING;
+    }
+
+    public void updateStatus(InquiryStatus status) {
+        this.status = status;
+    }
+
+    /** 컨버터 기본값과 별개로, 조회 시 레거시 null 방어 */
+    public InquiryStatus getStatus() {
+        return status == null ? InquiryStatus.PENDING : status;
     }
 }
