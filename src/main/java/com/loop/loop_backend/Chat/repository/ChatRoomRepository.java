@@ -15,10 +15,12 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
     boolean existsByPost_Id(Long postId);
 
-    // 대시보드: ACTIVE 참여자가 1명 이상 남은 방(둘 다 나가면 죽은 방으로 간주)
+    // 대시보드: ACTIVE 참여자가 2명 이상 남은 방(한 명이라도 나가면 비활성으로 간주)
     @Query("""
-            SELECT COUNT(DISTINCT cp.chatRoom.id) FROM ChatParticipant cp
-            WHERE cp.status = com.loop.loop_backend.Chat.domain.ParticipantStatus.ACTIVE
+            SELECT COUNT(cr) FROM ChatRoom cr
+            WHERE (SELECT COUNT(cp) FROM ChatParticipant cp
+                   WHERE cp.chatRoom = cr
+                   AND cp.status = com.loop.loop_backend.Chat.domain.ParticipantStatus.ACTIVE) >= 2
             """)
     long countActiveRooms();
 
