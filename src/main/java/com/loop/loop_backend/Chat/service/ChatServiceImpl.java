@@ -131,11 +131,18 @@ public class ChatServiceImpl implements ChatService {
                     isNewRoom[0] = true;  //새 채팅 메일링 용
                 } else {
                     room = existing.get(0);
+                    ChatRoom rejoinRoom = room;
                     chatParticipantRepository.findByChatRoom_IdAndUser_Id(room.getId(), myUserId)
                             .filter(p -> p.getStatus() == ParticipantStatus.LEFT)
                             .ifPresent(p -> {
                                 p.rejoin();
                                 rejoined[0] = true;
+                                // REST 재입장 히스토리에 노출할 시스템 메시지 영속화(소켓 REJOIN 이벤트와 별개).
+                                User me = p.getUser();
+                                String nickname = me.getNickname() != null ? me.getNickname() : "상대방";
+                                messageRepository.save(Message.builder()
+                                        .chatRoom(rejoinRoom).sender(me).type(MessageType.SYSTEM_REJOIN)
+                                        .content(nickname + "님이 다시 채팅방에 들어왔습니다").build());
                             });
                 }
                 if (request.getCompanionPostId() != null) {
@@ -398,6 +405,7 @@ public class ChatServiceImpl implements ChatService {
             case USER -> ChatMessageDto.MessageType.TALK;
             case SYSTEM_LEAVE -> ChatMessageDto.MessageType.SYSTEM_LEAVE;
             case SYSTEM_WITHDRAWN -> ChatMessageDto.MessageType.SYSTEM_WITHDRAWN;
+            case SYSTEM_REJOIN -> ChatMessageDto.MessageType.SYSTEM_REJOIN;
         };
     }
 
