@@ -34,6 +34,7 @@ class AuthServiceTest {
     @Mock JwtTokenProvider jwtTokenProvider;
     @Mock LoginAttemptService loginAttemptService;
     @Mock RefreshTokenService refreshTokenService;
+    @Mock TokenBlacklistService tokenBlacklistService;
     @InjectMocks AuthService authService;
 
     private static final String USER_ID = "testuser";
@@ -174,10 +175,21 @@ class AuthServiceTest {
     // ── logout ─────────────────────────────────────────────────────────────────
 
     @Test
-    void 로그아웃시_Refresh_Token이_삭제된다() {
-        authService.logout(1L);
+    void 로그아웃시_Refresh_Token삭제하고_Access_Token을_블랙리스트에_등록한다() {
+        when(jwtTokenProvider.getRemainingMillis("access-token")).thenReturn(60000L);
+
+        authService.logout(1L, "access-token");
 
         verify(refreshTokenService).delete(1L);
+        verify(tokenBlacklistService).blacklist("access-token", 60000L);
+    }
+
+    @Test
+    void Access_Token이_없으면_블랙리스트에_등록하지_않는다() {
+        authService.logout(1L, null);
+
+        verify(refreshTokenService).delete(1L);
+        verify(tokenBlacklistService, never()).blacklist(any(), anyLong());
     }
 
     // ── helpers ────────────────────────────────────────────────────────────────

@@ -49,6 +49,12 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+    // 토큰 만료까지 남은 시간(ms). 이미 만료면 0 이하.
+    public long getRemainingMillis(String token) {
+        Date expiration = parseClaims(token).getExpiration();
+        return expiration.getTime() - System.currentTimeMillis();
+    }
+
     // 토큰에서 userId 추출
     public Long getUserId(String token) {
         Claims claims = parseClaims(token);

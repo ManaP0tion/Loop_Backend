@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.User.repository.UserRepository;
+import com.loop.loop_backend.auth.service.TokenBlacklistService;
 import com.loop.loop_backend.common.jwt.JwtAuthenticationFilter;
 import com.loop.loop_backend.common.jwt.JwtTokenProvider;
 import jakarta.servlet.http.HttpServletResponse;
@@ -44,6 +45,7 @@ public class SecurityConfig {
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Value("${chat.allowed-origins}")
     private String[] allowedOrigins;
@@ -151,7 +153,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(
-                        new JwtAuthenticationFilter(jwtTokenProvider, userRepository),
+                        new JwtAuthenticationFilter(jwtTokenProvider, userRepository, tokenBlacklistService),
                         UsernamePasswordAuthenticationFilter.class
                 );
 

@@ -70,8 +70,13 @@ public class AuthController {
     @PostMapping("/logout")
     @Operation(summary = "로그아웃", description = "Refresh Token을 삭제하고 Refresh Token 쿠키를 만료시킵니다")
     @ApiResponse(responseCode = "200", description = "로그아웃 성공")
-    public ResponseEntity<CommonResponse<Void>> logout(@AuthenticationPrincipal Long userId) {
-        authService.logout(userId);
+    public ResponseEntity<CommonResponse<Void>> logout(
+            @AuthenticationPrincipal Long userId,
+            @Parameter(hidden = true)
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader) {
+        String accessToken = (authHeader != null && authHeader.startsWith("Bearer "))
+                ? authHeader.substring(7) : null;
+        authService.logout(userId, accessToken);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookieUtil.expireRefreshTokenCookie().toString())
                 .body(CommonResponse.success("로그아웃 되었습니다.", null));
