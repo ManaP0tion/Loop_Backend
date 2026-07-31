@@ -259,8 +259,15 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public List<ChatRoomResponseDto> getMyRooms(Long userId) {
+        // 재가입 유저는 컷오프 이후 메시지만 반영. 컷오프 이후 메시지가 없는 방(=탈퇴 전 방)은 목록에서 숨김.
+        LocalDateTime cutoff = userRepository.findById(userId).map(User::getChatHiddenBefore).orElse(null);
         return chatRoomRepository.findActiveRoomsByUserId(userId).stream()
                 .map(room -> {
+                    Message lastMessage = (cutoff == null
+                            ? messageRepository.findTopByChatRoom_IdOrderByCreatedAtDesc(room.getId())
+                            : messageRepository.findTopByChatRoom_IdAndCreatedAtAfterOrderByCreatedAtDesc(room.getId(), cutoff))
+                            .orElse(null);
+                    if (cutoff != null && lastMessage == null) return null; // 재가입 전 방 숨김
                     User otherUser = chatParticipantRepository
                             .findByChatRoom_IdAndStatus(room.getId(), ParticipantStatus.ACTIVE).stream()
                             .filter(p -> !p.getUser().getId().equals(userId))
@@ -273,13 +280,11 @@ public class ChatServiceImpl implements ChatService {
                                     .findFirst()
                                     .orElse(null));
                     Long otherUserId = otherUser != null ? otherUser.getId() : null;
-                    Message lastMessage = messageRepository
-                            .findTopByChatRoom_IdOrderByCreatedAtDesc(room.getId())
-                            .orElse(null);
                     long unreadCount = messageRepository
                             .countByChatRoom_IdAndSender_IdNotAndIsReadFalse(room.getId(), userId);
                     return ChatRoomResponseDto.forList(room, otherUserId, otherUser, lastMessage, unreadCount);
                 })
+                .filter(dto -> dto != null)
                 .collect(Collectors.toList());
     }
 
@@ -287,7 +292,11 @@ public class ChatServiceImpl implements ChatService {
     public ChatMessagesResponseDto getMessages(Long roomId, Long userId, Pageable pageable) {
         assertActiveParticipant(roomId, userId);
 
-        Slice<ChatMessageDto> messages = messageRepository.findByChatRoom_IdOrderByCreatedAtDesc(roomId, pageable)
+        // 재가입 유저는 컷오프 이후 메시지만 조회 (탈퇴 전 기록은 DB엔 남되 숨김)
+        LocalDateTime cutoff = userRepository.findById(userId).map(User::getChatHiddenBefore).orElse(null);
+        Slice<ChatMessageDto> messages = (cutoff == null
+                ? messageRepository.findByChatRoom_IdOrderByCreatedAtDesc(roomId, pageable)
+                : messageRepository.findByChatRoom_IdAndCreatedAtAfterOrderByCreatedAtDesc(roomId, cutoff, pageable))
                 .map(this::toDto);
 
         ChatRoom room = chatRoomRepository.findById(roomId).orElse(null);
@@ -371,11 +380,17 @@ public class ChatServiceImpl implements ChatService {
         String nickname = withdrawer.getNickname() != null ? withdrawer.getNickname() : "상대방";
         String content = nickname + "님이 루프를 탈퇴했어요";
 
+        List<ChatParticipant> myParticipations =
+                chatParticipantRepository.findByUser_IdAndStatus(withdrawnUserId, ParticipantStatus.ACTIVE);
+
         // 탈퇴자가 참여 중이던(ACTIVE) DIRECT 방들에 대해 시스템 메시지 이력 남기고 실시간 브로드캐스트
-        chatParticipantRepository.findByUser_IdAndStatus(withdrawnUserId, ParticipantStatus.ACTIVE).stream()
+        myParticipations.stream()
                 .map(ChatParticipant::getChatRoom)
                 .filter(room -> room.getType() == ChatRoomType.DIRECT)
                 .forEach(room -> saveAndBroadcastSystemMessage(room, withdrawer, MessageType.SYSTEM_WITHDRAWN, content));
+
+        // 탈퇴자는 모든 방에서 나감(LEFT). 상대는 OTHER_USER_LEFT로 인지, room/message row는 DB에 보존.
+        myParticipations.forEach(ChatParticipant::leave);
     }
 
     private void saveAndBroadcastSystemMessage(ChatRoom room, User actor, MessageType type, String content) {

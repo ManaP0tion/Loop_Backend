@@ -43,6 +43,10 @@ public class User {
     @Column(name = "suspended_until")
     private LocalDateTime suspendedUntil;
 
+    // 재가입 시각. 이 시점 이전의 채팅 메시지/방은 조회에서 숨긴다 (DB엔 그대로 보존).
+    @Column(name = "chat_hidden_before")
+    private LocalDateTime chatHiddenBefore;
+
     // 추후 확장 대비
     @Column(name = "user_id", length = 50, unique = true)
     private String userId;
@@ -182,6 +186,8 @@ public class User {
     // 탈퇴 계정 재가입: 같은 계정을 살리되 온보딩부터 새로 하도록 초기화 (약관 동의도 다시 받아야 함)
     public void reactivate() {
         this.status = Status.ACTIVE;
+        // 탈퇴 전 채팅 기록은 DB엔 남기되 재가입 후엔 안 보이도록 컷오프 시각 기록
+        this.chatHiddenBefore = LocalDateTime.now();
         this.onboardingCompleted = false;
         this.nickname = null;
         this.birthDate = null;
