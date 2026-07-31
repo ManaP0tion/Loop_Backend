@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 public class ChatMessageDto {
 
     public enum MessageType {
-        ENTER, TALK, LEAVE, SYSTEM_LEAVE, SYSTEM_WITHDRAWN
+        ENTER, TALK, LEAVE, SYSTEM_LEAVE, SYSTEM_WITHDRAWN, SYSTEM_REJOIN
     }
 
     @NotNull
