@@ -19,12 +19,7 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 
     Slice<Message> findByChatRoom_IdOrderByCreatedAtDesc(Long roomId, Pageable pageable);
 
-    // 재가입 컷오프 이후 메시지만 (탈퇴 전 기록 숨김용)
-    Slice<Message> findByChatRoom_IdAndCreatedAtAfterOrderByCreatedAtDesc(Long roomId, LocalDateTime after, Pageable pageable);
-
     Optional<Message> findTopByChatRoom_IdOrderByCreatedAtDesc(Long roomId);
-
-    Optional<Message> findTopByChatRoom_IdAndCreatedAtAfterOrderByCreatedAtDesc(Long roomId, LocalDateTime after);
 
     long countByChatRoom_IdAndSender_IdNotAndIsReadFalse(Long roomId, Long senderId);
 
