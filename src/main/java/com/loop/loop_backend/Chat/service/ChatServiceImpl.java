@@ -273,11 +273,23 @@ public class ChatServiceImpl implements ChatService {
                                     .findFirst()
                                     .orElse(null));
                     Long otherUserId = otherUser != null ? otherUser.getId() : null;
-                    Message lastMessage = messageRepository
-                            .findTopByChatRoom_IdOrderByCreatedAtDesc(room.getId())
+
+                    // 나(userId) 참여 row의 messageVisibleFrom 커트라인을 읽어서, 목록 미리보기
+                    // (마지막 메시지/안읽음 수)에도 getMessages()와 동일한 기준을 적용한다.
+                    // 이게 없으면 상세 조회는 이력을 숨기는데 목록 미리보기에서 예전 마지막 메시지가
+                    // 그대로 노출되는 불일치가 생긴다.
+                    LocalDateTime cutoff = chatParticipantRepository
+                            .findByChatRoom_IdAndUser_Id(room.getId(), userId)
+                            .map(ChatParticipant::getMessageVisibleFrom)
                             .orElse(null);
-                    long unreadCount = messageRepository
-                            .countByChatRoom_IdAndSender_IdNotAndIsReadFalse(room.getId(), userId);
+
+                    Message lastMessage = (cutoff == null
+                            ? messageRepository.findTopByChatRoom_IdOrderByCreatedAtDesc(room.getId())
+                            : messageRepository.findTopByChatRoom_IdAndCreatedAtAfterOrderByCreatedAtDesc(room.getId(), cutoff))
+                            .orElse(null);
+                    long unreadCount = cutoff == null
+                            ? messageRepository.countByChatRoom_IdAndSender_IdNotAndIsReadFalse(room.getId(), userId)
+                            : messageRepository.countByChatRoom_IdAndSender_IdNotAndIsReadFalseAndCreatedAtAfter(room.getId(), userId, cutoff);
                     return ChatRoomResponseDto.forList(room, otherUserId, otherUser, lastMessage, unreadCount);
                 })
                 .collect(Collectors.toList());
@@ -285,9 +297,18 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public ChatMessagesResponseDto getMessages(Long roomId, Long userId, Pageable pageable) {
-        assertActiveParticipant(roomId, userId);
+        // boolean 존재 체크(assertActiveParticipant) 대신 참여자 엔티티를 직접 가져온다.
+        // messageVisibleFrom 커트라인을 읽어야 하기 때문. 검증 조건(ACTIVE 아니면 거부)은 동일하다.
+        ChatParticipant me = chatParticipantRepository.findByChatRoom_IdAndUser_Id(roomId, userId)
+                .filter(p -> p.getStatus() == ParticipantStatus.ACTIVE)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
+        LocalDateTime cutoff = me.getMessageVisibleFrom();
 
-        Slice<ChatMessageDto> messages = messageRepository.findByChatRoom_IdOrderByCreatedAtDesc(roomId, pageable)
+        // cutoff가 없으면(일반 사용자, 또는 탈퇴 이력이 없는 참여자) 기존과 동일하게 전체 이력 조회.
+        // cutoff가 있으면(탈퇴 후 재가입한 본인) 그 시각 이후 메시지만 조회해 예전 이력을 감춘다.
+        Slice<ChatMessageDto> messages = (cutoff == null
+                ? messageRepository.findByChatRoom_IdOrderByCreatedAtDesc(roomId, pageable)
+                : messageRepository.findByChatRoom_IdAndCreatedAtAfterOrderByCreatedAtDesc(roomId, cutoff, pageable))
                 .map(this::toDto);
 
         ChatRoom room = chatRoomRepository.findById(roomId).orElse(null);
@@ -371,14 +392,28 @@ public class ChatServiceImpl implements ChatService {
         String nickname = withdrawer.getNickname() != null ? withdrawer.getNickname() : "상대방";
         String content = nickname + "님이 루프를 탈퇴했어요";
 
-        // 탈퇴자가 참여 중이던(ACTIVE) DIRECT 방들에 대해 시스템 메시지 이력 남기고 실시간 브로드캐스트
+        // 탈퇴자가 참여 중이던(ACTIVE) DIRECT 방마다:
+        //  1) 시스템 메시지 남기고 실시간 브로드캐스트
+        //  2) 탈퇴자 자신의 참여 상태를 LEFT로 전환 → 탈퇴자 본인의 getMyRooms()에서 이 방이 즉시 빠짐.
+        //     상대방 참여 row는 건드리지 않으므로 상대방 목록/이력엔 영향 없음.
+        //  3) messageVisibleFrom을 방금 남긴 시스템 메시지 시각으로 세팅 → 이 메시지 포함, 그 이전
+        //     대화 전체가 "이 참여자에게는" 숨겨짐. reactivate()는 User 필드만 초기화하고 이 값을
+        //     건드리지 않으므로, 나중에 재가입해서 같은 상대와 대화를 재개해도(rejoin()) 탈퇴 이전
+        //     이력은 계속 안 보인다.
         chatParticipantRepository.findByUser_IdAndStatus(withdrawnUserId, ParticipantStatus.ACTIVE).stream()
-                .map(ChatParticipant::getChatRoom)
-                .filter(room -> room.getType() == ChatRoomType.DIRECT)
-                .forEach(room -> saveAndBroadcastSystemMessage(room, withdrawer, MessageType.SYSTEM_WITHDRAWN, content));
+                .filter(p -> p.getChatRoom().getType() == ChatRoomType.DIRECT)
+                .forEach(p -> {
+                    Message systemMsg = saveAndBroadcastSystemMessage(
+                            p.getChatRoom(), withdrawer, MessageType.SYSTEM_WITHDRAWN, content);
+                    p.leave();
+                    p.hideMessagesBefore(systemMsg.getCreatedAt());
+                });
     }
 
-    private void saveAndBroadcastSystemMessage(ChatRoom room, User actor, MessageType type, String content) {
+    // 저장된 Message를 반환하도록 해서, 호출부(handleUserWithdrawn)가 이 메시지의 createdAt을
+    // messageVisibleFrom 커트라인으로 그대로 재사용할 수 있게 한다. 기존 호출부(leaveRoom)는
+    // 반환값을 쓰지 않아도 되므로 영향 없음.
+    private Message saveAndBroadcastSystemMessage(ChatRoom room, User actor, MessageType type, String content) {
         Message saved = messageRepository.save(Message.builder()
                 .chatRoom(room)
                 .sender(actor)
@@ -386,6 +421,7 @@ public class ChatServiceImpl implements ChatService {
                 .content(content)
                 .build());
         messagingTemplate.convertAndSend("/sub/chat/room/" + room.getId(), toDto(saved));
+        return saved;
     }
 
     private ChatMessageDto toDto(Message m) {
@@ -440,11 +476,20 @@ public class ChatServiceImpl implements ChatService {
     }
 
     // ponytail: N+1 for otherIds > 1. 그룹 채팅이 프로덕션에서 실제 사용되면 IN 쿼리 하나로 대체
+    //
+    // 참여자 status(ACTIVE/LEFT)가 아니라 방의 전체 참여자를 기준으로 본다. 탈퇴 처리
+    // (handleUserWithdrawn)가 탈퇴자 본인의 참여 row를 LEFT로 바꿔버리기 때문에, 여기서 ACTIVE만
+    // 필터링하면 탈퇴자가 "다른 참여자 목록"에서 아예 빠져버려 탈퇴 여부를 못 잡는다. 그 결과 바로
+    // 아래 assertOtherParticipantActive()에서 "상대가 없음"으로 걸려 OTHER_USER_LEFT(상대가 나갔다는
+    // 문구)가 뜨게 되는데, 실제 사유는 나간 게 아니라 탈퇴이므로 사용자에게 부정확한 메시지가 노출된다.
+    // 상태와 무관하게 상대 유저를 찾아야 OTHER_USER_WITHDRAWN(상대가 탈퇴했다는 정확한 문구)이 우선
+    // 적용된다.
     private void assertOtherParticipantNotWithdrawn(Long roomId, Long senderId) {
         List<Long> otherIds = chatParticipantRepository
-                .findByChatRoom_IdAndStatus(roomId, ParticipantStatus.ACTIVE).stream()
+                .findByChatRoom_Id(roomId).stream()
                 .map(p -> p.getUser().getId())
                 .filter(id -> !id.equals(senderId))
+                .distinct()
                 .collect(Collectors.toList());
 
         for (Long otherId : otherIds) {
