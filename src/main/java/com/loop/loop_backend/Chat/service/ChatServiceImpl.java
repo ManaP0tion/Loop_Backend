@@ -322,13 +322,38 @@ public class ChatServiceImpl implements ChatService {
             if (room.getConcertId() != null) {
                 builder.concertId(room.getConcertId());
             }
-            // otherCompanionId("상대방 동행글 ID")는 room.post가 곧 host의 글이라, 지금 보는
-            // 사람(userId)이 그 host 본인이면 "내 글"이지 "상대방 글"이 아니므로 채우지 않는다.
-            if (room.getPost() != null && !room.getPost().getUser().getId().equals(userId)) {
-                builder.otherCompanionId(room.getPost().getId());
+            Long otherCompanionId = resolveOtherCompanionId(room, userId);
+            if (otherCompanionId != null) {
+                builder.otherCompanionId(otherCompanionId);
             }
         }
         return builder.build();
+    }
+
+    // "채팅방에서 상대방 동행 프로필 열기" 링크로 쓸 상대의 CompanionPost id.
+    // room.post는 페어당 최근 startDirectChat에서 assign된 "한쪽 글"만 담고 있어서
+    // 보는 사람(viewerId)이 그 글 주인이냐에 따라 갈린다.
+    //  1) room.post 주인 != 나  → 그 글이 곧 "상대 글"이므로 그대로 반환.
+    //  2) room.post 주인 == 나(=내가 host) → room.post는 "내 글"이라 상대 프로필이 아니다.
+    //     예전엔 이 경우를 그냥 room.post.id로 반환해서 host가 프로필을 누르면 "내 프로필"이
+    //     열리는 버그가 있었고, 이후 null 처리로 막았지만 그러면 host는 상대 프로필을 아예 못 봤다.
+    //     이제는 상대 참여자가 쓴 "같은 콘서트·같은 관람일(watchDay)" 글을 찾아 링크한다.
+    //     채팅 시작 게이트(existsMyCompanion)가 "상대 글과 동일 concert+watchDay에 내 글이 있어야
+    //     채팅 가능"을 이미 강제하고, companion_posts는 (user, concert, watchDay) 유니크라
+    //     이 조회 결과는 항상 0 또는 1개다. 상대가 글을 지웠으면 null → 링크만 빠진다.
+    // ponytail: "같은 watchDay" 커플링은 위 게이트 규칙을 그대로 따른 것. 규칙이 바뀌면 여기도 같이 손봐야 함.
+    private Long resolveOtherCompanionId(ChatRoom room, Long viewerId) {
+        if (room.getPost() == null) return null;
+        if (!room.getPost().getUser().getId().equals(viewerId)) {
+            return room.getPost().getId();
+        }
+        if (room.getConcertId() == null) return null;
+        Long otherId = resolveOtherUserId(room.getId(), viewerId);
+        if (otherId == null) return null;
+        return companionPostRepository
+                .findByUser_IdAndConcert_IdAndWatchDay(otherId, room.getConcertId(), room.getPost().getWatchDay())
+                .map(CompanionPost::getId)
+                .orElse(null);
     }
 
     @Override
@@ -507,9 +532,16 @@ public class ChatServiceImpl implements ChatService {
 
     private ChatOtherUserRelationDto buildDirectRelationForRoom(ChatRoom room, Long myUserId) {
         if (room == null || room.getType() != ChatRoomType.DIRECT) return null;
-        Long roomId = room.getId();
 
-        Long otherId = chatParticipantRepository.findByChatRoom_IdAndStatus(roomId, ParticipantStatus.ACTIVE).stream()
+        Long otherId = resolveOtherUserId(room.getId(), myUserId);
+        if (otherId == null) return null;
+        User otherUser = userRepository.findById(otherId).orElse(null);
+        return buildRelation(myUserId, otherId, otherUser);
+    }
+
+    // 방의 "나 아닌 참여자" id. ACTIVE 우선, 없으면 LEFT(나갔거나 탈퇴로 숨긴 상대)에서 찾는다.
+    private Long resolveOtherUserId(Long roomId, Long myUserId) {
+        return chatParticipantRepository.findByChatRoom_IdAndStatus(roomId, ParticipantStatus.ACTIVE).stream()
                 .map(p -> p.getUser().getId())
                 .filter(id -> !id.equals(myUserId))
                 .findFirst()
@@ -518,10 +550,6 @@ public class ChatServiceImpl implements ChatService {
                         .filter(id -> !id.equals(myUserId))
                         .findFirst()
                         .orElse(null));
-
-        if (otherId == null) return null;
-        User otherUser = userRepository.findById(otherId).orElse(null);
-        return buildRelation(myUserId, otherId, otherUser);
     }
 
     private ChatOtherUserRelationDto buildRelation(Long myUserId, Long otherId, User otherUser) {
