@@ -14,6 +14,7 @@ import com.loop.loop_backend.Chat.dto.ChatRoomResponseDto;
 import com.loop.loop_backend.Chat.repository.ChatParticipantRepository;
 import com.loop.loop_backend.Chat.repository.ChatRoomRepository;
 import com.loop.loop_backend.Chat.repository.MessageRepository;
+import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.Mail.service.MailService;
 import com.loop.loop_backend.Report.repository.ReportRepository;
@@ -474,5 +475,61 @@ class ChatServiceImplTest {
         assertThat(participant.getStatus()).isEqualTo(ParticipantStatus.ACTIVE);
         assertThat(participant.getMessageVisibleFrom()).isNull();
         assertThat(messageTable).isEmpty();
+    }
+
+    // ── 5) otherCompanionId는 "보는 사람" 기준으로 계산돼야 한다 ──────────────────
+    // room.post는 항상 그 글을 올린 host 소유라, host 본인이 자기 방을 보면 그건 "내 글"이지
+    // "상대방 글"이 아니다. 이전엔 이 구분 없이 room.post.getId()를 무조건 내려줘서, host가
+    // 자기 방 목록/상세를 열면 자기 자신의 동행글 id가 "상대방 동행글 id" 자리에 노출됐었다.
+
+    private CompanionPost companionPost(long id, User owner) {
+        CompanionPost post = CompanionPost.builder().user(owner).build();
+        ReflectionTestUtils.setField(post, "id", id);
+        return post;
+    }
+
+    @Test
+    void 목록에서_host_본인이_보면_otherCompanionId가_비어있다() {
+        User host = user(1L, "host");
+        User applicant = user(2L, "신청자");
+        CompanionPost post = companionPost(50L, host);
+        ChatRoom room = ChatRoom.builder().type(ChatRoomType.DIRECT).build();
+        ReflectionTestUtils.setField(room, "id", 100L);
+        room.assignPost(post);
+        participant(room, host, ParticipantStatus.ACTIVE);
+        participant(room, applicant, ParticipantStatus.ACTIVE);
+
+        List<ChatRoomResponseDto> hostView = chatService.getMyRooms(1L);
+        assertThat(hostView.get(0).getOtherCompanionId()).isNull();
+    }
+
+    @Test
+    void 목록에서_신청자가_보면_host의_동행글_id가_그대로_내려온다() {
+        User host = user(1L, "host");
+        User applicant = user(2L, "신청자");
+        CompanionPost post = companionPost(50L, host);
+        ChatRoom room = ChatRoom.builder().type(ChatRoomType.DIRECT).build();
+        ReflectionTestUtils.setField(room, "id", 100L);
+        room.assignPost(post);
+        participant(room, host, ParticipantStatus.ACTIVE);
+        participant(room, applicant, ParticipantStatus.ACTIVE);
+
+        List<ChatRoomResponseDto> applicantView = chatService.getMyRooms(2L);
+        assertThat(applicantView.get(0).getOtherCompanionId()).isEqualTo(50L);
+    }
+
+    @Test
+    void 메시지_상세조회에서도_host_본인이_보면_otherCompanionId가_비어있다() {
+        User host = user(1L, "host");
+        User applicant = user(2L, "신청자");
+        CompanionPost post = companionPost(50L, host);
+        ChatRoom room = ChatRoom.builder().type(ChatRoomType.DIRECT).build();
+        ReflectionTestUtils.setField(room, "id", 100L);
+        room.assignPost(post);
+        participant(room, host, ParticipantStatus.ACTIVE);
+        participant(room, applicant, ParticipantStatus.ACTIVE);
+
+        ChatMessagesResponseDto hostView = chatService.getMessages(100L, 1L, Pageable.unpaged());
+        assertThat(hostView.getOtherCompanionId()).isNull();
     }
 }

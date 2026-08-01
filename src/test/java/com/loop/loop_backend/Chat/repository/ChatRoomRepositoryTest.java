@@ -95,6 +95,44 @@ class ChatRoomRepositoryTest {
     }
 
     @Test
+    void 동행글이_삭제돼도_방에_스냅샷으로_저장된_concertId는_유지된다() {
+        // 회원 탈퇴 시 본인 동행글이 하드 삭제되는 경우를 재현: post가 사라져도 "이 채팅이 어떤
+        // 공연 얘기였는지"는 concertId 스냅샷 덕분에 계속 남아있어야 한다(상대방이 계속 봐야 하므로).
+        Concert concert = Concert.builder()
+                .title("테스트 콘서트")
+                .category(ConcertCategory.DOMESTIC_ARTIST)
+                .build();
+        entityManager.persist(concert);
+
+        User host = persistUser("snapH");
+        CompanionPost post = CompanionPost.builder()
+                .user(host)
+                .concert(concert)
+                .watchDay(WatchDay.DAY1)
+                .activities(Set.of(CompanionActivity.CONCERT))
+                .build();
+        entityManager.persist(post);
+
+        ChatRoom room = ChatRoom.builder().type(ChatRoomType.GROUP).name("동행 채팅방").build();
+        room.assignPost(post); // post + concertId 스냅샷 동시 세팅
+        entityManager.persist(room);
+        entityManager.flush();
+
+        Long roomId = room.getId();
+        Long postId = post.getId();
+        Long concertId = concert.getId();
+        entityManager.clear();
+
+        companionPostRepository.deleteById(postId);
+        entityManager.flush();
+        entityManager.clear();
+
+        ChatRoom found = chatRoomRepository.findById(roomId).orElseThrow();
+        assertThat(found.getPost()).isNull();
+        assertThat(found.getConcertId()).isEqualTo(concertId);
+    }
+
+    @Test
     void 요약_조회는_동행글과_공연_id까지_한번에_가져온다() {
         Concert concert = Concert.builder()
                 .title("테스트 콘서트")
@@ -112,10 +150,12 @@ class ChatRoomRepositoryTest {
         entityManager.persist(post);
 
         ChatRoom room = ChatRoom.builder()
-                .post(post)
                 .type(ChatRoomType.GROUP)
                 .name("동행 채팅방")
                 .build();
+        // concertId는 post.concert를 라이브로 조인해서 얻는 게 아니라 assignPost() 시점에
+        // 스냅샷으로 찍히므로, builder().post(post)로 직접 넣으면 concertId가 안 채워진다.
+        room.assignPost(post);
         entityManager.persist(room);
         entityManager.flush();
         entityManager.clear();
