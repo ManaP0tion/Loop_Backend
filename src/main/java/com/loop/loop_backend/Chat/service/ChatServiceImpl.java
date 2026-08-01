@@ -83,10 +83,10 @@ public class ChatServiceImpl implements ChatService {
                 : "동행 채팅방 #" + request.getPostId();
 
         ChatRoom room = ChatRoom.builder()
-                .post(post)
                 .name(name)
                 .type(request.getType())
                 .build();
+        room.assignPost(post); // post + concertId(스냅샷) 동시 세팅, 빌더에서 직접 넣지 않고 이 메서드로 통일
         chatRoomRepository.save(room);
 
         chatParticipantRepository.save(ChatParticipant.builder()
@@ -290,7 +290,7 @@ public class ChatServiceImpl implements ChatService {
                     long unreadCount = cutoff == null
                             ? messageRepository.countByChatRoom_IdAndSender_IdNotAndIsReadFalse(room.getId(), userId)
                             : messageRepository.countByChatRoom_IdAndSender_IdNotAndIsReadFalseAndCreatedAtAfter(room.getId(), userId, cutoff);
-                    return ChatRoomResponseDto.forList(room, otherUserId, otherUser, lastMessage, unreadCount);
+                    return ChatRoomResponseDto.forList(room, otherUserId, otherUser, lastMessage, unreadCount, userId);
                 })
                 .collect(Collectors.toList());
     }
@@ -317,10 +317,15 @@ public class ChatServiceImpl implements ChatService {
         ChatMessagesResponseDto.ChatMessagesResponseDtoBuilder builder = ChatMessagesResponseDto.builder()
                 .otherUserRelation(relation)
                 .messages(messages);
-        if (room != null && room.getPost() != null) {
-            builder.otherCompanionId(room.getPost().getId());
-            if (room.getPost().getConcert() != null) {
-                builder.concertId(room.getPost().getConcert().getId());
+        if (room != null) {
+            // concertId는 room.post.concert가 아니라 방에 스냅샷으로 저장된 값(post 삭제돼도 안 끊김)
+            if (room.getConcertId() != null) {
+                builder.concertId(room.getConcertId());
+            }
+            // otherCompanionId("상대방 동행글 ID")는 room.post가 곧 host의 글이라, 지금 보는
+            // 사람(userId)이 그 host 본인이면 "내 글"이지 "상대방 글"이 아니므로 채우지 않는다.
+            if (room.getPost() != null && !room.getPost().getUser().getId().equals(userId)) {
+                builder.otherCompanionId(room.getPost().getId());
             }
         }
         return builder.build();

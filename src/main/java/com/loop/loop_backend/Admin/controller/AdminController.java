@@ -437,6 +437,9 @@ public class AdminController {
     public ResponseEntity<CommonResponse<Void>> deleteConcert(@PathVariable Long id) {
         if (!concertRepository.existsById(id)) throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
         // CompanionPost.concert ON DELETE CASCADE → 동행 프로필 함께 삭제. 채팅방은 ChatRoom.post SET_NULL 로 보존.
+        // ChatRoom.concertId는 post와 별개로 저장된 스냅샷이라 DB 캐스케이드가 안 닿으므로, 여기서 직접 정리해서
+        // 삭제된 공연 id를 계속 들고 있는 유령 참조가 안 남게 한다.
+        chatRoomRepository.clearConcertId(id);
         concertRepository.deleteById(id);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
