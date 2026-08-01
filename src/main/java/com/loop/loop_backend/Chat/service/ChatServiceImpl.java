@@ -41,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -305,6 +306,12 @@ public class ChatServiceImpl implements ChatService {
                             : messageRepository.countByChatRoom_IdAndSender_IdNotAndIsReadFalseAndCreatedAtAfter(room.getId(), userId, cutoff);
                     return ChatRoomResponseDto.forList(room, otherUserId, otherUser, lastMessage, unreadCount, userId);
                 })
+                // 마지막 메시지 시각 내림차순. 메시지가 아직 없는 방은
+                // lastMessageAt이 null이라 방 생성 시각으로 대체해 맨 아래로 밀리지 않게 한다.
+                .sorted(Comparator.comparing(
+                        (ChatRoomResponseDto dto) -> dto.getLastMessageAt() != null
+                                ? dto.getLastMessageAt() : dto.getCreatedAt(),
+                        Comparator.reverseOrder()))
                 .collect(Collectors.toList());
     }
 
