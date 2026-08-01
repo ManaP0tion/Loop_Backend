@@ -86,12 +86,12 @@ public class ConcertController {
 
     @GetMapping
     @Operation(summary = "콘서트 목록 조회", description = "카테고리 파라미터가 있으면 카테고리로 필터링, 없으면 전체를 반환합니다. " +
-            "sort로 정렬 기준을 지정합니다 (IMMINENT 임박순 / LATEST 최신순 / POPULAR 인기순, 기본값 IMMINENT)")
+            "sort로 정렬 기준을 지정합니다 (IMMINENT 임박순 / POPULAR 인기순, 기본값 IMMINENT)")
     @ApiResponse(responseCode = "200", description = "조회 성공")
     public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> getConcerts(
             @Parameter(description = "콘서트 카테고리 (J_POP_ARTIST / DOMESTIC_ARTIST / JAPAN_FESTIVAL / DOMESTIC_FESTIVAL)")
             @RequestParam(required = false) ConcertCategory category,
-            @Parameter(description = "정렬 기준 (IMMINENT 임박순 / LATEST 최신순 / POPULAR 인기순)")
+            @Parameter(description = "정렬 기준 (IMMINENT 임박순 / POPULAR 인기순)")
             @RequestParam(required = false, defaultValue = "IMMINENT") ConcertSort sort,
             @AuthenticationPrincipal Long userId) {
         List<ConcertResponseDto> concerts = (category != null)

@@ -9,9 +9,9 @@ public enum ConcertSort {
     IMMINENT(Comparator.comparing(ConcertResponseDto::getStartDate,
             Comparator.nullsLast(Comparator.naturalOrder()))),
 
-    // 최신순: 최근 등록순. Concert에 createdAt이 없어 auto-increment id를 대용으로 사용
-    // ponytail: id를 등록시각 대용으로 사용. 정확한 등록시각 정렬이 필요하면 Concert에 createdAt 추가
-    LATEST(Comparator.comparing(ConcertResponseDto::getId).reversed()),
+    // 최신순(LATEST): 미사용. id를 등록시각 대용으로 쓰던 방식이라 실제 "최신"과 맞지 않아 제거.
+    // 다시 필요하면 Concert에 createdAt 추가 후 그 기준으로 되살릴 것.
+    // LATEST(Comparator.comparing(ConcertResponseDto::getId).reversed()),
 
     // 인기순: 동행글 수 많은 순, 동률이면 임박순
     POPULAR(Comparator.comparingLong(ConcertResponseDto::getCompanionCount).reversed()
