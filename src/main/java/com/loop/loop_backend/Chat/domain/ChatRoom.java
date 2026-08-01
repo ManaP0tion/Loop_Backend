@@ -33,6 +33,13 @@ public class ChatRoom {
     @OnDelete(action = OnDeleteAction.SET_NULL)
     private CompanionPost post;
 
+    // post.concert.id를 그때그때 타고 들어가지 않고 assignPost() 시점에 값만 복제해둔 것.
+    // post는 회원 탈퇴 등으로 하드 삭제되면 SET NULL로 끊기지만, 이 채팅이 어떤 공연 얘기였는지는
+    // post 삭제 여부와 무관하게 남아있어야 해서 방 자체에 id만 독립적으로 보관한다.
+    // Concert 엔티티 연관관계로 걸 필요 없이(응답에서 id만 쓰고 엔티티 탐색은 안 함) 단순 컬럼으로 충분.
+    @Column(name = "concert_id")
+    private Long concertId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false)
     private ChatRoomType type;
@@ -46,5 +53,7 @@ public class ChatRoom {
 
     public void assignPost(CompanionPost post) {
         this.post = post;
+        // post.getConcert()는 LAZY 프록시지만 getId()는 프록시 초기화(추가 쿼리) 없이 바로 읽힘
+        this.concertId = post.getConcert() != null ? post.getConcert().getId() : null;
     }
 }

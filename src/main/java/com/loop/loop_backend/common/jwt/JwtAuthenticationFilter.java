@@ -1,6 +1,7 @@
 package com.loop.loop_backend.common.jwt;
 
 
+import com.loop.loop_backend.auth.service.TokenBlacklistService;
 import com.loop.loop_backend.User.domain.Role;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
@@ -25,6 +26,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final UserRepository userRepository;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Override
     protected void doFilterInternal(
@@ -35,7 +37,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = resolveToken(request);
 
-        if (token != null && jwtTokenProvider.validateToken(token)) {
+        if (token != null && jwtTokenProvider.validateToken(token)
+                && !tokenBlacklistService.isBlacklisted(token)) {
             Long userId = jwtTokenProvider.getUserId(token);
 
             // ponytail: DB per authenticated request. JWT role/status claim if throughput matters.

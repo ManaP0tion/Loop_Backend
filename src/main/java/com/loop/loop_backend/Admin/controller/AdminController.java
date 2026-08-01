@@ -6,6 +6,7 @@ import com.loop.loop_backend.Admin.service.AdminAccessLogService;
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Chat.domain.Message;
+import com.loop.loop_backend.Chat.repository.ChatRoomRepository;
 import com.loop.loop_backend.Chat.repository.MessageRepository;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
@@ -14,8 +15,13 @@ import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.kopis.KopisSyncService;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Inquiry.domain.Inquiry;
+import com.loop.loop_backend.Inquiry.domain.InquiryStatus;
 import com.loop.loop_backend.Inquiry.domain.InquiryType;
 import com.loop.loop_backend.Inquiry.repository.InquiryRepository;
+import com.loop.loop_backend.Mail.domain.MailLog;
+import com.loop.loop_backend.Mail.domain.MailType;
+import com.loop.loop_backend.Mail.repository.MailLogRepository;
+import com.loop.loop_backend.Mail.service.MailService;
 import com.loop.loop_backend.Report.domain.AppealStatus;
 import com.loop.loop_backend.Report.domain.Report;
 import com.loop.loop_backend.Report.domain.ReportAction;
@@ -71,10 +77,33 @@ public class AdminController {
     private final ConcertRepository concertRepository;
     private final CompanionPostRepository companionPostRepository;
     private final MessageRepository messageRepository;
+    private final ChatRoomRepository chatRoomRepository;
+    private final MailLogRepository mailLogRepository;
+    private final MailService mailService;
     private final AdminAccessLogRepository accessLogRepository;
     private final AdminAccessLogService accessLog;
     private final S3StorageService s3StorageService;
     private final KopisSyncService kopisSyncService;
+
+    // ================= DASHBOARD =================
+
+    /** 관리자 진입 시 한눈에 보는 요약. 처리 대기 큐(신고·이의제기) + 서비스 KPI. 모두 카운트 쿼리라 캐시 불필요. */
+    @GetMapping("/dashboard")
+    public ResponseEntity<CommonResponse<DashboardStats>> dashboard() {
+        LocalDateTime weekAgo = LocalDateTime.now().minusDays(7);
+        DashboardStats stats = new DashboardStats(
+                reportRepository.countByStatusIn(List.of(ReportStatus.RECEIVED, ReportStatus.PROCESSING)),
+                reportRepository.countByAppealStatus(AppealStatus.RAISED),
+                userRepository.count(),
+                userRepository.countByCreatedAtAfter(weekAgo),
+                companionPostRepository.count(),
+                companionPostRepository.countByCreatedAtAfter(weekAgo),
+                inquiryRepository.countPending(),
+                inquiryRepository.countByCreatedAtAfter(weekAgo),
+                chatRoomRepository.count(),
+                chatRoomRepository.countActiveRooms());
+        return ResponseEntity.ok(CommonResponse.success(stats));
+    }
 
     // ================= USERS =================
 
@@ -284,6 +313,15 @@ public class AdminController {
         return ResponseEntity.ok(CommonResponse.success(InquiryRow.of(i)));
     }
 
+    @PatchMapping("/inquiries/{id}/status")
+    @Transactional
+    public ResponseEntity<CommonResponse<InquiryRow>> updateInquiryStatus(
+            @PathVariable Long id, @RequestBody InquiryStatusReq body) {
+        Inquiry i = inquiryRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.INQUIRY_NOT_FOUND));
+        i.updateStatus(body.status());
+        return ResponseEntity.ok(CommonResponse.success(InquiryRow.of(i)));
+    }
+
     // ================= ARTISTS (Concert 있는 삭제도 cascade — 도메인 FK가 처리) =================
 
     @GetMapping("/artists")
@@ -340,8 +378,10 @@ public class AdminController {
     @GetMapping("/concerts")
     @Transactional(readOnly = true)
     public ResponseEntity<CommonResponse<PageResp<ConcertRow>>> listConcerts(
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-        Page<Concert> p = concertRepository.findAll(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id")));
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q) {
+        String query = (q == null || q.isBlank()) ? null : q.trim();
+        Page<Concert> p = concertRepository.searchForAdmin(query, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id")));
         return ResponseEntity.ok(CommonResponse.success(PageResp.from(p.map(ConcertRow::of))));
     }
 
@@ -397,6 +437,9 @@ public class AdminController {
     public ResponseEntity<CommonResponse<Void>> deleteConcert(@PathVariable Long id) {
         if (!concertRepository.existsById(id)) throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
         // CompanionPost.concert ON DELETE CASCADE → 동행 프로필 함께 삭제. 채팅방은 ChatRoom.post SET_NULL 로 보존.
+        // ChatRoom.concertId는 post와 별개로 저장된 스냅샷이라 DB 캐스케이드가 안 닿으므로, 여기서 직접 정리해서
+        // 삭제된 공연 id를 계속 들고 있는 유령 참조가 안 남게 한다.
+        chatRoomRepository.clearConcertId(id);
         concertRepository.deleteById(id);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
@@ -450,6 +493,33 @@ public class AdminController {
         return ResponseEntity.ok(CommonResponse.success(PageResp.from(p.map(AccessLogRow::of))));
     }
 
+    // ================= MAIL LOGS =================
+
+    @GetMapping("/mail-logs")
+    public ResponseEntity<CommonResponse<PageResp<MailLogRow>>> listMailLogs(
+            @RequestParam(required = false) MailType type,
+            @RequestParam(required = false) Boolean success,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<MailLog> p = mailLogRepository.searchForAdmin(type, success, pageable);
+        return ResponseEntity.ok(CommonResponse.success(PageResp.from(p.map(MailLogRow::of))));
+    }
+
+    /** 테스트용: 선택한 타입의 샘플 메일을 입력한 주소로 발송. 발송 결과는 mail-logs 에 그대로 남는다. */
+    @PostMapping("/mail-logs/test")
+    public ResponseEntity<CommonResponse<Void>> sendTestMail(
+            @AuthenticationPrincipal Long adminId, HttpServletRequest req, @RequestBody TestMailReq body) {
+        if (body == null || body.type() == null || body.email() == null || body.email().isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+        mailService.sendTest(body.type(), body.email().trim());
+        accessLog.log(adminId, req, "SEND_TEST_MAIL", "MAIL", null, body.type() + " → " + body.email().trim());
+        return ResponseEntity.ok(CommonResponse.success(null));
+    }
+
+    public record TestMailReq(MailType type, String email) {}
+
     // ================= ADMIN ACCOUNTS =================
 
     @GetMapping("/admins")
@@ -479,6 +549,14 @@ public class AdminController {
     }
 
     // ================= DTOs (records) =================
+
+    /** ① 처리 대기 큐(pendingReports·pendingAppeals) + ② 서비스 KPI */
+    public record DashboardStats(
+            long pendingReports, long pendingAppeals,
+            long totalUsers, long newUsersThisWeek,
+            long totalPosts, long newPostsThisWeek,
+            long totalInquiries, long newInquiriesThisWeek,
+            long totalChatRooms, long activeChatRooms) {}
 
     public record PageResp<T>(List<T> items, int page, int size, long totalElements, int totalPages) {
         static <T> PageResp<T> from(Page<T> p) {
@@ -531,13 +609,16 @@ public class AdminController {
     }
 
     public record InquiryRow(Long id, Long userId, String userNickname, String userEmail,
-                             InquiryType type, String title, String content, LocalDateTime createdAt) {
+                             InquiryType type, InquiryStatus status, String title, String content,
+                             LocalDateTime createdAt) {
         static InquiryRow of(Inquiry i) {
             return new InquiryRow(i.getId(),
                     i.getUser().getId(), i.getUser().getNickname(), i.getUser().getEmail(),
-                    i.getType(), i.getTitle(), i.getContent(), i.getCreatedAt());
+                    i.getType(), i.getStatus(), i.getTitle(), i.getContent(), i.getCreatedAt());
         }
     }
+
+    public record InquiryStatusReq(InquiryStatus status) {}
 
     public record ArtistRow(Long id, String name, String baseName, String nameKo, String nameAlias,
                             String imageUrl, ConcertCategory category) {
@@ -577,6 +658,14 @@ public class AdminController {
         static AccessLogRow of(AdminAccessLog l) {
             return new AccessLogRow(l.getId(), l.getAdminId(), l.getIp(), l.getAction(),
                     l.getTargetType(), l.getTargetId(), l.getDescription(), l.getCreatedAt());
+        }
+    }
+
+    public record MailLogRow(Long id, MailType type, String toEmail, String subject,
+                             boolean success, String failReason, LocalDateTime sentAt) {
+        static MailLogRow of(MailLog m) {
+            return new MailLogRow(m.getId(), m.getType(), m.getToEmail(), m.getSubject(),
+                    m.isSuccess(), m.getFailReason(), m.getSentAt());
         }
     }
 }

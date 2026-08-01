@@ -40,7 +40,7 @@ public enum ErrorCode {
     HASHTAG_NOT_FOUND(404, "해시태그를 찾을 수 없습니다."),
 
     //auth
-    LOGIN_LOCKED(429, "로그인 시도가 너무 많아 잠시 후 다시 시도해주세요."),
+    LOGIN_LOCKED(429, "최대 인증 가능 횟수에 도달했어요. 1시간 뒤에 다시 시도해 주세"),
     INVALID_CREDENTIALS(401, "아이디 또는 비밀번호가 올바르지 않습니다."),
     INVALID_REFRESH_TOKEN(401, "유효하지 않은 Refresh Token입니다."),
     INVALID_KAKAO_CODE(400, "유효하지 않거나 만료된 카카오 인가 코드입니다."),

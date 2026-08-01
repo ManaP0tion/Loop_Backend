@@ -5,13 +5,15 @@
 </head>
 <body style="font-family: sans-serif; line-height: 1.6; color: #222;">
     <h2 style="margin-bottom: 8px;">
-        <strong th:text="${recipientNickname != null} ? ${recipientNickname} : '회원'">회원</strong>님, 확인하지 못한 메시지가 있어요.📩
+        <strong th:text="${recipientNickname != null} ? ${recipientNickname} : '회원'">회원</strong>님에게 새로운 메시지가 도착했어요.📩
     </h2>
 
     <p>
-        동행이 답장을 기다리고 있을 수 있어요.<br/>
-        공연 전 소중한 인연을 놓치지 않도록, 잠깐 확인해 보세요.
+        <strong th:text="${partnerNickname != null} ? ${partnerNickname} : '상대방'">상대방</strong>님
+        <span th:if="${concertTitle != null}"> · <span th:text="${concertTitle}">공연명</span></span>
     </p>
+
+    <p>지금 확인하고 동행 이야기를 이어가 보세요.</p>
 
     <p style="margin-top: 20px;">
         <a th:href="${frontendUrl} + '/chat'"

@@ -156,7 +156,7 @@ class ConcertServiceImplTest {
         when(companionService.countVisibleCompanions(1L, 100L)).thenReturn(5L);
         when(companionService.countVisibleCompanions(2L, 100L)).thenReturn(0L);
 
-        List<ConcertResponseDto> result = concertService.getAllConcerts(100L);
+        List<ConcertResponseDto> result = concertService.getAllConcerts(100L, com.loop.loop_backend.Concert.dto.ConcertSort.IMMINENT);
 
         assertThat(result).extracting(ConcertResponseDto::getCompanionCount).containsExactly(5L, 0L);
     }

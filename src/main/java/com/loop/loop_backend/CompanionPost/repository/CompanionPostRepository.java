@@ -30,6 +30,8 @@ public interface CompanionPostRepository extends JpaRepository<CompanionPost, Lo
     //concert 조회시 해당 콘서트에 등록된 동행 수
     long countByConcert_Id(Long concertId);
 
+    long countByCreatedAtAfter(java.time.LocalDateTime cutoff); // 대시보드: 주간 새 동행글
+
     @Query("""
             SELECT new com.loop.loop_backend.CompanionPost.dto.ConcertReminderRow(
                 cp.user.id,

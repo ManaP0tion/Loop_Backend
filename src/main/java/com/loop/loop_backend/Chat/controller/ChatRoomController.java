@@ -26,13 +26,13 @@ public class ChatRoomController {
 
     private final ChatService chatService;
 
-    @PostMapping("/rooms")
-    @Operation(summary = "채팅방 생성", description = "동행 게시글 신청자가 host와의 채팅방을 생성합니다. 요청자는 신청자로 참여합니다.")
-    public ResponseEntity<CommonResponse<ChatRoomResponseDto>> createRoom(
-            @AuthenticationPrincipal Long userId,
-            @RequestBody @Valid CreateChatRoomRequestDto request) {
-        return ResponseEntity.ok(CommonResponse.success(chatService.createRoom(userId, request)));
-    }
+//    @PostMapping("/rooms")
+//    @Operation(summary = "채팅방 생성", description = "동행 게시글 신청자가 host와의 채팅방을 생성합니다. 요청자는 신청자로 참여합니다.")
+//    public ResponseEntity<CommonResponse<ChatRoomResponseDto>> createRoom(
+//            @AuthenticationPrincipal Long userId,
+//            @RequestBody @Valid CreateChatRoomRequestDto request) {
+//        return ResponseEntity.ok(CommonResponse.success(chatService.createRoom(userId, request)));
+//    }
 
     @PostMapping("/direct")
     @Operation(summary = "1:1 채팅 시작", description = "요청자와 targetUserId 사이 DIRECT 채팅방을 생성하거나 기존 방을 반환합니다.")

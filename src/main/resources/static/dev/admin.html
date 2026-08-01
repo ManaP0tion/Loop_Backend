@@ -159,6 +159,44 @@
             box-shadow: 0 1px 2px rgba(0,0,0,0.03), 0 8px 24px rgba(0,0,0,0.04);
             overflow: hidden;
         }
+        /* ===== 대시보드 ===== */
+        .dash-label {
+            font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+            color: var(--text-muted); text-transform: uppercase;
+            margin: 4px 2px 12px;
+        }
+        .dash-grid {
+            display: grid; gap: 14px;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            margin-bottom: 28px;
+        }
+        .stat {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px 22px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03), 0 8px 24px rgba(0,0,0,0.04);
+            transition: transform var(--spring), box-shadow var(--spring);
+        }
+        .stat .n {
+            font-size: 34px; font-weight: 700; line-height: 1.05;
+            letter-spacing: -0.02em; color: var(--text);
+            font-variant-numeric: tabular-nums;
+        }
+        .stat .t { font-size: 13px; color: var(--text-sub); margin-top: 6px; }
+        .stat .sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        /* 처리 대기 액션 카드 — 클릭 가능, 건수 있으면 강조 */
+        .stat.action { cursor: pointer; display: block; }
+        .stat.action:active { transform: scale(0.98); }
+        .stat.action:hover { box-shadow: 0 2px 4px rgba(0,0,0,0.05), 0 12px 32px rgba(0,0,0,0.07); }
+        .stat.action.alert { border-color: color-mix(in srgb, var(--danger) 40%, transparent); background: color-mix(in srgb, var(--danger) 7%, var(--surface)); }
+        .stat.action.alert .n { color: var(--danger); }
+        .stat.action.warn { border-color: color-mix(in srgb, var(--warning) 45%, transparent); background: color-mix(in srgb, var(--warning) 8%, var(--surface)); }
+        .stat.action.warn .n { color: var(--warning); }
+        .stat.action.clear .n { color: var(--text-muted); }
+        @media (prefers-reduced-motion: reduce) {
+            .stat, .stat.action:active { transition: none; transform: none; }
+        }
         table.data {
             width: 100%; border-collapse: collapse;
             font-size: 13px;
@@ -349,6 +387,10 @@
     <aside class="sidebar">
         <div class="brand"><span class="dot"></span>Loop Admin</div>
 
+        <ul class="nav" style="margin-top:8px;">
+            <li><a href="#dashboard" data-section="dashboard" data-title="대시보드"><span class="icon">◉</span>대시보드</a></li>
+        </ul>
+
         <div class="nav-section">회원 · 신고</div>
         <ul class="nav">
             <li><a href="#users" data-section="users" data-title="회원 관리"><span class="icon">◐</span>회원</a></li>
@@ -365,6 +407,7 @@
 
         <div class="nav-section">시스템</div>
         <ul class="nav">
+            <li><a href="#mail-logs" data-section="mail-logs" data-title="메일 발송"><span class="icon">✉</span>메일 발송</a></li>
             <li><a href="#access-logs" data-section="access-logs" data-title="접속 기록"><span class="icon">⎔</span>접속기록</a></li>
             <li><a href="#admins" data-section="admins" data-title="관리자 계정"><span class="icon">✦</span>관리자</a></li>
         </ul>
@@ -530,12 +573,62 @@ function setActive(name) {
 }
 
 async function route() {
-    const hash = location.hash.slice(1) || 'users';
+    const hash = location.hash.slice(1) || 'dashboard';
     const [name, ...rest] = hash.split('/');
-    if (!sections[name]) { location.hash = 'users'; return; }
+    if (!sections[name]) { location.hash = 'dashboard'; return; }
     setActive(name);
     try { await sections[name](rest); } catch (e) { handleErr(e, '섹션 로드 실패'); }
 }
+
+// ---------- DASHBOARD ----------
+sections.dashboard = async () => {
+    const root = el(`<div>
+        <div class="page-header">
+            <div><div class="page-title">대시보드</div><div class="page-sub">지금 처리해야 할 일과 서비스 현황</div></div>
+        </div>
+        <div id="dashSlot"><div class="card"><div class="empty" style="padding:40px;">불러오는 중…</div></div></div>
+    </div>`);
+    MAIN().replaceChildren(root);
+
+    const s = await api.get('/api/admin/dashboard');
+
+    // ① 처리 대기 큐 — 건수 있으면 색 강조, 클릭 시 해당 섹션으로
+    const action = (cls, n, title, sub, hash) => {
+        const on = n > 0;
+        const a = el(`<a href="#${hash}" class="stat action ${on ? cls : 'clear'}">
+            <div class="n">${n}</div>
+            <div class="t">${title}</div>
+            <div class="sub">${on ? sub : '대기 없음'}</div>
+        </a>`);
+        return a;
+    };
+    // ② KPI — 총계 + 서브라인
+    const kpi = (n, title, sub) => el(`<div class="stat">
+        <div class="n">${n.toLocaleString()}</div>
+        <div class="t">${title}</div>
+        <div class="sub">${sub}</div>
+    </div>`);
+    const wk = v => '최근 7일 +' + v.toLocaleString();
+
+    const slot = root.querySelector('#dashSlot');
+    slot.replaceChildren(el(`<div>
+        <div class="dash-label">처리 대기</div>
+        <div class="dash-grid" id="qGrid"></div>
+        <div class="dash-label">서비스 현황</div>
+        <div class="dash-grid" id="kGrid"></div>
+    </div>`));
+
+    slot.querySelector('#qGrid').append(
+        action('alert', s.pendingReports, '처리 대기 신고', '접수·처리중인 신고', 'reports'),
+        action('warn', s.pendingAppeals, '대기 중 이의제기', '검토가 필요한 이의제기', 'reports'),
+    );
+    slot.querySelector('#kGrid').append(
+        kpi(s.totalUsers, '전체 회원', wk(s.newUsersThisWeek)),
+        kpi(s.totalPosts, '동행 프로필', wk(s.newPostsThisWeek)),
+        kpi(s.totalInquiries, '고객센터 문의', wk(s.newInquiriesThisWeek)),
+        kpi(s.totalChatRooms, '채팅방', '활성 ' + s.activeChatRooms.toLocaleString()),
+    );
+};
 
 // ---------- USERS ----------
 sections.users = async () => {
@@ -849,6 +942,13 @@ async function reportAction(a, r, refresh) {
 }
 
 // ---------- INQUIRIES ----------
+const INQUIRY_TYPE_LABEL = {
+    COMPANION_SEARCH: '동행찾기 관련', ACCOUNT_LOGIN: '계정/로그인 문제',
+    APP_USAGE: '앱 기능/사용 문의', SUGGESTION: '제안/피드백', OTHER: '기타',
+};
+const inquiryTypeLabel = t => INQUIRY_TYPE_LABEL[t] || t || '-';
+const INQUIRY_STATUS_LABEL = { PENDING: '진행 중', DONE: '완료' };
+const inquiryStatusLabel = s => INQUIRY_STATUS_LABEL[s] || '진행 중';
 sections.inquiries = async () => {
     const state = { page: 0, size: 20 };
     const root = el(`<div>
@@ -860,23 +960,36 @@ sections.inquiries = async () => {
     async function load() {
         const d = await api.get('/api/admin/inquiries', { ...state });
         const t = el(`<table class="data"><thead><tr>
-            <th>ID</th><th>사용자</th><th>유형</th><th>제목</th><th>등록일</th><th>작업</th>
+            <th>ID</th><th>사용자</th><th>유형</th><th>제목</th><th>진행 현황</th><th>등록일</th><th>작업</th>
         </tr></thead><tbody></tbody></table>`);
         const tb = t.querySelector('tbody');
-        if (!d.items.length) tb.append(el(`<tr><td colspan="6" class="empty">문의 없음</td></tr>`));
+        if (!d.items.length) tb.append(el(`<tr><td colspan="7" class="empty">문의 없음</td></tr>`));
         d.items.forEach(i => {
+            const done = i.status === 'DONE';
             const tr = el(`<tr>
                 <td>${i.id}</td><td>#${i.userId} ${esc(i.userNickname)}</td>
-                <td>${esc(i.type)}</td><td>${esc(i.title)}</td>
+                <td>${esc(inquiryTypeLabel(i.type))}</td><td>${esc(i.title)}</td>
+                <td><span class="pill ${done ? 'gray' : ''}">${inquiryStatusLabel(i.status)}</span></td>
                 <td>${fmtDate(i.createdAt)}</td>
-                <td><button class="btn" data-a="view">상세</button></td>
+                <td class="row-actions">
+                    <button class="btn" data-a="view">상세</button>
+                    <button class="btn" data-a="toggle">${done ? '진행 중으로' : '완료 처리'}</button>
+                </td>
             </tr>`);
+            tr.querySelector('[data-a=toggle]').onclick = async () => {
+                try {
+                    await api.patch(`/api/admin/inquiries/${i.id}/status`, { status: done ? 'PENDING' : 'DONE' });
+                    toast('상태가 변경되었습니다.');
+                    load();
+                } catch (e) { handleErr(e); }
+            };
             tr.querySelector('[data-a=view]').onclick = async () => {
                 try {
                     const de = await api.get(`/api/admin/inquiries/${i.id}`);
                     const body = el(`<div class="kv">
                         <span class="k">사용자</span><span class="v">#${de.userId} ${esc(de.userNickname)} (${esc(de.userEmail) || '-'})</span>
-                        <span class="k">유형</span><span class="v">${esc(de.type)}</span>
+                        <span class="k">유형</span><span class="v">${esc(inquiryTypeLabel(de.type))}</span>
+                        <span class="k">진행 현황</span><span class="v">${inquiryStatusLabel(de.status)}</span>
                         <span class="k">제목</span><span class="v">${esc(de.title)}</span>
                         <span class="k">내용</span><span class="v" style="white-space:pre-wrap;">${esc(de.content)}</span>
                         <span class="k">등록</span><span class="v">${fmtDate(de.createdAt)}</span>
@@ -903,12 +1016,27 @@ sections.artists = async () => {
             <div class="spacer" style="flex:1"></div>
             <button class="btn primary" id="new">+ 아티스트 등록</button>
         </div>
+        <div class="toolbar">
+            <input placeholder="이름/Base/한글/Alias 검색" id="q" />
+        </div>
         <div class="card"><div id="slot"></div></div>
     </div>`);
     MAIN().replaceChildren(root);
 
+    let all = [];
+    root.querySelector('#q').oninput = render;
+
     async function load() {
-        const arr = await api.get('/api/admin/artists');
+        all = await api.get('/api/admin/artists');
+        render();
+    }
+
+    function render() {
+        const q = root.querySelector('#q').value.trim().toLowerCase();
+        const arr = q
+            ? all.filter(a => [a.name, a.baseName, a.nameKo, a.nameAlias]
+                .some(v => (v || '').toLowerCase().includes(q)))
+            : all;
         const t = el(`<table class="data"><thead><tr>
             <th>ID</th><th>이름</th><th>Base</th><th>한글</th><th>카테고리</th><th>이미지</th><th>작업</th>
         </tr></thead><tbody></tbody></table>`);
@@ -985,7 +1113,7 @@ function artistForm(a, refresh) {
 
 // ---------- CONCERTS ----------
 sections.concerts = async () => {
-    const state = { page: 0, size: 20 };
+    const state = { page: 0, size: 20, q: '' };
     const root = el(`<div>
         <div class="page-header">
             <div><div class="page-title">공연 관리</div><div class="page-sub">삭제 시 동행 프로필 함께 삭제 · 채팅방은 보존</div></div>
@@ -993,9 +1121,15 @@ sections.concerts = async () => {
             <button class="btn" id="sync">KOPIS 동기화</button>
             <button class="btn primary" id="new">+ 공연 등록</button>
         </div>
+        <div class="toolbar">
+            <input placeholder="공연명/장소/아티스트 검색" id="q" />
+            <button class="btn primary" id="apply">조회</button>
+        </div>
         <div class="card"><div id="slot"></div></div>
     </div>`);
     MAIN().replaceChildren(root);
+    root.querySelector('#apply').onclick = () => { state.q = root.querySelector('#q').value; state.page = 0; load(); };
+    root.querySelector('#q').onkeydown = (e) => { if (e.key === 'Enter') root.querySelector('#apply').click(); };
     root.querySelector('#sync').onclick = async (e) => {
         if (!confirm('KOPIS에서 공연 정보를 즉시 동기화합니다. 완료까지 시간이 걸릴 수 있습니다.')) return;
         const btn = e.target; btn.disabled = true; btn.textContent = '동기화 중…';
@@ -1138,6 +1272,82 @@ sections.posts = async () => {
 };
 
 // ---------- ACCESS LOGS ----------
+// ---------- MAIL LOGS ----------
+const MAIL_TYPES = {
+    REPORT: '신고 알림', INQUIRY: '문의 알림', UNREAD_CHAT: '미확인 채팅',
+    VERIFICATION: '인증코드', CONCERT_REMINDER: '공연 리마인드', NEW_CHAT: '새 채팅',
+};
+sections['mail-logs'] = async () => {
+    const state = { page: 0, size: 50, type: '', success: '' };
+    const typeOpts = Object.entries(MAIL_TYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+    const root = el(`<div>
+        <div class="page-header"><div>
+            <div class="page-title">메일 발송</div>
+            <div class="page-sub">발송 이력(메타데이터만) · 테스트 발송</div>
+        </div></div>
+        <div class="card" style="padding:18px 20px; margin-bottom:16px;">
+            <div style="font-weight:600; margin-bottom:12px;">테스트 발송</div>
+            <div class="toolbar" style="margin:0;">
+                <select id="tType">${typeOpts}</select>
+                <input type="email" id="tEmail" placeholder="받는 사람 이메일" style="min-width:220px;" />
+                <button class="btn primary" id="tSend">발송</button>
+            </div>
+            <div class="page-sub" style="margin-top:8px;">샘플 데이터로 실제 발송됩니다. 결과는 아래 목록에 기록돼요.</div>
+        </div>
+        <div class="toolbar">
+            <select id="type"><option value="">타입 전체</option>${typeOpts}</select>
+            <select id="success"><option value="">결과 전체</option><option value="true">성공</option><option value="false">실패</option></select>
+            <button class="btn primary" id="apply">조회</button>
+        </div>
+        <div class="card"><div id="slot"></div></div>
+    </div>`);
+    MAIN().replaceChildren(root);
+
+    async function load() {
+        const d = await api.get('/api/admin/mail-logs', { ...state });
+        const t = el(`<table class="data"><thead><tr>
+            <th>시각</th><th>타입</th><th>수신</th><th>제목</th><th>결과</th>
+        </tr></thead><tbody></tbody></table>`);
+        const tb = t.querySelector('tbody');
+        if (!d.items.length) tb.append(el(`<tr><td colspan="5" class="empty">기록 없음</td></tr>`));
+        d.items.forEach(m => tb.append(el(`<tr>
+            <td>${fmtDate(m.sentAt)}</td>
+            <td><span class="pill blue">${MAIL_TYPES[m.type] || esc(m.type)}</span></td>
+            <td>${esc(m.toEmail) || '-'}</td>
+            <td>${esc(m.subject) || '-'}</td>
+            <td>${m.success
+                ? '<span class="pill green">성공</span>'
+                : `<span class="pill red">실패</span>${m.failReason ? ` <span class="page-sub" title="${esc(m.failReason)}">${esc(m.failReason).slice(0, 40)}</span>` : ''}`}</td>
+        </tr>`)));
+        const slot = root.querySelector('#slot');
+        slot.replaceChildren(t);
+        const pg = renderPager({ ...d, page: state.page, size: state.size });
+        pg.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { state.page += b.dataset.p === 'next' ? 1 : -1; load(); });
+        slot.append(pg);
+    }
+
+    root.querySelector('#tSend').onclick = async () => {
+        const type = root.querySelector('#tType').value;
+        const email = root.querySelector('#tEmail').value.trim();
+        if (!email) { toast('이메일을 입력하세요', true); return; }
+        const btn = root.querySelector('#tSend');
+        btn.disabled = true;
+        try {
+            await api.post('/api/admin/mail-logs/test', { type, email });
+            toast(`${MAIL_TYPES[type]} 메일을 ${email} 로 발송했어요`);
+            state.page = 0; await load();
+        } catch (e) { handleErr(e, '테스트 발송 실패'); }
+        finally { btn.disabled = false; }
+    };
+    root.querySelector('#apply').onclick = () => {
+        state.type = root.querySelector('#type').value;
+        state.success = root.querySelector('#success').value;
+        state.page = 0;
+        load();
+    };
+    await load();
+};
+
 sections['access-logs'] = async () => {
     const state = { page: 0, size: 50, adminId: '', action: '', from: '', to: '' };
     const root = el(`<div>
@@ -1261,14 +1471,20 @@ function showLogin() {
     document.getElementById('loginWrap').hidden = false;
     document.getElementById('app').hidden = true;
 }
-function showApp() {
+async function showApp() {
     document.getElementById('loginWrap').hidden = true;
     document.getElementById('app').hidden = false;
-    const me = JSON.parse(localStorage.getItem(ME_KEY) || 'null');
-    if (me) {
-        document.getElementById('meLabel').textContent = me.nickname || '관리자';
-        document.getElementById('meAvatar').textContent = (me.nickname || 'PM').slice(0, 2).toUpperCase();
+    // 로그인/카카오 응답엔 닉네임이 없어서(accessToken만) 서버에서 내 정보를 받아와 캐시한다.
+    let me = JSON.parse(localStorage.getItem(ME_KEY) || 'null');
+    if (!me) {
+        try {
+            me = await api.get('/api/users/me');
+            localStorage.setItem(ME_KEY, JSON.stringify(me));
+        } catch (e) { console.error('내 정보 조회 실패:', e); }
     }
+    const nick = (me && me.nickname) || '관리자';
+    document.getElementById('meLabel').textContent = nick;
+    document.getElementById('meAvatar').textContent = nick.slice(0, 2).toUpperCase();
 }
 
 async function ensureAuthed() {
@@ -1368,7 +1584,7 @@ window.addEventListener('hashchange', route);
 (async function boot() {
     await handleKakaoCallback();
     if (await ensureAuthed()) {
-        if (!location.hash) location.hash = 'users';
+        if (!location.hash) location.hash = 'dashboard';
         else route();
     }
 })();

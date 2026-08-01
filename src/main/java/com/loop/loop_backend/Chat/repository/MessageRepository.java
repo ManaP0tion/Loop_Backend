@@ -23,6 +23,14 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 
     long countByChatRoom_IdAndSender_IdNotAndIsReadFalse(Long roomId, Long senderId);
 
+    // ChatParticipant.messageVisibleFrom(탈퇴 후 재가입 시 세팅되는 커트라인)이 있는 사용자 전용 조회.
+    // 위 3개(커트라인 없는 버전)와 쌍을 이루며, 서비스단에서 cutoff == null이면 위쪽을, 아니면 아래쪽을 호출한다.
+    Slice<Message> findByChatRoom_IdAndCreatedAtAfterOrderByCreatedAtDesc(Long roomId, LocalDateTime cutoff, Pageable pageable);
+
+    Optional<Message> findTopByChatRoom_IdAndCreatedAtAfterOrderByCreatedAtDesc(Long roomId, LocalDateTime cutoff);
+
+    long countByChatRoom_IdAndSender_IdNotAndIsReadFalseAndCreatedAtAfter(Long roomId, Long senderId, LocalDateTime cutoff);
+
     @Modifying
     @Query("UPDATE Message m SET m.isRead = true WHERE m.chatRoom.id = :roomId AND m.sender.id <> :userId AND m.isRead = false")
     void markAllAsRead(@Param("roomId") Long roomId, @Param("userId") Long userId);

@@ -6,6 +6,7 @@ import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
+import com.loop.loop_backend.Concert.dto.ConcertSort;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
@@ -105,16 +106,18 @@ public class ConcertServiceImpl implements ConcertService {
     }
 
     @Override
-    public List<ConcertResponseDto> getAllConcerts(Long userId) {
+    public List<ConcertResponseDto> getAllConcerts(Long userId, ConcertSort sort) {
         return concertRepository.findUpcomingOrUndated(ExpiryCutoff.cutoffDate()).stream()
                 .map(concert -> toResponseDto(concert, userId))
+                .sorted(sort.comparator())
                 .collect(Collectors.toList());
     }
 
     @Override
-    public List<ConcertResponseDto> getConcertsByCategory(ConcertCategory category, Long userId) {
+    public List<ConcertResponseDto> getConcertsByCategory(ConcertCategory category, Long userId, ConcertSort sort) {
         return concertRepository.findUpcomingOrUndatedByCategory(category, ExpiryCutoff.cutoffDate()).stream()
                 .map(concert -> toResponseDto(concert, userId))
+                .sorted(sort.comparator())
                 .collect(Collectors.toList());
     }
 

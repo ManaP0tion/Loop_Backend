@@ -22,6 +22,7 @@ import com.loop.loop_backend.Chat.repository.MessageRepository;
 import com.loop.loop_backend.Block.repository.BlockRepository;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
+import com.loop.loop_backend.Mail.service.MailService;
 import com.loop.loop_backend.Report.repository.ReportRepository;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
@@ -40,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -55,6 +57,7 @@ public class ChatServiceImpl implements ChatService {
     private final ReportRepository reportRepository;
     private final UserRepository userRepository;
     private final CompanionPostRepository companionPostRepository;
+    private final MailService mailService;
     private final EntityManager em;
     private final SimpMessagingTemplate messagingTemplate;
     private final TransactionTemplate transactionTemplate;
@@ -81,10 +84,10 @@ public class ChatServiceImpl implements ChatService {
                 : "동행 채팅방 #" + request.getPostId();
 
         ChatRoom room = ChatRoom.builder()
-                .post(post)
                 .name(name)
                 .type(request.getType())
                 .build();
+        room.assignPost(post); // post + concertId(스냅샷) 동시 세팅, 빌더에서 직접 넣지 않고 이 메서드로 통일
         chatRoomRepository.save(room);
 
         chatParticipantRepository.save(ChatParticipant.builder()
@@ -116,6 +119,9 @@ public class ChatServiceImpl implements ChatService {
         String pairKey = ("chat:direct:"
                 + Math.min(myUserId, targetId) + ":" + Math.max(myUserId, targetId)).intern();
         Long roomId;
+        boolean[] isNewRoom = {false}; //새 채팅 메일링 용
+        String[] concertTitleHolder = {null}; //새 채팅 메일링 용 — post.concert는 LAZY라 tx 안에서 미리 읽어둠
+        boolean[] rejoined = {false};
         synchronized (pairKey) {
             roomId = transactionTemplate.execute(status -> {
                 // LINE 방식: DIRECT는 페어당 방 1개. hide된(내 participant=LEFT) 방이면 rejoin.
@@ -123,11 +129,35 @@ public class ChatServiceImpl implements ChatService {
                 ChatRoom room;
                 if (existing.isEmpty()) {
                     room = createDirectRoom(myUserId, targetId);
+                    isNewRoom[0] = true;  //새 채팅 메일링 용
                 } else {
                     room = existing.get(0);
+                    ChatRoom rejoinRoom = room;
                     chatParticipantRepository.findByChatRoom_IdAndUser_Id(room.getId(), myUserId)
                             .filter(p -> p.getStatus() == ParticipantStatus.LEFT)
-                            .ifPresent(ChatParticipant::rejoin);
+                            .ifPresent(p -> {
+                                // messageVisibleFrom이 이미 있다는 건 이 LEFT가 일반 나가기가 아니라
+                                // 회원 탈퇴(handleUserWithdrawn)로 인한 것이었다는 뜻 — 그 경우에만
+                                // 아래에서 상대 쪽도 새로 시작하는 것처럼 리셋해준다.
+                                boolean rejoinAfterWithdrawal = p.getMessageVisibleFrom() != null;
+                                p.rejoin();
+                                rejoined[0] = true;
+                                // REST 재입장 히스토리에 노출할 시스템 메시지 영속화(소켓 REJOIN 이벤트와 별개).
+                                User me = p.getUser();
+                                String nickname = me.getNickname() != null ? me.getNickname() : "상대방";
+                                Message systemMsg = messageRepository.save(Message.builder()
+                                        .chatRoom(rejoinRoom).sender(me).type(MessageType.SYSTEM_REJOIN)
+                                        .content(nickname + "님이 다시 채팅방에 들어왔습니다").build());
+
+                                // 탈퇴 후 재입장이면 상대(targetId) 쪽에도 커트라인을 찍어서, 이전 대화
+                                // 전체(이 재입장 메시지 포함)가 상대에게도 조용히 안 보이게 한다.
+                                // 메시지 row는 지우지 않으므로 신고 대응 등에서는 여전히 조회 가능.
+                                // 일반적인 나가기 후 재입장은 상대 쪽 이력을 그대로 둔다(여기 안 들어옴).
+                                if (rejoinAfterWithdrawal) {
+                                    chatParticipantRepository.findByChatRoom_IdAndUser_Id(room.getId(), targetId)
+                                            .ifPresent(other -> other.hideMessagesBefore(systemMsg.getCreatedAt()));
+                                }
+                            });
                 }
                 if (request.getCompanionPostId() != null) {
                     CompanionPost post = companionPostRepository.findById(request.getCompanionPostId())
@@ -136,15 +166,33 @@ public class ChatServiceImpl implements ChatService {
                         throw new BusinessException(ErrorCode.FORBIDDEN);
                     }
                     room.assignPost(post);
+                    concertTitleHolder[0] = post.getConcert().getTitle();
                 }
                 return room.getId();
             });
+        }
+
+        // 커밋 후 브로드캐스트: 나갔던 내가 돌아왔음을 상대에게 알려 입력창 unblock 하도록.
+        if (rejoined[0]) {
+            messagingTemplate.convertAndSend("/sub/chat/room/" + roomId, ChatLeaveEventDto.builder()
+                    .type(ChatLeaveEventDto.Type.REJOIN)
+                    .roomId(roomId)
+                    .leaverId(myUserId)
+                    .build());
         }
 
         ChatRoomSummaryDto summary = chatRoomRepository.findSummaryById(roomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         User otherUser = userRepository.findById(targetId).orElse(null);
         ChatOtherUserRelationDto relation = buildRelation(myUserId, targetId, otherUser);
+
+        // 진짜 신규 생성(재입장 아님)일 때만, 채팅을 받은 쪽(상대방)에게 알림 메일 발송.
+        // 상대방이 채팅 알림 메일을 꺼뒀으면 보내지 않는다.
+        if (isNewRoom[0] && otherUser != null && otherUser.isChatNotificationEmail()) {
+            String myNickname = userRepository.findById(myUserId).map(User::getNickname).orElse("회원");
+            mailService.sendNewChatNotification(otherUser.getEmail(), otherUser.getNickname(), myNickname, concertTitleHolder[0]);
+        }
+
         return ChatRoomResponseDto.fromSummary(summary, targetId, otherUser, relation);
     }
 
@@ -239,21 +287,48 @@ public class ChatServiceImpl implements ChatService {
                                     .findFirst()
                                     .orElse(null));
                     Long otherUserId = otherUser != null ? otherUser.getId() : null;
-                    Message lastMessage = messageRepository
-                            .findTopByChatRoom_IdOrderByCreatedAtDesc(room.getId())
+
+                    // 나(userId) 참여 row의 messageVisibleFrom 커트라인을 읽어서, 목록 미리보기
+                    // (마지막 메시지/안읽음 수)에도 getMessages()와 동일한 기준을 적용한다.
+                    // 이게 없으면 상세 조회는 이력을 숨기는데 목록 미리보기에서 예전 마지막 메시지가
+                    // 그대로 노출되는 불일치가 생긴다.
+                    LocalDateTime cutoff = chatParticipantRepository
+                            .findByChatRoom_IdAndUser_Id(room.getId(), userId)
+                            .map(ChatParticipant::getMessageVisibleFrom)
                             .orElse(null);
-                    long unreadCount = messageRepository
-                            .countByChatRoom_IdAndSender_IdNotAndIsReadFalse(room.getId(), userId);
-                    return ChatRoomResponseDto.forList(room, otherUserId, otherUser, lastMessage, unreadCount);
+
+                    Message lastMessage = (cutoff == null
+                            ? messageRepository.findTopByChatRoom_IdOrderByCreatedAtDesc(room.getId())
+                            : messageRepository.findTopByChatRoom_IdAndCreatedAtAfterOrderByCreatedAtDesc(room.getId(), cutoff))
+                            .orElse(null);
+                    long unreadCount = cutoff == null
+                            ? messageRepository.countByChatRoom_IdAndSender_IdNotAndIsReadFalse(room.getId(), userId)
+                            : messageRepository.countByChatRoom_IdAndSender_IdNotAndIsReadFalseAndCreatedAtAfter(room.getId(), userId, cutoff);
+                    return ChatRoomResponseDto.forList(room, otherUserId, otherUser, lastMessage, unreadCount, userId);
                 })
+                // 마지막 메시지 시각 내림차순. 메시지가 아직 없는 방은
+                // lastMessageAt이 null이라 방 생성 시각으로 대체해 맨 아래로 밀리지 않게 한다.
+                .sorted(Comparator.comparing(
+                        (ChatRoomResponseDto dto) -> dto.getLastMessageAt() != null
+                                ? dto.getLastMessageAt() : dto.getCreatedAt(),
+                        Comparator.reverseOrder()))
                 .collect(Collectors.toList());
     }
 
     @Override
     public ChatMessagesResponseDto getMessages(Long roomId, Long userId, Pageable pageable) {
-        assertActiveParticipant(roomId, userId);
+        // boolean 존재 체크(assertActiveParticipant) 대신 참여자 엔티티를 직접 가져온다.
+        // messageVisibleFrom 커트라인을 읽어야 하기 때문. 검증 조건(ACTIVE 아니면 거부)은 동일하다.
+        ChatParticipant me = chatParticipantRepository.findByChatRoom_IdAndUser_Id(roomId, userId)
+                .filter(p -> p.getStatus() == ParticipantStatus.ACTIVE)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_CHAT_PARTICIPANT));
+        LocalDateTime cutoff = me.getMessageVisibleFrom();
 
-        Slice<ChatMessageDto> messages = messageRepository.findByChatRoom_IdOrderByCreatedAtDesc(roomId, pageable)
+        // cutoff가 없으면(일반 사용자, 또는 탈퇴 이력이 없는 참여자) 기존과 동일하게 전체 이력 조회.
+        // cutoff가 있으면(탈퇴 후 재가입한 본인) 그 시각 이후 메시지만 조회해 예전 이력을 감춘다.
+        Slice<ChatMessageDto> messages = (cutoff == null
+                ? messageRepository.findByChatRoom_IdOrderByCreatedAtDesc(roomId, pageable)
+                : messageRepository.findByChatRoom_IdAndCreatedAtAfterOrderByCreatedAtDesc(roomId, cutoff, pageable))
                 .map(this::toDto);
 
         ChatRoom room = chatRoomRepository.findById(roomId).orElse(null);
@@ -262,13 +337,43 @@ public class ChatServiceImpl implements ChatService {
         ChatMessagesResponseDto.ChatMessagesResponseDtoBuilder builder = ChatMessagesResponseDto.builder()
                 .otherUserRelation(relation)
                 .messages(messages);
-        if (room != null && room.getPost() != null) {
-            builder.otherCompanionId(room.getPost().getId());
-            if (room.getPost().getConcert() != null) {
-                builder.concertId(room.getPost().getConcert().getId());
+        if (room != null) {
+            // concertId는 room.post.concert가 아니라 방에 스냅샷으로 저장된 값(post 삭제돼도 안 끊김)
+            if (room.getConcertId() != null) {
+                builder.concertId(room.getConcertId());
+            }
+            Long otherCompanionId = resolveOtherCompanionId(room, userId);
+            if (otherCompanionId != null) {
+                builder.otherCompanionId(otherCompanionId);
             }
         }
         return builder.build();
+    }
+
+    // "채팅방에서 상대방 동행 프로필 열기" 링크로 쓸 상대의 CompanionPost id.
+    // room.post는 페어당 최근 startDirectChat에서 assign된 "한쪽 글"만 담고 있어서
+    // 보는 사람(viewerId)이 그 글 주인이냐에 따라 갈린다.
+    //  1) room.post 주인 != 나  → 그 글이 곧 "상대 글"이므로 그대로 반환.
+    //  2) room.post 주인 == 나(=내가 host) → room.post는 "내 글"이라 상대 프로필이 아니다.
+    //     예전엔 이 경우를 그냥 room.post.id로 반환해서 host가 프로필을 누르면 "내 프로필"이
+    //     열리는 버그가 있었고, 이후 null 처리로 막았지만 그러면 host는 상대 프로필을 아예 못 봤다.
+    //     이제는 상대 참여자가 쓴 "같은 콘서트·같은 관람일(watchDay)" 글을 찾아 링크한다.
+    //     채팅 시작 게이트(existsMyCompanion)가 "상대 글과 동일 concert+watchDay에 내 글이 있어야
+    //     채팅 가능"을 이미 강제하고, companion_posts는 (user, concert, watchDay) 유니크라
+    //     이 조회 결과는 항상 0 또는 1개다. 상대가 글을 지웠으면 null → 링크만 빠진다.
+    // ponytail: "같은 watchDay" 커플링은 위 게이트 규칙을 그대로 따른 것. 규칙이 바뀌면 여기도 같이 손봐야 함.
+    private Long resolveOtherCompanionId(ChatRoom room, Long viewerId) {
+        if (room.getPost() == null) return null;
+        if (!room.getPost().getUser().getId().equals(viewerId)) {
+            return room.getPost().getId();
+        }
+        if (room.getConcertId() == null) return null;
+        Long otherId = resolveOtherUserId(room.getId(), viewerId);
+        if (otherId == null) return null;
+        return companionPostRepository
+                .findByUser_IdAndConcert_IdAndWatchDay(otherId, room.getConcertId(), room.getPost().getWatchDay())
+                .map(CompanionPost::getId)
+                .orElse(null);
     }
 
     @Override
@@ -337,14 +442,28 @@ public class ChatServiceImpl implements ChatService {
         String nickname = withdrawer.getNickname() != null ? withdrawer.getNickname() : "상대방";
         String content = nickname + "님이 루프를 탈퇴했어요";
 
-        // 탈퇴자가 참여 중이던(ACTIVE) DIRECT 방들에 대해 시스템 메시지 이력 남기고 실시간 브로드캐스트
+        // 탈퇴자가 참여 중이던(ACTIVE) DIRECT 방마다:
+        //  1) 시스템 메시지 남기고 실시간 브로드캐스트
+        //  2) 탈퇴자 자신의 참여 상태를 LEFT로 전환 → 탈퇴자 본인의 getMyRooms()에서 이 방이 즉시 빠짐.
+        //     상대방 참여 row는 건드리지 않으므로 상대방 목록/이력엔 영향 없음.
+        //  3) messageVisibleFrom을 방금 남긴 시스템 메시지 시각으로 세팅 → 이 메시지 포함, 그 이전
+        //     대화 전체가 "이 참여자에게는" 숨겨짐. reactivate()는 User 필드만 초기화하고 이 값을
+        //     건드리지 않으므로, 나중에 재가입해서 같은 상대와 대화를 재개해도(rejoin()) 탈퇴 이전
+        //     이력은 계속 안 보인다.
         chatParticipantRepository.findByUser_IdAndStatus(withdrawnUserId, ParticipantStatus.ACTIVE).stream()
-                .map(ChatParticipant::getChatRoom)
-                .filter(room -> room.getType() == ChatRoomType.DIRECT)
-                .forEach(room -> saveAndBroadcastSystemMessage(room, withdrawer, MessageType.SYSTEM_WITHDRAWN, content));
+                .filter(p -> p.getChatRoom().getType() == ChatRoomType.DIRECT)
+                .forEach(p -> {
+                    Message systemMsg = saveAndBroadcastSystemMessage(
+                            p.getChatRoom(), withdrawer, MessageType.SYSTEM_WITHDRAWN, content);
+                    p.leave();
+                    p.hideMessagesBefore(systemMsg.getCreatedAt());
+                });
     }
 
-    private void saveAndBroadcastSystemMessage(ChatRoom room, User actor, MessageType type, String content) {
+    // 저장된 Message를 반환하도록 해서, 호출부(handleUserWithdrawn)가 이 메시지의 createdAt을
+    // messageVisibleFrom 커트라인으로 그대로 재사용할 수 있게 한다. 기존 호출부(leaveRoom)는
+    // 반환값을 쓰지 않아도 되므로 영향 없음.
+    private Message saveAndBroadcastSystemMessage(ChatRoom room, User actor, MessageType type, String content) {
         Message saved = messageRepository.save(Message.builder()
                 .chatRoom(room)
                 .sender(actor)
@@ -352,6 +471,7 @@ public class ChatServiceImpl implements ChatService {
                 .content(content)
                 .build());
         messagingTemplate.convertAndSend("/sub/chat/room/" + room.getId(), toDto(saved));
+        return saved;
     }
 
     private ChatMessageDto toDto(Message m) {
@@ -371,6 +491,7 @@ public class ChatServiceImpl implements ChatService {
             case USER -> ChatMessageDto.MessageType.TALK;
             case SYSTEM_LEAVE -> ChatMessageDto.MessageType.SYSTEM_LEAVE;
             case SYSTEM_WITHDRAWN -> ChatMessageDto.MessageType.SYSTEM_WITHDRAWN;
+            case SYSTEM_REJOIN -> ChatMessageDto.MessageType.SYSTEM_REJOIN;
         };
     }
 
@@ -405,11 +526,20 @@ public class ChatServiceImpl implements ChatService {
     }
 
     // ponytail: N+1 for otherIds > 1. 그룹 채팅이 프로덕션에서 실제 사용되면 IN 쿼리 하나로 대체
+    //
+    // 참여자 status(ACTIVE/LEFT)가 아니라 방의 전체 참여자를 기준으로 본다. 탈퇴 처리
+    // (handleUserWithdrawn)가 탈퇴자 본인의 참여 row를 LEFT로 바꿔버리기 때문에, 여기서 ACTIVE만
+    // 필터링하면 탈퇴자가 "다른 참여자 목록"에서 아예 빠져버려 탈퇴 여부를 못 잡는다. 그 결과 바로
+    // 아래 assertOtherParticipantActive()에서 "상대가 없음"으로 걸려 OTHER_USER_LEFT(상대가 나갔다는
+    // 문구)가 뜨게 되는데, 실제 사유는 나간 게 아니라 탈퇴이므로 사용자에게 부정확한 메시지가 노출된다.
+    // 상태와 무관하게 상대 유저를 찾아야 OTHER_USER_WITHDRAWN(상대가 탈퇴했다는 정확한 문구)이 우선
+    // 적용된다.
     private void assertOtherParticipantNotWithdrawn(Long roomId, Long senderId) {
         List<Long> otherIds = chatParticipantRepository
-                .findByChatRoom_IdAndStatus(roomId, ParticipantStatus.ACTIVE).stream()
+                .findByChatRoom_Id(roomId).stream()
                 .map(p -> p.getUser().getId())
                 .filter(id -> !id.equals(senderId))
+                .distinct()
                 .collect(Collectors.toList());
 
         for (Long otherId : otherIds) {
@@ -422,9 +552,16 @@ public class ChatServiceImpl implements ChatService {
 
     private ChatOtherUserRelationDto buildDirectRelationForRoom(ChatRoom room, Long myUserId) {
         if (room == null || room.getType() != ChatRoomType.DIRECT) return null;
-        Long roomId = room.getId();
 
-        Long otherId = chatParticipantRepository.findByChatRoom_IdAndStatus(roomId, ParticipantStatus.ACTIVE).stream()
+        Long otherId = resolveOtherUserId(room.getId(), myUserId);
+        if (otherId == null) return null;
+        User otherUser = userRepository.findById(otherId).orElse(null);
+        return buildRelation(myUserId, otherId, otherUser);
+    }
+
+    // 방의 "나 아닌 참여자" id. ACTIVE 우선, 없으면 LEFT(나갔거나 탈퇴로 숨긴 상대)에서 찾는다.
+    private Long resolveOtherUserId(Long roomId, Long myUserId) {
+        return chatParticipantRepository.findByChatRoom_IdAndStatus(roomId, ParticipantStatus.ACTIVE).stream()
                 .map(p -> p.getUser().getId())
                 .filter(id -> !id.equals(myUserId))
                 .findFirst()
@@ -433,10 +570,6 @@ public class ChatServiceImpl implements ChatService {
                         .filter(id -> !id.equals(myUserId))
                         .findFirst()
                         .orElse(null));
-
-        if (otherId == null) return null;
-        User otherUser = userRepository.findById(otherId).orElse(null);
-        return buildRelation(myUserId, otherId, otherUser);
     }
 
     private ChatOtherUserRelationDto buildRelation(Long myUserId, Long otherId, User otherUser) {

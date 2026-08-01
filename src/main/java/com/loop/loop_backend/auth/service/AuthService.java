@@ -23,6 +23,7 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final LoginAttemptService loginAttemptService;
     private final RefreshTokenService refreshTokenService;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Transactional
     public TokenResponseDto login(LoginRequestDto requestDto) {
@@ -77,7 +78,10 @@ public class AuthService {
         return new TokenResponseDto(newAccessToken, newRefreshToken);
     }
 
-    public void logout(Long userId) {
+    public void logout(Long userId, String accessToken) {
         refreshTokenService.delete(userId);
+        if (accessToken != null) {
+            tokenBlacklistService.blacklist(accessToken, jwtTokenProvider.getRemainingMillis(accessToken));
+        }
     }
 }

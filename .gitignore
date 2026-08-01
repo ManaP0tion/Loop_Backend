@@ -60,3 +60,6 @@ tmp/
 # claude
 .claude/
 CLAUDE.md
+
+# 로컬 스크립트
+scripts/

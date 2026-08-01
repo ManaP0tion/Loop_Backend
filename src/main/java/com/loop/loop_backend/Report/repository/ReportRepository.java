@@ -18,6 +18,11 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
 
     boolean existsByReporter_IdAndTargetUser_Id(Long reporterId, Long targetUserId);
 
+    // 대시보드: 처리 대기 신고(접수+처리중) / 대기 중 이의제기
+    long countByStatusIn(java.util.Collection<ReportStatus> statuses);
+
+    long countByAppealStatus(AppealStatus appealStatus);
+
     @Query("""
         select r from Report r
         where (:status is null or r.status = :status)

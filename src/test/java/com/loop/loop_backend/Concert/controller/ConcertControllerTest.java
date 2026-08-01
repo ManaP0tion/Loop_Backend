@@ -72,26 +72,26 @@ class ConcertControllerTest {
 
     @Test
     void 카테고리_없이_목록_조회시_로그인한_사용자ID로_getAllConcerts가_호출된다() throws Exception {
-        when(concertService.getAllConcerts(USER_ID)).thenReturn(List.of(responseWithCount(5L)));
+        when(concertService.getAllConcerts(eq(USER_ID), any())).thenReturn(List.of(responseWithCount(5L)));
 
         mockMvc.perform(get("/api/concerts"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].companionCount").value(5));
 
-        verify(concertService).getAllConcerts(USER_ID);
-        verify(concertService, never()).getConcertsByCategory(any(), any());
+        verify(concertService).getAllConcerts(eq(USER_ID), any());
+        verify(concertService, never()).getConcertsByCategory(any(), any(), any());
     }
 
     @Test
     void 카테고리_지정시_로그인한_사용자ID로_getConcertsByCategory가_호출된다() throws Exception {
-        when(concertService.getConcertsByCategory(ConcertCategory.DOMESTIC_ARTIST, USER_ID))
+        when(concertService.getConcertsByCategory(eq(ConcertCategory.DOMESTIC_ARTIST), eq(USER_ID), any()))
                 .thenReturn(List.of(responseWithCount(1L)));
 
         mockMvc.perform(get("/api/concerts").param("category", "DOMESTIC_ARTIST"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].companionCount").value(1));
 
-        verify(concertService).getConcertsByCategory(ConcertCategory.DOMESTIC_ARTIST, USER_ID);
+        verify(concertService).getConcertsByCategory(eq(ConcertCategory.DOMESTIC_ARTIST), eq(USER_ID), any());
     }
 
     @Test
