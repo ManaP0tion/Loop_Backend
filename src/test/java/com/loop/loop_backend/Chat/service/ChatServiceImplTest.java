@@ -11,6 +11,8 @@ import com.loop.loop_backend.Chat.domain.ParticipantStatus;
 import com.loop.loop_backend.Chat.dto.ChatMessageDto;
 import com.loop.loop_backend.Chat.dto.ChatMessagesResponseDto;
 import com.loop.loop_backend.Chat.dto.ChatRoomResponseDto;
+import com.loop.loop_backend.Chat.dto.ChatRoomSummaryDto;
+import com.loop.loop_backend.Chat.dto.StartDirectChatRequestDto;
 import com.loop.loop_backend.Chat.repository.ChatParticipantRepository;
 import com.loop.loop_backend.Chat.repository.ChatRoomRepository;
 import com.loop.loop_backend.Chat.repository.MessageRepository;
@@ -37,6 +39,9 @@ import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -83,10 +88,11 @@ class ChatServiceImplTest {
     @Mock CompanionPostRepository companionPostRepository;
     @Mock MailService mailService;
     @Mock SimpMessagingTemplate messagingTemplate;
-    // EntityManager, TransactionTemplate은 일부러 목(mock)으로도 안 만듦: 이번에 테스트하는
-    // handleUserWithdrawn/getMessages/getMyRooms/saveMessage(차단 케이스)는 이 둘을 전혀 쓰지 않는다
-    // (em/transactionTemplate은 createRoom/startDirectChat/joinRoom 같은, 이번 변경과 무관한
-    // 메서드에서만 쓰임). @InjectMocks가 생성자에 null을 넣어줘도 테스트 대상 메서드는 문제없다.
+    // TransactionTemplate은 목으로 만들되, execute()가 실제 트랜잭션 없이 콜백만 바로 실행하도록
+    // stub한다(아래 setUp 참고) — startDirectChat()의 재입장 분기를 테스트하기 위해 필요.
+    // EntityManager는 여전히 목으로도 안 만듦: 재입장 케이스(기존 방 재사용)는 createDirectRoom()을
+    // 안 타서 em을 전혀 안 쓴다 — em이 필요한 건 "방을 새로 만드는" 경로뿐이고 그건 이번 테스트 대상이 아님.
+    @Mock TransactionTemplate transactionTemplate;
     @InjectMocks ChatServiceImpl chatService;
 
     // ── 인메모리 "DB" ────────────────────────────────────────────────────────
@@ -150,6 +156,39 @@ class ChatServiceImplTest {
                         .map(ChatParticipant::getChatRoom)
                         .filter(r -> r.getId().equals(inv.getArgument(0, Long.class)))
                         .findFirst());
+
+        // startDirectChat()의 "LINE 방식" 방 재사용 판단에 쓰임 — 참여자 상태 무관하게 두 유저가
+        // 다 참여 중인 DIRECT 방을 찾는 실제 쿼리와 동일한 의미로 구현.
+        when(chatRoomRepository.findDirectRoomsBetweenAnyStatus(anyLong(), anyLong()))
+                .thenAnswer(inv -> {
+                    Long u1 = inv.getArgument(0, Long.class);
+                    Long u2 = inv.getArgument(1, Long.class);
+                    return participantTable.stream()
+                            .map(ChatParticipant::getChatRoom)
+                            .filter(r -> r.getType() == ChatRoomType.DIRECT)
+                            .distinct()
+                            .filter(r -> participantTable.stream().anyMatch(p -> p.getChatRoom().equals(r) && p.getUser().getId().equals(u1)))
+                            .filter(r -> participantTable.stream().anyMatch(p -> p.getChatRoom().equals(r) && p.getUser().getId().equals(u2)))
+                            .collect(Collectors.toList());
+                });
+
+        // startDirectChat()이 트랜잭션 밖에서 응답을 조립할 때 쓰는 프로젝션 조회
+        when(chatRoomRepository.findSummaryById(anyLong()))
+                .thenAnswer(inv -> participantTable.stream()
+                        .map(ChatParticipant::getChatRoom)
+                        .filter(r -> r.getId().equals(inv.getArgument(0, Long.class)))
+                        .findFirst()
+                        .map(r -> new ChatRoomSummaryDto(r.getId(), r.getName(), r.getType(), r.getCreatedAt(),
+                                r.getPost() != null ? r.getPost().getId() : null, r.getConcertId())));
+
+        // TransactionTemplate.execute()는 실제로는 트랜잭션을 열고 콜백을 실행하는데, 여기선 실제
+        // 트랜잭션 없이 콜백만 즉시 실행해준다. SimpleTransactionStatus는 스프링이 이런 테스트
+        // 용도로 제공하는 더미 TransactionStatus라 실제 DB/트랜잭션 매니저 없이도 쓸 수 있다.
+        when(transactionTemplate.execute(org.mockito.ArgumentMatchers.<TransactionCallback<Object>>any()))
+                .thenAnswer(inv -> {
+                    TransactionCallback<?> callback = inv.getArgument(0);
+                    return callback.doInTransaction(new SimpleTransactionStatus());
+                });
 
         // save()는 실제 @CreationTimestamp처럼 createdAt을 채워준다. 단, 벽시계(now()) 대신
         // 호출할 때마다 1초씩 증가하는 가상 시계를 써서, 같은 테스트 안에서 여러 메시지를 빠르게
@@ -531,5 +570,56 @@ class ChatServiceImplTest {
 
         ChatMessagesResponseDto hostView = chatService.getMessages(100L, 1L, Pageable.unpaged());
         assertThat(hostView.getOtherCompanionId()).isNull();
+    }
+
+    // ── 6) 탈퇴 후 재입장 시, 상대방 쪽 이력도 조용히 리셋된다 (PM 요청 사항) ──────────
+
+    private StartDirectChatRequestDto startDirectChatRequest(long targetUserId) {
+        StartDirectChatRequestDto request = new StartDirectChatRequestDto();
+        ReflectionTestUtils.setField(request, "targetUserId", targetUserId);
+        return request;
+    }
+
+    @Test
+    void 탈퇴_후_재입장하면_상대방_참여row에도_커트라인이_찍힌다() {
+        User withdrawer = user(1L, "탈퇴자");
+        User other = user(2L, "상대방");
+        ChatRoom room = room(100L, ChatRoomType.DIRECT);
+        participant(room, withdrawer, ParticipantStatus.ACTIVE);
+        ChatParticipant otherParticipant = participant(room, other, ParticipantStatus.ACTIVE);
+        seedMessage(room, withdrawer, "탈퇴전_대화");
+
+        chatService.handleUserWithdrawn(1L);
+        withdrawer.reactivate();
+
+        // 재가입한 본인이 같은 상대에게 다시 채팅을 걸어 재입장을 트리거
+        chatService.startDirectChat(1L, startDirectChatRequest(2L));
+
+        // 상대(B)도 이 시점 이후 것만 보이게 커트라인이 새로 찍혀야 한다
+        assertThat(otherParticipant.getMessageVisibleFrom()).isNotNull();
+
+        // 실제로 B가 조회하면 탈퇴전 대화도, 재입장 시스템 메시지도 안 보여야 한다
+        List<String> visibleToOther = chatService.getMessages(100L, 2L, Pageable.unpaged())
+                .getMessages().getContent().stream().map(ChatMessageDto::getContent).toList();
+        assertThat(visibleToOther).isEmpty();
+    }
+
+    @Test
+    void 일반적으로_나갔다가_재입장하면_상대방_이력은_그대로_유지된다() {
+        User leaver = user(1L, "나간사람");
+        User other = user(2L, "상대방");
+        ChatRoom room = room(100L, ChatRoomType.DIRECT);
+        // 탈퇴가 아니라 그냥 나간 상태를 재현: status만 LEFT, messageVisibleFrom은 null
+        participant(room, leaver, ParticipantStatus.LEFT);
+        ChatParticipant otherParticipant = participant(room, other, ParticipantStatus.ACTIVE);
+        seedMessage(room, leaver, "나가기전_대화");
+
+        chatService.startDirectChat(1L, startDirectChatRequest(2L));
+
+        // 탈퇴로 인한 재입장이 아니므로 상대방 커트라인은 안 건드려야 한다
+        assertThat(otherParticipant.getMessageVisibleFrom()).isNull();
+        List<String> visibleToOther = chatService.getMessages(100L, 2L, Pageable.unpaged())
+                .getMessages().getContent().stream().map(ChatMessageDto::getContent).toList();
+        assertThat(visibleToOther).contains("나가기전_대화");
     }
 }

@@ -135,14 +135,27 @@ public class ChatServiceImpl implements ChatService {
                     chatParticipantRepository.findByChatRoom_IdAndUser_Id(room.getId(), myUserId)
                             .filter(p -> p.getStatus() == ParticipantStatus.LEFT)
                             .ifPresent(p -> {
+                                // messageVisibleFrom이 이미 있다는 건 이 LEFT가 일반 나가기가 아니라
+                                // 회원 탈퇴(handleUserWithdrawn)로 인한 것이었다는 뜻 — 그 경우에만
+                                // 아래에서 상대 쪽도 새로 시작하는 것처럼 리셋해준다.
+                                boolean rejoinAfterWithdrawal = p.getMessageVisibleFrom() != null;
                                 p.rejoin();
                                 rejoined[0] = true;
                                 // REST 재입장 히스토리에 노출할 시스템 메시지 영속화(소켓 REJOIN 이벤트와 별개).
                                 User me = p.getUser();
                                 String nickname = me.getNickname() != null ? me.getNickname() : "상대방";
-                                messageRepository.save(Message.builder()
+                                Message systemMsg = messageRepository.save(Message.builder()
                                         .chatRoom(rejoinRoom).sender(me).type(MessageType.SYSTEM_REJOIN)
                                         .content(nickname + "님이 다시 채팅방에 들어왔습니다").build());
+
+                                // 탈퇴 후 재입장이면 상대(targetId) 쪽에도 커트라인을 찍어서, 이전 대화
+                                // 전체(이 재입장 메시지 포함)가 상대에게도 조용히 안 보이게 한다.
+                                // 메시지 row는 지우지 않으므로 신고 대응 등에서는 여전히 조회 가능.
+                                // 일반적인 나가기 후 재입장은 상대 쪽 이력을 그대로 둔다(여기 안 들어옴).
+                                if (rejoinAfterWithdrawal) {
+                                    chatParticipantRepository.findByChatRoom_IdAndUser_Id(room.getId(), targetId)
+                                            .ifPresent(other -> other.hideMessagesBefore(systemMsg.getCreatedAt()));
+                                }
                             });
                 }
                 if (request.getCompanionPostId() != null) {
