@@ -11,6 +11,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -37,33 +38,39 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = resolveToken(request);
 
-        if (token != null && jwtTokenProvider.validateToken(token)
-                && !tokenBlacklistService.isBlacklisted(token)) {
-            Long userId = jwtTokenProvider.getUserId(token);
+        try {
+            if (token != null && jwtTokenProvider.validateToken(token)
+                    && !tokenBlacklistService.isBlacklisted(token)) {
+                Long userId = jwtTokenProvider.getUserId(token);
 
-            // ponytail: DB per authenticated request. JWT role/status claim if throughput matters.
-            User user = userRepository.findById(userId).orElse(null);
-            if (user != null && user.getStatus() == Status.SUSPENDED) {
-                if (user.isSuspensionExpired()) {
-                    user.liftSuspension();
-                    userRepository.save(user);
-                } else {
-                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                    response.setContentType("application/json;charset=UTF-8");
-                    response.getWriter().write("{\"success\":false,\"message\":\"이용정지된 계정입니다.\",\"data\":null,\"status\":403}");
-                    return;
+                // ponytail: DB per authenticated request. JWT role/status claim if throughput matters.
+                User user = userRepository.findById(userId).orElse(null);
+                if (user != null && user.getStatus() == Status.SUSPENDED) {
+                    if (user.isSuspensionExpired()) {
+                        user.liftSuspension();
+                        userRepository.save(user);
+                    } else {
+                        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                        response.setContentType("application/json;charset=UTF-8");
+                        response.getWriter().write("{\"success\":false,\"message\":\"이용정지된 계정입니다.\",\"data\":null,\"status\":403}");
+                        return;
+                    }
                 }
+                Role role = user != null ? user.getRole() : Role.USER;
+
+                var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(userId, null, authorities);
+
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+                MDC.put("userId", String.valueOf(userId));
             }
-            Role role = user != null ? user.getRole() : Role.USER;
 
-            var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(userId, null, authorities);
-
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            filterChain.doFilter(request, response);
+        } finally {
+            // 스레드 재사용(Tomcat 요청 스레드) 시 다음 요청에 이전 userId가 새어나가지 않도록 항상 정리.
+            MDC.clear();
         }
-
-        filterChain.doFilter(request, response);
     }
 
     // Authorization: Bearer {accessToken} 헤더에서 토큰만 추출
