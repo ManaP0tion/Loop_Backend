@@ -321,10 +321,11 @@ public class CompanionServiceImpl implements CompanionService {
     @Override
     public CompanionResponseDto getMyCompanion(Long userId, Long concertId, WatchDay watchDay) {
         CompanionPost post = companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(userId, concertId, watchDay)
-                .orElseThrow(() -> new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND));
+                .orElse(null);
 
-        if (post.isExpired(LocalDateTime.now(ZONE_KST))) {
-            throw new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND);
+        // 프로필 미등록은 에러가 아니라 정상 상태(목록 조회 화면에서 흔히 조회됨) - null 반환
+        if (post == null || post.isExpired(LocalDateTime.now(ZONE_KST))) {
+            return null;
         }
 
         // 본인 글이라 하트 자체가 불가능하므로 항상 false
