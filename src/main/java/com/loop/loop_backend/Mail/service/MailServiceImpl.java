@@ -107,13 +107,14 @@ public class MailServiceImpl implements MailService {
     }
 
     @Override
-    public void sendInquiryNotification(Long inquiryId, String userNickname, String type, String title, String content) {
+    public void sendInquiryNotification(Long inquiryId, String userNickname, String type, String title, String content, String email) {
         Context context = new Context();
         context.setVariable("inquiryId", inquiryId);
         context.setVariable("userNickname", userNickname);
         context.setVariable("type", type);
         context.setVariable("title", title);
         context.setVariable("content", content);
+        context.setVariable("email", email);
 
         String html = templateEngine.process("mail/inquiry-notification", context);
         dispatch(gmailMailSender, MailType.INQUIRY, adminEmail,

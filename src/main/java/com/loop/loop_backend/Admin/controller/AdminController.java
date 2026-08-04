@@ -612,8 +612,9 @@ public class AdminController {
                              InquiryType type, InquiryStatus status, String title, String content,
                              LocalDateTime createdAt) {
         static InquiryRow of(Inquiry i) {
+            // userEmail: 계정 이메일이 아니라 문의 접수 시점에 저장된 값 — 탈퇴로 계정 이메일이 null이 돼도 답장 가능하도록.
             return new InquiryRow(i.getId(),
-                    i.getUser().getId(), i.getUser().getNickname(), i.getUser().getEmail(),
+                    i.getUser().getId(), i.getUser().getNickname(), i.getEmail(),
                     i.getType(), i.getStatus(), i.getTitle(), i.getContent(), i.getCreatedAt());
         }
     }

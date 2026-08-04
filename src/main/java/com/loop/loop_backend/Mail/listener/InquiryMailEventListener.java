@@ -18,6 +18,6 @@ public class InquiryMailEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleInquiryCreated(InquiryCreatedEvent event) {
         mailService.sendInquiryNotification(
-                event.inquiryId(), event.userNickname(), event.type().getLabel(), event.title(), event.content());
+                event.inquiryId(), event.userNickname(), event.type().getLabel(), event.title(), event.content(), event.email());
     }
 }
