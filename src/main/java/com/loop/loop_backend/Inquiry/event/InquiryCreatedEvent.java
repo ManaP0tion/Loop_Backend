@@ -7,6 +7,7 @@ public record InquiryCreatedEvent(
         String userNickname,
         InquiryType type,
         String title,
-        String content
+        String content,
+        String email
 ) {
 }

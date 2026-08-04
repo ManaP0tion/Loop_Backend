@@ -24,11 +24,12 @@ public class InquiryDiscordNotificationListener {
         String content = """
                 **새 문의 접수** (ID: %d)
                 작성자: %s
+                답변 이메일: %s
                 유형: %s
                 제목: %s
                 내용: %s
                 """
-                .formatted(event.inquiryId(), event.userNickname(), event.type().getLabel(), event.title(), event.content());
+                .formatted(event.inquiryId(), event.userNickname(), event.email(), event.type().getLabel(), event.title(), event.content());
 
         discordNotificationService.send(webhookUrl, content);
     }

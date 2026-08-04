@@ -38,16 +38,22 @@ public class Inquiry {
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    // 답장받을 이메일 스냅샷. user.email(계정 이메일)에 기대지 않는 이유: 탈퇴 시 계정 이메일이 null 처리되므로,
+    // 탈퇴 전에 남긴 문의도 계속 답장 가능하도록 접수 시점 값을 별도로 들고 있는다.
+    @Column(name = "email", length = 255)
+    private String email;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Builder
-    private Inquiry(User user, InquiryType type, String title, String content) {
+    private Inquiry(User user, InquiryType type, String title, String content, String email) {
         this.user = user;
         this.type = type;
         this.title = title;
         this.content = content;
+        this.email = email;
         this.status = InquiryStatus.PENDING;
     }
 
