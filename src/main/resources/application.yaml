@@ -78,6 +78,9 @@ frontend:
 chat:
   allowed-origins: ${CHAT_ALLOWED_ORIGINS:${FRONTEND_URL}}
 
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:${FRONTEND_URL}}
+
 kopis:
   api-key: ${KOPIS_API_KEY}
 

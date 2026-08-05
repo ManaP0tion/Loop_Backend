@@ -47,7 +47,7 @@ public class SecurityConfig {
     private final UserRepository userRepository;
     private final TokenBlacklistService tokenBlacklistService;
 
-    @Value("${chat.allowed-origins}")
+    @Value("${cors.allowed-origins}")
     private String[] allowedOrigins;
 
     /**
