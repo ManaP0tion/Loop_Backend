@@ -16,6 +16,7 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -33,7 +34,7 @@ public class S3StorageService {
     private static final Set<String> HEIC_CONTENT_TYPES = Set.of("image/heic", "image/heif");
     private static final Set<String> HEIC_EXTENSIONS = Set.of("heic", "heif");
     private static final long MAX_FILE_SIZE = 5L * 1024 * 1024; // 5MB
-    private static final Duration FFMPEG_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration HEIC_CONVERT_TIMEOUT = Duration.ofSeconds(30);
 
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
@@ -155,9 +156,9 @@ public class S3StorageService {
 
             // heif-convert는 에러여도 출력이 작아서(수 KB 이내) 프로세스 종료 전에 먼저 다 읽어도
             // 파이프 버퍼가 안 막힌다. exit code만으론 원인 파악이 안 돼서 출력 내용을 같이 로그에 남긴다.
-            String output = new String(process.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
 
-            boolean finished = process.waitFor(FFMPEG_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
+            boolean finished = process.waitFor(HEIC_CONVERT_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
                 log.error("heic 변환 타임아웃: {}", output);
