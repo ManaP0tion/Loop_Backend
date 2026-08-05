@@ -140,6 +140,8 @@ public class S3StorageService {
         }
     }
 
+    // ffmpeg는 HEIC 컨테이너 안의 내장 썸네일을 원본으로 착각해서 뽑거나 EXIF 회전 정보를 무시하는 경우가 있어,
+    // libheif 공식 변환 도구(heif-convert)를 사용한다 — primary 이미지를 정확히 고르고 회전도 반영해준다.
     private byte[] convertHeicToJpeg(byte[] heicBytes) throws IOException {
         Path inputPath = Files.createTempFile("upload-", ".heic");
         Path outputPath = Files.createTempFile("upload-", ".jpg");
@@ -147,7 +149,7 @@ public class S3StorageService {
             Files.write(inputPath, heicBytes);
 
             Process process = new ProcessBuilder(
-                    "ffmpeg", "-y", "-i", inputPath.toString(), outputPath.toString())
+                    "heif-convert", inputPath.toString(), outputPath.toString())
                     .redirectErrorStream(true)
                     .start();
 
@@ -158,7 +160,7 @@ public class S3StorageService {
                 throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED);
             }
             if (process.exitValue() != 0) {
-                log.error("heic 변환 실패 (ffmpeg exit={})", process.exitValue());
+                log.error("heic 변환 실패 (heif-convert exit={})", process.exitValue());
                 throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED);
             }
 
