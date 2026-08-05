@@ -308,10 +308,8 @@ public class CompanionServiceImpl implements CompanionService {
         List<CompanionPost> posts = companionPostRepository.findAllByUser(user).stream()
                 .filter(post -> !post.isExpired(now))
                 .toList();
-        if (posts.isEmpty()) {
-            throw new BusinessException(ErrorCode.COMPANION_POST_NOT_FOUND);
-        }
 
+        // 등록한 프로필이 없는 것도 정상 상태 - 목록 조회는 비어있어도 에러가 아니라 200 + 빈 배열이 REST 관례
         // 본인 글이라 하트 자체가 불가능하므로 항상 false
         return posts.stream()
                 .map(post -> new CompanionResponseDto(post, false))

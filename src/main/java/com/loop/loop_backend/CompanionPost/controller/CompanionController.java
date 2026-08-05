@@ -205,13 +205,9 @@ public class CompanionController {
 
 
     //내 동행 프로필 전체 조회
-    @Operation(summary = "내 동행 프로필 전체 조회", description = "내가 등록한 동행 프로필을 모두 조회합니다.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 성공"),
-            @ApiResponse(responseCode = "404", description = "등록한 동행 프로필 없음",
-                    content = @Content(examples = @ExampleObject(
-                            value = "{\"success\":false,\"message\":\"동행 모집글을 찾을 수 없습니다.\",\"code\":404}")))
-    })
+    @Operation(summary = "내 동행 프로필 전체 조회",
+            description = "내가 등록한 동행 프로필을 모두 조회합니다. 등록한 프로필이 없으면 에러가 아니라 200 + 빈 배열로 응답합니다.")
+    @ApiResponse(responseCode = "200", description = "조회 성공 (프로필 미등록 시 빈 배열)")
     @GetMapping("/me")
     public ResponseEntity<CommonResponse<List<CompanionResponseDto>>> getMyCompanions(
             @AuthenticationPrincipal Long userId
