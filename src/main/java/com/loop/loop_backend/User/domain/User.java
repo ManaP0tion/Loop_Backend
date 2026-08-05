@@ -76,11 +76,12 @@ public class User {
     @Column(name = "blocked_user_id")
     private Long blockedUserId;
 
+    // 가입 시점엔 이메일이 없어서(온보딩에 이메일 입력이 없음) 기본 OFF - 이메일 등록 후 알림 설정에서 직접 켜야 함
     @Column(name = "concert_reminder_email", nullable = false)
-    private boolean concertReminderEmail = true;
+    private boolean concertReminderEmail = false;
 
     @Column(name = "chat_notification_email", nullable = false)
-    private boolean chatNotificationEmail = true;
+    private boolean chatNotificationEmail = false;
 
     // 약관 동의 (첫 로그인 시 저장) - 나이/이용약관/개인정보 수집은 필수, 프로필 정보 수집은 선택
     @Column(name = "age19_agreed", nullable = false)
