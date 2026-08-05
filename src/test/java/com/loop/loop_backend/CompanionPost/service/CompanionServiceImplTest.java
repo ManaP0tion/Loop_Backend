@@ -599,13 +599,12 @@ class CompanionServiceImplTest {
     }
 
     @Test
-    void 등록한_동행_프로필이_없으면_COMPANION_POST_NOT_FOUND_예외를_던진다() {
+    void 등록한_동행_프로필이_없으면_빈_배열을_반환한다() {
         when(companionPostRepository.findAllByUser(user)).thenReturn(List.of());
 
-        assertThatThrownBy(() -> companionService.getMyCompanions(1L))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ErrorCode.COMPANION_POST_NOT_FOUND);
+        List<CompanionResponseDto> result = companionService.getMyCompanions(1L);
+
+        assertThat(result).isEmpty();
     }
 
     @Test
@@ -628,14 +627,13 @@ class CompanionServiceImplTest {
     }
 
     @Test
-    void 등록한_프로필이_전부_관람일이_지났으면_COMPANION_POST_NOT_FOUND_예외를_던진다() {
+    void 등록한_프로필이_전부_관람일이_지났으면_빈_배열을_반환한다() {
         CompanionPost expired = buildPost(user, 10L, LocalDate.now().minusDays(2), WatchDay.DAY1);
         when(companionPostRepository.findAllByUser(user)).thenReturn(List.of(expired));
 
-        assertThatThrownBy(() -> companionService.getMyCompanions(1L))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ErrorCode.COMPANION_POST_NOT_FOUND);
+        List<CompanionResponseDto> result = companionService.getMyCompanions(1L);
+
+        assertThat(result).isEmpty();
     }
 
     // ── getMyCompanion ────────────────────────────────────────────────────────
