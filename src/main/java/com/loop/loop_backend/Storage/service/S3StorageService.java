@@ -153,14 +153,18 @@ public class S3StorageService {
                     .redirectErrorStream(true)
                     .start();
 
+            // heif-convert는 에러여도 출력이 작아서(수 KB 이내) 프로세스 종료 전에 먼저 다 읽어도
+            // 파이프 버퍼가 안 막힌다. exit code만으론 원인 파악이 안 돼서 출력 내용을 같이 로그에 남긴다.
+            String output = new String(process.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
             boolean finished = process.waitFor(FFMPEG_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
-                log.error("heic 변환 타임아웃");
+                log.error("heic 변환 타임아웃: {}", output);
                 throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED);
             }
             if (process.exitValue() != 0) {
-                log.error("heic 변환 실패 (heif-convert exit={})", process.exitValue());
+                log.error("heic 변환 실패 (heif-convert exit={}): {}", process.exitValue(), output);
                 throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED);
             }
 
