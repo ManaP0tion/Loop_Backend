@@ -2,6 +2,7 @@ package com.loop.loop_backend.Inquiry.dto;
 
 import com.loop.loop_backend.Inquiry.domain.InquiryType;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -25,4 +26,9 @@ public class InquiryRequestDto {
     @NotBlank(message = "내용은 필수입니다")
     @Schema(description = "내용", example = "동행탭을 누르면 목록이 안떠요")
     private String content;
+
+    @NotBlank(message = "이메일은 필수입니다")
+    @Email(message = "이메일 형식이 올바르지 않습니다")
+    @Schema(description = "답변받을 이메일", example = "user@example.com")
+    private String email;
 }

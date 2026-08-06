@@ -3,10 +3,8 @@ package com.loop.loop_backend.Config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import com.loop.loop_backend.common.exception.ErrorCode;
-import com.loop.loop_backend.User.repository.UserRepository;
-import com.loop.loop_backend.auth.service.TokenBlacklistService;
 import com.loop.loop_backend.common.jwt.JwtAuthenticationFilter;
-import com.loop.loop_backend.common.jwt.JwtTokenProvider;
+import com.loop.loop_backend.common.jwt.TokenAuthenticator;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +13,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -42,12 +41,10 @@ import java.util.List;
 @Slf4j
 public class SecurityConfig {
 
-    private final JwtTokenProvider jwtTokenProvider;
+    private final TokenAuthenticator tokenAuthenticator;
     private final ObjectMapper objectMapper;
-    private final UserRepository userRepository;
-    private final TokenBlacklistService tokenBlacklistService;
 
-    @Value("${chat.allowed-origins}")
+    @Value("${cors.allowed-origins}")
     private String[] allowedOrigins;
 
     /**
@@ -145,15 +142,20 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/users/register",
                                 "/api/users/kakao",
-                                "/ws/chat/**",
-                                "/api/artists/**"
+                                "/ws/chat/**"
                         ).permitAll()
+                        // 아티스트/콘서트는 조회만 열고 변경(등록·수정·삭제·KOPIS 동기화)은 관리자 전용.
+                        .requestMatchers(HttpMethod.GET, "/api/artists/**").permitAll()
+                        .requestMatchers("/api/artists/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/concerts/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/concerts/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/concerts/**").hasRole("ADMIN")
                         // 개인정보 접근 경로 — 관리자 전용 (처리방침 제10조 6항). 회원 조회는 /api/admin/users 로 이관.
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(
-                        new JwtAuthenticationFilter(jwtTokenProvider, userRepository, tokenBlacklistService),
+                        new JwtAuthenticationFilter(tokenAuthenticator, objectMapper),
                         UsernamePasswordAuthenticationFilter.class
                 );
 

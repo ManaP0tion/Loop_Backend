@@ -29,6 +29,15 @@ spring:
       max-file-size: 5MB
       max-request-size: 5MB
 
+logging:
+  level:
+    root: INFO
+    org.springframework: WARN
+    org.hibernate: WARN
+    com.loop: INFO
+  pattern:
+    console: "%d{HH:mm:ss} [%level] [user:%X{userId}] %logger{36} - %msg%n"
+
 # 발신 전용 SES 계정 — 공연 리마인드/미확인 채팅/이메일 인증코드 발송용 (신고·문의 알림은 위 spring.mail(Gmail) 유지)
 ses:
   mail:
@@ -68,6 +77,9 @@ frontend:
 
 chat:
   allowed-origins: ${CHAT_ALLOWED_ORIGINS:${FRONTEND_URL}}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:${FRONTEND_URL}}
 
 kopis:
   api-key: ${KOPIS_API_KEY}

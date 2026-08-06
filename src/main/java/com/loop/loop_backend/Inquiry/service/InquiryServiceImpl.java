@@ -33,9 +33,10 @@ public class InquiryServiceImpl implements InquiryService {
                 .type(requestDto.getType())
                 .title(requestDto.getTitle())
                 .content(requestDto.getContent())
+                .email(requestDto.getEmail())
                 .build());
 
         eventPublisher.publishEvent(new InquiryCreatedEvent(
-                inquiry.getId(), user.getNickname(), inquiry.getType(), inquiry.getTitle(), inquiry.getContent()));
+                inquiry.getId(), user.getNickname(), inquiry.getType(), inquiry.getTitle(), inquiry.getContent(), inquiry.getEmail()));
     }
 }

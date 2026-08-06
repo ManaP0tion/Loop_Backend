@@ -137,7 +137,7 @@ class AuthServiceTest {
 
     @Test
     void 유효하지_않은_Refresh_Token이면_INVALID_REFRESH_TOKEN_예외를_던진다() {
-        when(jwtTokenProvider.validateToken("bad-token")).thenReturn(false);
+        when(jwtTokenProvider.validateRefreshToken("bad-token")).thenReturn(false);
 
         assertThatThrownBy(() -> authService.reissue("bad-token"))
                 .isInstanceOf(BusinessException.class)
@@ -147,7 +147,7 @@ class AuthServiceTest {
 
     @Test
     void Redis와_불일치하는_토큰이면_INVALID_REFRESH_TOKEN_예외를_던진다() {
-        when(jwtTokenProvider.validateToken("old-token")).thenReturn(true);
+        when(jwtTokenProvider.validateRefreshToken("old-token")).thenReturn(true);
         when(jwtTokenProvider.getUserId("old-token")).thenReturn(1L);
         when(refreshTokenService.isValid(1L, "old-token")).thenReturn(false);
 
@@ -159,7 +159,7 @@ class AuthServiceTest {
 
     @Test
     void 토큰_재발급_성공시_새_토큰을_반환하고_Redis를_갱신한다() {
-        when(jwtTokenProvider.validateToken("valid-token")).thenReturn(true);
+        when(jwtTokenProvider.validateRefreshToken("valid-token")).thenReturn(true);
         when(jwtTokenProvider.getUserId("valid-token")).thenReturn(1L);
         when(refreshTokenService.isValid(1L, "valid-token")).thenReturn(true);
         when(jwtTokenProvider.createAccessToken(1L)).thenReturn("new-access");
