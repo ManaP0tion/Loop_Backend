@@ -1,11 +1,11 @@
 package com.loop.loop_backend.common.jwt;
 
 
-import com.loop.loop_backend.auth.service.TokenBlacklistService;
-import com.loop.loop_backend.User.domain.Role;
-import com.loop.loop_backend.User.domain.Status;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loop.loop_backend.User.domain.User;
-import com.loop.loop_backend.User.repository.UserRepository;
+import com.loop.loop_backend.common.exception.BusinessException;
+import com.loop.loop_backend.common.exception.CommonResponse;
+import com.loop.loop_backend.common.exception.ErrorCode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,21 +13,21 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private final JwtTokenProvider jwtTokenProvider;
-    private final UserRepository userRepository;
-    private final TokenBlacklistService tokenBlacklistService;
+    private final TokenAuthenticator tokenAuthenticator;
+    private final ObjectMapper objectMapper;
 
     @Override
     protected void doFilterInternal(
@@ -36,35 +36,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
 
-        String token = resolveToken(request);
+        String token = TokenAuthenticator.stripBearer(request.getHeader(HttpHeaders.AUTHORIZATION));
 
         try {
-            if (token != null && jwtTokenProvider.validateToken(token)
-                    && !tokenBlacklistService.isBlacklisted(token)) {
-                Long userId = jwtTokenProvider.getUserId(token);
-
-                // ponytail: DB per authenticated request. JWT role/status claim if throughput matters.
-                User user = userRepository.findById(userId).orElse(null);
-                if (user != null && user.getStatus() == Status.SUSPENDED) {
-                    if (user.isSuspensionExpired()) {
-                        user.liftSuspension();
-                        userRepository.save(user);
-                    } else {
-                        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                        response.setContentType("application/json;charset=UTF-8");
-                        response.getWriter().write("{\"success\":false,\"message\":\"이용정지된 계정입니다.\",\"data\":null,\"status\":403}");
-                        return;
-                    }
-                }
-                Role role = user != null ? user.getRole() : Role.USER;
-
-                var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(userId, null, authorities);
-
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-                MDC.put("userId", String.valueOf(userId));
+            Optional<User> authenticated;
+            try {
+                authenticated = tokenAuthenticator.authenticate(token);
+            } catch (BusinessException e) {
+                // 이용정지/탈퇴 계정 — 여기서 끊고 사유를 그대로 내려준다.
+                writeError(response, e.getErrorCode());
+                return;
             }
+
+            authenticated.ifPresent(user -> {
+                var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+                SecurityContextHolder.getContext().setAuthentication(
+                        new UsernamePasswordAuthenticationToken(user.getId(), null, authorities));
+                MDC.put("userId", String.valueOf(user.getId()));
+            });
 
             filterChain.doFilter(request, response);
         } finally {
@@ -73,12 +62,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
     }
 
-    // Authorization: Bearer {accessToken} 헤더에서 토큰만 추출
-    private String resolveToken(HttpServletRequest request) {
-        String bearerToken = request.getHeader(HttpHeaders.AUTHORIZATION);
-        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
-        }
-        return null;
+    private void writeError(HttpServletResponse response, ErrorCode errorCode) throws IOException {
+        response.setStatus(errorCode.getStatus());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding("UTF-8");
+        response.getWriter().write(objectMapper.writeValueAsString(CommonResponse.fail(errorCode)));
     }
 }

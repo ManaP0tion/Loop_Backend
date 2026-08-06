@@ -31,7 +31,7 @@ class JwtTokenProviderTest {
     void 정상_토큰은_유효성_검증을_통과한다() {
         String token = jwtTokenProvider.createAccessToken(1L);
 
-        assertThat(jwtTokenProvider.validateToken(token)).isTrue();
+        assertThat(jwtTokenProvider.validateAccessToken(token)).isTrue();
     }
 
     @Test
@@ -39,7 +39,7 @@ class JwtTokenProviderTest {
         String token = jwtTokenProvider.createAccessToken(1L);
         String tamperedToken = token + "tampered";
 
-        assertThat(jwtTokenProvider.validateToken(tamperedToken)).isFalse();
+        assertThat(jwtTokenProvider.validateAccessToken(tamperedToken)).isFalse();
     }
 
     @Test
@@ -47,6 +47,22 @@ class JwtTokenProviderTest {
         String refreshToken = jwtTokenProvider.createRefreshToken(1L);
 
         assertThat(refreshToken).isNotBlank();
-        assertThat(jwtTokenProvider.validateToken(refreshToken)).isTrue();
+        assertThat(jwtTokenProvider.validateRefreshToken(refreshToken)).isTrue();
+    }
+
+    // 두 토큰은 만료시간만 다르고 구조가 같아서, 타입 claim 이 빠지면
+    // 14일짜리 Refresh Token 이 그대로 Bearer 로 통과해 30분 만료가 무의미해진다.
+    @Test
+    void refresh_토큰은_access_토큰으로_사용할_수_없다() {
+        String refreshToken = jwtTokenProvider.createRefreshToken(1L);
+
+        assertThat(jwtTokenProvider.validateAccessToken(refreshToken)).isFalse();
+    }
+
+    @Test
+    void access_토큰은_재발급용으로_사용할_수_없다() {
+        String accessToken = jwtTokenProvider.createAccessToken(1L);
+
+        assertThat(jwtTokenProvider.validateRefreshToken(accessToken)).isFalse();
     }
 }
