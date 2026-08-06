@@ -2,7 +2,8 @@ package com.loop.loop_backend.Chat.interceptor;
 
 import com.loop.loop_backend.Chat.domain.ParticipantStatus;
 import com.loop.loop_backend.Chat.repository.ChatParticipantRepository;
-import com.loop.loop_backend.common.jwt.JwtTokenProvider;
+import com.loop.loop_backend.common.exception.BusinessException;
+import com.loop.loop_backend.common.jwt.TokenAuthenticator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.Message;
@@ -26,7 +27,7 @@ public class StompSubscriptionInterceptor implements ChannelInterceptor {
     private static final String APP_DESTINATION_PREFIX = "/pub/";
 
     private final ChatParticipantRepository chatParticipantRepository;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final TokenAuthenticator tokenAuthenticator;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -46,16 +47,21 @@ public class StompSubscriptionInterceptor implements ChannelInterceptor {
         return message;
     }
 
+    // REST 필터와 동일한 규칙(토큰 타입·블랙리스트·계정 상태)을 TokenAuthenticator 로 공유한다.
+    // 로그아웃한 토큰이나 정지된 계정이 채팅만 계속 쓰는 구멍이 생기지 않도록.
     private void handleConnect(StompHeaderAccessor accessor) {
-        String authHeader = accessor.getFirstNativeHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        String token = TokenAuthenticator.stripBearer(accessor.getFirstNativeHeader("Authorization"));
+        if (token == null) {
             throw new MessagingException("인증 토큰이 필요합니다.");
         }
-        String token = authHeader.substring(7);
-        if (!jwtTokenProvider.validateToken(token)) {
-            throw new MessagingException("유효하지 않은 토큰입니다.");
+        Long userId;
+        try {
+            userId = tokenAuthenticator.authenticate(token)
+                    .orElseThrow(() -> new MessagingException("유효하지 않은 토큰입니다."))
+                    .getId();
+        } catch (BusinessException e) {
+            throw new MessagingException(e.getErrorCode().getMessage());
         }
-        Long userId = jwtTokenProvider.getUserId(token);
         accessor.setUser(() -> userId.toString());
     }
 
