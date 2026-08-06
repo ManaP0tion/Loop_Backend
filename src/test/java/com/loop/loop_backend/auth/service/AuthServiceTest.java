@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -162,6 +163,7 @@ class AuthServiceTest {
         when(jwtTokenProvider.validateRefreshToken("valid-token")).thenReturn(true);
         when(jwtTokenProvider.getUserId("valid-token")).thenReturn(1L);
         when(refreshTokenService.isValid(1L, "valid-token")).thenReturn(true);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(emailUser()));
         when(jwtTokenProvider.createAccessToken(1L)).thenReturn("new-access");
         when(jwtTokenProvider.createRefreshToken(1L)).thenReturn("new-refresh");
 
@@ -170,6 +172,51 @@ class AuthServiceTest {
         assertThat(result.getAccessToken()).isEqualTo("new-access");
         assertThat(result.getRefreshToken()).isEqualTo("new-refresh");
         verify(refreshTokenService).save(1L, "new-refresh");
+    }
+
+    @Test
+    void 탈퇴_계정은_재발급시_WITHDRAWN_USER_예외를_던진다() {
+        User user = emailUser();
+        user.withdraw();
+        stubValidRefresh(user);
+
+        assertThatThrownBy(() -> authService.reissue("valid-token"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.WITHDRAWN_USER);
+        verify(refreshTokenService, never()).save(any(), any());
+    }
+
+    @Test
+    void 정지_계정은_재발급시_USER_SUSPENDED_예외를_던진다() {
+        User user = emailUser();
+        user.suspend(LocalDateTime.now().plusDays(30));
+        stubValidRefresh(user);
+
+        assertThatThrownBy(() -> authService.reissue("valid-token"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.USER_SUSPENDED);
+        verify(refreshTokenService, never()).save(any(), any());
+    }
+
+    @Test
+    void 정지_기간이_끝난_계정은_재발급시_정지가_해제되고_통과한다() {
+        User user = emailUser();
+        user.suspend(LocalDateTime.now().minusDays(1));
+        stubValidRefresh(user);
+        when(jwtTokenProvider.createAccessToken(1L)).thenReturn("new-access");
+        when(jwtTokenProvider.createRefreshToken(1L)).thenReturn("new-refresh");
+
+        assertThat(authService.reissue("valid-token").getAccessToken()).isEqualTo("new-access");
+        assertThat(user.getStatus()).isEqualTo(Status.ACTIVE);
+    }
+
+    private void stubValidRefresh(User user) {
+        when(jwtTokenProvider.validateRefreshToken("valid-token")).thenReturn(true);
+        when(jwtTokenProvider.getUserId("valid-token")).thenReturn(1L);
+        when(refreshTokenService.isValid(1L, "valid-token")).thenReturn(true);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
     }
 
     // ── logout ─────────────────────────────────────────────────────────────────
