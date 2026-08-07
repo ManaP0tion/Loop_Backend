@@ -46,11 +46,15 @@ class EmailVerificationServiceImplTest {
     private static final String EMAIL_KEY = "email_verify_email:" + USER_ID;
     private static final String HOURLY_SEND_COUNT_KEY = "email_verify_send_count_hour:" + USER_ID;
     private static final String DAILY_SEND_COUNT_KEY = "email_verify_send_count_day:" + USER_ID;
+    private static final String COOLDOWN_KEY = "email_verify_cooldown:" + USER_ID;
 
     @BeforeEach
     void setUp() {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.increment(anyString())).thenReturn(1L);
+        // 재발송 쿨다운 키를 새로 잡는 데 성공한 상태 = 쿨다운 아님이 기본.
+        // 스텁하지 않으면 Mockito 가 Boolean 기본값 false 를 돌려줘 sendCode 가 통째로 조용히 return 한다.
+        when(valueOperations.setIfAbsent(eq(COOLDOWN_KEY), anyString(), any(Duration.class))).thenReturn(true);
     }
 
     private User testUser() {
@@ -75,6 +79,25 @@ class EmailVerificationServiceImplTest {
         String generatedCode = codeCaptor.getValue();
         assertThat(generatedCode).matches("\\d{6}");
         verify(mailService).sendVerificationCode(EMAIL, generatedCode);
+    }
+
+    @Test
+    void 쿨다운_10초_이내_재요청이면_카운트도_올리지_않고_메일도_보내지_않는다() {
+        // setIfAbsent 실패 = 앞선 요청이 건 쿨다운 키가 아직 살아있다는 뜻
+        when(valueOperations.setIfAbsent(eq(COOLDOWN_KEY), anyString(), any(Duration.class))).thenReturn(false);
+
+        emailVerificationService.sendCode(USER_ID, EMAIL);
+
+        verifyNoInteractions(mailService);
+        verify(valueOperations, never()).increment(anyString());
+        verify(valueOperations, never()).set(eq(CODE_KEY), anyString(), any(Duration.class));
+    }
+
+    @Test
+    void 쿨다운_키는_10초_TTL로_건다() {
+        emailVerificationService.sendCode(USER_ID, EMAIL);
+
+        verify(valueOperations).setIfAbsent(COOLDOWN_KEY, "1", Duration.ofSeconds(10));
     }
 
     @Test
