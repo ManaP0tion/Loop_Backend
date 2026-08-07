@@ -24,6 +24,12 @@ import com.loop.loop_backend.common.dto.PageResponseDto;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.common.time.ExpiryCutoff;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Root;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
@@ -33,10 +39,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.Collections;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -52,6 +61,7 @@ public class CompanionServiceImpl implements CompanionService {
     private final FavoriteArtistRepository favoriteArtistRepository;
     private final BlockRepository blockRepository;
     private final CompanionHeartRepository companionHeartRepository;
+    private final EntityManager entityManager;
 
     @Override
     @Transactional
@@ -177,21 +187,52 @@ public class CompanionServiceImpl implements CompanionService {
 
     @Override
     public long countVisibleCompanions(Long concertId, Long userId) {
-        Gender viewerGender = userRepository.findById(userId)
+        Gender viewerGender = viewerGenderOf(userId);
+        return companionPostRepository.count(Specification
+                .allOf(CompanionPostSpecifications.concertIdEquals(concertId))
+                .and(countableByViewerSpec(userId, viewerGender)));
+    }
+
+    @Override
+    public Map<Long, Long> countVisibleCompanionsByConcert(Collection<Long> concertIds, Long userId) {
+        // 콘서트 목록이 비면 조회할 것도 없다. userRepository 조회를 건너뛰어 단건 경로와 부수효과를 맞춘다.
+        if (concertIds.isEmpty()) {
+            return Map.of();
+        }
+        Gender viewerGender = viewerGenderOf(userId);
+
+        // 단건 countVisibleCompanions 와 같은 Specification 을 그대로 재사용하고, concertId 조건만
+        // = 에서 IN 으로 바꿔 GROUP BY 로 한 번에 센다. 필터 판정 로직은 양쪽이 항상 동일하다.
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Tuple> query = cb.createTupleQuery();
+        Root<CompanionPost> root = query.from(CompanionPost.class);
+        Path<Long> concertId = root.get("concert").get("id");
+
+        query.multiselect(concertId, cb.count(root))
+                .where(cb.and(
+                        concertId.in(concertIds),
+                        countableByViewerSpec(userId, viewerGender).toPredicate(root, query, cb)))
+                .groupBy(concertId);
+
+        return entityManager.createQuery(query).getResultList().stream()
+                .collect(Collectors.toMap(t -> t.get(0, Long.class), t -> t.get(1, Long.class)));
+    }
+
+    private Gender viewerGenderOf(Long userId) {
+        return userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
                 .getGender();
+    }
 
-        // 목록(visibleToViewer)과 달리 본인 글도 포함해서 셈 - 단, isVisible/authorNotWithdrawn/watchDayNotExpired는 그대로 적용되고,
-        // hasNoBlockRelationWith·respectsSameGenderOnly는 본인 글에는 항상 자명하게 통과한다(자기 자신과는 차단·이성공개제한이 성립하지 않음)
-        Specification<CompanionPost> spec = Specification.allOf(
-                CompanionPostSpecifications.concertIdEquals(concertId),
+    // 목록(visibleToViewer)과 달리 본인 글도 포함해서 셈 - 단, isVisible/authorNotWithdrawn/watchDayNotExpired는 그대로 적용되고,
+    // hasNoBlockRelationWith·respectsSameGenderOnly는 본인 글에는 항상 자명하게 통과한다(자기 자신과는 차단·이성공개제한이 성립하지 않음)
+    private Specification<CompanionPost> countableByViewerSpec(Long userId, Gender viewerGender) {
+        return Specification.allOf(
                 CompanionPostSpecifications.isVisible(),
                 CompanionPostSpecifications.authorNotWithdrawn(),
                 CompanionPostSpecifications.hasNoBlockRelationWith(userId),
                 CompanionPostSpecifications.respectsSameGenderOnly(viewerGender),
                 CompanionPostSpecifications.watchDayNotExpired(ExpiryCutoff.cutoffDate()));
-
-        return companionPostRepository.count(spec);
     }
 
     // 관람 스타일 우선순위가 적용되지 않는 기본 정렬: 내 프로필이 있으면 공통 활동 많은 순, 없으면 등록일자 최신순
