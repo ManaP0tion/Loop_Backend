@@ -1,9 +1,11 @@
 package com.loop.loop_backend.auth.service;
 
 import com.loop.loop_backend.User.domain.AuthProvider;
+import com.loop.loop_backend.User.domain.Role;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
+import com.loop.loop_backend.auth.dto.KakaoLoginResult;
 import com.loop.loop_backend.auth.dto.KakaoTokenResponseDto;
 import com.loop.loop_backend.auth.dto.KakaoUserInfoDto;
 import com.loop.loop_backend.auth.dto.TokenResponseDto;
@@ -31,6 +33,7 @@ public class KakaoAuthService {
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
+    private final AdminTwoFactorService adminTwoFactorService;
 
     @Value("${kakao.client-id}")
     private String clientId;
@@ -52,7 +55,7 @@ public class KakaoAuthService {
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Transactional
-    public TokenResponseDto login(String code, String redirectUri) {
+    public KakaoLoginResult login(String code, String redirectUri) {
         // 0. 프론트가 실제로 카카오 인가 요청에 썼던 redirect_uri인지 검증 (화이트리스트 방식, 임의 주소 우회 방지)
         if (!List.of(allowedRedirectUris).contains(redirectUri)) {
             throw new BusinessException(ErrorCode.INVALID_REDIRECT_URI);
@@ -81,14 +84,45 @@ public class KakaoAuthService {
             else throw new BusinessException(ErrorCode.USER_SUSPENDED);
         }
 
-        // 4. JWT 발급
+        // 4. 관리자는 2단계 인증으로 분기 (Kakao 로그인 경로 한정). 토큰 대신 challengeId만 내려주고,
+        //    관리자 이메일로 발송된 코드를 검증해야 completeAdminLogin에서 토큰이 나온다.
+        if (user.getRole() == Role.ADMIN) {
+            if (user.getEmail() == null) {
+                throw new BusinessException(ErrorCode.ADMIN_2FA_EMAIL_MISSING);
+            }
+            String challengeId = adminTwoFactorService.startChallenge(user.getId(), user.getEmail());
+            return KakaoLoginResult.twoFactor(challengeId);
+        }
+
+        // 5. 일반 회원: 즉시 토큰 발급
+        return KakaoLoginResult.tokens(issueTokens(user));
+    }
+
+    private TokenResponseDto issueTokens(User user) {
         String accessToken = jwtTokenProvider.createAccessToken(user.getId());
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
-
-        // 5. Refresh Token Redis 저장
         refreshTokenService.save(user.getId(), refreshToken);
-
         return new TokenResponseDto(accessToken, refreshToken);
+    }
+
+    /** 관리자 2단계 인증 코드 검증 완료 → 토큰 발급. */
+    @Transactional
+    public TokenResponseDto completeAdminLogin(String challengeId, String code) {
+        Long userId = adminTwoFactorService.verify(challengeId, code);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        // 코드 발송~입력 사이에 상태/권한이 바뀌었을 수 있으니 방어적으로 재검사한다.
+        if (user.getStatus() == Status.SUSPENDED) {
+            if (user.isSuspensionExpired()) user.liftSuspension();
+            else throw new BusinessException(ErrorCode.USER_SUSPENDED);
+        }
+        if (user.getRole() != Role.ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        return issueTokens(user);
     }
 
     private KakaoTokenResponseDto getKakaoToken(String code, String redirectUri) {
