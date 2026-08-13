@@ -23,6 +23,7 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
     private static final Duration HOURLY_SEND_WINDOW = Duration.ofHours(1);
     private static final int DAILY_SEND_LIMIT = 10;
     private static final Duration DAILY_SEND_WINDOW = Duration.ofDays(1);
+    private static final int MAX_VERIFY_ATTEMPTS = 5;
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final StringRedisTemplate redisTemplate;
@@ -49,6 +50,10 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
         return "email_verify_cooldown:" + userId;
     }
 
+    private String failCountKey(Long userId) {
+        return "email_verify_fail:" + userId;
+    }
+
     @Override
     public void sendCode(Long userId, String email) {
         // 10초 이내 재요청은 응답까지 평소와 완전히 동일하게, 그냥 조용히 무시한다.
@@ -65,6 +70,8 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
 
         redisTemplate.opsForValue().set(codeKey(userId), code, CODE_TTL);
         redisTemplate.opsForValue().set(emailKey(userId), email, CODE_TTL);
+        // 새 코드 발급 → 이전 실패치가 새 코드를 즉시 무효화하지 않도록 리셋
+        redisTemplate.delete(failCountKey(userId));
 
         mailService.sendVerificationCode(email, code);
     }
@@ -88,11 +95,13 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
 
         if (storedEmail == null || storedCode == null
                 || !storedEmail.equals(email) || !storedCode.equals(code)) {
+            registerFailure(userId);
             throw new BusinessException(ErrorCode.EMAIL_VERIFICATION_CODE_MISMATCH);
         }
 
         redisTemplate.delete(codeKey(userId));
         redisTemplate.delete(emailKey(userId));
+        redisTemplate.delete(failCountKey(userId));
 
         userRepository.findByEmail(email)
                 .filter(existing -> !existing.getId().equals(userId))
@@ -103,5 +112,18 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         user.verifyEmail(email);
+    }
+
+    // 실패 카운터 증가 (첫 실패에만 코드 TTL과 동일한 3분 창을 연다). 5회 도달 시 코드를 삭제해
+    // 이후 시도는 storedCode == null 로 자연히 막힌다 — brute-force 차단.
+    private void registerFailure(Long userId) {
+        Long count = redisTemplate.opsForValue().increment(failCountKey(userId));
+        if (count != null && count == 1L) {
+            redisTemplate.expire(failCountKey(userId), CODE_TTL);
+        }
+        if (count != null && count >= MAX_VERIFY_ATTEMPTS) {
+            redisTemplate.delete(codeKey(userId));
+            redisTemplate.delete(emailKey(userId));
+        }
     }
 }

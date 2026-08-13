@@ -60,6 +60,7 @@ public class AuthService {
         return new TokenResponseDto(accessToken, refreshToken);
     }
 
+    @Transactional
     public TokenResponseDto reissue(String refreshToken) {
         if (!jwtTokenProvider.validateRefreshToken(refreshToken)) {
             throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
@@ -69,6 +70,20 @@ public class AuthService {
 
         if (!refreshTokenService.isValid(userId, refreshToken)) {
             throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        // 재발급도 access token과 같은 계정상태 게이트를 통과해야 한다(TokenAuthenticator 참고).
+        // 안 그러면 정지/강제탈퇴 계정이 refresh로 세션을 무한 연장한다.
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN));
+
+        if (user.getStatus() == Status.WITHDRAWN) {
+            throw new BusinessException(ErrorCode.WITHDRAWN_USER);
+        }
+
+        if (user.getStatus() == Status.SUSPENDED) {
+            if (!user.isSuspensionExpired()) throw new BusinessException(ErrorCode.USER_SUSPENDED);
+            user.liftSuspension();
         }
 
         String newAccessToken = jwtTokenProvider.createAccessToken(userId);
