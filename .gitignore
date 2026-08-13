@@ -56,10 +56,13 @@ logs/
 # 임시 파일
 temp/
 tmp/
-가
+
 # claude
 .claude/
 CLAUDE.md
 
 # 로컬 스크립트
 scripts/
+
+# 보안 점검 문서
+docs/security-review.md
