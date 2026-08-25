@@ -24,6 +24,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 import java.util.Optional;
 
@@ -153,11 +154,29 @@ class ConcertServiceImplTest {
         ReflectionTestUtils.setField(concert2, "id", 2L);
 
         when(concertRepository.findUpcomingOrUndated(any())).thenReturn(List.of(concert1, concert2));
-        when(companionService.countVisibleCompanions(1L, 100L)).thenReturn(5L);
-        when(companionService.countVisibleCompanions(2L, 100L)).thenReturn(0L);
+        when(companionService.countVisibleCompanionsByConcert(List.of(1L, 2L), 100L))
+                .thenReturn(Map.of(1L, 5L, 2L, 0L));
 
         List<ConcertResponseDto> result = concertService.getAllConcerts(100L, com.loop.loop_backend.Concert.dto.ConcertSort.IMMINENT);
 
+        assertThat(result).extracting(ConcertResponseDto::getCompanionCount).containsExactly(5L, 0L);
+    }
+
+    @Test
+    void 동행프로필이_0건인_콘서트도_목록에서_빠지지_않고_카운트_0으로_반환된다() {
+        Concert concert1 = Concert.builder().title("콘서트1").build();
+        ReflectionTestUtils.setField(concert1, "id", 1L);
+        Concert concert2 = Concert.builder().title("콘서트2").build();
+        ReflectionTestUtils.setField(concert2, "id", 2L);
+
+        when(concertRepository.findUpcomingOrUndated(any())).thenReturn(List.of(concert1, concert2));
+        // GROUP BY 결과에는 동행 프로필이 있는 콘서트만 담긴다 - 2번은 아예 키가 없다.
+        when(companionService.countVisibleCompanionsByConcert(List.of(1L, 2L), 100L))
+                .thenReturn(Map.of(1L, 5L));
+
+        List<ConcertResponseDto> result = concertService.getAllConcerts(100L, com.loop.loop_backend.Concert.dto.ConcertSort.IMMINENT);
+
+        assertThat(result).hasSize(2);
         assertThat(result).extracting(ConcertResponseDto::getCompanionCount).containsExactly(5L, 0L);
     }
 

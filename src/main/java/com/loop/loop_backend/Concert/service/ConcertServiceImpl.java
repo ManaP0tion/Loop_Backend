@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -100,36 +101,42 @@ public class ConcertServiceImpl implements ConcertService {
 
     @Override
     public List<ConcertResponseDto> searchConcertsByTitle(String title, Long userId) {
-        return concertRepository.searchUpcomingOrUndatedByTitle(title, ExpiryCutoff.cutoffDate()).stream()
-                .map(concert -> toResponseDto(concert, userId))
-                .collect(Collectors.toList());
+        return toResponseDtos(
+                concertRepository.searchUpcomingOrUndatedByTitle(title, ExpiryCutoff.cutoffDate()), userId);
     }
 
     @Override
     public List<ConcertResponseDto> getAllConcerts(Long userId, ConcertSort sort) {
-        return concertRepository.findUpcomingOrUndated(ExpiryCutoff.cutoffDate()).stream()
-                .map(concert -> toResponseDto(concert, userId))
+        return toResponseDtos(concertRepository.findUpcomingOrUndated(ExpiryCutoff.cutoffDate()), userId).stream()
                 .sorted(sort.comparator())
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<ConcertResponseDto> getConcertsByCategory(ConcertCategory category, Long userId, ConcertSort sort) {
-        return concertRepository.findUpcomingOrUndatedByCategory(category, ExpiryCutoff.cutoffDate()).stream()
-                .map(concert -> toResponseDto(concert, userId))
+        return toResponseDtos(
+                concertRepository.findUpcomingOrUndatedByCategory(category, ExpiryCutoff.cutoffDate()), userId).stream()
                 .sorted(sort.comparator())
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<ConcertResponseDto> getConcertsByArtist(Long artistId, Long userId) {
-        return concertRepository.findUpcomingOrUndatedByArtistId(artistId, ExpiryCutoff.cutoffDate()).stream()
-                .map(concert -> toResponseDto(concert, userId))
-                .collect(Collectors.toList());
+        return toResponseDtos(
+                concertRepository.findUpcomingOrUndatedByArtistId(artistId, ExpiryCutoff.cutoffDate()), userId);
     }
 
-    private ConcertResponseDto toResponseDto(Concert concert, Long userId) {
-        return ConcertResponseDto.from(concert, companionService.countVisibleCompanions(concert.getId(), userId));
+    // 콘서트별 동행 프로필 수를 한 번에 조회한다. 콘서트마다 count 쿼리를 날리면 목록 길이에
+    // 비례해 쿼리가 늘어나므로(N+1), GROUP BY 한 번으로 받아온 뒤 매핑만 한다.
+    private List<ConcertResponseDto> toResponseDtos(List<Concert> concerts, Long userId) {
+        List<Long> concertIds = concerts.stream().map(Concert::getId).toList();
+        Map<Long, Long> companionCounts = companionService.countVisibleCompanionsByConcert(concertIds, userId);
+
+        return concerts.stream()
+                // 동행 프로필이 0건인 콘서트는 GROUP BY 결과에 없다 - 목록에서 빠지면 안 되므로 0으로 채운다.
+                .map(concert -> ConcertResponseDto.from(
+                        concert, companionCounts.getOrDefault(concert.getId(), 0L)))
+                .collect(Collectors.toList());
     }
 
     private Concert findConcertOrThrow(Long id) {
