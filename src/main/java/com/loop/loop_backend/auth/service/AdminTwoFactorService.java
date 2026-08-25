@@ -31,17 +31,32 @@ public class AdminTwoFactorService {
     private String codeKey(String challengeId) { return "admin_2fa_code:" + challengeId; }
     private String userKey(String challengeId) { return "admin_2fa_user:" + challengeId; }
     private String failKey(String challengeId) { return "admin_2fa_fail:" + challengeId; }
+    private String currentKey(String userId) { return "admin_2fa_current:" + userId; }
 
     /** 6자리 코드를 생성·발송하고 challengeId를 반환한다. */
     public String startChallenge(Long userId, String email) {
+        // 같은 관리자의 이전 미사용 코드는 새 코드 발급 시 즉시 무효화 → 관리자당 항상 최신 코드 1개만 유효.
+        invalidatePrevious(String.valueOf(userId));
+
         String challengeId = UUID.randomUUID().toString();
         String code = String.format("%06d", RANDOM.nextInt(1_000_000));
 
         redisTemplate.opsForValue().set(codeKey(challengeId), code, CODE_TTL);
         redisTemplate.opsForValue().set(userKey(challengeId), String.valueOf(userId), CODE_TTL);
+        redisTemplate.opsForValue().set(currentKey(String.valueOf(userId)), challengeId, CODE_TTL);
 
         mailService.sendVerificationCode(email, code);
         return challengeId;
+    }
+
+    // 유저의 직전 challenge(있으면)의 코드·유저·실패 키를 삭제한다. 이미 만료됐으면 no-op.
+    private void invalidatePrevious(String userId) {
+        String prev = redisTemplate.opsForValue().get(currentKey(userId));
+        if (prev != null) {
+            redisTemplate.delete(codeKey(prev));
+            redisTemplate.delete(userKey(prev));
+            redisTemplate.delete(failKey(prev));
+        }
     }
 
     /** 코드 검증 후 대상 userId를 반환. 5회 실패 시 challenge를 무효화한다. */
@@ -57,6 +72,7 @@ public class AdminTwoFactorService {
         redisTemplate.delete(codeKey(challengeId));
         redisTemplate.delete(userKey(challengeId));
         redisTemplate.delete(failKey(challengeId));
+        redisTemplate.delete(currentKey(storedUser));
         return Long.valueOf(storedUser);
     }
 
