@@ -370,16 +370,6 @@
         <div id="loginChoice">
             <p>카카오 계정으로 로그인하세요. (ADMIN 권한 필요)</p>
             <button class="btn primary" id="kakaoLoginBtn" style="width:100%;margin-top:12px;background:#FEE500;color:#191919;border:none;">카카오로 로그인</button>
-            <details style="margin-top:16px;">
-                <summary style="font-size:11px;color:var(--text-muted);cursor:pointer;">로컬 관리자 로그인</summary>
-                <div style="margin-top:8px;">
-                    <label>아이디</label>
-                    <input id="loginUserId" type="text" autocomplete="username" />
-                    <label>비밀번호</label>
-                    <input id="loginPassword" type="password" autocomplete="current-password" />
-                    <button class="btn" id="loginSubmit" style="width:100%;margin-top:8px;">로그인</button>
-                </div>
-            </details>
         </div>
         <!-- 2단계 인증: 카카오 로그인 응답이 challengeId만 줄 때 노출 -->
         <div id="twoFaBlock" hidden>
@@ -1462,20 +1452,6 @@ sections.admins = async () => {
 };
 
 // ============ Login / bootstrap ============
-async function login(userId, password) {
-    const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, password }),
-    });
-    const payload = await res.json();
-    if (!res.ok) throw { status: res.status, payload };
-    const token = payload?.data?.accessToken;
-    if (!token) throw new Error('토큰 없음');
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(LAST_ACT_KEY, Date.now());
-    return token;
-}
 
 function showLogin() {
     document.getElementById('loginWrap').hidden = false;
@@ -1515,16 +1491,6 @@ async function ensureAuthed() {
         return false;
     }
 }
-
-document.getElementById('loginSubmit').onclick = async () => {
-    const uid = document.getElementById('loginUserId').value.trim();
-    const pw = document.getElementById('loginPassword').value;
-    if (!uid || !pw) return toast('아이디/비밀번호를 입력하세요.', true);
-    try {
-        await login(uid, pw);
-        if (await ensureAuthed()) route();
-    } catch (e) { handleErr(e, '로그인 실패'); }
-};
 
 function adminRedirectUri() { return location.origin + location.pathname; }
 
