@@ -1,9 +1,11 @@
 package com.loop.loop_backend.auth.service;
 
 import com.loop.loop_backend.User.domain.AuthProvider;
+import com.loop.loop_backend.User.domain.Role;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
+import com.loop.loop_backend.auth.dto.KakaoLoginResult;
 import com.loop.loop_backend.auth.dto.KakaoTokenResponseDto;
 import com.loop.loop_backend.auth.dto.KakaoUserInfoDto;
 import com.loop.loop_backend.auth.dto.TokenResponseDto;
@@ -38,6 +40,7 @@ class KakaoAuthServiceTest {
     @Mock UserRepository userRepository;
     @Mock JwtTokenProvider jwtTokenProvider;
     @Mock RefreshTokenService refreshTokenService;
+    @Mock AdminTwoFactorService adminTwoFactorService;
     @Mock RestTemplate restTemplate;
     @InjectMocks KakaoAuthService kakaoAuthService;
 
@@ -87,7 +90,7 @@ class KakaoAuthServiceTest {
         when(userRepository.findByAuthProviderAndProviderId(AuthProvider.KAKAO, KAKAO_PROVIDER_ID))
                 .thenReturn(Optional.of(existing));
 
-        TokenResponseDto result = kakaoAuthService.login("auth-code", REDIRECT_URI);
+        KakaoLoginResult result = kakaoAuthService.login("auth-code", REDIRECT_URI);
 
         // 재로그인 과정에서 신규 가입 처리가 되지 않고 기존 사용자 그대로 재사용된다
         verify(userRepository, never()).save(any());
@@ -97,7 +100,8 @@ class KakaoAuthServiceTest {
 
         assertThat(existing.isEmailVerified()).isTrue();
         assertThat(existing.isOnboardingCompleted()).isFalse();
-        assertThat(result.getAccessToken()).isEqualTo("access-token");
+        assertThat(result.twoFactorRequired()).isFalse();
+        assertThat(result.tokens().getAccessToken()).isEqualTo("access-token");
     }
 
     @Test
@@ -127,6 +131,67 @@ class KakaoAuthServiceTest {
         kakaoAuthService.login("auth-code", REDIRECT_URI);
 
         verify(userRepository).save(argThatNewUser());
+    }
+
+    @Test
+    void 관리자가_카카오로그인하면_토큰대신_2FA_challenge가_반환되고_토큰은_발급되지_않는다() {
+        User admin = adminUserWith(1L, "admin@example.com");
+        when(userRepository.findByAuthProviderAndProviderId(AuthProvider.KAKAO, KAKAO_PROVIDER_ID))
+                .thenReturn(Optional.of(admin));
+        when(adminTwoFactorService.startChallenge(1L, "admin@example.com")).thenReturn("challenge-123");
+
+        KakaoLoginResult result = kakaoAuthService.login("auth-code", REDIRECT_URI);
+
+        assertThat(result.twoFactorRequired()).isTrue();
+        assertThat(result.challengeId()).isEqualTo("challenge-123");
+        assertThat(result.tokens()).isNull();
+        // 코드 검증 전에는 토큰이 절대 나가지 않는다
+        verify(jwtTokenProvider, never()).createAccessToken(any());
+        verify(refreshTokenService, never()).save(any(), any());
+    }
+
+    @Test
+    void 관리자_2FA_코드검증이_성공하면_해당_관리자_기준으로_토큰이_발급된다() {
+        User admin = adminUserWith(1L, "admin@example.com");
+        when(adminTwoFactorService.verify("challenge-123", "123456")).thenReturn(1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(admin));
+
+        TokenResponseDto token = kakaoAuthService.completeAdminLogin("challenge-123", "123456");
+
+        verify(jwtTokenProvider).createAccessToken(1L);
+        verify(jwtTokenProvider).createRefreshToken(1L);
+        assertThat(token.getAccessToken()).isEqualTo("access-token");
+    }
+
+    @Test
+    void 관리자가_어드민페이지가_아닌_redirectUri로_로그인하면_2FA없이_토큰이_발급된다() {
+        // admin-redirect-uri를 지정하면, 그 외 페이지(일반 앱)로 들어온 관리자 로그인엔 코드를 보내지 않고 바로 토큰을 준다
+        ReflectionTestUtils.setField(kakaoAuthService, "allowedRedirectUris",
+                new String[]{REDIRECT_URI, "https://admin.example.com/dev/admin.html"});
+        ReflectionTestUtils.setField(kakaoAuthService, "adminRedirectUri", "https://admin.example.com/dev/admin.html");
+
+        User admin = adminUserWith(1L, "admin@example.com");
+        when(userRepository.findByAuthProviderAndProviderId(AuthProvider.KAKAO, KAKAO_PROVIDER_ID))
+                .thenReturn(Optional.of(admin));
+
+        KakaoLoginResult result = kakaoAuthService.login("auth-code", REDIRECT_URI);
+
+        assertThat(result.twoFactorRequired()).isFalse();
+        assertThat(result.tokens()).isNotNull();
+        verify(adminTwoFactorService, never()).startChallenge(any(), any());
+    }
+
+    private User adminUserWith(long id, String email) {
+        User user = User.builder()
+                .authProvider(AuthProvider.KAKAO)
+                .providerId(KAKAO_PROVIDER_ID)
+                .status(Status.ACTIVE)
+                .onboardingCompleted(true)
+                .role(Role.ADMIN)
+                .build();
+        user.verifyEmail(email);
+        ReflectionTestUtils.setField(user, "id", id);
+        return user;
     }
 
     private User argThatNewUser() {

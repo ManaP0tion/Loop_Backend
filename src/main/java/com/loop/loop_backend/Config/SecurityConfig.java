@@ -139,6 +139,7 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/kakao/login",
                                 "/api/auth/kakao/client-id",
+                                "/api/auth/kakao/2fa/verify",
                                 "/api/auth/refresh",
                                 "/api/users/register",
                                 "/api/users/kakao",
