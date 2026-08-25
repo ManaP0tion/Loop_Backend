@@ -163,6 +163,24 @@ class KakaoAuthServiceTest {
         assertThat(token.getAccessToken()).isEqualTo("access-token");
     }
 
+    @Test
+    void 관리자가_어드민페이지가_아닌_redirectUri로_로그인하면_2FA없이_토큰이_발급된다() {
+        // admin-redirect-uri를 지정하면, 그 외 페이지(일반 앱)로 들어온 관리자 로그인엔 코드를 보내지 않고 바로 토큰을 준다
+        ReflectionTestUtils.setField(kakaoAuthService, "allowedRedirectUris",
+                new String[]{REDIRECT_URI, "https://admin.example.com/dev/admin.html"});
+        ReflectionTestUtils.setField(kakaoAuthService, "adminRedirectUri", "https://admin.example.com/dev/admin.html");
+
+        User admin = adminUserWith(1L, "admin@example.com");
+        when(userRepository.findByAuthProviderAndProviderId(AuthProvider.KAKAO, KAKAO_PROVIDER_ID))
+                .thenReturn(Optional.of(admin));
+
+        KakaoLoginResult result = kakaoAuthService.login("auth-code", REDIRECT_URI);
+
+        assertThat(result.twoFactorRequired()).isFalse();
+        assertThat(result.tokens()).isNotNull();
+        verify(adminTwoFactorService, never()).startChallenge(any(), any());
+    }
+
     private User adminUserWith(long id, String email) {
         User user = User.builder()
                 .authProvider(AuthProvider.KAKAO)

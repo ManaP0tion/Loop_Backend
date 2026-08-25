@@ -46,6 +46,11 @@ public class KakaoAuthService {
     @Value("${kakao.allowed-redirect-uris}")
     private String[] allowedRedirectUris;
 
+    // 관리자 2단계 인증(이메일 코드)은 이 redirectUri로 들어온 로그인에만 적용한다(= 어드민 페이지).
+    // 비워두면 기존처럼 ADMIN 역할의 모든 로그인에 2FA를 적용한다(안전 기본값).
+    @Value("${kakao.admin-redirect-uri:}")
+    private String adminRedirectUri;
+
     @Value("${kakao.auth-url}")
     private String authUrl;
 
@@ -84,9 +89,14 @@ public class KakaoAuthService {
             else throw new BusinessException(ErrorCode.USER_SUSPENDED);
         }
 
-        // 4. 관리자는 2단계 인증으로 분기 (Kakao 로그인 경로 한정). 토큰 대신 challengeId만 내려주고,
-        //    관리자 이메일로 발송된 코드를 검증해야 completeAdminLogin에서 토큰이 나온다.
-        if (user.getRole() == Role.ADMIN) {
+        // 4. 관리자는 2단계 인증으로 분기하되, 어드민 페이지(admin-redirect-uri)로 들어온 로그인에만 적용한다.
+        //    일반 앱(다른 redirectUri)으로 로그인하는 관리자에게는 코드를 보내지 않고 바로 토큰을 발급한다.
+        //    토큰 대신 challengeId만 내려주고, 이메일로 발송된 코드를 검증해야 completeAdminLogin에서 토큰이 나온다.
+        // ponytail: redirectUri는 Kakao가 코드 발급 시 강제 검증하므로 신뢰 가능한 페이지 구분 신호다.
+        //   단, 관리자가 일반 앱으로 로그인하면 2FA 없이 ADMIN 토큰이 나온다 — 이 경로로 admin API 접근 가능(감수).
+        boolean fromAdminPage = adminRedirectUri == null || adminRedirectUri.isBlank()
+                || adminRedirectUri.equals(redirectUri);
+        if (user.getRole() == Role.ADMIN && fromAdminPage) {
             if (user.getEmail() == null) {
                 throw new BusinessException(ErrorCode.ADMIN_2FA_EMAIL_MISSING);
             }

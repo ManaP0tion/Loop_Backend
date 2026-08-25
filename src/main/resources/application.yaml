@@ -68,6 +68,8 @@ jwt:
 kakao:
   client-id: ${KAKAO_CLIENT_ID}
   allowed-redirect-uris: ${KAKAO_ALLOWED_REDIRECT_URIS:${KAKAO_REDIRECT_URI}}
+  # 관리자 2단계 인증을 적용할 어드민 페이지 redirectUri. 비우면 ADMIN 모든 로그인에 2FA 적용.
+  admin-redirect-uri: ${KAKAO_ADMIN_REDIRECT_URI:}
   client-secret: ${KAKAO_CLIENT_SECRET}
   auth-url: https://kauth.kakao.com
   api-url: https://kapi.kakao.com

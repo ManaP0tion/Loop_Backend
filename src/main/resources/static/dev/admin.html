@@ -367,18 +367,28 @@
 <div id="loginWrap" class="login-wrap" hidden>
     <div class="login-card">
         <h2>Loop Admin</h2>
-        <p>카카오 계정으로 로그인하세요. (ADMIN 권한 필요)</p>
-        <button class="btn primary" id="kakaoLoginBtn" style="width:100%;margin-top:12px;background:#FEE500;color:#191919;border:none;">카카오로 로그인</button>
-        <details style="margin-top:16px;">
-            <summary style="font-size:11px;color:var(--text-muted);cursor:pointer;">로컬 관리자 로그인</summary>
-            <div style="margin-top:8px;">
-                <label>아이디</label>
-                <input id="loginUserId" type="text" autocomplete="username" />
-                <label>비밀번호</label>
-                <input id="loginPassword" type="password" autocomplete="current-password" />
-                <button class="btn" id="loginSubmit" style="width:100%;margin-top:8px;">로그인</button>
-            </div>
-        </details>
+        <div id="loginChoice">
+            <p>카카오 계정으로 로그인하세요. (ADMIN 권한 필요)</p>
+            <button class="btn primary" id="kakaoLoginBtn" style="width:100%;margin-top:12px;background:#FEE500;color:#191919;border:none;">카카오로 로그인</button>
+            <details style="margin-top:16px;">
+                <summary style="font-size:11px;color:var(--text-muted);cursor:pointer;">로컬 관리자 로그인</summary>
+                <div style="margin-top:8px;">
+                    <label>아이디</label>
+                    <input id="loginUserId" type="text" autocomplete="username" />
+                    <label>비밀번호</label>
+                    <input id="loginPassword" type="password" autocomplete="current-password" />
+                    <button class="btn" id="loginSubmit" style="width:100%;margin-top:8px;">로그인</button>
+                </div>
+            </details>
+        </div>
+        <!-- 2단계 인증: 카카오 로그인 응답이 challengeId만 줄 때 노출 -->
+        <div id="twoFaBlock" hidden>
+            <p>관리자 이메일로 발송된 6자리 인증 코드를 입력하세요.</p>
+            <label>인증 코드</label>
+            <input id="twoFaCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" />
+            <button class="btn primary" id="twoFaSubmit" style="width:100%;margin-top:12px;">확인</button>
+            <p class="hint">코드는 5분간 유효합니다.</p>
+        </div>
     </div>
 </div>
 
@@ -1543,6 +1553,11 @@ async function handleKakaoCallback() {
         });
         const payload = await res.json();
         if (!res.ok) throw { status: res.status, payload };
+        // 관리자: 토큰 대신 challengeId만 온다 → 코드 입력 단계로 전환
+        if (payload?.data?.twoFactorRequired) {
+            showTwoFa(payload.data.challengeId);
+            return false;
+        }
         const token = payload?.data?.accessToken;
         if (!token) throw new Error('토큰 없음');
         localStorage.setItem(TOKEN_KEY, token);
@@ -1550,6 +1565,39 @@ async function handleKakaoCallback() {
         return true;
     } catch (e) { handleErr(e, '카카오 로그인 실패'); return false; }
 }
+
+let pendingChallengeId = null;
+function showTwoFa(challengeId) {
+    pendingChallengeId = challengeId;
+    document.getElementById('loginChoice').hidden = true;
+    document.getElementById('twoFaBlock').hidden = false;
+    document.getElementById('loginWrap').hidden = false;
+    document.getElementById('twoFaCode').focus();
+}
+document.getElementById('twoFaSubmit').onclick = async () => {
+    const code = document.getElementById('twoFaCode').value.trim();
+    if (!code) return toast('인증 코드를 입력하세요.', true);
+    try {
+        const res = await fetch('/api/auth/kakao/2fa/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ challengeId: pendingChallengeId, code }),
+        });
+        const payload = await res.json();
+        if (!res.ok) throw { status: res.status, payload };
+        const token = payload?.data?.accessToken;
+        if (!token) throw new Error('토큰 없음');
+        localStorage.setItem(TOKEN_KEY, token);
+        localStorage.setItem(LAST_ACT_KEY, Date.now());
+        pendingChallengeId = null;
+        document.getElementById('twoFaBlock').hidden = true;
+        document.getElementById('loginChoice').hidden = false;
+        if (await ensureAuthed()) { if (!location.hash) location.hash = 'dashboard'; else route(); }
+    } catch (e) { handleErr(e, '인증 코드 확인 실패'); }
+};
+document.getElementById('twoFaCode').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('twoFaSubmit').click();
+});
 function doLogout(reason) {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(ME_KEY);
