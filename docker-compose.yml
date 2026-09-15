@@ -47,6 +47,7 @@ services:
 
   mysql:
     image: mysql:8.0
+    profiles: ["disabled"]
     container_name: loop-mysql
     restart: unless-stopped
     environment:
