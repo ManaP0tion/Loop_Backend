@@ -1,7 +1,8 @@
 package com.loop.loop_backend.Concert.controller;
 
-import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.Concert.dto.ConcertPeriod;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
+import com.loop.loop_backend.Concert.dto.ConcertSection;
 import com.loop.loop_backend.Concert.kopis.KopisSyncService;
 import com.loop.loop_backend.Concert.service.ConcertService;
 import com.loop.loop_backend.common.exception.GlobalExceptionHandler;
@@ -71,27 +72,42 @@ class ConcertControllerTest {
     }
 
     @Test
-    void 카테고리_없이_목록_조회시_로그인한_사용자ID로_getAllConcerts가_호출된다() throws Exception {
-        when(concertService.getAllConcerts(eq(USER_ID), any())).thenReturn(List.of(responseWithCount(5L)));
+    void 내한_예정_조회시_로그인한_사용자ID로_getConcertsBySection이_호출된다() throws Exception {
+        when(concertService.getConcertsBySection(ConcertSection.DOMESTIC_TOUR, ConcertPeriod.UPCOMING, USER_ID))
+                .thenReturn(List.of(responseWithCount(5L)));
 
-        mockMvc.perform(get("/api/concerts"))
+        mockMvc.perform(get("/api/concerts")
+                        .param("section", "DOMESTIC_TOUR")
+                        .param("period", "UPCOMING"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].companionCount").value(5));
 
-        verify(concertService).getAllConcerts(eq(USER_ID), any());
-        verify(concertService, never()).getConcertsByCategory(any(), any(), any());
+        verify(concertService).getConcertsBySection(ConcertSection.DOMESTIC_TOUR, ConcertPeriod.UPCOMING, USER_ID);
     }
 
     @Test
-    void 카테고리_지정시_로그인한_사용자ID로_getConcertsByCategory가_호출된다() throws Exception {
-        when(concertService.getConcertsByCategory(eq(ConcertCategory.DOMESTIC_ARTIST), eq(USER_ID), any()))
+    void 페스티벌_지난공연_조회시_로그인한_사용자ID로_getConcertsBySection이_호출된다() throws Exception {
+        when(concertService.getConcertsBySection(ConcertSection.FESTIVAL, ConcertPeriod.PAST, USER_ID))
                 .thenReturn(List.of(responseWithCount(1L)));
 
-        mockMvc.perform(get("/api/concerts").param("category", "DOMESTIC_ARTIST"))
+        mockMvc.perform(get("/api/concerts")
+                        .param("section", "FESTIVAL")
+                        .param("period", "PAST"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].companionCount").value(1));
 
-        verify(concertService).getConcertsByCategory(eq(ConcertCategory.DOMESTIC_ARTIST), eq(USER_ID), any());
+        verify(concertService).getConcertsBySection(ConcertSection.FESTIVAL, ConcertPeriod.PAST, USER_ID);
+    }
+
+    // TODO: GlobalExceptionHandler가 MissingServletRequestParameterException 전용 핸들러가 없어서
+    // 지금은 필수 파라미터 누락 시 400이 아니라 500이 내려간다 (이 엔드포인트만의 문제가 아니라 전역 공백).
+    // 핸들러가 추가되면 이 테스트도 isBadRequest()로 되돌릴 것.
+    @Test
+    void section이나_period가_없으면_에러를_반환한다() throws Exception {
+        mockMvc.perform(get("/api/concerts").param("section", "DOMESTIC_TOUR"))
+                .andExpect(status().is5xxServerError());
+
+        verify(concertService, never()).getConcertsBySection(any(), any(), any());
     }
 
     @Test

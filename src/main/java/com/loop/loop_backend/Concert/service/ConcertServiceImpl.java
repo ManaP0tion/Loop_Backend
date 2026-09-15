@@ -4,8 +4,10 @@ import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.Concert.dto.ConcertPeriod;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
+import com.loop.loop_backend.Concert.dto.ConcertSection;
 import com.loop.loop_backend.Concert.dto.ConcertSort;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
@@ -19,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -124,6 +127,16 @@ public class ConcertServiceImpl implements ConcertService {
     public List<ConcertResponseDto> getConcertsByArtist(Long artistId, Long userId) {
         return toResponseDtos(
                 concertRepository.findUpcomingOrUndatedByArtistId(artistId, ExpiryCutoff.cutoffDate()), userId);
+    }
+
+    @Override
+    public List<ConcertResponseDto> getConcertsBySection(ConcertSection section, ConcertPeriod period, Long userId) {
+        List<ConcertCategory> categories = section.getCategories();
+        LocalDate cutoff = ExpiryCutoff.cutoffDate();
+        List<Concert> concerts = (period == ConcertPeriod.UPCOMING)
+                ? concertRepository.findUpcomingOrUndatedByCategories(categories, cutoff)
+                : concertRepository.findPastByCategories(categories, cutoff);
+        return toResponseDtos(concerts, userId);
     }
 
     // 콘서트별 동행 프로필 수를 한 번에 조회한다. 콘서트마다 count 쿼리를 날리면 목록 길이에

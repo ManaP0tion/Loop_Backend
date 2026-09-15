@@ -2,9 +2,10 @@ package com.loop.loop_backend.Concert.controller;
 
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.dto.ConcertCategoryDto;
+import com.loop.loop_backend.Concert.dto.ConcertPeriod;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
-import com.loop.loop_backend.Concert.dto.ConcertSort;
+import com.loop.loop_backend.Concert.dto.ConcertSection;
 import com.loop.loop_backend.Concert.kopis.KopisSyncService;
 import com.loop.loop_backend.Concert.service.ConcertService;
 import com.loop.loop_backend.common.exception.CommonResponse;
@@ -85,19 +86,18 @@ public class ConcertController {
     }
 
     @GetMapping
-    @Operation(summary = "콘서트 목록 조회", description = "카테고리 파라미터가 있으면 카테고리로 필터링, 없으면 전체를 반환합니다. " +
-            "sort로 정렬 기준을 지정합니다 (IMMINENT 임박순 / POPULAR 인기순, 기본값 IMMINENT)")
+    @Operation(summary = "콘서트 목록 조회",
+            description = "section(대분류)과 period(예정/지난)로 조회합니다. 정렬은 서버가 고정합니다 — " +
+                    "예정 공연은 가까운 날짜순, 지난 공연은 최근 종료순 (클라이언트가 정렬을 고를 수 없음)")
     @ApiResponse(responseCode = "200", description = "조회 성공")
     public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> getConcerts(
-            @Parameter(description = "콘서트 카테고리 (J_POP_ARTIST / DOMESTIC_ARTIST / JAPAN_FESTIVAL / DOMESTIC_FESTIVAL)")
-            @RequestParam(required = false) ConcertCategory category,
-            @Parameter(description = "정렬 기준 (IMMINENT 임박순 / POPULAR 인기순)")
-            @RequestParam(required = false, defaultValue = "IMMINENT") ConcertSort sort,
+            @Parameter(description = "공연 탭 대분류 (DOMESTIC_TOUR 내한 / FESTIVAL 페스티벌)")
+            @RequestParam ConcertSection section,
+            @Parameter(description = "조회 시점 (UPCOMING 예정 / PAST 지난)")
+            @RequestParam ConcertPeriod period,
             @AuthenticationPrincipal Long userId) {
-        List<ConcertResponseDto> concerts = (category != null)
-                ? concertService.getConcertsByCategory(category, userId, sort)
-                : concertService.getAllConcerts(userId, sort);
-        return ResponseEntity.ok(CommonResponse.success(concerts));
+        return ResponseEntity.ok(CommonResponse.success(
+                concertService.getConcertsBySection(section, period, userId)));
     }
 
     @GetMapping("/categories")

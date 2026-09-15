@@ -55,6 +55,23 @@ public interface ConcertRepository extends JpaRepository<Concert, Long> {
     List<Concert> searchUpcomingOrUndatedByTitle(@Param("title") String title,
                                                  @Param("date") LocalDate date);
 
+    // section(대분류) 조회용: 카테고리 여러 개를 한 번에 받는다. 예정 공연 - 임박순(가까운 날짜부터).
+    @Query("SELECT c FROM Concert c " +
+            "WHERE c.category IN :categories " +
+            "AND (COALESCE(c.endDate, c.startDate) IS NULL OR COALESCE(c.endDate, c.startDate) >= :date) " +
+            "ORDER BY CASE WHEN c.startDate IS NULL THEN 1 ELSE 0 END, c.startDate ASC")
+    List<Concert> findUpcomingOrUndatedByCategories(@Param("categories") List<ConcertCategory> categories,
+                                                     @Param("date") LocalDate date);
+
+    // section(대분류) 조회용: 이미 종료된 공연만 - 최근 종료순. 날짜 미정 공연은 "지난 공연"이 아니므로 제외.
+    @Query("SELECT c FROM Concert c " +
+            "WHERE c.category IN :categories " +
+            "AND COALESCE(c.endDate, c.startDate) IS NOT NULL " +
+            "AND COALESCE(c.endDate, c.startDate) < :date " +
+            "ORDER BY COALESCE(c.endDate, c.startDate) DESC")
+    List<Concert> findPastByCategories(@Param("categories") List<ConcertCategory> categories,
+                                       @Param("date") LocalDate date);
+
     List<Concert> findByArtistId(Long artistId);
     Optional<Concert> findByTitle(String title);
     Optional<Concert> findByKopisIdAndArtistId(String kopisId, Long artistId);

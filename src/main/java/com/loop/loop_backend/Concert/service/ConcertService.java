@@ -1,8 +1,10 @@
 package com.loop.loop_backend.Concert.service;
 
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.Concert.dto.ConcertPeriod;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
+import com.loop.loop_backend.Concert.dto.ConcertSection;
 import com.loop.loop_backend.Concert.dto.ConcertSort;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -20,4 +22,7 @@ public interface ConcertService {
     List<ConcertResponseDto> getAllConcerts(Long userId, ConcertSort sort);
     List<ConcertResponseDto> getConcertsByCategory(ConcertCategory category, Long userId, ConcertSort sort);
     List<ConcertResponseDto> getConcertsByArtist(Long artistId, Long userId);
+
+    // 공연 탭: section(내한/페스티벌) + period(예정/지난)로 조회. 정렬은 서버가 period 기준으로 고정한다.
+    List<ConcertResponseDto> getConcertsBySection(ConcertSection section, ConcertPeriod period, Long userId);
 }
