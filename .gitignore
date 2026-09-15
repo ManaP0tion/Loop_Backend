@@ -64,5 +64,5 @@ CLAUDE.md
 # 로컬 스크립트
 scripts/
 
-# 보안 점검 문서
-docs/security-review.md
+# 내부 문서 (설계/점검 노트)
+docs/
