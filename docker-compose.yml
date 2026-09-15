@@ -38,8 +38,6 @@ services:
       SES_MAIL_PASSWORD: ${SES_MAIL_PASSWORD}
       SES_MAIL_FROM: ${SES_MAIL_FROM:-no-reply@loop.io.kr}
     depends_on:
-      mysql:
-        condition: service_healthy
       redis:
         condition: service_started
     networks:
@@ -47,7 +45,7 @@ services:
 
   mysql:
     image: mysql:8.0
-    profiles: ["disabled"]
+    profiles: ["prod"]
     container_name: loop-mysql
     restart: unless-stopped
     environment:

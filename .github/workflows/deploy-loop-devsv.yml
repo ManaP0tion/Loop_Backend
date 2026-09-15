@@ -1,0 +1,46 @@
+name: Deploy to DEV EC2
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  deploy:
+    if: github.repository == 'ManaP0tion/Loop_Backend'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build with Gradle
+        run: ./gradlew build -x test --no-daemon
+
+      - name: Copy jar to DEV EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.LOOP_EC2_DEV_HOST }}
+          username: ubuntu
+          key: ${{ secrets.LOOP_EC2_DEV_SSH_KEY }}
+          source: "build/libs/*.jar"
+          target: "~/Loop_Backend/build/libs/"
+          strip_components: 2
+
+      - name: Deploy to DEV EC2 via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.LOOP_EC2_DEV_HOST }}
+          username: ubuntu
+          key: ${{ secrets.LOOP_EC2_DEV_SSH_KEY }}
+          script: |
+            cd ~/Loop_Backend
+            mkdir -p build/libs
+            git pull upstream dev
+            docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
