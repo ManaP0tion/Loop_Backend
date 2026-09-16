@@ -15,3 +15,7 @@ services:
 
   mysql:
     profiles: []
+
+  nginx:
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt
