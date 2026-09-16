@@ -28,8 +28,8 @@ jobs:
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DEV_EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.LOOP_EC2_DEV_SSH_KEY }}
+          username: ${{ secrets.DEV_EC2_USERNAME }}
+          key: ${{ secrets.DEV_EC2_SSH_KEY }}
           source: "build/libs/*.jar"
           target: "~/Loop_Backend/build/libs/"
           strip_components: 2
@@ -37,9 +37,9 @@ jobs:
       - name: Deploy to DEV EC2 via SSH
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.LOOP_EC2_DEV_HOST }}
-          username: ubuntu
-          key: ${{ secrets.LOOP_EC2_DEV_SSH_KEY }}
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USERNAME }}
+          key: ${{ secrets.DEV_EC2_SSH_KEY }}
           script: |
             cd ~/Loop_Backend
             mkdir -p build/libs
