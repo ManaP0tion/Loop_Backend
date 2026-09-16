@@ -86,6 +86,8 @@ services:
       - ./certbot/www:/var/www/certbot
     depends_on:
       - spring
+    networks:
+      - loop-network
 
 networks:
   loop-network:
