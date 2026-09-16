@@ -1,9 +1,10 @@
+# ⚠️ 이 워크플로우는 devtemp 브랜치(임시 DEV EC2) 전용입니다.
 name: Deploy to DEV EC2
 
 on:
   push:
     branches:
-      - dev
+      - devtemp
 
 jobs:
   deploy:
@@ -26,7 +27,7 @@ jobs:
       - name: Copy jar to DEV EC2
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.LOOP_EC2_DEV_HOST }}
+          host: ${{ secrets.DEV_EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.LOOP_EC2_DEV_SSH_KEY }}
           source: "build/libs/*.jar"
@@ -42,5 +43,5 @@ jobs:
           script: |
             cd ~/Loop_Backend
             mkdir -p build/libs
-            git pull upstream dev
+            git pull upstream devtemp
             docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build

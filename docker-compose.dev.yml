@@ -1,17 +1,17 @@
+# ⚠️ 이 파일은 devtemp 브랜치(임시 DEV EC2, 43.203.77.89) 전용입니다.
+# 컨테이너 MySQL을 그대로 쓰는 구조로, dev 브랜치의 외부 DB 방식(LOOP_DB_DEV_*)과 다릅니다.
+# 한 달 후 devtemp -> dev 병합 시, 이 파일은 dev 버전(외부 DB 방식)을 그대로 채택하고
+# 이 devtemp 버전 내용은 버려주세요 (merge conflict 발생 시 "dev" 쪽 선택).
 services:
   spring:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    container_name: loop-spring-dev
-    environment:
-      SPRING_PROFILES_ACTIVE: dev
-      DB_URL: ${LOOP_DB_DEV_URL}
-      DB_USERNAME: ${LOOP_DB_DEV_USERNAME}
-      DB_PASSWORD: ${LOOP_DB_DEV_PASSWORD}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
-  redis:
-    container_name: loop-redis-dev
-
-  nginx:
-    container_name: loop-nginx-dev
+  mysql:
+    profiles: []
