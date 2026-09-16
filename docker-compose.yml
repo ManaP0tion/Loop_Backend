@@ -79,8 +79,10 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      DOMAIN_NAME: ${DOMAIN_NAME}
     volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/templates:/etc/nginx/templates
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
     depends_on:
