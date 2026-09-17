@@ -6,9 +6,9 @@ services:
     container_name: loop-spring-dev
     environment:
       SPRING_PROFILES_ACTIVE: dev
-      DB_URL: ${LOOP_DB_DEV_URL}
-      DB_USERNAME: ${LOOP_DB_DEV_USERNAME}
-      DB_PASSWORD: ${LOOP_DB_DEV_PASSWORD}
+      LOOP_DB_DEV_URL: ${LOOP_DB_DEV_URL}
+      LOOP_DB_DEV_USERNAME: ${LOOP_DB_DEV_USERNAME}
+      LOOP_DB_DEV_PASSWORD: ${LOOP_DB_DEV_PASSWORD}
 
   redis:
     container_name: loop-redis-dev
