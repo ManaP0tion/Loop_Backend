@@ -43,4 +43,5 @@ jobs:
             cd ~/Loop_Backend
             mkdir -p build/libs
             git pull upstream dev
+            docker rm -f loop-spring-dev || true
             docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
