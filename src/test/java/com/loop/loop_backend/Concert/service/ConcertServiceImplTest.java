@@ -5,6 +5,7 @@ import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
+import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
@@ -122,63 +123,77 @@ class ConcertServiceImplTest {
         assertThat(result.getPosterUrl()).isEqualTo("https://cdn/new.png");
     }
 
+    // companionCount가 ConcertSummaryDto로 옮겨가며 빠졌다 - 콘서트 단건 조회는 이제
+    // 동행 도메인과 무관하게 콘서트 정보만 반환하고, 비로그인(userId == null)이어도 동작해야 한다.
     @Test
-    void 콘서트_단건_조회시_조회자가_볼_수_있는_동행프로필_수가_반환된다() {
-        Concert existing = Concert.builder().title("기존 제목").build();
+    void 콘서트_단건_조회시_id로_찾은_콘서트_정보가_반환된다() {
+        Concert existing = Concert.builder().title("아이유 콘서트").build();
         ReflectionTestUtils.setField(existing, "id", 20L);
         when(concertRepository.findById(20L)).thenReturn(Optional.of(existing));
-        when(companionService.countVisibleCompanions(20L, 100L)).thenReturn(3L);
 
-        ConcertResponseDto result = concertService.getConcertById(20L, 100L);
+        ConcertSummaryDto result = concertService.getConcertById(20L, 100L);
 
-        assertThat(result.getCompanionCount()).isEqualTo(3L);
+        assertThat(result.getConcertId()).isEqualTo(20L);
+        assertThat(result.getTitle()).isEqualTo("아이유 콘서트");
     }
 
     @Test
-    void 콘서트_단건_조회시_조회자마다_다른_동행프로필_수가_반환된다() {
-        Concert existing = Concert.builder().title("기존 제목").build();
+    void 콘서트_단건_조회는_비로그인_조회자여도_동행_도메인을_거치지_않고_동작한다() {
+        Concert existing = Concert.builder().title("아이유 콘서트").build();
         ReflectionTestUtils.setField(existing, "id", 20L);
         when(concertRepository.findById(20L)).thenReturn(Optional.of(existing));
-        when(companionService.countVisibleCompanions(20L, 100L)).thenReturn(3L);
-        when(companionService.countVisibleCompanions(20L, 200L)).thenReturn(1L);
 
-        assertThat(concertService.getConcertById(20L, 100L).getCompanionCount()).isEqualTo(3L);
-        assertThat(concertService.getConcertById(20L, 200L).getCompanionCount()).isEqualTo(1L);
+        ConcertSummaryDto result = concertService.getConcertById(20L, null);
+
+        assertThat(result.getConcertId()).isEqualTo(20L);
+        verifyNoInteractions(companionService);
     }
 
     @Test
-    void 콘서트_전체_목록조회시_각_콘서트별로_조회자가_볼_수_있는_동행프로필_수가_반환된다() {
-        Concert concert1 = Concert.builder().title("콘서트1").build();
-        ReflectionTestUtils.setField(concert1, "id", 1L);
-        Concert concert2 = Concert.builder().title("콘서트2").build();
-        ReflectionTestUtils.setField(concert2, "id", 2L);
+    void 존재하지_않는_콘서트_단건_조회시_예외가_발생한다() {
+        when(concertRepository.findById(999L)).thenReturn(Optional.empty());
 
-        when(concertRepository.findUpcomingOrUndated(any())).thenReturn(List.of(concert1, concert2));
-        when(companionService.countVisibleCompanionsByConcert(List.of(1L, 2L), 100L))
-                .thenReturn(Map.of(1L, 5L, 2L, 0L));
-
-        List<ConcertResponseDto> result = concertService.getAllConcerts(100L, com.loop.loop_backend.Concert.dto.ConcertSort.IMMINENT);
-
-        assertThat(result).extracting(ConcertResponseDto::getCompanionCount).containsExactly(5L, 0L);
+        assertThatThrownBy(() -> concertService.getConcertById(999L, 100L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CONCERT_NOT_FOUND);
     }
 
-    @Test
-    void 동행프로필이_0건인_콘서트도_목록에서_빠지지_않고_카운트_0으로_반환된다() {
-        Concert concert1 = Concert.builder().title("콘서트1").build();
-        ReflectionTestUtils.setField(concert1, "id", 1L);
-        Concert concert2 = Concert.builder().title("콘서트2").build();
-        ReflectionTestUtils.setField(concert2, "id", 2L);
-
-        when(concertRepository.findUpcomingOrUndated(any())).thenReturn(List.of(concert1, concert2));
-        // GROUP BY 결과에는 동행 프로필이 있는 콘서트만 담긴다 - 2번은 아예 키가 없다.
-        when(companionService.countVisibleCompanionsByConcert(List.of(1L, 2L), 100L))
-                .thenReturn(Map.of(1L, 5L));
-
-        List<ConcertResponseDto> result = concertService.getAllConcerts(100L, com.loop.loop_backend.Concert.dto.ConcertSort.IMMINENT);
-
-        assertThat(result).hasSize(2);
-        assertThat(result).extracting(ConcertResponseDto::getCompanionCount).containsExactly(5L, 0L);
-    }
+    // getAllConcerts가 section/period 조회(getConcertsBySection)로 대체돼 주석 처리.
+    // 대체 테스트는 ConcertControllerTest의 section/period 케이스 참고.
+    // @Test
+    // void 콘서트_전체_목록조회시_각_콘서트별로_조회자가_볼_수_있는_동행프로필_수가_반환된다() {
+    //     Concert concert1 = Concert.builder().title("콘서트1").build();
+    //     ReflectionTestUtils.setField(concert1, "id", 1L);
+    //     Concert concert2 = Concert.builder().title("콘서트2").build();
+    //     ReflectionTestUtils.setField(concert2, "id", 2L);
+    //
+    //     when(concertRepository.findUpcomingOrUndated(any())).thenReturn(List.of(concert1, concert2));
+    //     when(companionService.countVisibleCompanionsByConcert(List.of(1L, 2L), 100L))
+    //             .thenReturn(Map.of(1L, 5L, 2L, 0L));
+    //
+    //     List<ConcertResponseDto> result = concertService.getAllConcerts(100L, com.loop.loop_backend.Concert.dto.ConcertSort.IMMINENT);
+    //
+    //     assertThat(result).extracting(ConcertResponseDto::getCompanionCount).containsExactly(5L, 0L);
+    // }
+    //
+    // @Test
+    // void 동행프로필이_0건인_콘서트도_목록에서_빠지지_않고_카운트_0으로_반환된다() {
+    //     Concert concert1 = Concert.builder().title("콘서트1").build();
+    //     ReflectionTestUtils.setField(concert1, "id", 1L);
+    //     Concert concert2 = Concert.builder().title("콘서트2").build();
+    //     ReflectionTestUtils.setField(concert2, "id", 2L);
+    //
+    //     when(concertRepository.findUpcomingOrUndated(any())).thenReturn(List.of(concert1, concert2));
+    //     // GROUP BY 결과에는 동행 프로필이 있는 콘서트만 담긴다 - 2번은 아예 키가 없다.
+    //     when(companionService.countVisibleCompanionsByConcert(List.of(1L, 2L), 100L))
+    //             .thenReturn(Map.of(1L, 5L));
+    //
+    //     List<ConcertResponseDto> result = concertService.getAllConcerts(100L, com.loop.loop_backend.Concert.dto.ConcertSort.IMMINENT);
+    //
+    //     assertThat(result).hasSize(2);
+    //     assertThat(result).extracting(ConcertResponseDto::getCompanionCount).containsExactly(5L, 0L);
+    // }
 
     @Test
     void 존재하지_않는_콘서트_수정_시_예외가_발생하고_S3는_호출되지_않는다() throws Exception {

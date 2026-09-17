@@ -6,6 +6,7 @@ import com.loop.loop_backend.Concert.dto.ConcertPeriod;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
 import com.loop.loop_backend.Concert.dto.ConcertSection;
+import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
 import com.loop.loop_backend.Concert.kopis.KopisSyncService;
 import com.loop.loop_backend.Concert.service.ConcertService;
 import com.loop.loop_backend.common.exception.CommonResponse;
@@ -88,9 +89,16 @@ public class ConcertController {
     @GetMapping
     @Operation(summary = "콘서트 목록 조회",
             description = "section(대분류)과 period(예정/지난)로 조회합니다. 정렬은 서버가 고정합니다 — " +
-                    "예정 공연은 가까운 날짜순, 지난 공연은 최근 종료순 (클라이언트가 정렬을 고를 수 없음)")
+                    "예정 공연은 가까운 날짜순, 지난 공연은 최근 종료순 (클라이언트가 정렬을 고를 수 없음).\n\n" +
+                    "조합별 용도:\n" +
+                    "- `section=DOMESTIC_TOUR&period=UPCOMING` : 내한 탭 - 예정 공연 목록 " +
+                    "(홈 화면 내한 미리보기도 동일 호출을 재사용)\n" +
+                    "- `section=DOMESTIC_TOUR&period=PAST` : 내한 탭 - 지난 공연 목록\n" +
+                    "- `section=FESTIVAL&period=UPCOMING` : 페스티벌 탭 - 예정 공연 목록 " +
+                    "(홈 화면 페스티벌 미리보기도 동일 호출을 재사용)\n" +
+                    "- `section=FESTIVAL&period=PAST` : 페스티벌 탭 - 지난 공연 목록")
     @ApiResponse(responseCode = "200", description = "조회 성공")
-    public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> getConcerts(
+    public ResponseEntity<CommonResponse<List<ConcertSummaryDto>>> getConcerts(
             @Parameter(description = "공연 탭 대분류 (DOMESTIC_TOUR 내한 / FESTIVAL 페스티벌)")
             @RequestParam ConcertSection section,
             @Parameter(description = "조회 시점 (UPCOMING 예정 / PAST 지난)")
@@ -116,7 +124,7 @@ public class ConcertController {
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "404", description = "콘서트 없음")
     })
-    public ResponseEntity<CommonResponse<ConcertResponseDto>> getConcertById(
+    public ResponseEntity<CommonResponse<ConcertSummaryDto>> getConcertById(
             @Parameter(description = "콘서트 PK") @PathVariable Long id,
         @AuthenticationPrincipal Long userId) {
         return ResponseEntity.ok(CommonResponse.success(concertService.getConcertById(id, userId)));
@@ -127,7 +135,7 @@ public class ConcertController {
             description = "키워드로 콘서트를 검색합니다. 콘서트 제목뿐 아니라 아티스트의 원어명/기본명/한글명/별칭도 함께 매칭됩니다. " +
                     "예) 'King Gnu' 공연은 '킹누'로도 검색 가능")
     @ApiResponse(responseCode = "200", description = "조회 성공")
-    public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> searchConcerts(
+    public ResponseEntity<CommonResponse<List<ConcertSummaryDto>>> searchConcerts(
             @Parameter(description = "검색 키워드 (콘서트 제목 또는 아티스트명)") @RequestParam String title,
             @AuthenticationPrincipal Long userId) {
         return ResponseEntity.ok(CommonResponse.success(concertService.searchConcertsByTitle(title, userId)));
@@ -139,7 +147,7 @@ public class ConcertController {
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "404", description = "아티스트 없음")
     })
-    public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> getConcertsByArtist(
+    public ResponseEntity<CommonResponse<List<ConcertSummaryDto>>> getConcertsByArtist(
             @Parameter(description = "아티스트 PK") @PathVariable Long artistId,
             @AuthenticationPrincipal Long userId) {
         return ResponseEntity.ok(CommonResponse.success(concertService.getConcertsByArtist(artistId, userId)));

@@ -8,7 +8,7 @@ import com.loop.loop_backend.Concert.dto.ConcertPeriod;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
 import com.loop.loop_backend.Concert.dto.ConcertSection;
-import com.loop.loop_backend.Concert.dto.ConcertSort;
+import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
@@ -34,6 +34,8 @@ public class ConcertServiceImpl implements ConcertService {
     private final ConcertRepository concertRepository;
     private final ArtistRepository artistRepository;
     private final CompanionPostRepository companionPostRepository;
+    // 지금 조회 계열은 안 쓰지만, 동행 인원수까지 보여줄 화면(예: 페스티벌 목록)이 생기면
+    // toResponseDtos()에서 다시 쓸 예정이라 필드/메서드 그대로 남겨둠.
     private final CompanionService companionService;
     private final S3StorageService s3StorageService;
 
@@ -87,11 +89,8 @@ public class ConcertServiceImpl implements ConcertService {
     }
 
     @Override
-    public ConcertResponseDto getConcertById(Long id, Long userId) {
-        Concert concert = findConcertOrThrow(id);
-
-        return ConcertResponseDto.from(concert, companionService.countVisibleCompanions(concert.getId(), userId));
-
+    public ConcertSummaryDto getConcertById(Long id, Long userId) {
+        return ConcertSummaryDto.from(findConcertOrThrow(id));
     }
 
     // 호출하는 곳이 없어 주석 처리 (필요해지면 userId 파라미터 추가해서 복구)
@@ -103,40 +102,43 @@ public class ConcertServiceImpl implements ConcertService {
     // }
 
     @Override
-    public List<ConcertResponseDto> searchConcertsByTitle(String title, Long userId) {
-        return toResponseDtos(
-                concertRepository.searchUpcomingOrUndatedByTitle(title, ExpiryCutoff.cutoffDate()), userId);
+    public List<ConcertSummaryDto> searchConcertsByTitle(String title, Long userId) {
+        return concertRepository.searchUpcomingOrUndatedByTitle(title, ExpiryCutoff.cutoffDate()).stream()
+                .map(ConcertSummaryDto::from)
+                .toList();
+    }
+
+    // section/period 조회(getConcertsBySection)로 대체돼 호출하는 곳이 없어 주석 처리
+    // @Override
+    // public List<ConcertResponseDto> getAllConcerts(Long userId, ConcertSort sort) {
+    //     return toResponseDtos(concertRepository.findUpcomingOrUndated(ExpiryCutoff.cutoffDate()), userId).stream()
+    //             .sorted(sort.comparator())
+    //             .collect(Collectors.toList());
+    // }
+    //
+    // @Override
+    // public List<ConcertResponseDto> getConcertsByCategory(ConcertCategory category, Long userId, ConcertSort sort) {
+    //     return toResponseDtos(
+    //             concertRepository.findUpcomingOrUndatedByCategory(category, ExpiryCutoff.cutoffDate()), userId).stream()
+    //             .sorted(sort.comparator())
+    //             .collect(Collectors.toList());
+    // }
+
+    @Override
+    public List<ConcertSummaryDto> getConcertsByArtist(Long artistId, Long userId) {
+        return concertRepository.findUpcomingOrUndatedByArtistId(artistId, ExpiryCutoff.cutoffDate()).stream()
+                .map(ConcertSummaryDto::from)
+                .toList();
     }
 
     @Override
-    public List<ConcertResponseDto> getAllConcerts(Long userId, ConcertSort sort) {
-        return toResponseDtos(concertRepository.findUpcomingOrUndated(ExpiryCutoff.cutoffDate()), userId).stream()
-                .sorted(sort.comparator())
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<ConcertResponseDto> getConcertsByCategory(ConcertCategory category, Long userId, ConcertSort sort) {
-        return toResponseDtos(
-                concertRepository.findUpcomingOrUndatedByCategory(category, ExpiryCutoff.cutoffDate()), userId).stream()
-                .sorted(sort.comparator())
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<ConcertResponseDto> getConcertsByArtist(Long artistId, Long userId) {
-        return toResponseDtos(
-                concertRepository.findUpcomingOrUndatedByArtistId(artistId, ExpiryCutoff.cutoffDate()), userId);
-    }
-
-    @Override
-    public List<ConcertResponseDto> getConcertsBySection(ConcertSection section, ConcertPeriod period, Long userId) {
+    public List<ConcertSummaryDto> getConcertsBySection(ConcertSection section, ConcertPeriod period, Long userId) {
         List<ConcertCategory> categories = section.getCategories();
         LocalDate cutoff = ExpiryCutoff.cutoffDate();
         List<Concert> concerts = (period == ConcertPeriod.UPCOMING)
                 ? concertRepository.findUpcomingOrUndatedByCategories(categories, cutoff)
                 : concertRepository.findPastByCategories(categories, cutoff);
-        return toResponseDtos(concerts, userId);
+        return concerts.stream().map(ConcertSummaryDto::from).toList();
     }
 
     // 콘서트별 동행 프로필 수를 한 번에 조회한다. 콘서트마다 count 쿼리를 날리면 목록 길이에

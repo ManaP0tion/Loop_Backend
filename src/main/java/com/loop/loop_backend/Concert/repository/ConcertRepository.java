@@ -24,18 +24,18 @@ public interface ConcertRepository extends JpaRepository<Concert, Long> {
             "OR LOWER(a.nameAlias) LIKE LOWER(CONCAT('%', :q, '%'))")
     Page<Concert> searchForAdmin(@Param("q") String q, Pageable pageable);
 
-    // 마지막 날(endDate)이 지나지 않은 콘서트만 노출. endDate가 비어있으면 startDate로 대체(둘 다 없으면 날짜 미정으로 취급)
-    @Query("SELECT c FROM Concert c " +
-            "WHERE COALESCE(c.endDate, c.startDate) IS NULL OR COALESCE(c.endDate, c.startDate) >= :date " +
-            "ORDER BY CASE WHEN c.startDate IS NULL THEN 1 ELSE 0 END, c.startDate ASC")
-    List<Concert> findUpcomingOrUndated(@Param("date") LocalDate date);
-
-    @Query("SELECT c FROM Concert c " +
-            "WHERE c.category = :category " +
-            "AND (COALESCE(c.endDate, c.startDate) IS NULL OR COALESCE(c.endDate, c.startDate) >= :date) " +
-            "ORDER BY CASE WHEN c.startDate IS NULL THEN 1 ELSE 0 END, c.startDate ASC")
-    List<Concert> findUpcomingOrUndatedByCategory(@Param("category") ConcertCategory category,
-                                                  @Param("date") LocalDate date);
+    // section/period 조회(findUpcomingOrUndatedByCategories, findPastByCategories)로 대체돼 호출하는 곳이 없어 주석 처리
+    // @Query("SELECT c FROM Concert c " +
+    //         "WHERE COALESCE(c.endDate, c.startDate) IS NULL OR COALESCE(c.endDate, c.startDate) >= :date " +
+    //         "ORDER BY CASE WHEN c.startDate IS NULL THEN 1 ELSE 0 END, c.startDate ASC")
+    // List<Concert> findUpcomingOrUndated(@Param("date") LocalDate date);
+    //
+    // @Query("SELECT c FROM Concert c " +
+    //         "WHERE c.category = :category " +
+    //         "AND (COALESCE(c.endDate, c.startDate) IS NULL OR COALESCE(c.endDate, c.startDate) >= :date) " +
+    //         "ORDER BY CASE WHEN c.startDate IS NULL THEN 1 ELSE 0 END, c.startDate ASC")
+    // List<Concert> findUpcomingOrUndatedByCategory(@Param("category") ConcertCategory category,
+    //                                               @Param("date") LocalDate date);
 
     @Query("SELECT c FROM Concert c " +
             "WHERE c.artist.id = :artistId " +
