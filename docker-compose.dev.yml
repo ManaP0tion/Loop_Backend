@@ -15,3 +15,8 @@ services:
 
   nginx:
     container_name: loop-nginx-dev
+    environment:
+      DOMAIN_NAME: dev-api.loop.io.kr
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates
+      - /etc/letsencrypt:/etc/letsencrypt:ro
