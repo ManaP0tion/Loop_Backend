@@ -22,7 +22,8 @@ public class SwaggerConfig {
 
         return new OpenAPI()
                 .info(new Info()
-                        .title("Loop API")
+                        // devtemp 전용 임시 하드코딩 - 개발서버/운영서버 스웨거 구분용. dev 병합 시 "Loop API"로 되돌릴 것.
+                        .title("Loop API (개발서버)")
                         .description("Loop 백엔드 API 문서")
                         .version("v1.0.0"))
                 .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
