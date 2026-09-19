@@ -148,6 +148,7 @@ public class SecurityConfig {
                         // 아티스트/콘서트는 조회만 열고 변경(등록·수정·삭제·KOPIS 동기화)은 관리자 전용.
                         .requestMatchers(HttpMethod.GET, "/api/artists/**").permitAll()
                         .requestMatchers("/api/artists/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/concerts/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/concerts/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/concerts/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/concerts/**").hasRole("ADMIN")
