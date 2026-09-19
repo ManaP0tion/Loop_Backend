@@ -25,6 +25,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -93,36 +94,34 @@ public class ConcertServiceImpl implements ConcertService {
         return ConcertSummaryDto.from(findConcertOrThrow(id));
     }
 
-    // 호출하는 곳이 없어 주석 처리 (필요해지면 userId 파라미터 추가해서 복구)
-    // @Override
-    // public ConcertResponseDto getConcertByTitle(String title) {
-    //     Concert concert = concertRepository.findByTitle(title)
-    //             .orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
-    //     return ConcertResponseDto.from(concert, companionPostRepository.countByConcert_Id(concert.getId()));
-    // }
-
     @Override
-    public List<ConcertSummaryDto> searchConcertsByTitle(String title, Long userId) {
-        return concertRepository.searchUpcomingOrUndatedByTitle(title, ExpiryCutoff.cutoffDate()).stream()
+    public List<ConcertSummaryDto> searchConcertsByTitle(String title, ConcertSection section, ConcertPeriod period, Long userId) {
+        List<ConcertCategory> categories = (section != null)
+                ? section.getCategories()
+                : List.of(ConcertCategory.values());
+        LocalDate cutoff = ExpiryCutoff.cutoffDate();
+
+        if (period == ConcertPeriod.UPCOMING) {
+            return concertRepository.searchUpcomingOrUndatedByTitleAndCategories(title, categories, cutoff).stream()
+                    .map(ConcertSummaryDto::from)
+                    .toList();
+        }
+        if (period == ConcertPeriod.PAST) {
+            return concertRepository.searchPastByTitleAndCategories(title, categories, cutoff).stream()
+                    .map(ConcertSummaryDto::from)
+                    .toList();
+        }
+        // 전체검색(period 미지정): 예정 목록 뒤에 지난 목록을 그대로 이어붙인다.
+        List<ConcertSummaryDto> upcoming = concertRepository
+                .searchUpcomingOrUndatedByTitleAndCategories(title, categories, cutoff).stream()
                 .map(ConcertSummaryDto::from)
                 .toList();
+        List<ConcertSummaryDto> past = concertRepository
+                .searchPastByTitleAndCategories(title, categories, cutoff).stream()
+                .map(ConcertSummaryDto::from)
+                .toList();
+        return Stream.concat(upcoming.stream(), past.stream()).toList();
     }
-
-    // section/period 조회(getConcertsBySection)로 대체돼 호출하는 곳이 없어 주석 처리
-    // @Override
-    // public List<ConcertResponseDto> getAllConcerts(Long userId, ConcertSort sort) {
-    //     return toResponseDtos(concertRepository.findUpcomingOrUndated(ExpiryCutoff.cutoffDate()), userId).stream()
-    //             .sorted(sort.comparator())
-    //             .collect(Collectors.toList());
-    // }
-    //
-    // @Override
-    // public List<ConcertResponseDto> getConcertsByCategory(ConcertCategory category, Long userId, ConcertSort sort) {
-    //     return toResponseDtos(
-    //             concertRepository.findUpcomingOrUndatedByCategory(category, ExpiryCutoff.cutoffDate()), userId).stream()
-    //             .sorted(sort.comparator())
-    //             .collect(Collectors.toList());
-    // }
 
     @Override
     public List<ConcertSummaryDto> getConcertsByArtist(Long artistId, Long userId) {

@@ -3,8 +3,11 @@ package com.loop.loop_backend.Concert.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.Concert.dto.ConcertPeriod;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
+import com.loop.loop_backend.Concert.dto.ConcertSection;
 import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
@@ -159,41 +162,63 @@ class ConcertServiceImplTest {
                 .isEqualTo(ErrorCode.CONCERT_NOT_FOUND);
     }
 
-    // getAllConcerts가 section/period 조회(getConcertsBySection)로 대체돼 주석 처리.
-    // 대체 테스트는 ConcertControllerTest의 section/period 케이스 참고.
-    // @Test
-    // void 콘서트_전체_목록조회시_각_콘서트별로_조회자가_볼_수_있는_동행프로필_수가_반환된다() {
-    //     Concert concert1 = Concert.builder().title("콘서트1").build();
-    //     ReflectionTestUtils.setField(concert1, "id", 1L);
-    //     Concert concert2 = Concert.builder().title("콘서트2").build();
-    //     ReflectionTestUtils.setField(concert2, "id", 2L);
-    //
-    //     when(concertRepository.findUpcomingOrUndated(any())).thenReturn(List.of(concert1, concert2));
-    //     when(companionService.countVisibleCompanionsByConcert(List.of(1L, 2L), 100L))
-    //             .thenReturn(Map.of(1L, 5L, 2L, 0L));
-    //
-    //     List<ConcertResponseDto> result = concertService.getAllConcerts(100L, com.loop.loop_backend.Concert.dto.ConcertSort.IMMINENT);
-    //
-    //     assertThat(result).extracting(ConcertResponseDto::getCompanionCount).containsExactly(5L, 0L);
-    // }
-    //
-    // @Test
-    // void 동행프로필이_0건인_콘서트도_목록에서_빠지지_않고_카운트_0으로_반환된다() {
-    //     Concert concert1 = Concert.builder().title("콘서트1").build();
-    //     ReflectionTestUtils.setField(concert1, "id", 1L);
-    //     Concert concert2 = Concert.builder().title("콘서트2").build();
-    //     ReflectionTestUtils.setField(concert2, "id", 2L);
-    //
-    //     when(concertRepository.findUpcomingOrUndated(any())).thenReturn(List.of(concert1, concert2));
-    //     // GROUP BY 결과에는 동행 프로필이 있는 콘서트만 담긴다 - 2번은 아예 키가 없다.
-    //     when(companionService.countVisibleCompanionsByConcert(List.of(1L, 2L), 100L))
-    //             .thenReturn(Map.of(1L, 5L));
-    //
-    //     List<ConcertResponseDto> result = concertService.getAllConcerts(100L, com.loop.loop_backend.Concert.dto.ConcertSort.IMMINENT);
-    //
-    //     assertThat(result).hasSize(2);
-    //     assertThat(result).extracting(ConcertResponseDto::getCompanionCount).containsExactly(5L, 0L);
-    // }
+    // ===== searchConcertsByTitle (검색 스코프) =====
+
+    private Concert concertNamed(long id, String title) {
+        Concert concert = Concert.builder().title(title).build();
+        ReflectionTestUtils.setField(concert, "id", id);
+        return concert;
+    }
+
+    @Test
+    void 검색시_section을_지정하지_않으면_전체_카테고리로_조회한다() {
+        when(concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
+                eq("공연"), eq(List.of(ConcertCategory.values())), any()))
+                .thenReturn(List.of(concertNamed(1L, "전체 카테고리 결과")));
+        when(concertRepository.searchPastByTitleAndCategories(any(), any(), any()))
+                .thenReturn(List.of());
+
+        List<ConcertSummaryDto> result = concertService.searchConcertsByTitle("공연", null, ConcertPeriod.UPCOMING, 100L);
+
+        assertThat(result).extracting(ConcertSummaryDto::getTitle).containsExactly("전체 카테고리 결과");
+    }
+
+    @Test
+    void 검색시_section을_지정하면_해당_섹션의_카테고리로만_조회한다() {
+        when(concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
+                eq("공연"), eq(ConcertSection.FESTIVAL.getCategories()), any()))
+                .thenReturn(List.of(concertNamed(1L, "페스티벌 결과")));
+
+        List<ConcertSummaryDto> result = concertService.searchConcertsByTitle(
+                "공연", ConcertSection.FESTIVAL, ConcertPeriod.UPCOMING, 100L);
+
+        assertThat(result).extracting(ConcertSummaryDto::getTitle).containsExactly("페스티벌 결과");
+    }
+
+    @Test
+    void 검색시_period가_PAST면_지난_공연만_조회한다() {
+        when(concertRepository.searchPastByTitleAndCategories(eq("공연"), any(), any()))
+                .thenReturn(List.of(concertNamed(1L, "지난 공연 결과")));
+
+        List<ConcertSummaryDto> result = concertService.searchConcertsByTitle(
+                "공연", ConcertSection.DOMESTIC_TOUR, ConcertPeriod.PAST, 100L);
+
+        assertThat(result).extracting(ConcertSummaryDto::getTitle).containsExactly("지난 공연 결과");
+        verify(concertRepository, never()).searchUpcomingOrUndatedByTitleAndCategories(any(), any(), any());
+    }
+
+    @Test
+    void 검색시_period를_지정하지_않으면_전체검색으로_예정_목록_뒤에_지난_목록을_이어붙인다() {
+        when(concertRepository.searchUpcomingOrUndatedByTitleAndCategories(eq("공연"), any(), any()))
+                .thenReturn(List.of(concertNamed(1L, "예정1"), concertNamed(2L, "예정2")));
+        when(concertRepository.searchPastByTitleAndCategories(eq("공연"), any(), any()))
+                .thenReturn(List.of(concertNamed(3L, "지난1")));
+
+        List<ConcertSummaryDto> result = concertService.searchConcertsByTitle("공연", null, null, 100L);
+
+        assertThat(result).extracting(ConcertSummaryDto::getTitle)
+                .containsExactly("예정1", "예정2", "지난1");
+    }
 
     @Test
     void 존재하지_않는_콘서트_수정_시_예외가_발생하고_S3는_호출되지_않는다() throws Exception {

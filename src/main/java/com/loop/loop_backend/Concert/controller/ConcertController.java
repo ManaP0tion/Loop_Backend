@@ -133,12 +133,23 @@ public class ConcertController {
     @GetMapping("/search")
     @Operation(summary = "콘서트 검색",
             description = "키워드로 콘서트를 검색합니다. 콘서트 제목뿐 아니라 아티스트의 원어명/기본명/한글명/별칭도 함께 매칭됩니다. " +
-                    "예) 'King Gnu' 공연은 '킹누'로도 검색 가능")
+                    "예) 'King Gnu' 공연은 '킹누'로도 검색 가능\n\n" +
+                    "section/period로 검색 범위를 좁힐 수 있습니다 (목록 조회와 동일한 파라미터, 둘 다 생략 가능):\n" +
+                    "- 둘 다 생략 : 전체검색 - 카테고리 무관, 예정 목록 뒤에 지난 목록을 이어붙여 반환\n" +
+                    "- `section=DOMESTIC_TOUR&period=PAST` : 내한 + 지난\n" +
+                    "- `section=DOMESTIC_TOUR&period=UPCOMING` : 내한 + 예정\n" +
+                    "- `section=FESTIVAL&period=PAST` : 페스티벌 + 지난\n" +
+                    "- `section=FESTIVAL&period=UPCOMING` : 페스티벌 + 예정")
     @ApiResponse(responseCode = "200", description = "조회 성공")
     public ResponseEntity<CommonResponse<List<ConcertSummaryDto>>> searchConcerts(
             @Parameter(description = "검색 키워드 (콘서트 제목 또는 아티스트명)") @RequestParam String title,
+            @Parameter(description = "공연 탭 대분류 (DOMESTIC_TOUR 내한 / FESTIVAL 페스티벌, 생략 시 전체)")
+            @RequestParam(required = false) ConcertSection section,
+            @Parameter(description = "조회 시점 (UPCOMING 예정 / PAST 지난, 생략 시 전체)")
+            @RequestParam(required = false) ConcertPeriod period,
             @AuthenticationPrincipal Long userId) {
-        return ResponseEntity.ok(CommonResponse.success(concertService.searchConcertsByTitle(title, userId)));
+        return ResponseEntity.ok(CommonResponse.success(
+                concertService.searchConcertsByTitle(title, section, period, userId)));
     }
 
     @GetMapping("/artist/{artistId}")

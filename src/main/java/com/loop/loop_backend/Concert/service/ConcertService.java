@@ -18,12 +18,8 @@ public interface ConcertService {
 
     // 아래 조회 계열은 비로그인(userId == null)으로도 호출되므로 동행 도메인을 타지 않는 ConcertSummaryDto를 쓴다.
     ConcertSummaryDto getConcertById(Long id, Long userId);
-    // 호출하는 곳이 없어 주석 처리 (필요해지면 userId 파라미터 추가해서 복구)
-    // ConcertResponseDto getConcertByTitle(String title);
-    List<ConcertSummaryDto> searchConcertsByTitle(String title, Long userId);
-    // section/period 조회(getConcertsBySection)로 대체돼 호출하는 곳이 없어 주석 처리
-    // List<ConcertResponseDto> getAllConcerts(Long userId, ConcertSort sort);
-    // List<ConcertResponseDto> getConcertsByCategory(ConcertCategory category, Long userId, ConcertSort sort);
+    // section 미지정 시 전체 카테고리, period 미지정 시 예정 목록 뒤에 지난 목록을 이어붙여 반환한다.
+    List<ConcertSummaryDto> searchConcertsByTitle(String title, ConcertSection section, ConcertPeriod period, Long userId);
     List<ConcertSummaryDto> getConcertsByArtist(Long artistId, Long userId);
 
     // 공연 탭: section(내한/페스티벌) + period(예정/지난)로 조회. 정렬은 서버가 period 기준으로 고정한다.

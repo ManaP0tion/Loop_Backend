@@ -136,14 +136,40 @@ class ConcertControllerTest {
 
     @Test
     void 검색시_로그인한_사용자ID로_searchConcertsByTitle이_호출된다() throws Exception {
-        when(concertService.searchConcertsByTitle("아이유", USER_ID))
+        when(concertService.searchConcertsByTitle("아이유", null, null, USER_ID))
                 .thenReturn(List.of(summary(3L, "아이유 콘서트")));
 
         mockMvc.perform(get("/api/concerts/search").param("title", "아이유"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].title").value("아이유 콘서트"));
 
-        verify(concertService).searchConcertsByTitle("아이유", USER_ID);
+        verify(concertService).searchConcertsByTitle("아이유", null, null, USER_ID);
+    }
+
+    @Test
+    void 검색시_section과_period를_생략하면_null로_서비스에_전달된다() throws Exception {
+        when(concertService.searchConcertsByTitle("공연", null, null, USER_ID))
+                .thenReturn(List.of(summary(3L, "전체검색 결과")));
+
+        mockMvc.perform(get("/api/concerts/search").param("title", "공연"))
+                .andExpect(status().isOk());
+
+        verify(concertService).searchConcertsByTitle("공연", null, null, USER_ID);
+    }
+
+    @Test
+    void 검색시_section과_period를_지정하면_그대로_서비스에_전달된다() throws Exception {
+        when(concertService.searchConcertsByTitle("공연", ConcertSection.DOMESTIC_TOUR, ConcertPeriod.PAST, USER_ID))
+                .thenReturn(List.of(summary(3L, "내한 지난 검색 결과")));
+
+        mockMvc.perform(get("/api/concerts/search")
+                        .param("title", "공연")
+                        .param("section", "DOMESTIC_TOUR")
+                        .param("period", "PAST"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].title").value("내한 지난 검색 결과"));
+
+        verify(concertService).searchConcertsByTitle("공연", ConcertSection.DOMESTIC_TOUR, ConcertPeriod.PAST, USER_ID);
     }
 
     @Test

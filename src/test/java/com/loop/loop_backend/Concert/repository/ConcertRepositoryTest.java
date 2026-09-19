@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Concert.repository;
 
+import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
@@ -34,14 +35,33 @@ class ConcertRepositoryTest {
     }
 
     private Concert persistConcert(String title, LocalDate startDate, LocalDate endDate, ConcertCategory category) {
+        return persistConcert(title, startDate, endDate, category, null);
+    }
+
+    private Concert persistConcert(String title, LocalDate startDate, LocalDate endDate,
+                                    ConcertCategory category, Artist artist) {
         Concert concert = Concert.builder()
                 .title(title)
                 .category(category)
                 .startDate(startDate)
                 .endDate(endDate)
+                .artist(artist)
                 .build();
         entityManager.persist(concert);
         return concert;
+    }
+
+    private Artist persistArtist(String name, String baseName, String nameKo, String nameAlias) {
+        Artist artist = Artist.builder()
+                .name(name)
+                .baseName(baseName)
+                .nameKo(nameKo)
+                .nameAlias(nameAlias)
+                .autoFetchConcerts(false)
+                .category(ConcertCategory.J_POP_ARTIST)
+                .build();
+        entityManager.persist(artist);
+        return artist;
     }
 
     private User persistUser(String providerId) {
@@ -260,5 +280,101 @@ class ConcertRepositoryTest {
 
         assertThat(result).extracting(Concert::getTitle)
                 .containsExactly("최근_종료", "오래전_종료");
+    }
+
+    // ===== searchUpcomingOrUndatedByTitleAndCategories / searchPastByTitleAndCategories (검색) =====
+    // 규칙: 콘서트 제목 또는 아티스트명(원어명/기본명/한글명/별칭)으로 매칭, 요청한 카테고리에 속해야 함.
+    // 날짜 포함/정렬 규칙은 findUpcomingOrUndatedByCategories/findPastByCategories와 동일.
+
+    @Test
+    void 검색_예정_조회시_콘서트_제목으로_매칭된다() {
+        LocalDate today = LocalDate.now();
+        persistConcert("아이유 콘서트", today.plusDays(1), today.plusDays(1));
+        persistConcert("다른 공연", today.plusDays(1), today.plusDays(1));
+        entityManager.flush();
+
+        List<Concert> result = concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
+                "아이유", List.of(ConcertCategory.DOMESTIC_ARTIST), today);
+
+        assertThat(result).extracting(Concert::getTitle).containsExactly("아이유 콘서트");
+    }
+
+    @Test
+    void 검색_예정_조회시_아티스트_원어명_한글명_별칭으로도_매칭된다() {
+        LocalDate today = LocalDate.now();
+        Artist artist = persistArtist("King Gnu", "King Gnu", "킹누", "킹구누");
+        persistConcert("무제 공연", today.plusDays(1), today.plusDays(1), ConcertCategory.J_POP_ARTIST, artist);
+        entityManager.flush();
+
+        List<Concert> result = concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
+                "킹누", List.of(ConcertCategory.J_POP_ARTIST), today);
+
+        assertThat(result).extracting(Concert::getTitle).containsExactly("무제 공연");
+    }
+
+    @Test
+    void 검색_예정_조회시_요청한_카테고리에_속하지_않는_공연은_제외된다() {
+        LocalDate today = LocalDate.now();
+        persistConcert("페스티벌 공연", today.plusDays(1), today.plusDays(1), ConcertCategory.JAPAN_FESTIVAL);
+        entityManager.flush();
+
+        List<Concert> result = concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
+                "공연", List.of(ConcertCategory.J_POP_ARTIST), today);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void 검색_예정_조회_결과는_가까운_시작일_순이고_날짜_미정은_맨_뒤로_간다() {
+        LocalDate today = LocalDate.now();
+        persistConcert("날짜_미정_공연", null, null);
+        persistConcert("먼_공연", today.plusDays(10), today.plusDays(10));
+        persistConcert("가까운_공연", today.plusDays(1), today.plusDays(1));
+        entityManager.flush();
+
+        List<Concert> result = concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
+                "공연", List.of(ConcertCategory.DOMESTIC_ARTIST), today);
+
+        assertThat(result).extracting(Concert::getTitle)
+                .containsExactly("가까운_공연", "먼_공연", "날짜_미정_공연");
+    }
+
+    @Test
+    void 검색_지난_조회시_아티스트명으로도_매칭되고_최근_종료일_순으로_정렬된다() {
+        LocalDate today = LocalDate.now();
+        Artist artist = persistArtist("King Gnu", "King Gnu", "킹누", null);
+        persistConcert("오래전_종료", today.minusDays(10), today.minusDays(10), ConcertCategory.J_POP_ARTIST, artist);
+        persistConcert("최근_종료", today.minusDays(1), today.minusDays(1), ConcertCategory.J_POP_ARTIST, artist);
+        entityManager.flush();
+
+        List<Concert> result = concertRepository.searchPastByTitleAndCategories(
+                "킹누", List.of(ConcertCategory.J_POP_ARTIST), today);
+
+        assertThat(result).extracting(Concert::getTitle)
+                .containsExactly("최근_종료", "오래전_종료");
+    }
+
+    @Test
+    void 검색_지난_조회시_날짜_미정_공연은_포함되지_않는다() {
+        LocalDate today = LocalDate.now();
+        persistConcert("날짜_미정_공연", null, null);
+        entityManager.flush();
+
+        List<Concert> result = concertRepository.searchPastByTitleAndCategories(
+                "공연", List.of(ConcertCategory.DOMESTIC_ARTIST), today);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void 검색_지난_조회시_요청한_카테고리에_속하지_않는_공연은_제외된다() {
+        LocalDate today = LocalDate.now();
+        persistConcert("페스티벌 공연", today.minusDays(1), today.minusDays(1), ConcertCategory.JAPAN_FESTIVAL);
+        entityManager.flush();
+
+        List<Concert> result = concertRepository.searchPastByTitleAndCategories(
+                "공연", List.of(ConcertCategory.J_POP_ARTIST), today);
+
+        assertThat(result).isEmpty();
     }
 }
