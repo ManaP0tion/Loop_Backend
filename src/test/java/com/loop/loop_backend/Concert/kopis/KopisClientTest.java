@@ -4,16 +4,21 @@ import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -201,5 +206,208 @@ class KopisClientTest {
         verifyNoInteractions(restTemplate);
         assertThat(facility.address()).isNull();
         assertThat(facility.capacity()).isNull();
+    }
+
+    // ---------- 공연 목록 수집 ----------
+
+    private static String listXml(int count) {
+        StringBuilder xml = new StringBuilder("<dbs>");
+        for (int i = 0; i < count; i++) {
+            xml.append("<db><mt20id>PF").append(i).append("</mt20id><prfnm>공연 ").append(i).append("</prfnm>")
+                    .append("<genrenm>대중음악</genrenm><prfpdfrom>2026.10.01</prfpdfrom><prfpdto>2026.10.02</prfpdto>")
+                    .append("<fcltynm>공연장</fcltynm></db>");
+        }
+        return xml.append("</dbs>").toString();
+    }
+
+    @Test
+    void 목록은_대중음악_장르코드로_한_페이지_100건씩_요청한다() {
+        givenResponse(listXml(3));
+
+        client.getAllUpcomingPerformances();
+
+        ArgumentCaptor<URI> uri = ArgumentCaptor.forClass(URI.class);
+        verify(restTemplate).getForObject(uri.capture(), eq(String.class));
+        assertThat(uri.getValue().getQuery()).contains("shcate=CCCD", "rows=100", "cpage=1");
+    }
+
+    @Test
+    void 한_페이지가_100건_미만이면_거기서_끝내고_받은_공연을_돌려준다() {
+        givenResponse(listXml(3));
+
+        assertThat(client.getAllUpcomingPerformances()).hasSize(3);
+
+        verify(restTemplate, times(1)).getForObject(any(URI.class), eq(String.class));
+    }
+
+    @Test
+    void 한_페이지가_꽉_차면_다음_페이지를_이어서_요청한다() {
+        when(restTemplate.getForObject(any(URI.class), eq(String.class)))
+                .thenReturn(listXml(100), listXml(40));
+
+        assertThat(client.getAllUpcomingPerformances()).hasSize(140);
+
+        ArgumentCaptor<URI> uri = ArgumentCaptor.forClass(URI.class);
+        verify(restTemplate, times(2)).getForObject(uri.capture(), eq(String.class));
+        assertThat(uri.getAllValues().get(0).getQuery()).contains("cpage=1");
+        assertThat(uri.getAllValues().get(1).getQuery()).contains("cpage=2");
+    }
+
+    @Test
+    void 중간_페이지가_실패하면_그때까지_받은_공연만_돌려준다() {
+        when(restTemplate.getForObject(any(URI.class), eq(String.class)))
+                .thenReturn(listXml(100))
+                .thenThrow(new RestClientException("Request Blocked"));
+
+        assertThat(client.getAllUpcomingPerformances()).hasSize(100);
+    }
+
+    // ---------- 요청 간격 (KOPIS 차단 방지) ----------
+    // 시간 비교는 sleep 오차를 감안해 여유를 둔다. 간격이 없으면 이 시간들은 거의 0ms에 가깝다.
+
+    private long elapsedMs(Runnable action) {
+        long start = System.nanoTime();
+        action.run();
+        return (System.nanoTime() - start) / 1_000_000;
+    }
+
+    @Test
+    void 첫_요청은_기다리지_않는다() {
+        ReflectionTestUtils.setField(client, "requestDelayMs", 5000L);
+        givenResponse(DETAIL_XML);
+
+        long elapsed = elapsedMs(() -> client.getPerformanceDetail("PF287093"));
+
+        assertThat(elapsed).isLessThan(2000);
+    }
+
+    @Test
+    void 연속으로_요청하면_설정한_간격만큼_띄운다() {
+        ReflectionTestUtils.setField(client, "requestDelayMs", 200L);
+        givenResponse(DETAIL_XML);
+
+        long elapsed = elapsedMs(() -> {
+            client.getPerformanceDetail("PF1");
+            client.getPerformanceDetail("PF2");
+        });
+
+        assertThat(elapsed).isGreaterThanOrEqualTo(150);
+    }
+
+    @Test
+    void 목록_페이지를_넘길_때도_간격을_둔다() {
+        ReflectionTestUtils.setField(client, "requestDelayMs", 200L);
+        when(restTemplate.getForObject(any(URI.class), eq(String.class)))
+                .thenReturn(listXml(100), listXml(10));
+
+        long elapsed = elapsedMs(() -> client.getAllUpcomingPerformances());
+
+        assertThat(elapsed).isGreaterThanOrEqualTo(150);
+    }
+
+    @Test
+    void 목록과_상세_시설_요청이_같은_간격을_공유한다() {
+        ReflectionTestUtils.setField(client, "requestDelayMs", 200L);
+        when(restTemplate.getForObject(any(URI.class), eq(String.class)))
+                .thenReturn(listXml(3), DETAIL_XML, FACILITY_XML);
+
+        long elapsed = elapsedMs(() -> {
+            client.getAllUpcomingPerformances();
+            client.getPerformanceDetail("PF287093");
+            client.getFacility("FC003670", "FC003670-01");
+        });
+
+        // 요청 3번 = 간격 2번
+        assertThat(elapsed).isGreaterThanOrEqualTo(350);
+    }
+
+    // ---------- 차단 응답 재시도 ----------
+    // KOPIS는 짧은 시간에 요청이 몰리면 400 + "Request Blocked" HTML로 차단하지만, 잠깐 뒤엔 풀리는 경우가 많다.
+
+    /** 실제 로그와 같은 형태의 차단 응답(400 + Request Blocked 본문). */
+    private static HttpClientErrorException blocked() {
+        return HttpClientErrorException.create(HttpStatus.BAD_REQUEST, "Bad Request", HttpHeaders.EMPTY,
+                "<HTML><H1>Request Blocked</H1></HTML>".getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
+    }
+
+    /** 차단이 아닌 진짜 400(예: 잘못된 파라미터). */
+    private static HttpClientErrorException badRequest() {
+        return HttpClientErrorException.create(HttpStatus.BAD_REQUEST, "Bad Request", HttpHeaders.EMPTY,
+                "<error>invalid parameter</error>".getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
+    }
+
+    private void givenRetry(int max, long waitMs) {
+        ReflectionTestUtils.setField(client, "blockedRetryMax", max);
+        ReflectionTestUtils.setField(client, "blockedRetryWaitMs", waitMs);
+    }
+
+    @Test
+    void 상세조회가_한_번_차단돼도_기다렸다_재시도하면_정상_결과를_받는다() {
+        givenRetry(3, 1);
+        when(restTemplate.getForObject(any(URI.class), eq(String.class)))
+                .thenThrow(blocked())
+                .thenReturn(DETAIL_XML);
+
+        KopisClient.KopisDetail detail = client.getPerformanceDetail("PF287093");
+
+        assertThat(detail.price()).isEqualTo("스탠딩석 165,000원, R석 165,000원, S석 154,000원");
+        verify(restTemplate, times(2)).getForObject(any(URI.class), eq(String.class));
+    }
+
+    @Test
+    void 목록_페이지가_차단돼도_재시도로_이어서_끝까지_수집한다() {
+        givenRetry(3, 1);
+        when(restTemplate.getForObject(any(URI.class), eq(String.class)))
+                .thenReturn(listXml(100))   // 1페이지 정상
+                .thenThrow(blocked())        // 2페이지 첫 시도는 차단
+                .thenReturn(listXml(10));    // 2페이지 재시도 성공
+
+        // 재시도가 없으면 100건에서 끊기는 상황이다
+        assertThat(client.getAllUpcomingPerformances()).hasSize(110);
+        verify(restTemplate, times(3)).getForObject(any(URI.class), eq(String.class));
+    }
+
+    @Test
+    void 재시도_한도까지_계속_차단되면_포기하고_실패로_처리한다() {
+        givenRetry(2, 1);
+        when(restTemplate.getForObject(any(URI.class), eq(String.class))).thenThrow(blocked());
+
+        KopisClient.KopisDetail detail = client.getPerformanceDetail("PF287093");
+
+        assertThat(detail.price()).isNull();
+        // 첫 요청 1번 + 재시도 2번
+        verify(restTemplate, times(3)).getForObject(any(URI.class), eq(String.class));
+    }
+
+    @Test
+    void 차단이_아닌_400은_재시도하지_않는다() {
+        givenRetry(3, 1);
+        when(restTemplate.getForObject(any(URI.class), eq(String.class))).thenThrow(badRequest());
+
+        client.getPerformanceDetail("PF287093");
+
+        verify(restTemplate, times(1)).getForObject(any(URI.class), eq(String.class));
+    }
+
+    @Test
+    void 재시도_횟수를_0으로_두면_차단돼도_재시도하지_않는다() {
+        givenRetry(0, 1);
+        when(restTemplate.getForObject(any(URI.class), eq(String.class))).thenThrow(blocked());
+
+        client.getPerformanceDetail("PF287093");
+
+        verify(restTemplate, times(1)).getForObject(any(URI.class), eq(String.class));
+    }
+
+    @Test
+    void 재시도_전에_설정한_시간만큼_기다린다() {
+        givenRetry(1, 200);
+        when(restTemplate.getForObject(any(URI.class), eq(String.class)))
+                .thenThrow(blocked())
+                .thenReturn(DETAIL_XML);
+
+        long elapsed = elapsedMs(() -> client.getPerformanceDetail("PF287093"));
+
+        assertThat(elapsed).isGreaterThanOrEqualTo(150);
     }
 }

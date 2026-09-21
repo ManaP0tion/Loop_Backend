@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.w3c.dom.Document;
@@ -30,9 +31,27 @@ public class KopisClient {
     @Value("${kopis.api-key}")
     private String apiKey;
 
+    // KOPIS는 짧은 시간에 요청이 몰리면 "Request Blocked"(400)로 차단한다? 요청 사이 최소 간격(ms).
+    // 차단 기준을 몰라서 설정으로 뺐다 - 여전히 막히면 값을 올린다.
+    @Value("${kopis.request-delay-ms:2000}")
+    private long requestDelayMs;
+
+    // 차단 응답("Request Blocked")을 받았을 때의 재시도 설정.
+    // 로그를 보면 차단이 계속 걸려 있는 게 아니라 순간적으로 걸렸다 풀려서, 잠깐 기다렸다 다시 보내면 통과하는 경우가 많다.
+    // 값은 실제로 막히는 정도를 보며 조정한다. 기본값: 10초 기다리고 최대 3번 재시도.
+    @Value("${kopis.blocked-retry-wait-ms:10000}")
+    private long blockedRetryWaitMs; // 재시도 전에 기다리는 시간(ms)
+
+    @Value("${kopis.blocked-retry-max:3}")
+    private int blockedRetryMax; // 첫 요청 이후 다시 보내는 최대 횟수 (0이면 재시도 안 함)
+
+    // 마지막으로 KOPIS에 요청을 보낸 시각. 스케줄러와 수동 싱크가 겹쳐도 전체 요청 간격이 지켜지도록 공유한다.
+    private long lastRequestAtMs;
+
     private static final String BASE_URL = "http://kopis.or.kr/openApi/restful/pblprfr";
     private static final String DETAIL_URL = BASE_URL; // 공연 상세는 목록과 같은 경로 뒤에 /{공연ID}
-    private static final String FACILITY_URL = "http://kopis.or.kr/openApi/restful/prfplc"; // 공연시설 상세 /{시설ID}
+    private static final String POPULAR_MUSIC_GENRE_CODE = "CCCD"; // KOPIS 장르 코드: 대중음악
+    private static final String FACILITY_URL ="http://kopis.or.kr/openApi/restful/prfplc"; // 공연시설 상세 /{시설ID}
     private static final DateTimeFormatter PARAM_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter PARSE_FORMAT = DateTimeFormatter.ofPattern("yyyy.MM.dd");
 
@@ -50,6 +69,8 @@ public class KopisClient {
                     .queryParam("service", apiKey)
                     .queryParam("stdate", stdate)
                     .queryParam("eddate", eddate)
+                    // 대중음악만 요청해 페이지 수를 줄인다 (요청이 몰리면 KOPIS가 차단하는 문제 때문)
+                    .queryParam("shcate", POPULAR_MUSIC_GENRE_CODE)
                     .queryParam("rows", 100)
                     .queryParam("cpage", page)
                     .encode()
@@ -57,7 +78,9 @@ public class KopisClient {
                     .toUri();
 
             try {
-                String xml = restTemplate.getForObject(uri, String.class);
+                // 간격 조절(throttle)과 차단 시 재시도는 getWithRetryOnBlock 안에서 처리한다.
+                // 재시도를 다 써도 막히면 예외가 올라와 아래 catch에서 이 페이지까지 받은 만큼만 반환한다.
+                String xml = getWithRetryOnBlock(uri);
                 ParsedPage parsed = parseListXml(xml);
                 all.addAll(parsed.filtered);
                 if (parsed.rawCount < 100) break;
@@ -144,11 +167,69 @@ public class KopisClient {
                 .build()
                 .toUri();
         try {
-            return restTemplate.getForObject(uri, String.class);
+            // 상세/시설/출연진 조회도 목록과 같은 방식(간격 + 차단 시 재시도)으로 요청한다.
+            return getWithRetryOnBlock(uri);
         } catch (Exception e) {
+            // 재시도까지 다 실패한 경우. 호출한 쪽이 null을 "조회 실패"로 처리한다.
             log.warn("Failed to fetch {} from KOPIS: {}", id, e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * KOPIS 요청 한 번(응답 본문 반환).
+     * - 요청마다 throttle()로 직전 요청과의 간격을 지킨다.
+     * - 차단 응답("Request Blocked", 400)이면 blockedRetryWaitMs만큼 기다렸다가 같은 요청을 다시 보낸다.
+     * - 차단이 아닌 실패(다른 4xx, 5xx, 네트워크 오류 등)는 재시도해도 소용없거나 위험해서 그대로 던진다.
+     * - blockedRetryMax번 재시도해도 계속 막히면 마지막 예외를 던진다.
+     */
+    private String getWithRetryOnBlock(URI uri) {
+        // retried = 지금까지 다시 보낸 횟수 (첫 요청은 0)
+        for (int retried = 0; ; retried++) {
+            throttle();
+            try {
+                return restTemplate.getForObject(uri, String.class);
+            } catch (HttpClientErrorException e) {
+                // 차단이 아니거나, 재시도 한도를 다 썼으면 더 시도하지 않고 호출한 쪽으로 넘긴다.
+                if (!isBlocked(e) || retried >= blockedRetryMax) throw e;
+
+                log.warn("KOPIS blocked the request ({}/{}), retrying in {}ms",
+                        retried + 1, blockedRetryMax, blockedRetryWaitMs);
+                // 기다리는 중 스레드가 인터럽트되면(앱 종료 등) 재시도를 그만둔다.
+                if (!sleep(blockedRetryWaitMs)) throw e;
+            }
+        }
+    }
+
+    /**
+     * 차단 응답인지 판단한다. KOPIS 앞단 보안 장비가 400 + "Request Blocked" HTML을 돌려주는 경우만 해당한다.
+     * 잘못된 파라미터 같은 진짜 400은 본문이 달라서 여기에 안 걸린다(재시도하면 안 되는 오류).
+     */
+    private boolean isBlocked(HttpClientErrorException e) {
+        return e.getStatusCode().value() == 400 && e.getResponseBodyAsString().contains("Request Blocked");
+    }
+
+    /** ms만큼 기다린다. 대기 중 인터럽트되면 인터럽트 상태를 되돌리고 false를 돌려준다(호출한 쪽이 중단할 신호). */
+    private boolean sleep(long ms) {
+        try {
+            Thread.sleep(ms);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    /**
+     * 직전 요청으로부터 requestDelayMs가 지날 때까지 기다린다. 첫 요청은 기다리지 않는다.
+     * synchronized라서 여러 스레드가 동시에 불러도 전체 요청이 간격을 두고 한 줄로 나간다.
+     */
+    private synchronized void throttle() {
+        // 직전 요청 시각 + 최소 간격 - 지금 = 더 기다려야 하는 시간 (0 이하면 이미 충분히 지난 것)
+        long waitMs = lastRequestAtMs + requestDelayMs - System.currentTimeMillis();
+        if (waitMs > 0) sleep(waitMs);
+        // 이번 요청을 보내는 시각을 기록해 다음 요청이 여기서부터 간격을 센다
+        lastRequestAtMs = System.currentTimeMillis();
     }
 
     /** relates의 relate마다 (예매처명, 링크) 한 쌍. 링크가 없는 항목은 건너뛴다. 응답에 나온 순서를 유지한다. */
