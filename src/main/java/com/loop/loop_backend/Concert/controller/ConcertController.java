@@ -146,7 +146,9 @@ public class ConcertController {
 
     @GetMapping("/{id}/upcoming-detail")
     @Operation(summary = "예정 공연 상세 조회",
-            description = "예매정보(선예매/예매 날짜, 예매처)와 공연장 상세(주소/수용인원/좌표/자리배치도)를 포함한 상세 응답. " +
+            description = "공연 정보와 D-day, 공연 시간 안내(showtime, KOPIS 원문 텍스트), 예매처 목록, 공연장 상세(주소/수용인원/좌표)를 포함한 상세 응답. " +
+                    "공연 시간 안내, 예매처 목록, 공연장 정보는 승인 시 KOPIS에서 가져오며, 못 가져왔거나 이 기능 이전에 승인된 공연은 null. " +
+                    "선예매 여부/날짜, 일반 예매 날짜, 자리배치도는 어드민 수동 입력 기능이 생기기 전까지 항상 null. " +
                     "id가 가리키는 공연이 실제로 예정 공연이 아니면(이미 지난 공연) 404.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
@@ -160,7 +162,8 @@ public class ConcertController {
 
     @GetMapping("/{id}/past-detail")
     @Operation(summary = "지난 공연 상세 조회",
-            description = "공연명/아티스트/공연장/날짜만 포함하는 간단한 응답 (예매정보는 지난 공연이라 의미 없음). " +
+            description = "공연명/아티스트/공연장/날짜/공연 시간 안내(showtime, KOPIS 원문 텍스트)만 포함하는 간단한 응답 " +
+                    "(예매정보는 지난 공연이라 의미 없음). 공연 시간 안내는 못 가져왔거나 이전에 승인된 공연이면 null. " +
                     "id가 가리키는 공연이 실제로 지난 공연이 아니면(예정 공연) 404.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),

@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -103,8 +104,14 @@ public class ConcertServiceImpl implements ConcertService {
 
     @Override
     public ConcertUpcomingDetailDto getUpcomingDetail(Long id, Long userId) {
-        // TODO: Concert에 예매/공연장 상세 필드 추가되면 구현. 지금은 컨트롤러 계약만 먼저 고정.
-        throw new UnsupportedOperationException("아직 구현 전 - Concert 엔티티에 상세 필드 추가 후 작업 예정");
+        Concert concert = findConcertOrThrow(id);
+        // 이미 지난 공연이면 예정 공연 상세로 보여주지 않는다 - 잘못된 엔드포인트 호출을 404로 처리(getPastDetail과 대칭).
+        // 날짜 미정 공연은 isPast가 false라서 예정으로 취급된다.
+        if (concert.isPast(ExpiryCutoff.cutoffDate())) {
+            throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
+        }
+        // D-day는 노출 만료 기준(오전 10시 리셋)과 별개로 한국 날짜 기준 남은 일수다.
+        return ConcertUpcomingDetailDto.from(concert, LocalDate.now(ZoneId.of("Asia/Seoul")));
     }
 
     @Override
