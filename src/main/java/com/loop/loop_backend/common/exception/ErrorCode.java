@@ -55,6 +55,8 @@ public enum ErrorCode {
 
     // Concert 도메인
     CONCERT_NOT_FOUND(404, "콘서트를 찾을 수 없습니다."),
+    CONCERT_IMPORT_NOT_FOUND(404, "수집된 공연 정보를 찾을 수 없습니다."),
+    IMPORT_ALREADY_PROCESSED(409, "이미 승인 또는 거절 처리된 공연입니다."),
 
     // CompanionPost 도메인
     COMPANION_POST_NOT_FOUND(404, "동행 모집글을 찾을 수 없습니다."),

@@ -10,7 +10,6 @@ import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
 import com.loop.loop_backend.Concert.dto.ConcertSection;
 import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
 import com.loop.loop_backend.Concert.dto.ConcertUpcomingDetailDto;
-import com.loop.loop_backend.Concert.kopis.KopisSyncService;
 import com.loop.loop_backend.Concert.service.ConcertService;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -40,7 +39,6 @@ import java.util.stream.Collectors;
 public class ConcertController {
 
     private final ConcertService concertService;
-    private final KopisSyncService kopisSyncService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "콘서트 등록", description = "새 콘서트를 등록합니다. 포스터 이미지 파일을 함께 보내면 " +
@@ -208,11 +206,4 @@ public class ConcertController {
         return ResponseEntity.ok(CommonResponse.success(concertService.getConcertsByArtist(artistId, userId)));
     }
 
-    @PostMapping("/sync")
-    @Operation(summary = "KOPIS 동기화 수동 트리거", description = "DB의 모든 아티스트를 대상으로 KOPIS 공연 정보를 즉시 동기화합니다")
-    @ApiResponse(responseCode = "200", description = "동기화 완료")
-    public ResponseEntity<CommonResponse<String>> syncFromKopis() {
-        kopisSyncService.syncAll();
-        return ResponseEntity.ok(CommonResponse.success("KOPIS 동기화 완료"));
-    }
 }

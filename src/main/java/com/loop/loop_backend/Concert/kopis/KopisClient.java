@@ -70,19 +70,48 @@ public class KopisClient {
 
     /** 공연 상세의 출연진(prfcast) 문자열을 반환. 조회 실패 시 null. */
     public String getPerformanceCast(String kopisId) {
+        return parseCastFromDetail(fetchDetailXml(kopisId));
+    }
+
+    /** 승인 시점 상세 조회: 가격/예매처URL/공연시간. 조회·파싱 실패 시 모든 필드 null. */
+    public KopisDetail getPerformanceDetail(String kopisId) {
+        String xml = fetchDetailXml(kopisId);
+        if (xml == null || xml.isBlank()) return new KopisDetail(null, null, null);
+        try {
+            NodeList items = buildDocument(xml).getElementsByTagName("db");
+            if (items.getLength() == 0) return new KopisDetail(null, null, null);
+            Element db = (Element) items.item(0);
+            return new KopisDetail(text(db, "pcseguidance"), firstRelateUrl(db), text(db, "dtguidance"));
+        } catch (Exception e) {
+            log.warn("Failed to parse KOPIS detail for {}: {}", kopisId, e.getMessage());
+            return new KopisDetail(null, null, null);
+        }
+    }
+
+    public record KopisDetail(String price, String ticketUrl, String showtime) {}
+
+    private String fetchDetailXml(String kopisId) {
         URI uri = UriComponentsBuilder.fromHttpUrl(BASE_URL + "/" + kopisId)
                 .queryParam("service", apiKey)
                 .encode()
                 .build()
                 .toUri();
-
         try {
-            String xml = restTemplate.getForObject(uri, String.class);
-            return parseCastFromDetail(xml);
+            return restTemplate.getForObject(uri, String.class);
         } catch (Exception e) {
-            log.warn("Failed to fetch cast for {}: {}", kopisId, e.getMessage());
+            log.warn("Failed to fetch detail for {}: {}", kopisId, e.getMessage());
             return null;
         }
+    }
+
+    /** relate 목록 중 첫 유효 예매처 URL. ponytail: 첫 항목만 — 여러 예매처 다 필요하면 목록으로 확장. */
+    private String firstRelateUrl(Element db) {
+        NodeList relates = db.getElementsByTagName("relate");
+        for (int i = 0; i < relates.getLength(); i++) {
+            String url = text((Element) relates.item(i), "relateurl");
+            if (url != null) return url;
+        }
+        return null;
     }
 
     /**

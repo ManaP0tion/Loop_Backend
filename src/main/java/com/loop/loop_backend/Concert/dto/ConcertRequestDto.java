@@ -18,6 +18,9 @@ public class ConcertRequestDto {
     private String venue;
     private LocalDate startDate;
     private LocalDate endDate;
+    private String price;
+    private String ticketUrl;
+    private String showtime;
 
     @NotNull(message = "카테고리는 필수입니다.")
     private ConcertCategory category;

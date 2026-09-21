@@ -79,6 +79,4 @@ public interface ConcertRepository extends JpaRepository<Concert, Long> {
 
     List<Concert> findByArtistId(Long artistId);
     Optional<Concert> findByTitle(String title);
-    Optional<Concert> findByKopisIdAndArtistId(String kopisId, Long artistId);
-    Optional<Concert> findByKopisIdAndArtistIsNull(String kopisId);
 }

@@ -12,8 +12,12 @@ import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.Concert.domain.ConcertImport;
+import com.loop.loop_backend.Concert.domain.ImportStatus;
 import com.loop.loop_backend.Concert.kopis.KopisSyncService;
+import com.loop.loop_backend.Concert.repository.ConcertImportRepository;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
+import com.loop.loop_backend.Concert.service.ConcertImportService;
 import com.loop.loop_backend.Inquiry.domain.Inquiry;
 import com.loop.loop_backend.Inquiry.domain.InquiryStatus;
 import com.loop.loop_backend.Inquiry.domain.InquiryType;
@@ -84,6 +88,8 @@ public class AdminController {
     private final AdminAccessLogService accessLog;
     private final S3StorageService s3StorageService;
     private final KopisSyncService kopisSyncService;
+    private final ConcertImportRepository concertImportRepository;
+    private final ConcertImportService concertImportService;
 
     // ================= DASHBOARD =================
 
@@ -401,6 +407,9 @@ public class AdminController {
                 .venue(body.venue())
                 .startDate(body.startDate())
                 .endDate(body.endDate())
+                .price(body.price())
+                .ticketUrl(body.ticketUrl())
+                .showtime(body.showtime())
                 .category(category)
                 .build();
         return ResponseEntity.ok(CommonResponse.success(ConcertRow.of(concertRepository.save(c))));
@@ -417,7 +426,8 @@ public class AdminController {
                 : (artist != null ? artist.getCategory() : null);
         if (category == null) throw new BusinessException(ErrorCode.INVALID_INPUT);
         c.update(artist, body.title(), body.posterUrl(), body.venue(),
-                body.startDate(), body.endDate(), category);
+                body.startDate(), body.endDate(), category,
+                body.price(), body.ticketUrl(), body.showtime());
         return ResponseEntity.ok(CommonResponse.success(ConcertRow.of(c)));
     }
 
@@ -449,7 +459,47 @@ public class AdminController {
             @AuthenticationPrincipal Long adminId, HttpServletRequest req) {
         kopisSyncService.syncAll();
         accessLog.log(adminId, req, "SYNC_KOPIS", "CONCERT", null, "KOPIS 공연 정보 수동 동기화");
-        return ResponseEntity.ok(CommonResponse.success("KOPIS 동기화 완료"));
+        return ResponseEntity.ok(CommonResponse.success("KOPIS 동기화 완료 (검토 대기 목록에 적재됨)"));
+    }
+
+    // ================= CONCERT IMPORTS (KOPIS 수집 → 검토 대기) =================
+
+    /** 검토 큐. status 미지정 시 전체. 기본 PENDING만 보고 싶으면 ?status=PENDING. */
+    @GetMapping("/concert-imports")
+    @Transactional(readOnly = true)
+    public ResponseEntity<CommonResponse<PageResp<ImportRow>>> listImports(
+            @RequestParam(required = false) ImportStatus status,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
+        Page<ConcertImport> p = (status == null)
+                ? concertImportRepository.findAll(pageable)
+                : concertImportRepository.findByStatus(status, pageable);
+        return ResponseEntity.ok(CommonResponse.success(PageResp.from(p.map(ImportRow::of))));
+    }
+
+    /** 승인 → Concert(운영 데이터) 생성. body의 non-null 필드만 수집 원본값을 덮어쓴다. */
+    @PostMapping("/concert-imports/{id}/approve")
+    @Transactional
+    public ResponseEntity<CommonResponse<ConcertRow>> approveImport(
+            @AuthenticationPrincipal Long adminId, HttpServletRequest req,
+            @PathVariable Long id, @RequestBody(required = false) ConcertImportService.ApproveCommand body) {
+        ConcertImportService.ApproveCommand cmd = (body != null) ? body
+                : new ConcertImportService.ApproveCommand(null, null, null, null, null, null, null);
+        Concert c = concertImportService.approve(id, cmd);
+        accessLog.log(adminId, req, "APPROVE_IMPORT", "CONCERT", c.getId(),
+                "수집 공연 #" + id + " 승인 → 콘서트 #" + c.getId() + " 생성");
+        return ResponseEntity.ok(CommonResponse.success(ConcertRow.of(c)));
+    }
+
+    @PostMapping("/concert-imports/{id}/reject")
+    @Transactional
+    public ResponseEntity<CommonResponse<Void>> rejectImport(
+            @AuthenticationPrincipal Long adminId, HttpServletRequest req,
+            @PathVariable Long id, @RequestBody(required = false) Map<String, String> body) {
+        String reason = body != null ? body.getOrDefault("reason", "") : "";
+        concertImportService.reject(id, reason);
+        accessLog.log(adminId, req, "REJECT_IMPORT", "CONCERT", id, "수집 공연 거절 · 사유: " + reason);
+        return ResponseEntity.ok(CommonResponse.success(null));
     }
 
     // ================= COMPANION POSTS =================
@@ -632,17 +682,37 @@ public class AdminController {
                             String imageUrl, ConcertCategory category) {}
 
     public record ConcertRow(Long id, Long artistId, String artistName, String title, String posterUrl,
-                             String venue, LocalDate startDate, LocalDate endDate, ConcertCategory category) {
+                             String venue, LocalDate startDate, LocalDate endDate,
+                             String price, String ticketUrl, String showtime, ConcertCategory category) {
         static ConcertRow of(Concert c) {
             return new ConcertRow(c.getId(),
                     c.getArtist() != null ? c.getArtist().getId() : null,
                     c.getArtist() != null ? c.getArtist().getName() : null,
                     c.getTitle(), c.getPosterUrl(), c.getVenue(),
-                    c.getStartDate(), c.getEndDate(), c.getCategory());
+                    c.getStartDate(), c.getEndDate(),
+                    c.getPrice(), c.getTicketUrl(), c.getShowtime(), c.getCategory());
         }
     }
     public record ConcertReq(Long artistId, String title, String posterUrl, String venue,
-                             LocalDate startDate, LocalDate endDate, ConcertCategory category) {}
+                             LocalDate startDate, LocalDate endDate, ConcertCategory category,
+                             String price, String ticketUrl, String showtime) {}
+
+    public record ImportRow(Long id, String kopisId, String title, String posterUrl, String venue,
+                            LocalDate startDate, LocalDate endDate,
+                            Long matchedArtistId, String matchedArtistName,
+                            ConcertCategory suggestedCategory, String matchReason,
+                            ImportStatus status, Long publishedConcertId, String rejectReason,
+                            LocalDateTime collectedAt, LocalDateTime reviewedAt) {
+        static ImportRow of(ConcertImport i) {
+            return new ImportRow(i.getId(), i.getKopisId(), i.getTitle(), i.getPosterUrl(), i.getVenue(),
+                    i.getStartDate(), i.getEndDate(),
+                    i.getMatchedArtist() != null ? i.getMatchedArtist().getId() : null,
+                    i.getMatchedArtist() != null ? i.getMatchedArtist().getName() : null,
+                    i.getSuggestedCategory(), i.getMatchReason(),
+                    i.getStatus(), i.getPublishedConcertId(), i.getRejectReason(),
+                    i.getCollectedAt(), i.getReviewedAt());
+        }
+    }
 
     public record CompanionRow(Long id, Long userId, String userNickname, Long concertId, String concertTitle,
                                String messageToCompanion, boolean visible, boolean sameGenderOnly, LocalDateTime createdAt) {

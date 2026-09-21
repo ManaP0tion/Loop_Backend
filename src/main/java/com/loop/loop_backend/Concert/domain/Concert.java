@@ -47,12 +47,25 @@ public class Concert {
     @Column(name = "end_date")
     private LocalDate endDate;
 
+    /** KOPIS 상세: 티켓 가격 안내(pcseguidance). 예: "전석 99,000원" */
+    @Column(name = "price", length = 500)
+    private String price;
+
+    /** KOPIS 상세: 예매처 URL(relate 첫 항목). */
+    @Column(name = "ticket_url", length = 500)
+    private String ticketUrl;
+
+    /** KOPIS 상세: 공연 시간 안내(dtguidance). 예: "토요일(15:00,19:00)" */
+    @Column(name = "showtime", length = 500)
+    private String showtime;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "category", length = 30, nullable = false)
     private ConcertCategory category;
 
     public void update(Artist artist, String title, String posterUrl, String venue,
-                       LocalDate startDate, LocalDate endDate, ConcertCategory category) {
+                       LocalDate startDate, LocalDate endDate, ConcertCategory category,
+                       String price, String ticketUrl, String showtime) {
         this.artist = artist;
         this.title = title;
         this.posterUrl = posterUrl;
@@ -60,6 +73,9 @@ public class Concert {
         this.startDate = startDate;
         this.endDate = endDate;
         this.category = category;
+        this.price = price;
+        this.ticketUrl = ticketUrl;
+        this.showtime = showtime;
     }
 
     public void updateFromKopis(String title, String posterUrl, String venue,

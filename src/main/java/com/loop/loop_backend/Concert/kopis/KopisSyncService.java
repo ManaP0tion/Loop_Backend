@@ -2,9 +2,10 @@ package com.loop.loop_backend.Concert.kopis;
 
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
-import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
-import com.loop.loop_backend.Concert.repository.ConcertRepository;
+import com.loop.loop_backend.Concert.domain.ConcertImport;
+import com.loop.loop_backend.Concert.domain.ImportStatus;
+import com.loop.loop_backend.Concert.repository.ConcertImportRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -12,8 +13,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * KOPIS 공연을 1차 필터링(아티스트/페스티벌 매칭)해 검토 대기(ConcertImport)로 적재한다.
+ * 운영 데이터(Concert)에는 직접 쓰지 않는다 — 관리자 승인을 거쳐야 사이트에 노출된다.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -22,7 +28,7 @@ public class KopisSyncService {
     private static final int ALIAS_MIN_LENGTH = 4;
 
     private final ArtistRepository artistRepository;
-    private final ConcertRepository concertRepository;
+    private final ConcertImportRepository concertImportRepository;
     private final KopisClient kopisClient;
 
     public void syncAll() {
@@ -49,6 +55,7 @@ public class KopisSyncService {
         }
 
         // 1단계: 타이틀에서 아티스트 매칭 (API 추가 호출 없음)
+        String reason = "TITLE_MATCH";
         List<Artist> matched = artists.stream()
                 .filter(a -> nameContainedInTitle(perf.getTitle(), a))
                 .collect(Collectors.toList());
@@ -58,6 +65,7 @@ public class KopisSyncService {
             if (!shouldFetchCast(perf.getTitle())) return;
             String cast = kopisClient.getPerformanceCast(perf.getKopisId());
             if (cast == null) return;
+            reason = "CAST_MATCH";
             matched = artists.stream()
                     .filter(a -> castMatches(cast, a))
                     .collect(Collectors.toList());
@@ -71,7 +79,7 @@ public class KopisSyncService {
         }
 
         for (Artist artist : matched) {
-            upsert(artist, perf);
+            upsert(artist, perf, reason);
         }
     }
 
@@ -81,53 +89,55 @@ public class KopisSyncService {
         return title.contains("페스티벌") || upper.contains("FESTIVAL") || upper.contains("FEST");
     }
 
-    private void upsert(Artist artist, KopisPerformance perf) {
+    private void upsert(Artist artist, KopisPerformance perf, String reason) {
         ConcertCategory category = artist.getCategory() != null
                 ? artist.getCategory()
                 : ConcertCategory.J_POP_ARTIST;
-        concertRepository.findByKopisIdAndArtistId(perf.getKopisId(), artist.getId())
-                .ifPresentOrElse(
-                        existing -> existing.updateFromKopis(
-                                perf.getTitle(), perf.getPosterUrl(), perf.getVenue(),
-                                perf.getStartDate(), perf.getEndDate(), category),
-                        () -> concertRepository.save(Concert.builder()
-                                .artist(artist)
-                                .kopisId(perf.getKopisId())
-                                .title(perf.getTitle())
-                                .posterUrl(perf.getPosterUrl())
-                                .venue(perf.getVenue())
-                                .startDate(perf.getStartDate())
-                                .endDate(perf.getEndDate())
-                                .category(category)
-                                .build())
-                );
+        upsertImport(artist, perf, category, reason,
+                concertImportRepository.findByKopisIdAndMatchedArtist_Id(perf.getKopisId(), artist.getId()));
     }
 
     private void upsertJapanFestival(KopisPerformance perf) {
-        upsertFestival(perf, ConcertCategory.JAPAN_FESTIVAL);
+        upsertFestival(perf, ConcertCategory.JAPAN_FESTIVAL, "JAPAN_FESTIVAL");
     }
 
     private void upsertDomesticFestival(KopisPerformance perf) {
-        upsertFestival(perf, ConcertCategory.DOMESTIC_FESTIVAL);
+        upsertFestival(perf, ConcertCategory.DOMESTIC_FESTIVAL, "DOMESTIC_FESTIVAL");
     }
 
-    private void upsertFestival(KopisPerformance perf, ConcertCategory category) {
-        concertRepository.findByKopisIdAndArtistIsNull(perf.getKopisId())
-                .ifPresentOrElse(
-                        existing -> existing.updateFromKopis(
-                                perf.getTitle(), perf.getPosterUrl(), perf.getVenue(),
-                                perf.getStartDate(), perf.getEndDate(), category),
-                        () -> concertRepository.save(Concert.builder()
-                                .artist(null)
-                                .kopisId(perf.getKopisId())
-                                .title(perf.getTitle())
-                                .posterUrl(perf.getPosterUrl())
-                                .venue(perf.getVenue())
-                                .startDate(perf.getStartDate())
-                                .endDate(perf.getEndDate())
-                                .category(category)
-                                .build())
-                );
+    private void upsertFestival(KopisPerformance perf, ConcertCategory category, String reason) {
+        upsertImport(null, perf, category, reason,
+                concertImportRepository.findByKopisIdAndMatchedArtistIsNull(perf.getKopisId()));
+    }
+
+    /**
+     * 재수집 멱등성:
+     * - 신규 → PENDING import 저장
+     * - 기존 PENDING → 원본 필드만 최신화 (아직 검토 전)
+     * - 기존 APPROVED/REJECTED → skip (이미 처리한 건을 검토 큐에 되살리지 않음)
+     */
+    private void upsertImport(Artist artist, KopisPerformance perf, ConcertCategory category,
+                              String reason, Optional<ConcertImport> existing) {
+        existing.ifPresentOrElse(
+                imp -> {
+                    if (imp.getStatus() == ImportStatus.PENDING) {
+                        imp.updateFromKopis(perf.getTitle(), perf.getPosterUrl(), perf.getVenue(),
+                                perf.getStartDate(), perf.getEndDate(), category, reason);
+                    }
+                },
+                () -> concertImportRepository.save(ConcertImport.builder()
+                        .matchedArtist(artist)
+                        .kopisId(perf.getKopisId())
+                        .title(perf.getTitle())
+                        .posterUrl(perf.getPosterUrl())
+                        .venue(perf.getVenue())
+                        .startDate(perf.getStartDate())
+                        .endDate(perf.getEndDate())
+                        .suggestedCategory(category)
+                        .matchReason(reason)
+                        .status(ImportStatus.PENDING)
+                        .build())
+        );
     }
 
     /**
