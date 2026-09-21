@@ -2,11 +2,14 @@ package com.loop.loop_backend.Concert.controller;
 
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.dto.ConcertCategoryDto;
+import com.loop.loop_backend.Concert.dto.ConcertPastDetailDto;
 import com.loop.loop_backend.Concert.dto.ConcertPeriod;
+import com.loop.loop_backend.Concert.dto.ConcertPeriodDto;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
 import com.loop.loop_backend.Concert.dto.ConcertSection;
 import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
+import com.loop.loop_backend.Concert.dto.ConcertUpcomingDetailDto;
 import com.loop.loop_backend.Concert.kopis.KopisSyncService;
 import com.loop.loop_backend.Concert.service.ConcertService;
 import com.loop.loop_backend.common.exception.CommonResponse;
@@ -128,6 +131,47 @@ public class ConcertController {
             @Parameter(description = "콘서트 PK") @PathVariable Long id,
         @AuthenticationPrincipal Long userId) {
         return ResponseEntity.ok(CommonResponse.success(concertService.getConcertById(id, userId)));
+    }
+
+    @GetMapping("/{id}/period")
+    @Operation(summary = "콘서트 period 조회",
+            description = "URL 직접 접근(딥링크)처럼 프론트가 목록을 안 거쳐서 startDate/endDate를 안 들고 있을 때, " +
+                    "id만으로 upcoming-detail/past-detail 중 뭘 호출할지 판단하기 위한 가벼운 조회.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "404", description = "콘서트 없음")
+    })
+    public ResponseEntity<CommonResponse<ConcertPeriodDto>> getPeriod(
+            @Parameter(description = "콘서트 PK") @PathVariable Long id) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.getPeriod(id)));
+    }
+
+    @GetMapping("/{id}/upcoming-detail")
+    @Operation(summary = "예정 공연 상세 조회",
+            description = "예매정보(선예매/예매 날짜, 예매처)와 공연장 상세(주소/수용인원/좌표/자리배치도)를 포함한 상세 응답. " +
+                    "id가 가리키는 공연이 실제로 예정 공연이 아니면(이미 지난 공연) 404.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "404", description = "콘서트 없음 또는 예정 공연이 아님")
+    })
+    public ResponseEntity<CommonResponse<ConcertUpcomingDetailDto>> getUpcomingDetail(
+            @Parameter(description = "콘서트 PK") @PathVariable Long id,
+            @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.getUpcomingDetail(id, userId)));
+    }
+
+    @GetMapping("/{id}/past-detail")
+    @Operation(summary = "지난 공연 상세 조회",
+            description = "공연명/아티스트/공연장/날짜만 포함하는 간단한 응답 (예매정보는 지난 공연이라 의미 없음). " +
+                    "id가 가리키는 공연이 실제로 지난 공연이 아니면(예정 공연) 404.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "404", description = "콘서트 없음 또는 지난 공연이 아님")
+    })
+    public ResponseEntity<CommonResponse<ConcertPastDetailDto>> getPastDetail(
+            @Parameter(description = "콘서트 PK") @PathVariable Long id,
+            @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.getPastDetail(id, userId)));
     }
 
     @GetMapping("/search")
