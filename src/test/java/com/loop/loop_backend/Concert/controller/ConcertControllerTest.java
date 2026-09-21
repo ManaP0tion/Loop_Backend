@@ -3,7 +3,6 @@ package com.loop.loop_backend.Concert.controller;
 import com.loop.loop_backend.Concert.dto.ConcertPeriod;
 import com.loop.loop_backend.Concert.dto.ConcertSection;
 import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
-import com.loop.loop_backend.Concert.kopis.KopisSyncService;
 import com.loop.loop_backend.Concert.service.ConcertService;
 import com.loop.loop_backend.common.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.AfterEach;
@@ -35,9 +34,8 @@ class ConcertControllerTest {
     @BeforeEach
     void setUp() {
         concertService = mock(ConcertService.class);
-        KopisSyncService kopisSyncService = mock(KopisSyncService.class);
 
-        mockMvc = MockMvcBuilders.standaloneSetup(new ConcertController(concertService, kopisSyncService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new ConcertController(concertService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
