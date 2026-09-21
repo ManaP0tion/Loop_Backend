@@ -8,12 +8,14 @@ import com.loop.loop_backend.Concert.domain.ImportStatus;
 import com.loop.loop_backend.Concert.repository.ConcertImportRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -31,7 +33,34 @@ public class KopisSyncService {
     private final ConcertImportRepository concertImportRepository;
     private final KopisClient kopisClient;
 
+    // 싱크가 돌고 있는지. 스케줄러와 수동 실행이 겹쳐도 한 번만 돌게 한다 (동시에 돌면 KOPIS 요청이 두 배로 몰린다).
+    private final AtomicBoolean running = new AtomicBoolean(false);
+
+    public boolean isRunning() {
+        return running.get();
+    }
+
+    // 수동 실행용: 별도 스레드에서 돌려서 호출한 쪽은 바로 돌아온다 (싱크가 몇 분 걸려 프록시 타임아웃이 나는 것 방지).
+    // 다른 빈(컨트롤러)이 프록시를 통해 불러야 @Async가 적용된다.
+    @Async("kopisSyncExecutor")
+    public void syncAllAsync() {
+        syncAll();
+    }
+
+    // 스케줄러용: 현재 스레드에서 끝날 때까지 실행한다. 이미 돌고 있으면 건너뛴다.
     public void syncAll() {
+        if (!running.compareAndSet(false, true)) {
+            log.warn("KOPIS sync skipped: already running");
+            return;
+        }
+        try {
+            runSync();
+        } finally {
+            running.set(false); // 예외가 나도 다음 실행을 막지 않게 반드시 푼다
+        }
+    }
+
+    private void runSync() {
         List<Artist> artists = artistRepository.findByAutoFetchConcertsTrue();
         List<KopisPerformance> allPerfs = kopisClient.getAllUpcomingPerformances();
         log.info("KOPIS sync: {} performances × {} artists", allPerfs.size(), artists.size());

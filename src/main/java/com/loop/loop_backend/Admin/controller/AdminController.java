@@ -49,6 +49,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -457,9 +458,15 @@ public class AdminController {
     @PostMapping("/concerts/sync")
     public ResponseEntity<CommonResponse<String>> syncKopis(
             @AuthenticationPrincipal Long adminId, HttpServletRequest req) {
-        kopisSyncService.syncAll();
-        accessLog.log(adminId, req, "SYNC_KOPIS", "CONCERT", null, "KOPIS 공연 정보 수동 동기화");
-        return ResponseEntity.ok(CommonResponse.success("KOPIS 동기화 완료 (검토 대기 목록에 적재됨)"));
+        // 싱크가 몇 분 걸려 프록시 타임아웃이 나므로, 백그라운드로 시작만 하고 바로 응답한다.
+        // 이미 돌고 있으면 새로 시작하지 않고 409로 알린다.
+        if (kopisSyncService.isRunning()) {
+            throw new BusinessException(ErrorCode.KOPIS_SYNC_ALREADY_RUNNING);
+        }
+        kopisSyncService.syncAllAsync();
+        accessLog.log(adminId, req, "SYNC_KOPIS", "CONCERT", null, "KOPIS 공연 정보 수동 동기화 시작");
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(CommonResponse.success(
+                "KOPIS 동기화를 시작했습니다. 끝나면 검토 대기 목록에 적재되며, 진행 상황은 서버 로그에서 확인하세요."));
     }
 
     // ================= CONCERT IMPORTS (KOPIS 수집 → 검토 대기) =================
