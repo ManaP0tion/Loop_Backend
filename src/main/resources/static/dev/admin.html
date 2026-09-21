@@ -402,6 +402,7 @@
         <ul class="nav">
             <li><a href="#artists" data-section="artists" data-title="아티스트 관리"><span class="icon">♪</span>아티스트</a></li>
             <li><a href="#concerts" data-section="concerts" data-title="공연 관리"><span class="icon">♬</span>공연</a></li>
+            <li><a href="#concert-imports" data-section="concert-imports" data-title="공연 검토 (KOPIS 수집)"><span class="icon">⇧</span>공연 검토</a></li>
             <li><a href="#posts" data-section="posts" data-title="동행 프로필"><span class="icon">✚</span>동행 프로필</a></li>
         </ul>
 
@@ -1116,9 +1117,8 @@ sections.concerts = async () => {
     const state = { page: 0, size: 20, q: '' };
     const root = el(`<div>
         <div class="page-header">
-            <div><div class="page-title">공연 관리</div><div class="page-sub">삭제 시 동행 프로필 함께 삭제 · 채팅방은 보존</div></div>
+            <div><div class="page-title">공연 관리</div><div class="page-sub">운영 데이터(사이트 노출). 삭제 시 동행 프로필 함께 삭제 · 채팅방은 보존</div></div>
             <div class="spacer" style="flex:1"></div>
-            <button class="btn" id="sync">KOPIS 동기화</button>
             <button class="btn primary" id="new">+ 공연 등록</button>
         </div>
         <div class="toolbar">
@@ -1130,21 +1130,14 @@ sections.concerts = async () => {
     MAIN().replaceChildren(root);
     root.querySelector('#apply').onclick = () => { state.q = root.querySelector('#q').value; state.page = 0; load(); };
     root.querySelector('#q').onkeydown = (e) => { if (e.key === 'Enter') root.querySelector('#apply').click(); };
-    root.querySelector('#sync').onclick = async (e) => {
-        if (!confirm('KOPIS에서 공연 정보를 즉시 동기화합니다. 완료까지 시간이 걸릴 수 있습니다.')) return;
-        const btn = e.target; btn.disabled = true; btn.textContent = '동기화 중…';
-        try { await api.post('/api/admin/concerts/sync'); toast('KOPIS 동기화 완료'); load(); }
-        catch (err) { handleErr(err); }
-        finally { btn.disabled = false; btn.textContent = 'KOPIS 동기화'; }
-    };
 
     async function load() {
         const d = await api.get('/api/admin/concerts', { ...state });
         const t = el(`<table class="data"><thead><tr>
-            <th>ID</th><th>아티스트</th><th>제목</th><th>장소</th><th>일자</th><th>카테고리</th><th>포스터</th><th>작업</th>
+            <th>ID</th><th>아티스트</th><th>제목</th><th>장소</th><th>일자</th><th>가격</th><th>공연시간</th><th>예매처</th><th>카테고리</th><th>포스터</th><th>작업</th>
         </tr></thead><tbody></tbody></table>`);
         const tb = t.querySelector('tbody');
-        if (!d.items.length) tb.append(el(`<tr><td colspan="8" class="empty">공연 없음</td></tr>`));
+        if (!d.items.length) tb.append(el(`<tr><td colspan="11" class="empty">공연 없음</td></tr>`));
         d.items.forEach(c => {
             const tr = el(`<tr>
                 <td>${c.id}</td>
@@ -1152,6 +1145,9 @@ sections.concerts = async () => {
                 <td>${esc(c.title)}</td>
                 <td>${esc(c.venue) || '-'}</td>
                 <td>${esc(c.startDate) || '-'} ~ ${esc(c.endDate) || '-'}</td>
+                <td>${esc(c.price) || '-'}</td>
+                <td>${esc(c.showtime) || '-'}</td>
+                <td>${c.ticketUrl ? `<a href="${esc(c.ticketUrl)}" target="_blank">예매</a>` : '-'}</td>
                 <td><span class="pill blue">${esc(c.category)}</span></td>
                 <td>${c.posterUrl ? `<a href="${esc(c.posterUrl)}" target="_blank">보기</a>` : '-'}</td>
                 <td><div class="row-actions">
@@ -1196,6 +1192,9 @@ async function concertForm(c, refresh) {
             <div><label>시작일</label><input id="startDate" type="date" value="${c?.startDate || ''}" /></div>
             <div><label>종료일</label><input id="endDate" type="date" value="${c?.endDate || ''}" /></div>
         </div>
+        <div class="form-row"><label>가격 (KOPIS 자동 채워짐)</label><input id="price" value="${esc(c?.price || '')}" placeholder="예: 전석 99,000원" /></div>
+        <div class="form-row"><label>공연시간 (KOPIS 자동 채워짐)</label><input id="showtime" value="${esc(c?.showtime || '')}" placeholder="예: 토요일(15:00,19:00)" /></div>
+        <div class="form-row"><label>예매처 URL (KOPIS 자동 채워짐)</label><input id="ticketUrl" value="${esc(c?.ticketUrl || '')}" /></div>
         <div class="form-row"><label>카테고리 (미선택 시 아티스트 카테고리 사용)</label>
             <select id="category"><option value="">(자동)</option>${cats.map(x => `<option ${c?.category === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
         </div>
@@ -1210,6 +1209,9 @@ async function concertForm(c, refresh) {
             venue: body.querySelector('#venue').value || null,
             startDate: body.querySelector('#startDate').value || null,
             endDate: body.querySelector('#endDate').value || null,
+            price: body.querySelector('#price').value || null,
+            showtime: body.querySelector('#showtime').value || null,
+            ticketUrl: body.querySelector('#ticketUrl').value || null,
             category: body.querySelector('#category').value || null,
         };
         try {
@@ -1223,6 +1225,125 @@ async function concertForm(c, refresh) {
         } catch (e) { handleErr(e); }
     };
     modal.open({ title: c ? `공연 #${c.id} 수정` : '공연 등록', body, footer: foot, wide: true });
+}
+
+// ---------- CONCERT IMPORTS (KOPIS 수집 → 검토) ----------
+const IMPORT_STATUS = { PENDING: '검토 대기', APPROVED: '승인됨', REJECTED: '거절됨' };
+sections['concert-imports'] = async () => {
+    const state = { page: 0, size: 20, status: 'PENDING' };
+    const root = el(`<div>
+        <div class="page-header">
+            <div><div class="page-title">공연 검토</div><div class="page-sub">KOPIS 수집 데이터. 승인해야 공연(운영 데이터)으로 등록되어 사이트에 노출됩니다.</div></div>
+            <div class="spacer" style="flex:1"></div>
+            <button class="btn" id="sync">KOPIS 수집 실행</button>
+        </div>
+        <div class="toolbar">
+            <select id="status">
+                <option value="PENDING">검토 대기</option>
+                <option value="APPROVED">승인됨</option>
+                <option value="REJECTED">거절됨</option>
+                <option value="">전체</option>
+            </select>
+            <button class="btn primary" id="apply">조회</button>
+        </div>
+        <div class="card"><div id="slot"></div></div>
+    </div>`);
+    MAIN().replaceChildren(root);
+    root.querySelector('#status').value = state.status;
+    root.querySelector('#apply').onclick = () => { state.status = root.querySelector('#status').value; state.page = 0; load(); };
+    root.querySelector('#sync').onclick = async (e) => {
+        if (!confirm('KOPIS에서 공연 정보를 수집해 검토 대기 목록에 적재합니다. 완료까지 시간이 걸릴 수 있습니다.')) return;
+        const btn = e.target; btn.disabled = true; btn.textContent = '수집 중…';
+        try { await api.post('/api/admin/concerts/sync'); toast('KOPIS 수집 완료'); load(); }
+        catch (err) { handleErr(err); }
+        finally { btn.disabled = false; btn.textContent = 'KOPIS 수집 실행'; }
+    };
+
+    async function load() {
+        const params = { page: state.page, size: state.size };
+        if (state.status) params.status = state.status;
+        const d = await api.get('/api/admin/concert-imports', params);
+        const t = el(`<table class="data"><thead><tr>
+            <th>ID</th><th>제목</th><th>매칭 아티스트</th><th>근거</th><th>카테고리</th><th>장소</th><th>일자</th><th>포스터</th><th>상태</th><th>작업</th>
+        </tr></thead><tbody></tbody></table>`);
+        const tb = t.querySelector('tbody');
+        if (!d.items.length) tb.append(el(`<tr><td colspan="10" class="empty">수집 데이터 없음</td></tr>`));
+        d.items.forEach(i => {
+            const badge = i.status === 'PENDING' ? 'orange' : (i.status === 'APPROVED' ? 'green' : 'gray');
+            const tr = el(`<tr>
+                <td>${i.id}</td>
+                <td>${esc(i.title)}</td>
+                <td>${i.matchedArtistId ? `#${i.matchedArtistId} ${esc(i.matchedArtistName) || ''}` : '<span style="color:var(--text-sub)">(페스티벌/미매칭)</span>'}</td>
+                <td><span class="pill">${esc(i.matchReason) || '-'}</span></td>
+                <td><span class="pill blue">${esc(i.suggestedCategory)}</span></td>
+                <td>${esc(i.venue) || '-'}</td>
+                <td>${esc(i.startDate) || '-'} ~ ${esc(i.endDate) || '-'}</td>
+                <td>${i.posterUrl ? `<a href="${esc(i.posterUrl)}" target="_blank">보기</a>` : '-'}</td>
+                <td><span class="pill ${badge}">${IMPORT_STATUS[i.status] || i.status}${i.publishedConcertId ? ` (#${i.publishedConcertId})` : ''}</span></td>
+                <td><div class="row-actions"></div></td>
+            </tr>`);
+            const actions = tr.querySelector('.row-actions');
+            if (i.status === 'PENDING') {
+                const approveBtn = el(`<button class="btn primary" data-a="approve">승인</button>`);
+                const rejectBtn = el(`<button class="btn danger" data-a="reject">거절</button>`);
+                approveBtn.onclick = () => approveForm(i, load);
+                rejectBtn.onclick = async () => {
+                    const reason = prompt('거절 사유 (선택):', '');
+                    if (reason === null) return;
+                    try { await api.post(`/api/admin/concert-imports/${i.id}/reject`, { reason }); toast('거절되었습니다.'); load(); }
+                    catch (e) { handleErr(e); }
+                };
+                actions.append(approveBtn, rejectBtn);
+            } else if (i.rejectReason) {
+                actions.append(el(`<span style="color:var(--text-sub)">사유: ${esc(i.rejectReason)}</span>`));
+            }
+            tb.append(tr);
+        });
+        const slot = root.querySelector('#slot');
+        slot.replaceChildren(t);
+        const p = renderPager({ ...d, page: state.page, size: state.size });
+        p.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { state.page += b.dataset.p === 'next' ? 1 : -1; load(); });
+        slot.append(p);
+    }
+    await load();
+};
+
+// 승인 폼: 수집 원본을 기본값으로 채우고, 관리자가 수정 후 승인하면 그 값으로 Concert 생성.
+async function approveForm(i, refresh) {
+    const artists = await api.get('/api/admin/artists');
+    const cats = ['J_POP_ARTIST', 'DOMESTIC_ARTIST', 'JAPAN_FESTIVAL', 'DOMESTIC_FESTIVAL'];
+    const body = el(`<div>
+        <div class="form-row"><label>아티스트 (페스티벌은 미선택)</label>
+            <select id="artistId"><option value="" ${!i.matchedArtistId ? 'selected' : ''}>-</option>${artists.map(a => `<option value="${a.id}" ${i.matchedArtistId === a.id ? 'selected' : ''}>#${a.id} ${esc(a.name)}</option>`).join('')}</select>
+        </div>
+        <div class="form-row"><label>공연명</label><input id="title" value="${esc(i.title || '')}" /></div>
+        <div class="form-row"><label>포스터 URL</label><input id="posterUrl" value="${esc(i.posterUrl || '')}" /></div>
+        <div class="form-row"><label>장소</label><input id="venue" value="${esc(i.venue || '')}" /></div>
+        <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div><label>시작일</label><input id="startDate" type="date" value="${i.startDate || ''}" /></div>
+            <div><label>종료일</label><input id="endDate" type="date" value="${i.endDate || ''}" /></div>
+        </div>
+        <div class="form-row"><label>카테고리</label>
+            <select id="category">${cats.map(x => `<option ${i.suggestedCategory === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
+        </div>
+    </div>`);
+    const foot = el(`<div><button class="btn primary" id="ok">승인 · 공연 등록</button></div>`);
+    foot.querySelector('#ok').onclick = async () => {
+        const payload = {
+            artistId: body.querySelector('#artistId').value ? Number(body.querySelector('#artistId').value) : null,
+            title: body.querySelector('#title').value || null,
+            posterUrl: body.querySelector('#posterUrl').value || null,
+            venue: body.querySelector('#venue').value || null,
+            startDate: body.querySelector('#startDate').value || null,
+            endDate: body.querySelector('#endDate').value || null,
+            category: body.querySelector('#category').value || null,
+        };
+        try {
+            await api.post(`/api/admin/concert-imports/${i.id}/approve`, payload);
+            toast('승인되어 공연으로 등록되었습니다.'); modal.close(); refresh();
+        } catch (e) { handleErr(e); }
+    };
+    modal.open({ title: `수집 공연 #${i.id} 승인`, body, footer: foot, wide: true });
 }
 
 // ---------- COMPANION POSTS ----------

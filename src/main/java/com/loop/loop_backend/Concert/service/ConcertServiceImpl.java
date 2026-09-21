@@ -50,6 +50,9 @@ public class ConcertServiceImpl implements ConcertService {
                 .venue(requestDto.getVenue())
                 .startDate(requestDto.getStartDate())
                 .endDate(requestDto.getEndDate())
+                .price(requestDto.getPrice())
+                .ticketUrl(requestDto.getTicketUrl())
+                .showtime(requestDto.getShowtime())
                 .category(requestDto.getCategory())
                 .build();
         // IDENTITY 전략이라 save() 시점에 즉시 ID가 확정됨 -> 그 ID를 S3 키로 써서 바로 업로드 가능
@@ -71,7 +74,8 @@ public class ConcertServiceImpl implements ConcertService {
         String posterUrl = resolvePosterUrl(id, image, concert.getPosterUrl());
         concert.update(artist, requestDto.getTitle(), posterUrl,
                 requestDto.getVenue(), requestDto.getStartDate(), requestDto.getEndDate(),
-                requestDto.getCategory());
+                requestDto.getCategory(), requestDto.getPrice(), requestDto.getTicketUrl(),
+                requestDto.getShowtime());
         return ConcertResponseDto.from(concert, companionPostRepository.countByConcert_Id(concert.getId()));
     }
 

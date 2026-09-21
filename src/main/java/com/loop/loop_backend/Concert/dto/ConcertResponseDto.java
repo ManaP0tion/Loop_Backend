@@ -20,6 +20,9 @@ public class ConcertResponseDto {
     private final String venue;
     private final LocalDate startDate;
     private final LocalDate endDate;
+    private final String price;
+    private final String ticketUrl;
+    private final String showtime;
     private final ConcertCategory category;
     private final String categoryDisplayName;
 
@@ -38,6 +41,9 @@ public class ConcertResponseDto {
                 .venue(concert.getVenue())
                 .startDate(concert.getStartDate())
                 .endDate(concert.getEndDate())
+                .price(concert.getPrice())
+                .ticketUrl(concert.getTicketUrl())
+                .showtime(concert.getShowtime())
                 .category(category)
                 .categoryDisplayName(category != null ? category.getDisplayName() : null)
                 .companionCount(companionCount)
