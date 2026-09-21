@@ -44,8 +44,11 @@ public class ConcertImportService {
 
         ConcertCategory category = firstNonNull(cmd.category(), imp.getSuggestedCategory());
 
-        // 가격/예매처URL/공연시간은 KOPIS 상세에만 있어 승인 시점에 1회 조회한다(실패해도 null로 진행).
+        // 가격/공연시간/예매처 목록은 KOPIS 상세에만 있어 승인 시점에 1회 조회한다(실패해도 null로 진행).
         KopisClient.KopisDetail detail = kopisClient.getPerformanceDetail(imp.getKopisId());
+        // 공연장 정보(주소/좌표/수용인원)는 상세 응답의 시설·홀 ID로 시설 API를 이어서 조회한다.
+        // 상세 조회가 실패했으면 시설 ID도 없어 호출 없이 전부 null이 된다.
+        KopisClient.KopisFacility facility = kopisClient.getFacility(detail.facilityId(), detail.hallId());
 
         Concert concert = Concert.builder()
                 .artist(artist)
@@ -56,8 +59,14 @@ public class ConcertImportService {
                 .startDate(firstNonNull(cmd.startDate(), imp.getStartDate()))
                 .endDate(firstNonNull(cmd.endDate(), imp.getEndDate()))
                 .price(detail.price())
-                .ticketUrl(detail.ticketUrl())
                 .showtime(detail.showtime())
+                .ticketVendors(detail.ticketVendors())
+                // 어드민 화면/DTO가 아직 단일 ticketUrl을 쓰므로 예매처 목록의 첫 링크를 함께 채운다.
+                .ticketUrl(detail.ticketUrl())
+                .venueAddress(facility.address())
+                .venueLatitude(facility.latitude())
+                .venueLongitude(facility.longitude())
+                .venueCapacity(facility.capacity())
                 .category(category)
                 .build();
         concertRepository.save(concert);

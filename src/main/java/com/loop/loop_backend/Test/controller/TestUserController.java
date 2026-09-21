@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/test")
 @RequiredArgsConstructor
-@Profile("!docker")
+//@Profile("!docker")
 @Tag(name = "Test", description = "스웨거 테스트 전용 API (운영 배포 시 제거 예정)")
 public class TestUserController {
 

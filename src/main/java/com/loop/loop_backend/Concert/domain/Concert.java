@@ -7,6 +7,7 @@ import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Entity
 @Table(
@@ -58,6 +59,34 @@ public class Concert {
     /** KOPIS 상세: 공연 시간 안내(dtguidance). 예: "토요일(15:00,19:00)" */
     @Column(name = "showtime", length = 500)
     private String showtime;
+
+    /**
+     * KOPIS 상세: 예매처 목록(relates의 relatenm + relateurl), 여러 곳 가능. 승인 시에만 채워진다.
+     * ticketUrl은 어드민 화면/DTO가 아직 쓰고 있어 유지하고, 승인할 때 이 목록의 첫 링크를 거기에도 채운다.
+     * JSON 대신 TEXT로 둔 건 테스트(H2)에서도 문자열 그대로 저장되게 하려는 것.
+     */
+    @Convert(converter = TicketVendorListConverter.class)
+    @Column(name = "ticket_vendors", columnDefinition = "TEXT")
+    private List<TicketVendorInfo> ticketVendors;
+
+    // 공연장 정보: KOPIS 시설 API(prfplc)에서 가져온다. 조회에 실패하면 전부 null.
+    // update()는 이 필드들을 건드리지 않는다 - 어드민 수정 폼에 없어서 수정 요청 때 null로 덮어쓰이면 안 된다.
+
+    /** 시설 주소(adres) */
+    @Column(name = "venue_address", length = 500)
+    private String venueAddress;
+
+    /** 위도(la). 지도 링크는 프론트가 좌표로 만든다. */
+    @Column(name = "venue_latitude")
+    private Double venueLatitude;
+
+    /** 경도(lo) */
+    @Column(name = "venue_longitude")
+    private Double venueLongitude;
+
+    /** 수용 인원: 공연이 열리는 홀(mt13id 일치)의 seatscale, 홀을 못 찾으면 시설 전체 seatscale */
+    @Column(name = "venue_capacity")
+    private Integer venueCapacity;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "category", length = 30, nullable = false)
