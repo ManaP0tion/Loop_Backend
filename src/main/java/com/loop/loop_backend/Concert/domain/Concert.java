@@ -91,4 +91,11 @@ public class Concert {
     public void updatePosterUrl(String posterUrl) {
         this.posterUrl = posterUrl;
     }
+
+    // 리포지토리 쿼리들의 COALESCE(endDate, startDate) 기준과 동일한 규칙.
+    // 날짜 미정(둘 다 null)이면 "지난 공연"이 아니라고 본다 - 노출을 끊을 근거가 없어서 우선 계속 보여준다.
+    public boolean isPast(LocalDate cutoff) {
+        LocalDate reference = (endDate != null) ? endDate : startDate;
+        return reference != null && reference.isBefore(cutoff);
+    }
 }

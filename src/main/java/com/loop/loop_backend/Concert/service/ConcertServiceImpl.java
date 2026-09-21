@@ -4,11 +4,14 @@ import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.Concert.dto.ConcertPastDetailDto;
 import com.loop.loop_backend.Concert.dto.ConcertPeriod;
+import com.loop.loop_backend.Concert.dto.ConcertPeriodDto;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
 import com.loop.loop_backend.Concert.dto.ConcertSection;
 import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
+import com.loop.loop_backend.Concert.dto.ConcertUpcomingDetailDto;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
@@ -96,6 +99,31 @@ public class ConcertServiceImpl implements ConcertService {
     @Override
     public ConcertSummaryDto getConcertById(Long id, Long userId) {
         return ConcertSummaryDto.from(findConcertOrThrow(id));
+    }
+
+    @Override
+    public ConcertUpcomingDetailDto getUpcomingDetail(Long id, Long userId) {
+        // TODO: Concert에 예매/공연장 상세 필드 추가되면 구현. 지금은 컨트롤러 계약만 먼저 고정.
+        throw new UnsupportedOperationException("아직 구현 전 - Concert 엔티티에 상세 필드 추가 후 작업 예정");
+    }
+
+    @Override
+    public ConcertPastDetailDto getPastDetail(Long id, Long userId) {
+        Concert concert = findConcertOrThrow(id);
+        if (!concert.isPast(ExpiryCutoff.cutoffDate())) {
+            // id는 존재하지만 지난 공연이 아님(예정 공연) - 잘못된 엔드포인트 호출을 404로 처리
+            throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
+        }
+        return ConcertPastDetailDto.from(concert);
+    }
+
+    @Override
+    public ConcertPeriodDto getPeriod(Long id) {
+        // 딥링크 등 목록을 안 거친 진입 경로용 힌트 조회 - 여기서는 예외 없이 판정 결과만 그대로 돌려준다.
+        // period 불일치 검증은 실제 데이터를 주는 getUpcomingDetail/getPastDetail이 각자 책임진다.
+        Concert concert = findConcertOrThrow(id);
+        ConcertPeriod period = concert.isPast(ExpiryCutoff.cutoffDate()) ? ConcertPeriod.PAST : ConcertPeriod.UPCOMING;
+        return new ConcertPeriodDto(period);
     }
 
     @Override
