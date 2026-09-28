@@ -192,7 +192,7 @@ class ConcertDetailServiceTest {
         assertThat(dto.getVenue()).isEqualTo("인스파이어 아레나");
         assertThat(dto.getStartDate()).isEqualTo(TODAY.plusDays(10));
         assertThat(dto.getEndDate()).isEqualTo(TODAY.plusDays(11));
-        assertThat(dto.getDDay()).isEqualTo(10);
+        assertThat(dto.getDday()).isEqualTo(10);
         // 공연 시간은 KOPIS 원문 그대로 내려간다 (가공하지 않음)
         assertThat(dto.getShowtime()).isEqualTo("토요일(17:00), 일요일(16:00)");
         assertThat(dto.getTicketVendors()).containsExactlyElementsOf(vendors);
@@ -231,7 +231,7 @@ class ConcertDetailServiceTest {
     void 공연_당일의_D_day는_0이다() {
         givenConcert(TODAY, TODAY);
 
-        assertThat(concertService.getUpcomingDetail(CONCERT_ID, null).getDDay()).isZero();
+        assertThat(concertService.getUpcomingDetail(CONCERT_ID, null).getDday()).isZero();
     }
 
     @Test
@@ -240,7 +240,7 @@ class ConcertDetailServiceTest {
 
         ConcertUpcomingDetailDto dto = concertService.getUpcomingDetail(CONCERT_ID, null);
 
-        assertThat(dto.getDDay()).isEqualTo(-1);
+        assertThat(dto.getDday()).isEqualTo(-1);
     }
 
     @Test
@@ -250,7 +250,7 @@ class ConcertDetailServiceTest {
         ConcertUpcomingDetailDto dto = concertService.getUpcomingDetail(CONCERT_ID, null);
 
         assertThat(dto.getTitle()).isEqualTo("Vaundy ASIA ARENA TOUR");
-        assertThat(dto.getDDay()).isNull();
+        assertThat(dto.getDday()).isNull();
     }
 
     @Test
