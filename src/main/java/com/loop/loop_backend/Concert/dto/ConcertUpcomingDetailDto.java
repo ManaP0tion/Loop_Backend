@@ -11,16 +11,16 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 // 예정 공연 상세.
-// 선예매 여부/날짜, 일반 예매 날짜, 자리 배치도는 어드민에서 수동 입력할 예정인데 아직 입력 기능과
-// Concert 컬럼이 없어서, 지금은 응답에 필드만 있고 항상 null이다. 입력 기능이 생기면 from()에서 채운다.
 // price는 이 응답에 넣지 않기로 했다. showtime(공연 시간 안내)은 KOPIS 원문 텍스트 그대로 내려준다.
 //
-// nullable 기준: concertId/title 말고는 DB 컬럼 자체가 nullable이라 전부 null 가능하다.
-// - artistId/artistName: 아티스트 없는 공연(페스티벌 등)은 원래 null
-// - venue/startDate/endDate: "날짜 미정 공연"이 존재해서 null 가능
-// - showtime/ticketVendors/venue*: 승인 시 KOPIS 조회 실패, 또는 이 기능 이전에 승인된 공연이면 null
-// - presaleAvailable/presaleDate/generalSaleDate/seatingChartImageUrl: 어드민 입력 기능이 생긴 뒤에도
-//   선예매가 없는 공연, 아직 관리자가 안 채운 공연이 있을 수 있어 계속 null 가능 - "언젠가 다 채워짐"이 아니다
+// null 표기는 OpenAPI 3.0의 nullable=true 대신 3.1 방식(types에 "null" 포함)을 쓴다.
+// nullable=true는 스펙엔 들어가지만 스웨거 UI가 타입 옆에 안 보여줘서, type 배열(예: {"string","null"})로
+// 명확히 보이게 한다.
+//
+// ※ 이 스펙은 "승인 시 필수값 검증"을 전제로 한 최종 형태다 (presaleDate/generalSaleDate/ticketVendors만
+// 제외하고 전부 non-null) - 그 검증 기능은 아직 ConcertImportService.approve()에 없다. 지금 실제 응답은
+// KOPIS 조회 실패, 어드민 미입력, 아티스트 미배정 등으로 이 필드들이 null일 수 있다. 검증 기능이 배포되기
+// 전까지는 스펙과 실제 응답이 다를 수 있다는 뜻 - 프론트 선개발을 위해 최종 계약을 먼저 문서화한 것.
 @Getter
 @Builder
 public class ConcertUpcomingDetailDto {
@@ -28,70 +28,65 @@ public class ConcertUpcomingDetailDto {
     @Schema(description = "콘서트 PK", requiredMode = Schema.RequiredMode.REQUIRED)
     private final Long concertId;
 
-    @Schema(description = "아티스트 PK. 아티스트 없는 공연(페스티벌 등)은 null", nullable = true)
+    @Schema(description = "아티스트 PK", types = {"integer"})
     private final Long artistId;
 
-    @Schema(description = "아티스트명. 아티스트 없는 공연(페스티벌 등)은 null", nullable = true)
+    @Schema(description = "아티스트명", types = {"string"})
     private final String artistName;
 
     @Schema(description = "공연명", requiredMode = Schema.RequiredMode.REQUIRED)
     private final String title;
 
-    @Schema(description = "포스터 이미지 URL", nullable = true)
+    @Schema(description = "포스터 이미지 URL")
     private final String posterUrl;
 
-    @Schema(description = "공연장 이름. 날짜 미정 공연처럼 정보가 없을 수 있어 null 가능", nullable = true)
+    @Schema(description = "공연장 이름")
     private final String venue;
 
-    @Schema(description = "공연 시작일. 날짜 미정 공연은 null", nullable = true)
+    @Schema(description = "공연 시작일")
     private final LocalDate startDate;
 
-    @Schema(description = "공연 종료일. 날짜 미정 공연은 null", nullable = true)
+    @Schema(description = "공연 종료일")
     private final LocalDate endDate;
 
     // 필드명이 그대로 JSON 키(dday)가 되도록 dDay가 아니라 dday로 둔다.
     // (Lombok getDDay() -> Jackson이 "dday"로 직렬화 - 필드명이 dDay면 이 이름 불일치 때문에
     //  swagger가 이 필드의 @Schema를 못 찾아서 required/nullable이 스펙에 안 실렸다)
-    @Schema(description = "오늘(KST) 기준 startDate까지 남은 일수. 당일 0, 이미 시작한 공연은 음수. " +
-            "startDate 없으면 null", nullable = true)
+    @Schema(description = "오늘(KST) 기준 startDate까지 남은 일수. 당일 0, 이미 시작한 공연은 음수")
     private final Integer dday;
 
     @Schema(description = "공연 시간 안내. KOPIS(dtguidance) 원문 텍스트 그대로다. 예: \"토요일(17:00), 일요일(16:00)\". " +
-            "요일별 시각을 구조화하지 않았으니 프론트가 문장 그대로 보여준다. " +
-            "못 가져왔거나 이 기능 이전에 승인된 공연은 null", nullable = true)
+            "요일별 시각을 구조화하지 않았으니 프론트가 문장 그대로 보여준다.")
     private final String showtime;
 
     // 예매정보
-    @Schema(description = "선예매 유무. 어드민 수동 입력 기능이 생기기 전까지 항상 null", nullable = true)
+    @Schema(description = "선예매 유무")
     private final Boolean presaleAvailable;
 
-    @Schema(description = "선예매 시작일. 어드민 수동 입력 기능이 생기기 전까지 항상 null", nullable = true)
+    @Schema(description = "선예매 시작일. 선예매가 없는 공연은 null", types = {"string", "null"})
     private final LocalDate presaleDate;
 
-    @Schema(description = "일반 예매 시작일. 어드민 수동 입력 기능이 생기기 전까지 항상 null", nullable = true)
+    @Schema(description = "일반 예매 시작일. 아직 미정인 공연은 null", types = {"string", "null"})
     private final LocalDate generalSaleDate;
 
-    @Schema(description = "예매처 목록(이름+링크), 복수 가능. 승인 시 KOPIS에서 채워지며, " +
-            "조회 실패나 이 기능 이전에 승인된 공연은 null", nullable = true)
+    @Schema(description = "예매처 목록(이름+링크), 복수 가능. 예매처가 정해지지 않은 공연은 null",
+            types = {"array", "null"})
     private final List<TicketVendorInfo> ticketVendors;
 
     // 공연장 정보
-    @Schema(description = "공연장 주소. 승인 시 KOPIS 시설 조회로 채워지며, 실패하거나 이 기능 이전에 " +
-            "승인된 공연은 null", nullable = true)
+    @Schema(description = "공연장 주소")
     private final String venueAddress;
 
-    @Schema(description = "이 공연이 열리는 홀의 수용 인원. 위 venueAddress와 동일한 사유로 null 가능", nullable = true)
+    @Schema(description = "이 공연이 열리는 홀의 수용 인원")
     private final Integer venueCapacity;
 
-    @Schema(description = "공연장 위도 - 지도 링크는 프론트에서 좌표로 생성한다. 위 venueAddress와 동일한 사유로 null 가능",
-            nullable = true)
+    @Schema(description = "공연장 위도 - 지도 링크는 프론트에서 좌표로 생성한다")
     private final Double venueLatitude;
 
-    @Schema(description = "공연장 경도. 위 venueAddress와 동일한 사유로 null 가능", nullable = true)
+    @Schema(description = "공연장 경도")
     private final Double venueLongitude;
 
-    @Schema(description = "자리 배치도 이미지 URL(관리자 업로드). 어드민 수동 입력 기능이 생기기 전까지 항상 null",
-            nullable = true)
+    @Schema(description = "자리 배치도 이미지 URL(관리자 업로드)")
     private final String seatingChartImageUrl;
 
     /**
@@ -115,14 +110,13 @@ public class ConcertUpcomingDetailDto {
                         ? (int) ChronoUnit.DAYS.between(today, concert.getStartDate())
                         : null)
                 .showtime(concert.getShowtime())
-                // 예매처 목록/공연장 정보는 승인 시 KOPIS에서 채워지며, 조회에 실패했거나 예전에 승인된 공연은 null
                 .ticketVendors(concert.getTicketVendors())
                 .venueAddress(concert.getVenueAddress())
                 .venueCapacity(concert.getVenueCapacity())
                 .venueLatitude(concert.getVenueLatitude())
                 .venueLongitude(concert.getVenueLongitude())
-                // presaleAvailable, presaleDate, generalSaleDate, seatingChartImageUrl은
-                // 어드민 수동 입력 기능이 생기기 전까지 설정하지 않는다 (항상 null)
+                // presaleAvailable/presaleDate/generalSaleDate/seatingChartImageUrl: 어드민 입력 UI와
+                // "승인 시 필수값 검증"이 아직 없어서 지금은 항상 null. 클래스 상단 주석 참고.
                 .build();
     }
 }

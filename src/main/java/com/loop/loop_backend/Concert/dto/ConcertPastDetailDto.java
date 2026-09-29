@@ -9,6 +9,10 @@ import java.time.LocalDate;
 
 // 지난 공연 상세. 예매/공연장 상세 정보는 이제 와서 의미가 없어 제외 — 공연명/아티스트/공연장/날짜/공연 시간 안내만.
 // 추후 셋리스트 기능이 붙으면 이 DTO에 필드가 추가될 예정.
+//
+// ※ ConcertUpcomingDetailDto와 같은 정책: "승인 시 필수값 검증"을 전제로 한 최종 계약이라 전부 non-null이다.
+// 그 검증 기능은 아직 ConcertImportService.approve()에 없어서, 지금 실제 응답은 아티스트 미배정·KOPIS 조회
+// 실패·날짜 미정 등으로 이 필드들이 null일 수 있다.
 @Getter
 @Builder
 public class ConcertPastDetailDto {
@@ -19,20 +23,19 @@ public class ConcertPastDetailDto {
     @Schema(description = "공연명", requiredMode = Schema.RequiredMode.REQUIRED)
     private final String title;
 
-    @Schema(description = "아티스트명. 아티스트 없는 공연(페스티벌 등)은 null", nullable = true)
+    @Schema(description = "아티스트명")
     private final String artistName;
 
-    @Schema(description = "공연장 이름. 날짜 미정 공연처럼 정보가 없을 수 있어 null 가능", nullable = true)
+    @Schema(description = "공연장 이름")
     private final String venue;
 
-    @Schema(description = "공연 시작일. 날짜 미정 공연은 null", nullable = true)
+    @Schema(description = "공연 시작일")
     private final LocalDate startDate;
 
-    @Schema(description = "공연 종료일. 날짜 미정 공연은 null", nullable = true)
+    @Schema(description = "공연 종료일")
     private final LocalDate endDate;
 
-    @Schema(description = "공연 시간 안내. KOPIS(dtguidance) 원문 텍스트 그대로다. 예: \"토요일(17:00), 일요일(16:00)\". " +
-            "못 가져왔거나 이 정보를 저장하기 전에 승인된 공연은 null", nullable = true)
+    @Schema(description = "공연 시간 안내. KOPIS(dtguidance) 원문 텍스트 그대로다. 예: \"토요일(17:00), 일요일(16:00)\"")
     private final String showtime;
 
     public static ConcertPastDetailDto from(Concert concert) {
