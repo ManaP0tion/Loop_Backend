@@ -89,11 +89,14 @@ public class ConcertUpcomingDetailDto {
     @Schema(description = "자리 배치도 이미지 URL(관리자 업로드)")
     private final String seatingChartImageUrl;
 
+    @Schema(description = "내가 스크랩한 공연인지. 비로그인 조회면 항상 false", requiredMode = Schema.RequiredMode.REQUIRED)
+    private final boolean scrapped;
+
     /**
      * @param today D-day 계산 기준일. "지금"을 이 클래스 안에서 정하지 않고 호출한 쪽(서비스)이 넘기게 해서,
      *              테스트에서 날짜를 고정해 검증할 수 있게 한다.
      */
-    public static ConcertUpcomingDetailDto from(Concert concert, LocalDate today) {
+    public static ConcertUpcomingDetailDto from(Concert concert, LocalDate today, boolean scrapped) {
         return ConcertUpcomingDetailDto.builder()
                 .concertId(concert.getId())
                 // 아티스트 없는 공연(페스티벌 등)은 아티스트 필드가 null
@@ -115,6 +118,7 @@ public class ConcertUpcomingDetailDto {
                 .venueCapacity(concert.getVenueCapacity())
                 .venueLatitude(concert.getVenueLatitude())
                 .venueLongitude(concert.getVenueLongitude())
+                .scrapped(scrapped)
                 // presaleAvailable/presaleDate/generalSaleDate/seatingChartImageUrl: 어드민 입력 UI와
                 // "승인 시 필수값 검증"이 아직 없어서 지금은 항상 null. 클래스 상단 주석 참고.
                 .build();

@@ -38,7 +38,10 @@ public class ConcertPastDetailDto {
     @Schema(description = "공연 시간 안내. KOPIS(dtguidance) 원문 텍스트 그대로다. 예: \"토요일(17:00), 일요일(16:00)\"")
     private final String showtime;
 
-    public static ConcertPastDetailDto from(Concert concert) {
+    @Schema(description = "내가 스크랩한 공연인지. 비로그인 조회면 항상 false", requiredMode = Schema.RequiredMode.REQUIRED)
+    private final boolean scrapped;
+
+    public static ConcertPastDetailDto from(Concert concert, boolean scrapped) {
         return ConcertPastDetailDto.builder()
                 .concertId(concert.getId())
                 .title(concert.getTitle())
@@ -47,6 +50,7 @@ public class ConcertPastDetailDto {
                 .startDate(concert.getStartDate())
                 .endDate(concert.getEndDate())
                 .showtime(concert.getShowtime())
+                .scrapped(scrapped)
                 .build();
     }
 }

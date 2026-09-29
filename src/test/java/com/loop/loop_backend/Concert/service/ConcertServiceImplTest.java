@@ -12,6 +12,7 @@ import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
+import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
@@ -51,6 +52,7 @@ class ConcertServiceImplTest {
     @Mock CompanionPostRepository companionPostRepository;
     @Mock CompanionService companionService;
     @Mock S3StorageService s3StorageService;
+    @Mock ConcertScrapRepository concertScrapRepository;
     @InjectMocks ConcertServiceImpl concertService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();

@@ -32,7 +32,7 @@ class ConcertDetailDtoSchemaTest {
             "artistId", "artistName", "posterUrl", "venue", "startDate", "endDate",
             // dday는 Lombok getDDay() -> Jackson이 "dday"(소문자)로 직렬화한다. 실제 응답 필드명도 dday다.
             "dday", "showtime", "presaleAvailable",
-            "venueAddress", "venueCapacity", "venueLatitude", "venueLongitude", "seatingChartImageUrl"
+            "venueAddress", "venueCapacity", "venueLatitude", "venueLongitude", "seatingChartImageUrl", "scrapped"
     };
 
     // 예매처가 아직 안 정해졌거나 선예매/일반예매 날짜가 미정인 공연은 계속 있을 수 있어 null 허용.
@@ -43,7 +43,7 @@ class ConcertDetailDtoSchemaTest {
         Schema<?> schema = resolve(ConcertUpcomingDetailDto.class);
         Set<String> required = schema.getRequired() == null ? Set.of() : Set.copyOf(schema.getRequired());
 
-        assertThat(required).contains("concertId", "title");
+        assertThat(required).contains("concertId", "title", "scrapped");
         assertThat(typesOf(schema, "concertId")).doesNotContain("null");
         assertThat(typesOf(schema, "title")).doesNotContain("null");
 
@@ -69,8 +69,8 @@ class ConcertDetailDtoSchemaTest {
         Schema<?> schema = resolve(ConcertPastDetailDto.class);
         Set<String> required = schema.getRequired() == null ? Set.of() : Set.copyOf(schema.getRequired());
 
-        assertThat(required).contains("concertId", "title");
-        for (String field : new String[]{"concertId", "title", "artistName", "venue", "startDate", "endDate", "showtime"}) {
+        assertThat(required).contains("concertId", "title", "scrapped");
+        for (String field : new String[]{"concertId", "title", "artistName", "venue", "startDate", "endDate", "showtime", "scrapped"}) {
             assertThat(typesOf(schema, field)).as("%s의 type에 null이 없어야 함", field).doesNotContain("null");
         }
     }
