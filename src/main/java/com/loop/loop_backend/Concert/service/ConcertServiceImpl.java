@@ -15,6 +15,7 @@ import com.loop.loop_backend.Concert.dto.ConcertUpcomingDetailDto;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
+import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
@@ -43,6 +44,7 @@ public class ConcertServiceImpl implements ConcertService {
     // toResponseDtos()에서 다시 쓸 예정이라 필드/메서드 그대로 남겨둠.
     private final CompanionService companionService;
     private final S3StorageService s3StorageService;
+    private final ConcertScrapRepository concertScrapRepository;
 
     @Override
     @Transactional
@@ -111,7 +113,7 @@ public class ConcertServiceImpl implements ConcertService {
             throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
         }
         // D-day는 노출 만료 기준(오전 10시 리셋)과 별개로 한국 날짜 기준 남은 일수다.
-        return ConcertUpcomingDetailDto.from(concert, LocalDate.now(ZoneId.of("Asia/Seoul")));
+        return ConcertUpcomingDetailDto.from(concert, LocalDate.now(ZoneId.of("Asia/Seoul")), isScrapped(userId, id));
     }
 
     @Override
@@ -121,7 +123,12 @@ public class ConcertServiceImpl implements ConcertService {
             // id는 존재하지만 지난 공연이 아님(예정 공연) - 잘못된 엔드포인트 호출을 404로 처리
             throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
         }
-        return ConcertPastDetailDto.from(concert);
+        return ConcertPastDetailDto.from(concert, isScrapped(userId, id));
+    }
+
+    // 상세는 비로그인도 조회 가능하다(GET /api/concerts/** permitAll) - 비로그인이면 스크랩 여부는 항상 false.
+    private boolean isScrapped(Long userId, Long concertId) {
+        return userId != null && concertScrapRepository.existsByUser_IdAndConcert_Id(userId, concertId);
     }
 
     @Override

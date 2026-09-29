@@ -4,6 +4,7 @@ import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
+import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
@@ -45,6 +46,7 @@ class ConcertDetailServiceTest {
     @Mock CompanionPostRepository companionPostRepository;
     @Mock CompanionService companionService;
     @Mock S3StorageService s3StorageService;
+    @Mock ConcertScrapRepository concertScrapRepository;
     @InjectMocks ConcertServiceImpl concertService;
 
     private Concert givenConcert(LocalDate startDate, LocalDate endDate) {
@@ -275,5 +277,56 @@ class ConcertDetailServiceTest {
         givenNoConcert();
 
         assertNotFound(() -> concertService.getUpcomingDetail(CONCERT_ID, null));
+    }
+
+    // ---------- 스크랩 여부 ----------
+    // 상세 화면의 스크랩 버튼 상태: 로그인 유저가 스크랩한 공연이면 true, 아니면 false. 비로그인 조회는 항상 false.
+
+    private static final long USER_ID = 7L;
+
+    @Test
+    void 스크랩한_예정_공연의_상세는_scrapped가_true다() {
+        givenConcert(TODAY.plusDays(10), TODAY.plusDays(11));
+        when(concertScrapRepository.existsByUser_IdAndConcert_Id(USER_ID, CONCERT_ID)).thenReturn(true);
+
+        assertThat(concertService.getUpcomingDetail(CONCERT_ID, USER_ID).isScrapped()).isTrue();
+    }
+
+    @Test
+    void 스크랩하지_않은_예정_공연의_상세는_scrapped가_false다() {
+        givenConcert(TODAY.plusDays(10), TODAY.plusDays(11));
+        when(concertScrapRepository.existsByUser_IdAndConcert_Id(USER_ID, CONCERT_ID)).thenReturn(false);
+
+        assertThat(concertService.getUpcomingDetail(CONCERT_ID, USER_ID).isScrapped()).isFalse();
+    }
+
+    @Test
+    void 비로그인으로_예정_공연_상세를_조회하면_scrapped는_false다() {
+        givenConcert(TODAY.plusDays(10), TODAY.plusDays(11));
+
+        assertThat(concertService.getUpcomingDetail(CONCERT_ID, null).isScrapped()).isFalse();
+    }
+
+    @Test
+    void 스크랩한_지난_공연의_상세는_scrapped가_true다() {
+        givenConcert(TODAY.minusDays(30), TODAY.minusDays(29));
+        when(concertScrapRepository.existsByUser_IdAndConcert_Id(USER_ID, CONCERT_ID)).thenReturn(true);
+
+        assertThat(concertService.getPastDetail(CONCERT_ID, USER_ID).isScrapped()).isTrue();
+    }
+
+    @Test
+    void 스크랩하지_않은_지난_공연의_상세는_scrapped가_false다() {
+        givenConcert(TODAY.minusDays(30), TODAY.minusDays(29));
+        when(concertScrapRepository.existsByUser_IdAndConcert_Id(USER_ID, CONCERT_ID)).thenReturn(false);
+
+        assertThat(concertService.getPastDetail(CONCERT_ID, USER_ID).isScrapped()).isFalse();
+    }
+
+    @Test
+    void 비로그인으로_지난_공연_상세를_조회하면_scrapped는_false다() {
+        givenConcert(TODAY.minusDays(30), TODAY.minusDays(29));
+
+        assertThat(concertService.getPastDetail(CONCERT_ID, null).isScrapped()).isFalse();
     }
 }

@@ -3,6 +3,7 @@ package com.loop.loop_backend.User.service;
 import com.loop.loop_backend.Chat.service.ChatService;
 import com.loop.loop_backend.CompanionHeart.repository.CompanionHeartRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
+import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
 import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.Storage.dto.ImageUploadResponseDto;
@@ -34,6 +35,7 @@ public class UserServiceImpl implements UserService {
     private final FavoriteArtistRepository favoriteArtistRepository;
     private final CompanionPostRepository companionPostRepository;
     private final CompanionHeartRepository companionHeartRepository;
+    private final ConcertScrapRepository concertScrapRepository;
     private final PasswordEncoder passwordEncoder;
     private final S3StorageService s3StorageService;
     private final ChatService chatService;
@@ -186,6 +188,7 @@ public class UserServiceImpl implements UserService {
         companionPostRepository.deleteAllByUser(user);
         userHashtagRepository.deleteAllByUser(user);
         favoriteArtistRepository.deleteAllByUser(user);
+        concertScrapRepository.deleteAllByUser(user);
 
         user.withdraw();
         refreshTokenService.delete(id);
