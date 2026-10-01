@@ -18,10 +18,14 @@ public class ArtistResponseDto {
     private final String nameAlias;
     private final String imageUrl;
     private final ConcertCategory category;
+    private final Long itunesArtistId;
+    private final String artistViewUrl;
     private final LocalDateTime createdAt;
 
     public static ArtistResponseDto from(Artist artist) {
         return ArtistResponseDto.builder()
+                .itunesArtistId(artist.getItunesArtistId())
+                .artistViewUrl(artist.getArtistViewUrl())
                 .id(artist.getId())
                 .name(artist.getName())
                 .baseName(artist.getBaseName())

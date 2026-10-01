@@ -53,6 +53,12 @@ public enum ErrorCode {
     LIMIT_FAVORITE_ARTIST(409, "관심 아티스트는 최대 3개까지 등록할 수 있습니다."),
     FAVORITE_ARTIST_NOT_FOUND(404, "관심 아티스트를 찾을 수 없습니다."),
 
+    // Song 도메인 / iTunes
+    SONG_NOT_FOUND(404, "곡을 찾을 수 없습니다."),
+    ARTIST_NOT_LINKED(409, "iTunes에 연결되지 않은 아티스트입니다."),
+    ITUNES_ARTIST_NOT_FOUND(404, "iTunes 아티스트를 찾을 수 없습니다."),
+    ITUNES_FETCH_FAILED(502, "iTunes 연동 중 오류가 발생했습니다."),
+
     // Concert 도메인
     CONCERT_NOT_FOUND(404, "콘서트를 찾을 수 없습니다."),
     CONCERT_IMPORT_NOT_FOUND(404, "수집된 공연 정보를 찾을 수 없습니다."),

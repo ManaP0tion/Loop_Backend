@@ -7,6 +7,8 @@ import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
+import com.loop.loop_backend.infra.itunes.ItunesArtist;
+import com.loop.loop_backend.infra.itunes.ItunesClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +22,7 @@ import java.util.stream.Collectors;
 public class ArtistServiceImpl implements ArtistService {
 
     private final ArtistRepository artistRepository;
+    private final ItunesClient itunesClient;
 
     @Override
     @Transactional
@@ -74,6 +77,15 @@ public class ArtistServiceImpl implements ArtistService {
         return artistRepository.searchByAllNames(query).stream()
                 .map(ArtistResponseDto::from)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public ArtistResponseDto linkItunes(Long id, Long itunesArtistId) {
+        Artist artist = findArtistOrThrow(id);
+        ItunesArtist itunesArtist = itunesClient.lookupArtist(itunesArtistId);
+        artist.linkItunes(itunesArtist.artistId(), itunesArtist.artistLinkUrl());
+        return ArtistResponseDto.from(artist);
     }
 
     private Artist findArtistOrThrow(Long id) {

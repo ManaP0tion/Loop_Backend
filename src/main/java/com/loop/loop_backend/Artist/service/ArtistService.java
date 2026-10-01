@@ -14,4 +14,5 @@ public interface ArtistService {
     ArtistResponseDto getArtistByName(String name);
     List<ArtistResponseDto> getAllArtists();
     List<ArtistResponseDto> searchArtists(String query);
+    ArtistResponseDto linkItunes(Long id, Long itunesArtistId);
 }
