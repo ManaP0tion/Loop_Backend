@@ -16,8 +16,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 // - 등록 아티스트의 이름(name), 한글 표기(nameKo, " / "로 여러 개), 4자 이상 별칭이 제목에 단어 단위로 있으면 그 아티스트 공연이다.
 //   대소문자는 구분하지 않는다.
 // - 다른 단어의 일부로만 들어 있으면 매칭하지 않는다 ("라이브" 속 "이브" 같은 오탐 방지).
-// - 일본 페스티벌(화이트리스트 이름, 또는 "[일본" + 페스티벌 표시어)은 아티스트와 상관없이 아티스트 없는 페스티벌이다.
-// 페스티벌 표시어 + J-POP 아티스트 공연은 분류 요구사항이 바뀔 예정이라 여기서 다루지 않는다.
+// - 일본 페스티벌은 아티스트와 상관없이 아티스트 없는 페스티벌 1건이다. 다음 중 하나면 일본 페스티벌이다.
+//   · 알려진 일본 페스티벌 이름(SUMMER SONIC 등)이 제목에 있다.
+//   · 페스티벌 표시어가 있고, "[일본" 표시가 있거나 등록 J-POP 아티스트가 제목에 있다.
+// - 페스티벌 표시어는 페스티벌 / FESTIVAL / FEST / FES 이다. 영문은 단어 단위로만 인정하고("FESTA"는 아님),
+//   한글은 붙여 쓰는 경우("락페스티벌")가 많아 포함만 되어 있으면 인정한다. JAM, ROCK IN은 표시어가 아니다.
 class PerformanceIdentifierTest {
 
     private final PerformanceIdentifier identifier = new PerformanceIdentifier();
@@ -131,11 +134,11 @@ class PerformanceIdentifierTest {
             "SUMMER SONIC 2026",
             "summer sonic 2026",             // 대소문자 무관
             "FUJI ROCK FESTIVAL '26",
+            "MIYAKO ISLAND ROCK FESTIVAL: SAVE THE SEA SAVE THE SKY [일본 오키나와]",
             "[일본] 록 페스티벌 2026",
             "[일본] OO FESTIVAL",
             "[일본] OO FEST 2026",
-            "[일본] OO ROCK IN 2026",
-            "[일본] OO JAM 2026",
+            "[일본] OO FES 2026",
     })
     void 일본_페스티벌이면_아티스트_없는_일본_페스티벌이다(String title) {
         IdentificationResult result = identifier.identifyByTitle(title, ALL);
@@ -160,5 +163,64 @@ class PerformanceIdentifierTest {
 
         assertThat(result.category()).isEqualTo(ConcertCategory.JAPAN_FESTIVAL);
         assertThat(result.artists()).isEmpty();
+    }
+
+    // ---------- 페스티벌 표시어 + J-POP 아티스트 ----------
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {
+            "NOL FESTIVAL: DAY 1, YOASOBI STAGE",          // FESTIVAL
+            "nol festival: day 1, yoasobi stage",          // 대소문자 무관
+            "DEAD ROCK WORKING FEST. with YOASOBI",        // FEST (뒤에 마침표)
+            "HANIL FES vol.7 YOASOBI",                     // FES
+            "어쩌다 페스티벌, YOASOBI",                       // 한글 표시어
+            "렛츠락페스티벌 with YOASOBI",                    // 한글 표시어가 다른 말에 붙어 있음
+            "YOASOBI 내한! 서울 페스티벌에 초대합니다",        // 한글 표시어 뒤에 조사
+    })
+    void 페스티벌_표시어와_J_POP_아티스트가_함께_있으면_아티스트_없는_일본_페스티벌이다(String title) {
+        IdentificationResult result = identifier.identifyByTitle(title, ALL);
+
+        assertThat(result.isMatched()).isTrue();
+        assertThat(result.category()).isEqualTo(ConcertCategory.JAPAN_FESTIVAL);
+        assertThat(result.matchReason()).isEqualTo(IdentificationResult.JAPAN_FESTIVAL);
+        assertThat(result.artists()).isEmpty();
+    }
+
+    @Test
+    void 페스티벌_제목에_J_POP_아티스트가_여러_명이어도_페스티벌_하나다() {
+        IdentificationResult result = identifier.identifyByTitle("어쩌다 페스티벌, YOASOBI X Ado", ALL);
+
+        assertThat(result.category()).isEqualTo(ConcertCategory.JAPAN_FESTIVAL);
+        assertThat(result.artists()).isEmpty();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {
+            "NOL FESTIVAL: DAY 1, K-POP STAGE",
+            "서울뮤직페스티벌",
+            "HANIL FES vol.5",
+    })
+    void 페스티벌_표시어만_있고_일본_표시도_J_POP_아티스트도_없으면_수집_대상이_아니다(String title) {
+        assertThat(identifier.identifyByTitle(title, ALL).isMatched()).isFalse();
+    }
+
+    @ParameterizedTest(name = "{0} → {1}")
+    @CsvSource(delimiter = '|', value = {
+            "MOMENT FESTA: YOASOBI X B1A4        | YOASOBI",   // FESTA는 FES/FEST가 아니다
+            "인디스커버리: FESTA, TRACK 01 - Ado   | Ado",
+            "YOASOBI JAM SESSION                 | YOASOBI",   // JAM은 표시어가 아니다
+            "Ado ROCK IN SEOUL                   | Ado",       // ROCK IN은 표시어가 아니다
+    })
+    void 페스티벌_표시어가_아닌_제목의_J_POP_아티스트는_그_아티스트의_공연이다(String title, String artistName) {
+        IdentificationResult result = identifier.identifyByTitle(title, ALL);
+
+        assertThat(result.category()).isEqualTo(ConcertCategory.J_POP_ARTIST);
+        assertThat(result.artists()).extracting(Artist::getName).containsExactly(artistName);
+    }
+
+    @Test
+    void 일본_표시가_있어도_JAM이나_ROCK_IN만으로는_페스티벌이_아니다() {
+        assertThat(identifier.identifyByTitle("[일본] OO JAM 2026", ALL).isMatched()).isFalse();
+        assertThat(identifier.identifyByTitle("[일본] OO ROCK IN 2026", ALL).isMatched()).isFalse();
     }
 }

@@ -15,18 +15,62 @@ public class PerformanceIdentifier {
 
     private static final int ALIAS_MIN_LENGTH = 4;
 
+    // 표시어 없이도 이름만으로 일본 페스티벌로 보는 페스티벌
+    private static final String[] KNOWN_JAPAN_FESTIVALS = {
+            "FUJI ROCK",
+            "SUMMER SONIC",
+            "ROCK IN JAPAN",
+            "JAPAN JAM",
+            "COUNTDOWN JAPAN",
+            "RISING SUN ROCK FESTIVAL",
+            "VIVA LA ROCK",
+            "MIYAKO ISLAND ROCK FESTIVAL",
+            "ARABAKI",
+            "METROCK",
+            "JOIN ALIVE",
+            "TREASURE ISLAND"
+    };
+
+    // 영문 표시어는 단어 단위로만 인정한다 ("FESTA" 같은 다른 단어 속 FES/FEST 오탐 방지)
+    private static final String[] FESTIVAL_MARKERS_EN = {"FESTIVAL", "FEST", "FES"};
+    // 한글은 "락페스티벌"처럼 붙여 쓰는 경우가 많아 포함 여부로 본다
+    private static final String FESTIVAL_MARKER_KO = "페스티벌";
+
     /**
-     * 제목만으로 식별한다 (API 호출 없음).
-     * 일본 페스티벌이면 아티스트 매칭보다 먼저 페스티벌로 판정하고, 아니면 제목에 이름이 있는 아티스트를 찾는다.
+     * 제목만으로 식별한다 (API 호출 없음). 결과는 일본 페스티벌 또는 J-POP 아티스트 공연 두 가지다.
+     * 페스티벌 판정에 J-POP 아티스트 출연 여부가 필요하므로 아티스트 매칭을 먼저 한다.
+     * 페스티벌이면 출연 아티스트가 있어도 아티스트 없는 페스티벌 1건으로 본다.
      */
     public IdentificationResult identifyByTitle(String title, List<Artist> artists) {
-        if (JapanFestivalMatcher.isJapanFestival(title)) {
-            return IdentificationResult.japanFestival();
-        }
         List<Artist> matched = artists.stream()
                 .filter(a -> nameContainedInTitle(title, a))
                 .toList();
+
+        if (isJapanFestival(title, !matched.isEmpty())) {
+            return IdentificationResult.japanFestival();
+        }
         return IdentificationResult.jpopArtists(matched, IdentificationResult.TITLE_MATCH);
+    }
+
+    /**
+     * 알려진 일본 페스티벌이거나, 페스티벌 표시어가 있으면서 일본 표시 또는 J-POP 아티스트가 있으면 일본 페스티벌.
+     * 표시어만으로는 국내 페스티벌과 구분할 수 없어 일본 쪽 근거를 하나 더 요구한다.
+     */
+    private boolean isJapanFestival(String title, boolean hasJpopArtist) {
+        if (title == null || title.isBlank()) return false;
+        if (containsKnownJapanFestival(title)) return true;
+        if (!hasFestivalMarker(title)) return false;
+        return title.contains("[일본") || hasJpopArtist;
+    }
+
+    private boolean containsKnownJapanFestival(String title) {
+        String upper = title.toUpperCase();
+        return Arrays.stream(KNOWN_JAPAN_FESTIVALS).anyMatch(upper::contains);
+    }
+
+    private boolean hasFestivalMarker(String title) {
+        if (title.contains(FESTIVAL_MARKER_KO)) return true;
+        return Arrays.stream(FESTIVAL_MARKERS_EN).anyMatch(marker -> wordBoundaryMatch(title, marker));
     }
 
     /**

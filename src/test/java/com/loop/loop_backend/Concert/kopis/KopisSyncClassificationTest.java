@@ -20,13 +20,13 @@ import static org.mockito.Mockito.*;
 
 // KOPIS 수집 분류 요구사항: 수집한 공연이 검토 큐(concert_imports)에 어떻게 들어가는지를 검증한다.
 // - 등록 아티스트(자동 수집 켜짐)의 이름이 제목에 단어 단위로 있으면 그 아티스트의 내한 공연으로 아티스트마다 1건.
-// - 일본 페스티벌(화이트리스트 이름, 또는 "[일본" + 페스티벌 표시어)은 아티스트 없이 1건.
+// - 일본 페스티벌은 아티스트 없이 1건. 알려진 일본 페스티벌 이름이 있거나,
+//   페스티벌 표시어와 함께 "[일본" 표시 또는 등록 J-POP 아티스트가 제목에 있으면 일본 페스티벌이다.
 // - 제목으로 못 찾았을 때는 일본 신호가 있는 공연만 상세 API로 출연진을 확인한다 - 신호가 없으면 호출하지 않는다.
 // - 재수집 시 검토 전(PENDING) 건은 최신값으로 갱신, 이미 처리된 건은 건드리지 않는다.
 // - V2는 J-POP 공연만 수집한다 - 국내 아티스트는 자동 수집이 켜져 있어도 매칭 대상이 아니다.
 //
 // KOPIS 클라이언트만 가짜로 두고 리포지토리는 실제 DB를 쓴다 - 저장을 누가 하든 "검토 큐에 남은 결과"만 본다.
-// 페스티벌 제목 + J-POP 아티스트 공연은 분류 요구사항이 바뀔 예정이라 여기서 다루지 않는다.
 @DataJpaTest
 class KopisSyncClassificationTest {
 
@@ -192,6 +192,31 @@ class KopisSyncClassificationTest {
             assertThat(imp.getMatchedArtist()).isNull();
             assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.JAPAN_FESTIVAL);
         });
+    }
+
+    @Test
+    void 페스티벌_제목에_J_POP_아티스트가_있으면_아티스트_공연이_아니라_일본_페스티벌_1건으로_들어간다() {
+        jpopArtist("YOASOBI", null, null);
+        jpopArtist("Ado", null, null);
+
+        syncWith(perf("PF1", "어쩌다 페스티벌, YOASOBI X Ado"));
+
+        assertThat(imports()).singleElement().satisfies(imp -> {
+            assertThat(imp.getKopisId()).isEqualTo("PF1");
+            assertThat(imp.getMatchedArtist()).isNull();
+            assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.JAPAN_FESTIVAL);
+            assertThat(imp.getMatchReason()).isEqualTo("JAPAN_FESTIVAL");
+        });
+        verify(kopisClient, never()).getPerformanceCast(any());
+    }
+
+    @Test
+    void 페스티벌_표시어만_있고_J_POP_아티스트가_없으면_수집하지_않는다() {
+        jpopArtist("YOASOBI", null, null);
+
+        syncWith(perf("PF1", "NOL FESTIVAL: DAY 1, K-POP STAGE"));
+
+        assertThat(imports()).isEmpty();
     }
 
     // ---------- 출연진으로 식별 ----------
