@@ -1,13 +1,13 @@
-package com.loop.loop_backend.Concert.service;
+package com.loop.loop_backend.ConcertImport.service;
 
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
-import com.loop.loop_backend.Concert.domain.ConcertImport;
-import com.loop.loop_backend.Concert.domain.ImportStatus;
-import com.loop.loop_backend.Concert.kopis.KopisClient;
-import com.loop.loop_backend.Concert.repository.ConcertImportRepository;
+import com.loop.loop_backend.ConcertImport.domain.ConcertImport;
+import com.loop.loop_backend.ConcertImport.domain.ImportStatus;
+import com.loop.loop_backend.ConcertImport.kopis.KopisClient;
+import com.loop.loop_backend.ConcertImport.repository.ConcertImportRepository;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;

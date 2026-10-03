@@ -1,7 +1,7 @@
-package com.loop.loop_backend.Concert.repository;
+package com.loop.loop_backend.ConcertImport.repository;
 
-import com.loop.loop_backend.Concert.domain.ConcertImport;
-import com.loop.loop_backend.Concert.domain.ImportStatus;
+import com.loop.loop_backend.ConcertImport.domain.ConcertImport;
+import com.loop.loop_backend.ConcertImport.domain.ImportStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

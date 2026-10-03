@@ -1,4 +1,4 @@
-package com.loop.loop_backend.Concert.domain;
+package com.loop.loop_backend.ConcertImport.domain;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

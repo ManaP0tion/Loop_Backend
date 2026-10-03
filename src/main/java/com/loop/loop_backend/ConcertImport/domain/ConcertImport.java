@@ -1,6 +1,8 @@
-package com.loop.loop_backend.Concert.domain;
+package com.loop.loop_backend.ConcertImport.domain;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Concert.domain.Concert;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.OnDelete;

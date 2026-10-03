@@ -1,6 +1,6 @@
-package com.loop.loop_backend.Concert.scheduler;
+package com.loop.loop_backend.ConcertImport.scheduler;
 
-import com.loop.loop_backend.Concert.kopis.KopisSyncService;
+import com.loop.loop_backend.ConcertImport.kopis.KopisSyncService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;

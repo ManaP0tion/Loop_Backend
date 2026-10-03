@@ -1,11 +1,11 @@
-package com.loop.loop_backend.Concert.kopis;
+package com.loop.loop_backend.ConcertImport.kopis;
 
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
-import com.loop.loop_backend.Concert.domain.ConcertImport;
-import com.loop.loop_backend.Concert.domain.ImportStatus;
-import com.loop.loop_backend.Concert.repository.ConcertImportRepository;
+import com.loop.loop_backend.ConcertImport.domain.ConcertImport;
+import com.loop.loop_backend.ConcertImport.domain.ImportStatus;
+import com.loop.loop_backend.ConcertImport.repository.ConcertImportRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

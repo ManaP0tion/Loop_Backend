@@ -1,4 +1,4 @@
-package com.loop.loop_backend.Concert.kopis;
+package com.loop.loop_backend.ConcertImport.kopis;
 
 import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
 import org.junit.jupiter.api.BeforeEach;

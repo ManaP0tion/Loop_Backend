@@ -1,4 +1,4 @@
-package com.loop.loop_backend.Concert.kopis;
+package com.loop.loop_backend.ConcertImport.kopis;
 
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import org.junit.jupiter.api.BeforeEach;
