@@ -10,6 +10,7 @@ import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 /**
  * KOPIS에서 수집한 공연의 검토 대기 데이터. 관리자가 승인하면 {@link Concert}(운영 데이터)로 넘어간다.
@@ -89,10 +90,20 @@ public class ConcertImport {
     @Column(name = "reviewed_at")
     private LocalDateTime reviewedAt;
 
-    /** 재수집 시 PENDING인 건만 원본을 최신값으로 갱신한다. 승인/거절된 건은 호출부에서 skip. */
-    public void updateFromKopis(String title, String posterUrl, String venue,
-                                LocalDate startDate, LocalDate endDate,
-                                ConcertCategory suggestedCategory, String matchReason) {
+    /**
+     * 재수집 시 PENDING인 건만 원본을 최신값으로 갱신한다. 승인/거절된 건은 호출부에서 skip.
+     * 값이 하나라도 바뀌었으면 true - 싱크 로그에서 KOPIS 정보가 실제로 바뀐 건과 그대로인 건을 구분하는 데 쓴다.
+     */
+    public boolean updateFromKopis(String title, String posterUrl, String venue,
+                                   LocalDate startDate, LocalDate endDate,
+                                   ConcertCategory suggestedCategory, String matchReason) {
+        boolean changed = !Objects.equals(this.title, title)
+                || !Objects.equals(this.posterUrl, posterUrl)
+                || !Objects.equals(this.venue, venue)
+                || !Objects.equals(this.startDate, startDate)
+                || !Objects.equals(this.endDate, endDate)
+                || this.suggestedCategory != suggestedCategory
+                || !Objects.equals(this.matchReason, matchReason);
         this.title = title;
         this.posterUrl = posterUrl;
         this.venue = venue;
@@ -100,6 +111,7 @@ public class ConcertImport {
         this.endDate = endDate;
         this.suggestedCategory = suggestedCategory;
         this.matchReason = matchReason;
+        return changed;
     }
 
     public void markApproved(Long concertId) {

@@ -113,9 +113,9 @@ public class KopisSyncService {
 
         @Override
         public String toString() {
-            return String.format("matched %d (title %d, cast %d, festival %d) → created %d, updated %d, skipped %d / failed %d",
+            return String.format("matched %d (title %d, cast %d, festival %d) → created %d, updated %d, unchanged %d, skipped %d / failed %d",
                     title + cast + festival, title, cast, festival,
-                    saved.created(), saved.updated(), saved.skipped(), failed);
+                    saved.created(), saved.updated(), saved.unchanged(), saved.skipped(), failed);
         }
     }
 }

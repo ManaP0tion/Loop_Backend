@@ -64,8 +64,8 @@ public class ConcertImportWriter {
         if (imp.getStatus() != ImportStatus.PENDING) {
             return ImportSaveResult.SKIPPED;
         }
-        imp.updateFromKopis(perf.getTitle(), perf.getPosterUrl(), perf.getVenue(),
+        boolean changed = imp.updateFromKopis(perf.getTitle(), perf.getPosterUrl(), perf.getVenue(),
                 perf.getStartDate(), perf.getEndDate(), result.category(), result.matchReason());
-        return ImportSaveResult.UPDATED;
+        return changed ? ImportSaveResult.UPDATED : ImportSaveResult.UNCHANGED;
     }
 }

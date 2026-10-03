@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 // 검토 큐 저장 결과 집계 요구사항: 싱크 완료 로그에서 새로 들어온 건지, 기존 행 갱신인지 구분할 수 있어야 한다.
 // - 검토 큐에 없던 공연이면 새로 저장한 것으로 센다 (아티스트 공연은 아티스트마다 1건).
-// - 검토 전(PENDING) 행이 있으면 최신 정보로 갱신한 것으로 센다.
+// - 검토 전(PENDING) 행이 있으면 최신 정보로 덮어쓰되, KOPIS 정보가 바뀌었으면 갱신(updated), 그대로면 변경 없음(unchanged)으로 센다.
 // - 이미 승인/반려된 행이면 건드리지 않고 건너뛴 것으로 센다.
 @DataJpaTest
 class ConcertImportWriterTest {
@@ -72,7 +72,7 @@ class ConcertImportWriterTest {
         ImportSaveResult result = writer.saveImport(perf("PF1", "Vaundy LIVE"),
                 IdentificationResult.jpopArtists(List.of(vaundy), IdentificationResult.TITLE_MATCH));
 
-        assertThat(result).isEqualTo(new ImportSaveResult(1, 0, 0));
+        assertThat(result).isEqualTo(new ImportSaveResult(1, 0, 0, 0));
     }
 
     @Test
@@ -83,7 +83,7 @@ class ConcertImportWriterTest {
         ImportSaveResult result = writer.saveImport(perf("PF1", "YOASOBI × Ado SPECIAL LIVE"),
                 IdentificationResult.jpopArtists(List.of(yoasobi, ado), IdentificationResult.TITLE_MATCH));
 
-        assertThat(result).isEqualTo(new ImportSaveResult(2, 0, 0));
+        assertThat(result).isEqualTo(new ImportSaveResult(2, 0, 0, 0));
     }
 
     @Test
@@ -91,20 +91,53 @@ class ConcertImportWriterTest {
         ImportSaveResult result = writer.saveImport(perf("PF1", "SUMMER SONIC 2026"),
                 IdentificationResult.japanFestival());
 
-        assertThat(result).isEqualTo(new ImportSaveResult(1, 0, 0));
+        assertThat(result).isEqualTo(new ImportSaveResult(1, 0, 0, 0));
     }
 
     @Test
-    void 검토_전인_행이_있으면_갱신한_것으로_센다() {
+    void 검토_전인_행의_KOPIS_정보가_바뀌었으면_갱신한_것으로_센다() {
         Artist vaundy = jpopArtist("Vaundy");
         saveExisting("PF1", vaundy, ImportStatus.PENDING);
 
         ImportSaveResult result = writer.saveImport(perf("PF1", "Vaundy LIVE 2026"),
                 IdentificationResult.jpopArtists(List.of(vaundy), IdentificationResult.TITLE_MATCH));
 
-        assertThat(result).isEqualTo(new ImportSaveResult(0, 1, 0));
+        assertThat(result).isEqualTo(new ImportSaveResult(0, 1, 0, 0));
         assertThat(concertImportRepository.findAll()).singleElement()
                 .satisfies(imp -> assertThat(imp.getTitle()).isEqualTo("Vaundy LIVE 2026"));
+    }
+
+    @Test
+    void 검토_전인_공연을_같은_정보로_다시_수집하면_변경_없음으로_센다() {
+        Artist vaundy = jpopArtist("Vaundy");
+        IdentificationResult identified =
+                IdentificationResult.jpopArtists(List.of(vaundy), IdentificationResult.TITLE_MATCH);
+        writer.saveImport(perf("PF1", "Vaundy LIVE"), identified);
+
+        ImportSaveResult result = writer.saveImport(perf("PF1", "Vaundy LIVE"), identified);
+
+        assertThat(result).isEqualTo(new ImportSaveResult(0, 0, 1, 0));
+    }
+
+    @Test
+    void 제목이_같아도_장소가_바뀌면_갱신한_것으로_센다() {
+        Artist vaundy = jpopArtist("Vaundy");
+        IdentificationResult identified =
+                IdentificationResult.jpopArtists(List.of(vaundy), IdentificationResult.TITLE_MATCH);
+        writer.saveImport(perf("PF1", "Vaundy LIVE"), identified);
+
+        KopisPerformance moved = KopisPerformance.builder()
+                .kopisId("PF1")
+                .title("Vaundy LIVE")
+                .venue("올림픽홀")
+                .startDate(LocalDate.of(2026, 12, 1))
+                .endDate(LocalDate.of(2026, 12, 2))
+                .build();
+        ImportSaveResult result = writer.saveImport(moved, identified);
+
+        assertThat(result).isEqualTo(new ImportSaveResult(0, 1, 0, 0));
+        assertThat(concertImportRepository.findAll()).singleElement()
+                .satisfies(imp -> assertThat(imp.getVenue()).isEqualTo("올림픽홀"));
     }
 
     @Test
@@ -117,7 +150,7 @@ class ConcertImportWriterTest {
         ImportSaveResult result = writer.saveImport(perf("PF1", "새 제목"),
                 IdentificationResult.jpopArtists(List.of(approved, rejected), IdentificationResult.TITLE_MATCH));
 
-        assertThat(result).isEqualTo(new ImportSaveResult(0, 0, 2));
+        assertThat(result).isEqualTo(new ImportSaveResult(0, 0, 0, 2));
         assertThat(concertImportRepository.findAll())
                 .allSatisfy(imp -> assertThat(imp.getTitle()).isEqualTo("이전 제목"));
     }
@@ -133,6 +166,6 @@ class ConcertImportWriterTest {
         ImportSaveResult result = writer.saveImport(perf("PF1", "Vaundy × Ado × YOASOBI"),
                 IdentificationResult.jpopArtists(List.of(pending, rejected, fresh), IdentificationResult.TITLE_MATCH));
 
-        assertThat(result).isEqualTo(new ImportSaveResult(1, 1, 1));
+        assertThat(result).isEqualTo(new ImportSaveResult(1, 1, 0, 1));
     }
 }
