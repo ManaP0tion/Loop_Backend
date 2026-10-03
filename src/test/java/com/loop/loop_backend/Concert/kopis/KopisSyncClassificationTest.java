@@ -42,7 +42,8 @@ class KopisSyncClassificationTest {
     @BeforeEach
     void setUp() {
         kopisClient = mock(KopisClient.class);
-        kopisSyncService = new KopisSyncService(artistRepository, concertImportRepository, kopisClient);
+        kopisSyncService = new KopisSyncService(artistRepository, kopisClient,
+                new PerformanceIdentifier(), new ConcertImportWriter(concertImportRepository));
     }
 
     private Artist jpopArtist(String name, String nameKo, String nameAlias) {
