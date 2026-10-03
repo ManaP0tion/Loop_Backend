@@ -1,7 +1,6 @@
-package com.loop.loop_backend.Concert.kopis;
+package com.loop.loop_backend.ConcertImport.kopis;
 
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
-import com.loop.loop_backend.Concert.repository.ConcertImportRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -27,7 +26,8 @@ class KopisSyncGuardTest {
     void setUp() {
         ArtistRepository artistRepository = mock(ArtistRepository.class);
         kopisClient = mock(KopisClient.class);
-        service = new KopisSyncService(artistRepository, mock(ConcertImportRepository.class), kopisClient);
+        service = new KopisSyncService(artistRepository, kopisClient,
+                new PerformanceIdentifier(), mock(ConcertImportWriter.class));
         when(artistRepository.findByAutoFetchConcertsTrue()).thenReturn(List.of());
     }
 
