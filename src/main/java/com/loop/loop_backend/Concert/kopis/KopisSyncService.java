@@ -61,7 +61,10 @@ public class KopisSyncService {
     }
 
     private void runSync() {
-        List<Artist> artists = artistRepository.findByAutoFetchConcertsTrue();
+        // V2는 J-POP 공연만 수집한다. Repository 조회 방식은 쿼리 최적화 작업에서 다룰 예정이라 여기서 메모리로 거른다.
+        List<Artist> artists = artistRepository.findByAutoFetchConcertsTrue().stream()
+                .filter(a -> a.getCategory() == ConcertCategory.J_POP_ARTIST)
+                .toList();
         List<KopisPerformance> allPerfs = kopisClient.getAllUpcomingPerformances();
         log.info("KOPIS sync: {} performances × {} artists", allPerfs.size(), artists.size());
 
@@ -100,22 +103,9 @@ public class KopisSyncService {
                     .collect(Collectors.toList());
         }
 
-        // 3단계: 페스티벌 마커 + 국내 아티스트 매칭 → DOMESTIC_FESTIVAL, artist=null 단일 저장
-        if (isFestivalTitle(perf.getTitle())
-                && matched.stream().anyMatch(a -> a.getCategory() == ConcertCategory.DOMESTIC_ARTIST)) {
-            upsertDomesticFestival(perf);
-            return;
-        }
-
         for (Artist artist : matched) {
             upsert(artist, perf, reason);
         }
-    }
-
-    private boolean isFestivalTitle(String title) {
-        if (title == null) return false;
-        String upper = title.toUpperCase();
-        return title.contains("페스티벌") || upper.contains("FESTIVAL") || upper.contains("FEST");
     }
 
     private void upsert(Artist artist, KopisPerformance perf, String reason) {
@@ -128,10 +118,6 @@ public class KopisSyncService {
 
     private void upsertJapanFestival(KopisPerformance perf) {
         upsertFestival(perf, ConcertCategory.JAPAN_FESTIVAL, "JAPAN_FESTIVAL");
-    }
-
-    private void upsertDomesticFestival(KopisPerformance perf) {
-        upsertFestival(perf, ConcertCategory.DOMESTIC_FESTIVAL, "DOMESTIC_FESTIVAL");
     }
 
     private void upsertFestival(KopisPerformance perf, ConcertCategory category, String reason) {
