@@ -63,19 +63,21 @@ public class KopisSyncService {
         log.info("KOPIS sync: {} performances × {} artists", allPerfs.size(), artists.size());
 
         // 공연 1건이 실패해도 전체 싱크가 멈추지 않도록 건별로 처리한다.
+        SyncStats stats = new SyncStats();
         for (KopisPerformance perf : allPerfs) {
             try {
-                processPerformance(perf, artists);
+                processPerformance(perf, artists, stats);
             } catch (Exception e) {
-                log.error("Failed to process '{}': {}", perf.getTitle(), e.getMessage());
+                stats.failed++;
+                log.error("Failed to process '{}'", perf.getTitle(), e);
             }
         }
-        log.info("KOPIS sync completed");
+        log.info("KOPIS sync completed: {}", stats);
     }
 
     // 공연 1건 처리 흐름: 제목으로 식별 → (실패 시) 출연진으로 식별 → 수집 대상이면 검토 큐에 저장
     // 식별은 identifier가, 출연진 조회(KOPIS 상세 API)만 여기서 한다.
-    private void processPerformance(KopisPerformance perf, List<Artist> artists) {
+    private void processPerformance(KopisPerformance perf, List<Artist> artists, SyncStats stats) {
         // 제목으로 식별 (API 호출 없음)
         IdentificationResult result = identifier.identifyByTitle(perf.getTitle(), artists);
 
@@ -87,7 +89,33 @@ public class KopisSyncService {
         }
 
         if (result.isMatched()) {
-            writer.saveImport(perf, result);
+            stats.record(result.matchReason(), writer.saveImport(perf, result));
+        }
+    }
+
+    // 싱크 1회의 집계. 완료 로그 한 줄로 새로 들어온 건지, 기존 행을 갱신한 건지 구분할 수 있게 한다.
+    private static final class SyncStats {
+        private int title;
+        private int cast;
+        private int festival;
+        private int failed;
+        private ImportSaveResult saved = ImportSaveResult.NONE;
+
+        void record(String matchReason, ImportSaveResult result) {
+            switch (matchReason) {
+                case IdentificationResult.TITLE_MATCH -> title++;
+                case IdentificationResult.CAST_MATCH -> cast++;
+                case IdentificationResult.JAPAN_FESTIVAL -> festival++;
+                default -> { }
+            }
+            saved = saved.plus(result);
+        }
+
+        @Override
+        public String toString() {
+            return String.format("matched %d (title %d, cast %d, festival %d) → created %d, updated %d, skipped %d / failed %d",
+                    title + cast + festival, title, cast, festival,
+                    saved.created(), saved.updated(), saved.skipped(), failed);
         }
     }
 }
