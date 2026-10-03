@@ -57,9 +57,12 @@ public class KopisSyncService {
         List<Artist> artists = artistRepository.findByAutoFetchConcertsTrue().stream()
                 .filter(a -> a.getCategory() == ConcertCategory.J_POP_ARTIST)
                 .toList();
+
+        // KOPIS 목록 API: 오늘~1년 뒤 대중음악 공연. 목록에는 출연진이 없다.
         List<KopisPerformance> allPerfs = kopisClient.getAllUpcomingPerformances();
         log.info("KOPIS sync: {} performances × {} artists", allPerfs.size(), artists.size());
 
+        // 공연 1건이 실패해도 전체 싱크가 멈추지 않도록 건별로 처리한다.
         for (KopisPerformance perf : allPerfs) {
             try {
                 processPerformance(perf, artists);
@@ -71,24 +74,20 @@ public class KopisSyncService {
     }
 
     // 공연 1건 처리 흐름: 제목으로 식별 → (실패 시) 출연진으로 식별 → 수집 대상이면 검토 큐에 저장
+    // 식별은 identifier가, 출연진 조회(KOPIS 상세 API)만 여기서 한다.
     private void processPerformance(KopisPerformance perf, List<Artist> artists) {
+        // 제목으로 식별 (API 호출 없음)
         IdentificationResult result = identifier.identifyByTitle(perf.getTitle(), artists);
 
-        if (!result.isMatched()) {
-            result = identifyByCast(perf, artists);
+        // 제목으로 못 찾으면 출연진으로 식별. 상세 API는 공연마다 호출되므로 일본 신호가 있는 공연만 조회한다.
+        // 출연진 매칭은 실효성 검토 중(실측 매칭 0건) — 제거 시 이 블록과 identifier.shouldFetchCast/matchCast를 함께 지운다.
+        if (!result.isMatched() && identifier.shouldFetchCast(perf.getTitle())) {
+            String cast = kopisClient.getPerformanceCast(perf.getKopisId());
+            result = identifier.matchCast(cast, artists);
         }
 
         if (result.isMatched()) {
             writer.saveImport(perf, result);
         }
-    }
-
-    // 출연진 식별 단계: 상세 조회가 필요한 공연인지 판단 → KOPIS 상세에서 출연진 조회 → 출연진으로 식별
-    private IdentificationResult identifyByCast(KopisPerformance perf, List<Artist> artists) {
-        if (!identifier.shouldFetchCast(perf.getTitle())) {
-            return IdentificationResult.notMatched();
-        }
-        String cast = kopisClient.getPerformanceCast(perf.getKopisId());
-        return identifier.matchCast(cast, artists);
     }
 }

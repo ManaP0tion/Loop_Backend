@@ -23,6 +23,7 @@ public class ConcertImportWriter {
     @Transactional
     public void saveImport(KopisPerformance perf, IdentificationResult result) {
         // 페스티벌은 아티스트 없이 (kopisId) 단일 건, 아티스트 공연은 (kopisId, 아티스트)마다 한 건
+        // 같은 공연의 분류가 바뀌면(예: 아티스트 공연 → 페스티벌) 키가 달라 새 행이 생기고, 이전 분류의 행은 정리하지 않는다.
         if (result.artists().isEmpty()) {
             upsertImport(null, perf, result,
                     concertImportRepository.findByKopisIdAndMatchedArtistIsNull(perf.getKopisId()));

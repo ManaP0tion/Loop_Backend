@@ -62,7 +62,7 @@ public class ConcertImport {
     @Column(name = "suggested_category", length = 30, nullable = false)
     private ConcertCategory suggestedCategory;
 
-    /** 매칭 근거: TITLE_MATCH / CAST_MATCH / JAPAN_FESTIVAL / DOMESTIC_FESTIVAL */
+    /** 매칭 근거: TITLE_MATCH / CAST_MATCH / JAPAN_FESTIVAL (DOMESTIC_FESTIVAL은 V2 이전 수집 행에만 남아 있음) */
     @Column(name = "match_reason", length = 30)
     private String matchReason;
 
@@ -79,6 +79,7 @@ public class ConcertImport {
     @Column(name = "reject_reason", length = 255)
     private String rejectReason;
 
+    // 처음 수집된 시각. 재수집으로 PENDING 행이 갱신돼도 바뀌지 않는다.
     @Column(name = "collected_at", nullable = false)
     @Builder.Default
     private LocalDateTime collectedAt = LocalDateTime.now();
