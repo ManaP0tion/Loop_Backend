@@ -41,6 +41,13 @@ public class Artist {
     @Column(name = "category", length = 30, nullable = false)
     private ConcertCategory category;
 
+    // iTunes 연결 정보 (AD-03). 연결된 아티스트만 곡 불러오기 가능
+    @Column(name = "itunes_artist_id")
+    private Long itunesArtistId;
+
+    @Column(name = "artist_view_url", length = 500)
+    private String artistViewUrl;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -62,5 +69,10 @@ public class Artist {
 
     public void updateAutoFetch(boolean autoFetchConcerts) {
         this.autoFetchConcerts = autoFetchConcerts;
+    }
+
+    public void linkItunes(Long itunesArtistId, String artistViewUrl) {
+        this.itunesArtistId = itunesArtistId;
+        this.artistViewUrl = artistViewUrl;
     }
 }
