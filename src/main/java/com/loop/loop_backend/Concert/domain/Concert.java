@@ -8,6 +8,7 @@ import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -102,6 +103,54 @@ public class Concert {
     @Enumerated(EnumType.STRING)
     @Column(name = "category", length = 30, nullable = false)
     private ConcertCategory category;
+
+    // ---------- 관리자 입력 항목 (AD-01) ----------
+
+    /**
+     * 공개 여부. 비공개는 사용자에게 '오픈 예정'(썸네일 회색, 상세 진입 불가)으로 보인다 - 숨김이 아니다.
+     * 새 공연·선별 대기에서 등록한 공연은 비공개로 시작한다(builder 기본값 false).
+     * 컬럼 기본값 true는 이 컬럼이 생길 때 기존 공연이 비공개로 바뀌지 않게 하려는 것(ddl-auto update가 기존 행을 기본값으로 채운다).
+     */
+    @Column(name = "published", nullable = false, columnDefinition = "boolean default true")
+    private boolean published;
+
+    /** 예상 곡 수(n). 단독 공연의 셋리스트 운영 기준(최대 선택 곡 수, 하이라이트 개수, 적중률 상위 n곡). */
+    @Column(name = "expected_song_count")
+    private Integer expectedSongCount;
+
+    /** 숙소 섹션 노출 여부. Off면 섹션 자체를 그리지 않는다. 기존 공연은 Off. */
+    @Column(name = "lodging_visible", nullable = false, columnDefinition = "boolean default false")
+    private boolean lodgingVisible;
+
+    /** 숙소 딥링크. 완성된 URL을 그대로 저장한다(자동 생성 없음). */
+    @Column(name = "lodging_url", length = 1000)
+    private String lodgingUrl;
+
+    // 여러 개 값은 공연에 딸린 목록으로 둔다. 공연이 DB 단에서 지워질 때(아티스트 삭제 연쇄)도 함께 지워지게 한다.
+
+    /** 공연명 별칭(검색용). 예: 히게단, 오피셜히게단디즘 */
+    @ElementCollection
+    @CollectionTable(name = "concert_title_aliases", joinColumns = @JoinColumn(name = "concert_id"))
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    @Column(name = "alias", length = 255, nullable = false)
+    @Builder.Default
+    private List<String> titleAliases = new ArrayList<>();
+
+    /** 관련 상품 코드(CD Japan 상품 코드 그대로). 0개면 상품 섹션을 그리지 않는다. */
+    @ElementCollection
+    @CollectionTable(name = "concert_product_codes", joinColumns = @JoinColumn(name = "concert_id"))
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    @Column(name = "product_code", length = 100, nullable = false)
+    @Builder.Default
+    private List<String> productCodes = new ArrayList<>();
+
+    /** DAY별 공연 시각. 날짜 순. 하루 공연은 DAY 구분 없이 한 건. */
+    @ElementCollection
+    @CollectionTable(name = "concert_showtimes", joinColumns = @JoinColumn(name = "concert_id"))
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    @OrderBy("date ASC")
+    @Builder.Default
+    private List<ConcertShowtime> showtimes = new ArrayList<>();
 
     public void update(Artist artist, String title, String posterUrl, String venue,
                        LocalDate startDate, LocalDate endDate, ConcertCategory category,
