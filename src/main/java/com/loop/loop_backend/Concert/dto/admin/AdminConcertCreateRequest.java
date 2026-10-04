@@ -56,7 +56,8 @@ public record AdminConcertCreateRequest(
         Boolean lodgingVisible,
 
         @Size(max = 1000)
-        @Schema(description = "숙소 딥링크(완성된 URL)", types = {"string", "null"})
+        @Schema(description = "숙소 딥링크(완성된 URL)", example = "https://trip.example/deeplink?trip_sub=PF297519",
+                types = {"string", "null"})
         String lodgingUrl,
 
         @Schema(description = "관련 상품 코드(CD Japan). 공백·중복은 정리된다", example = "[\"PCXP-51237\"]", types = {"array", "null"})

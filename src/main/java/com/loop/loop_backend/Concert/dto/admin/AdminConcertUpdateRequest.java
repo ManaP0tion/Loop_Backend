@@ -24,16 +24,16 @@ import java.util.List;
 public record AdminConcertUpdateRequest(
 
         @Schema(description = "공연 유형. J_POP_ARTIST(내한) / JAPAN_FESTIVAL(페스티벌). 페스티벌로 바꾸면 아티스트·예상 곡 수가 비워진다",
-                types = {"string", "null"})
+                example = "J_POP_ARTIST", types = {"string", "null"})
         ConcertCategory category,
 
         // null은 통과(변경 없음), 빈 값·공백만 있는 문자열은 거절
         @Pattern(regexp = ".*\\S.*")
         @Size(max = 255)
-        @Schema(description = "공연명. 비울 수 없다(빈 값이면 400)", types = {"string", "null"})
+        @Schema(description = "공연명. 비울 수 없다(빈 값이면 400)", example = "YUURI LIVE [서울]", types = {"string", "null"})
         String title,
 
-        @Schema(description = "공연명 별칭. 보내면 통째로 교체, []는 비움", types = {"array", "null"})
+        @Schema(description = "공연명 별칭. 보내면 통째로 교체, []는 비움", example = "[\"유우리\"]", types = {"array", "null"})
         List<@Size(max = 255) String> titleAliases,
 
         @Schema(description = "공연 시작일", example = "2026-12-05", types = {"string", "null"})
@@ -51,20 +51,22 @@ public record AdminConcertUpdateRequest(
         Long venueId,
 
         @Size(max = 1)
-        @Schema(description = "아티스트 id 목록. 보내면 교체, []는 비움. 내한 공연만, 지금은 최대 1명", types = {"array", "null"})
+        @Schema(description = "아티스트 id 목록. 보내면 교체, []는 비움. 내한 공연만, 지금은 최대 1명",
+                example = "[5]", types = {"array", "null"})
         List<Long> artistIds,
 
-        @Schema(description = "예상 곡 수. 내한 공연만, 1 이상", types = {"integer", "null"})
+        @Schema(description = "예상 곡 수. 내한 공연만, 1 이상(0이면 400)", example = "20", types = {"integer", "null"})
         Integer expectedSongCount,
 
-        @Schema(description = "숙소 섹션 노출 여부. 켜려면 딥링크가 있어야 한다", types = {"boolean", "null"})
+        @Schema(description = "숙소 섹션 노출 여부. 켜려면 딥링크가 있어야 한다", example = "true", types = {"boolean", "null"})
         Boolean lodgingVisible,
 
         @Size(max = 1000)
-        @Schema(description = "숙소 딥링크. 빈 문자열(\"\")이면 비움", types = {"string", "null"})
+        @Schema(description = "숙소 딥링크(완성된 URL). 빈 문자열(\"\")이면 비움",
+                example = "https://trip.example/deeplink?trip_sub=PF297519", types = {"string", "null"})
         String lodgingUrl,
 
-        @Schema(description = "관련 상품 코드. 보내면 통째로 교체, []는 비움", types = {"array", "null"})
+        @Schema(description = "관련 상품 코드(CD Japan). 보내면 통째로 교체, []는 비움", example = "[\"PCXP-51237\"]", types = {"array", "null"})
         List<@Size(max = 100) String> productCodes,
 
         @Schema(description = "선예매 목록. 보내면 통째로 교체, []는 비움, null이면 유지. 블록마다 예매 일시(미정이면 null) + 예매처 목록",
@@ -75,7 +77,9 @@ public record AdminConcertUpdateRequest(
                 types = {"array", "null"})
         List<@Valid TicketSaleRequest> generalSales,
 
-        @Schema(description = "공개 여부. true로 바꾸면 필수값을 검사하고, 비공개→공개 전환 시각이 기록된다", types = {"boolean", "null"})
+        @Schema(description = "공개 여부. 저장 결과가 공개면 필수값(유형·공연명·포스터·기간·공연장, 내한이면 아티스트)을 검사하고, " +
+                "비공개→공개 전환 시각이 기록된다. 포스터는 POST /{id}/image로 먼저 올려야 한다",
+                example = "false", types = {"boolean", "null"})
         Boolean published
 ) {
 }
