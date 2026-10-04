@@ -7,6 +7,8 @@ import com.loop.loop_backend.Concert.dto.admin.AdminConcertCreateRequest;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertDetailResponse;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertUpdateRequest;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
+import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleRepository;
+import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
 import com.loop.loop_backend.Venue.domain.Venue;
 import com.loop.loop_backend.Venue.repository.VenueRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -29,10 +31,12 @@ public class AdminConcertService {
     private final ConcertRepository concertRepository;
     private final ArtistRepository artistRepository;
     private final VenueRepository venueRepository;
+    private final ConcertPresaleRepository presaleRepository;
+    private final ConcertGeneralSaleRepository generalSaleRepository;
 
     @Transactional(readOnly = true)
     public AdminConcertDetailResponse get(Long id) {
-        return AdminConcertDetailResponse.from(findConcert(id));
+        return detail(findConcert(id));
     }
 
     /** 직접 등록 - 항상 비공개로 만든다(포스터는 생성 후 업로드, 공개는 수정에서). */
@@ -53,7 +57,8 @@ public class AdminConcertService {
         if (req.lodgingVisible() != null) concert.changeLodgingVisible(req.lodgingVisible());
         if (req.productCodes() != null) concert.replaceProductCodes(req.productCodes());
         concert.validateState();
-        return AdminConcertDetailResponse.from(concertRepository.save(concert));
+        // 방금 만든 공연이라 예매 정보가 없다
+        return AdminConcertDetailResponse.from(concertRepository.save(concert), List.of(), List.of());
     }
 
     /**
@@ -86,7 +91,13 @@ public class AdminConcertService {
         if (req.published() != null) concert.changePublished(req.published(), LocalDateTime.now());
 
         concert.validateState();
-        return AdminConcertDetailResponse.from(concert);
+        return detail(concert);
+    }
+
+    private AdminConcertDetailResponse detail(Concert concert) {
+        return AdminConcertDetailResponse.from(concert,
+                presaleRepository.findByConcert_Id(concert.getId()),
+                generalSaleRepository.findByConcert_Id(concert.getId()));
     }
 
     private Concert findConcert(Long id) {

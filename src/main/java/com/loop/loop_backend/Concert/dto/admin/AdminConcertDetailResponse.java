@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.domain.ConcertShowtime;
+import com.loop.loop_backend.Concert.domain.ticket.ConcertGeneralSale;
+import com.loop.loop_backend.Concert.domain.ticket.ConcertPresale;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDate;
@@ -68,7 +70,13 @@ public record AdminConcertDetailResponse(
         String lodgingUrl,
 
         @Schema(description = "관련 상품 코드", requiredMode = Schema.RequiredMode.REQUIRED)
-        List<String> productCodes
+        List<String> productCodes,
+
+        @Schema(description = "선예매 목록. 예매 일시 순, 일시가 없는 건은 뒤", requiredMode = Schema.RequiredMode.REQUIRED)
+        List<TicketSaleResponse> presales,
+
+        @Schema(description = "일반예매 목록. 예매 일시 순, 일시가 없는 건은 뒤", requiredMode = Schema.RequiredMode.REQUIRED)
+        List<TicketSaleResponse> generalSales
 ) {
 
     @Schema(description = "DAY별 공연 시각")
@@ -87,7 +95,8 @@ public record AdminConcertDetailResponse(
     public record ArtistSummary(Long id, String name) {
     }
 
-    public static AdminConcertDetailResponse from(Concert c) {
+    public static AdminConcertDetailResponse from(Concert c, List<ConcertPresale> presales,
+                                                  List<ConcertGeneralSale> generalSales) {
         return new AdminConcertDetailResponse(
                 c.getId(), c.getKopisId(), c.getCategory(), c.getTitle(),
                 List.copyOf(c.getTitleAliases()), c.getPosterUrl(), c.getStartDate(), c.getEndDate(),
@@ -96,7 +105,8 @@ public record AdminConcertDetailResponse(
                         c.getLinkedVenue().getId(), c.getLinkedVenue().getName(), c.getLinkedVenue().getAddress()),
                 c.getArtist() == null ? List.of() : List.of(new ArtistSummary(c.getArtist().getId(), c.getArtist().getName())),
                 c.isPublished(), c.getPublishedAt(), c.getExpectedSongCount(),
-                c.isLodgingVisible(), c.getLodgingUrl(), List.copyOf(c.getProductCodes()));
+                c.isLodgingVisible(), c.getLodgingUrl(), List.copyOf(c.getProductCodes()),
+                TicketSaleResponse.fromPresales(presales), TicketSaleResponse.fromGeneralSales(generalSales));
     }
 
     /** 기간의 DAY를 모두 채운다 - 시각이 저장되지 않은 DAY도 빠지지 않게(화면이 이 목록으로 입력칸을 그린다). */

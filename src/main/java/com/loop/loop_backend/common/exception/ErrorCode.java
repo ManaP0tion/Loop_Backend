@@ -59,6 +59,7 @@ public enum ErrorCode {
     IMPORT_ALREADY_PROCESSED(409, "이미 승인 또는 거절 처리된 공연입니다."),
     KOPIS_SYNC_ALREADY_RUNNING(409, "KOPIS 동기화가 이미 실행 중입니다. 끝난 뒤 다시 시도해 주세요."),
     VENUE_NOT_FOUND(404, "공연장을 찾을 수 없습니다."),
+    TICKET_SALE_NOT_FOUND(404, "예매 정보를 찾을 수 없습니다."),
 
     // CompanionPost 도메인
     COMPANION_POST_NOT_FOUND(404, "동행 모집글을 찾을 수 없습니다."),

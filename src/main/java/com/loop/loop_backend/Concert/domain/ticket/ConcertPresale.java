@@ -46,11 +46,12 @@ public class ConcertPresale {
     private ConcertPresale(Concert concert, LocalDateTime opensAt, List<TicketVendorInfo> vendors) {
         this.concert = concert;
         this.opensAt = opensAt;
-        this.vendors = (vendors == null) ? List.of() : List.copyOf(vendors);
+        this.vendors = TicketVendors.normalize(vendors);
     }
 
+    /** 블록 전체 교체(PUT). 예매 일시를 null로 주면 지운다. */
     public void update(LocalDateTime opensAt, List<TicketVendorInfo> vendors) {
         this.opensAt = opensAt;
-        this.vendors = (vendors == null) ? List.of() : List.copyOf(vendors);
+        this.vendors = TicketVendors.normalize(vendors);
     }
 }
