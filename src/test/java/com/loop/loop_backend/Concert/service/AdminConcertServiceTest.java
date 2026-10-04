@@ -10,6 +10,7 @@ import com.loop.loop_backend.Concert.dto.admin.AdminConcertUpdateRequest;
 import com.loop.loop_backend.Concert.dto.admin.TicketSaleRequest;
 import com.loop.loop_backend.Concert.dto.admin.TicketSaleResponse;
 import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
+import com.loop.loop_backend.Concert.repository.AdminConcertRepository;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
@@ -45,6 +46,7 @@ import static org.assertj.core.groups.Tuple.tuple;
 class AdminConcertServiceTest {
 
     @Autowired private ConcertRepository concertRepository;
+    @Autowired private AdminConcertRepository adminConcertRepository;
     @Autowired private ArtistRepository artistRepository;
     @Autowired private VenueRepository venueRepository;
     @Autowired private ConcertPresaleRepository presaleRepository;
@@ -57,7 +59,7 @@ class AdminConcertServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AdminConcertService(concertRepository, artistRepository, venueRepository,
+        service = new AdminConcertService(concertRepository, adminConcertRepository, artistRepository, venueRepository,
                 presaleRepository, generalSaleRepository);
         venue = venueRepository.save(Venue.builder().name("인스파이어 아레나").address("인천광역시 중구").build());
         yuuri = artistRepository.save(Artist.builder().name("Yuuri")

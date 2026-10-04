@@ -1,7 +1,10 @@
 package com.loop.loop_backend.Admin.controller;
 
+import com.loop.loop_backend.Admin.controller.AdminController.PageResp;
 import com.loop.loop_backend.Admin.service.AdminAccessLogService;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertCreateRequest;
+import com.loop.loop_backend.Concert.dto.admin.AdminConcertRow;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertDetailResponse;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertUpdateRequest;
 import com.loop.loop_backend.Concert.service.AdminConcertService;
@@ -16,12 +19,14 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * 공연 등록·수정(AD-01). 공연 목록·삭제·포스터 업로드·KOPIS 수집은 아직 AdminController에 있다.
+ * 공연 목록·등록·수정(AD-01). 공연 삭제·포스터 업로드·KOPIS 수집은 아직 AdminController에 있다.
  * 흐름: (선별 대기 승인 또는 직접 등록) → 비공개 공연 → 상세 조회·수정 → 수정 화면의 토글로 공개 전환.
  */
 @RestController
@@ -37,6 +42,32 @@ public class AdminConcertController {
 
     private final AdminConcertService adminConcertService;
     private final AdminAccessLogService accessLog;
+
+    @GetMapping
+    @Operation(summary = "등록된 공연 목록",
+            description = "공연 관리 페이지의 등록된 공연 목록. 공개·비공개 공연을 모두 보여주고 최근 등록순이다.\n\n" +
+                    "- q: 공연명, 공연명 별칭, 아티스트 이름(별칭 포함), 장소(공연장 이름)에서 부분 일치 검색(대소문자 무시)\n" +
+                    "- category: 공연 유형으로 거른다 (J_POP_ARTIST 내한 / JAPAN_FESTIVAL 페스티벌)\n" +
+                    "- published: true 공개만 / false 비공개만 / 없으면 전체\n\n" +
+                    "ticketScheduled(예매 등록 여부)는 예매 일시가 입력된 선예매·일반예매가 하나라도 있으면 true다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공")
+    })
+    public ResponseEntity<CommonResponse<PageResp<AdminConcertRow>>> list(
+            @Parameter(description = "검색어(공연명·별칭·아티스트·장소). 비우면 전체", example = "YUURI")
+            @RequestParam(required = false) String q,
+            @Parameter(description = "공연 유형. 비우면 전체", example = "J_POP_ARTIST")
+            @RequestParam(required = false) ConcertCategory category,
+            @Parameter(description = "공개 여부. 비우면 전체", example = "false")
+            @RequestParam(required = false) Boolean published,
+            @Parameter(description = "페이지 번호(0부터)", example = "0")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "페이지 크기", example = "20")
+            @RequestParam(defaultValue = "20") int size) {
+        PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
+        return ResponseEntity.ok(CommonResponse.success(
+                PageResp.from(adminConcertService.search(q, category, published, pageable))));
+    }
 
     @GetMapping("/{id}")
     @Operation(summary = "공연 상세 (수정 화면용)",

@@ -23,10 +23,17 @@ public class SwaggerConfig {
     private static final String ADMIN_PATH_PREFIX = "/api/admin/";
     private static final String ADMIN_ETC_TAG = "Admin Etc";
 
+    private static final String ADMIN_CONCERT_TAG = "Admin Concert";
+    private static final String ADMIN_CONCERT_IMPORT_TAG = "Admin Concert Import";
+
+    // 경로 조각 규칙보다 먼저 보는 예외. KOPIS 수동 수집은 경로가 concerts지만 선별 대기 화면의 기능이다.
+    private static final Map<String, String> ADMIN_TAG_BY_PATH = Map.of(
+            "/api/admin/concerts/sync", ADMIN_CONCERT_IMPORT_TAG);
+
     // /api/admin/ 다음 첫 경로 조각 → 스웨거 태그. 새 admin 경로가 생기면 여기에 추가 (없으면 Admin Etc로 모임).
     private static final Map<String, String> ADMIN_TAG_BY_SEGMENT = Map.ofEntries(
-            Map.entry("concerts", "Admin Concert"),
-            Map.entry("concert-imports", "Admin Concert"),
+            Map.entry("concerts", ADMIN_CONCERT_TAG),
+            Map.entry("concert-imports", ADMIN_CONCERT_IMPORT_TAG),
             Map.entry("venues", "Admin Venue"),
             Map.entry("artists", "Admin Artist"),
             Map.entry("users", "Admin User"),
@@ -37,6 +44,12 @@ public class SwaggerConfig {
             Map.entry("dashboard", "Admin System"),
             Map.entry("access-logs", "Admin System"),
             Map.entry("mail-logs", "Admin System"));
+
+    // 태그가 어느 관리자 화면용인지 스웨거에서 보이게 하는 설명. 없는 태그는 설명 없이 둔다.
+    private static final Map<String, String> ADMIN_TAG_DESCRIPTIONS = Map.of(
+            ADMIN_CONCERT_IMPORT_TAG, "공연 관리 > 선별 대기: KOPIS 수집 공연 목록, 등록(승인)·제외, KOPIS 수동 수집",
+            ADMIN_CONCERT_TAG, "공연 관리 > 등록된 공연: 목록, 상세, 직접 등록, 저장(공개 토글·예매 정보 포함), 포스터 업로드, 삭제",
+            "Admin Venue", "공연장 관리: 목록, 상세, 직접 등록, 수정, 삭제");
 
     @Bean
     public GroupedOpenApi publicApi() {
@@ -69,11 +82,12 @@ public class SwaggerConfig {
         });
         // 클래스 레벨 "Admin" 태그 정의가 남아 빈 섹션으로 보이지 않도록 실제 쓰는 태그만 남긴다.
         openApi.setTags(usedTags.stream()
-                .map(name -> new Tag().name(name))
+                .map(name -> new Tag().name(name).description(ADMIN_TAG_DESCRIPTIONS.get(name)))
                 .collect(Collectors.toCollection(ArrayList::new)));
     }
 
     static String adminTagFor(String path) {
+        if (ADMIN_TAG_BY_PATH.containsKey(path)) return ADMIN_TAG_BY_PATH.get(path);
         if (!path.startsWith(ADMIN_PATH_PREFIX)) return ADMIN_ETC_TAG;
         String segment = path.substring(ADMIN_PATH_PREFIX.length()).split("/")[0];
         return ADMIN_TAG_BY_SEGMENT.getOrDefault(segment, ADMIN_ETC_TAG);

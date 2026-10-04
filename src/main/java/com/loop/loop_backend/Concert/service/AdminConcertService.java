@@ -3,13 +3,16 @@ package com.loop.loop_backend.Concert.service;
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertGeneralSale;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertPresale;
-import com.loop.loop_backend.Concert.dto.admin.TicketSaleRequest;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertCreateRequest;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertDetailResponse;
+import com.loop.loop_backend.Concert.dto.admin.AdminConcertRow;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertUpdateRequest;
+import com.loop.loop_backend.Concert.dto.admin.TicketSaleRequest;
+import com.loop.loop_backend.Concert.repository.AdminConcertRepository;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
@@ -18,11 +21,15 @@ import com.loop.loop_backend.Venue.repository.VenueRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 관리자 공연 등록·수정(AD-01). 규칙 검사는 Concert의 도메인 메서드가 맡고, 여기서는 요청을 순서대로 반영한다.
@@ -33,10 +40,32 @@ import java.util.List;
 public class AdminConcertService {
 
     private final ConcertRepository concertRepository;
+    private final AdminConcertRepository adminConcertRepository;
     private final ArtistRepository artistRepository;
     private final VenueRepository venueRepository;
     private final ConcertPresaleRepository presaleRepository;
     private final ConcertGeneralSaleRepository generalSaleRepository;
+
+    /**
+     * 등록된 공연 목록. 예매 등록 여부는 페이지의 공연들을 한 번에 확인한다 - 공연마다 확인하면 공연 수만큼 쿼리가 늘어난다(N+1).
+     * 공연장·아티스트는 목록 쿼리에서 함께 가져온다.
+     */
+    @Transactional(readOnly = true)
+    public Page<AdminConcertRow> search(String q, ConcertCategory category, Boolean published, Pageable pageable) {
+        String keyword = (q == null || q.isBlank()) ? null : "%" + q.trim().toLowerCase() + "%";
+        Page<Concert> page = adminConcertRepository.search(keyword, category, published, pageable);
+        Set<Long> scheduled = ticketScheduledConcertIds(page.getContent());
+        return page.map(c -> AdminConcertRow.from(c, scheduled.contains(c.getId())));
+    }
+
+    /** 예매 일시가 입력된 선예매·일반예매가 하나라도 있는 공연 id. 일시 없는 블록은 사용자 화면에 보이지 않아 등록으로 치지 않는다. */
+    private Set<Long> ticketScheduledConcertIds(List<Concert> concerts) {
+        if (concerts.isEmpty()) return Set.of();
+        List<Long> ids = concerts.stream().map(Concert::getId).toList();
+        Set<Long> scheduled = new HashSet<>(presaleRepository.findConcertIdsWithOpensAt(ids));
+        scheduled.addAll(generalSaleRepository.findConcertIdsWithOpensAt(ids));
+        return scheduled;
+    }
 
     @Transactional(readOnly = true)
     public AdminConcertDetailResponse get(Long id) {

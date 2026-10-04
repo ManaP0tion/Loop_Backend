@@ -385,17 +385,7 @@ public class AdminController {
 
     // ================= CONCERTS =================
 
-    @GetMapping("/concerts")
-    @Transactional(readOnly = true)
-    public ResponseEntity<CommonResponse<PageResp<ConcertRow>>> listConcerts(
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String q) {
-        String query = (q == null || q.isBlank()) ? null : q.trim();
-        Page<Concert> p = concertRepository.searchForAdmin(query, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id")));
-        return ResponseEntity.ok(CommonResponse.success(PageResp.from(p.map(ConcertRow::of))));
-    }
-
-    // 공연 등록(POST)·수정(PATCH)·상세는 AdminConcertController로 옮겼다.
+    // 공연 목록·등록(POST)·수정(PATCH)·상세는 AdminConcertController로 옮겼다.
 
     // S3 공개 버킷 업로드 후 콘서트의 posterUrl 갱신. 프론트는 JSON 저장 뒤 별도로 호출.
     @PostMapping(value = "/concerts/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -661,21 +651,6 @@ public class AdminController {
     public record ArtistReq(String name, String baseName, String nameKo, String nameAlias,
                             String imageUrl, ConcertCategory category) {}
 
-    public record ConcertRow(Long id, Long artistId, String artistName, String title, String posterUrl,
-                             String venue, LocalDate startDate, LocalDate endDate,
-                             String price, String ticketUrl, String showtime, ConcertCategory category,
-                             Long venueId) {
-        static ConcertRow of(Concert c) {
-            return new ConcertRow(c.getId(),
-                    c.getArtist() != null ? c.getArtist().getId() : null,
-                    c.getArtist() != null ? c.getArtist().getName() : null,
-                    c.getTitle(), c.getPosterUrl(), c.getVenue(),
-                    c.getStartDate(), c.getEndDate(),
-                    c.getPrice(), c.getTicketUrl(), c.getShowtime(), c.getCategory(),
-                    // 공연장 관리(AD-02)에 연결된 공연장. 승인 시 자동 연결되며, 연결이 없으면 null
-                    c.getLinkedVenue() != null ? c.getLinkedVenue().getId() : null);
-        }
-    }
 
     /**
      * 승인 결과. 경로의 id(검토 큐)와 새로 만들어진 공연의 id가 다른 테이블 값이라, 이름으로 구분해 돌려준다.

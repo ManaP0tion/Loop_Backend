@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -26,6 +27,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -58,6 +60,21 @@ class AdminConcertControllerTest {
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
+    }
+
+    // ---------- 목록 ----------
+
+    @Test
+    void 목록의_검색어_유형_공개_여부는_그대로_서비스로_전달되고_비우면_전체다() throws Exception {
+        when(service.search(any(), any(), any(), any())).thenReturn(Page.empty());
+
+        mockMvc.perform(get("/api/admin/concerts")
+                        .param("q", "YUURI").param("category", "JAPAN_FESTIVAL").param("published", "false"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/admin/concerts")).andExpect(status().isOk());
+
+        verify(service).search(eq("YUURI"), eq(ConcertCategory.JAPAN_FESTIVAL), eq(false), any());
+        verify(service).search(isNull(), isNull(), isNull(), any());
     }
 
     // ---------- 등록 ----------
