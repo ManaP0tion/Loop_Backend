@@ -165,6 +165,25 @@ class KopisClientTest {
         assertThat(client.getFacility("FC003670", "FC003670-03").capacity()).isEqualTo(3000);
     }
 
+    // 공연장 관리(AD-02)의 공연장을 KOPIS 값으로 만들 때 "시설명 (홀명)"을 이름으로 쓴다.
+    @Test
+    void 시설조회는_시설명과_공연이_열리는_홀의_이름을_읽는다() {
+        givenResponse(FACILITY_XML);
+
+        KopisClient.KopisFacility facility = client.getFacility("FC003670", "FC003670-03");
+
+        assertThat(facility.name()).isEqualTo("인스파이어 엔터테인먼트 리조트");
+        assertThat(facility.hallName()).isEqualTo("인스파이어 볼룸");
+    }
+
+    @Test
+    void 홀을_찾지_못하면_홀_이름은_null이다() {
+        givenResponse(FACILITY_XML);
+
+        assertThat(client.getFacility("FC003670", "FC003670-99").hallName()).isNull();
+        assertThat(client.getFacility("FC003670", null).hallName()).isNull();
+    }
+
     @Test
     void 홀_정보가_시설에_없으면_시설_전체_수용인원으로_대신한다() {
         givenResponse(FACILITY_XML);

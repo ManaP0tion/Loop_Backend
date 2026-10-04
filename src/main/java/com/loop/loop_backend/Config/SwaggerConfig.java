@@ -27,6 +27,7 @@ public class SwaggerConfig {
     private static final Map<String, String> ADMIN_TAG_BY_SEGMENT = Map.ofEntries(
             Map.entry("concerts", "Admin Concert"),
             Map.entry("concert-imports", "Admin Concert"),
+            Map.entry("venues", "Admin Venue"),
             Map.entry("artists", "Admin Artist"),
             Map.entry("users", "Admin User"),
             Map.entry("admins", "Admin User"),
