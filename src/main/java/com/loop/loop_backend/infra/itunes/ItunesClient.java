@@ -27,9 +27,11 @@ public class ItunesClient {
 
     private static final String SEARCH_URL = "https://itunes.apple.com/search";
     private static final String LOOKUP_URL = "https://itunes.apple.com/lookup";
-    private static final String COUNTRY = "JP";
-    public static final String LANG_JA = "ja_jp";
-    public static final String LANG_EN = "en_us";
+    // 곡명 원문은 JP 스토어. JP 스토어는 lang=en_us를 줘도 원문을 그대로 줘서,
+    // 영문/로마자 곡명은 US 스토어에서 받는다 (trackId는 스토어 간 동일)
+    public static final String COUNTRY_JP = "JP";
+    public static final String COUNTRY_US = "US";
+    private static final String LANG_JA = "ja_jp";
     private static final int TRACK_LIMIT = 200; // lookup 최대치
 
     private final RestTemplate restTemplate;
@@ -40,7 +42,7 @@ public class ItunesClient {
         URI uri = UriComponentsBuilder.fromHttpUrl(SEARCH_URL)
                 .queryParam("term", query)
                 .queryParam("entity", "musicArtist")
-                .queryParam("country", COUNTRY)
+                .queryParam("country", COUNTRY_JP)
                 .queryParam("lang", LANG_JA)
                 .queryParam("limit", 20)
                 .encode().build().toUri();
@@ -51,7 +53,7 @@ public class ItunesClient {
     public ItunesArtist lookupArtist(Long itunesArtistId) {
         URI uri = UriComponentsBuilder.fromHttpUrl(LOOKUP_URL)
                 .queryParam("id", itunesArtistId)
-                .queryParam("country", COUNTRY)
+                .queryParam("country", COUNTRY_JP)
                 .encode().build().toUri();
         return get(uri, new TypeReference<ItunesResponse<ItunesArtist>>() {}).results().stream()
                 .filter(a -> "artist".equals(a.wrapperType()))
@@ -59,13 +61,12 @@ public class ItunesClient {
                 .orElseThrow(() -> new BusinessException(ErrorCode.ITUNES_ARTIST_NOT_FOUND));
     }
 
-    /** 아티스트의 곡 목록 (응답 순서 유지). 첫 요소(아티스트)는 걸러낸다 */
-    public List<ItunesTrack> fetchTracks(Long itunesArtistId, String lang) {
+    /** 아티스트의 곡 목록 (응답 순서 유지). 첫 요소(아티스트)는 걸러낸다. 스토어에 없는 곡은 빠진다 */
+    public List<ItunesTrack> fetchTracks(Long itunesArtistId, String country) {
         URI uri = UriComponentsBuilder.fromHttpUrl(LOOKUP_URL)
                 .queryParam("id", itunesArtistId)
                 .queryParam("entity", "song")
-                .queryParam("country", COUNTRY)
-                .queryParam("lang", lang)
+                .queryParam("country", country)
                 .queryParam("limit", TRACK_LIMIT)
                 .encode().build().toUri();
         return get(uri, new TypeReference<ItunesResponse<ItunesTrack>>() {}).results().stream()

@@ -62,11 +62,11 @@ public class Song {
         this.albumArtUrl = albumArtUrl;
     }
 
-    // iTunes 재불러오기: titleKo는 관리자가 입력한 값이라 덮어쓰지 않는다. 로마자는 iTunes 값이 있을 때만 갱신
+    // iTunes 재불러오기: titleKo는 관리자가 입력한 값이라 덮어쓰지 않는다. 로마자는 비어 있을 때만 채운다 (수동 보정값 보존)
     public void updateFromItunes(String titleOriginal, String titleRomanized,
                                  String albumArtUrl, Integer sortOrder) {
         this.titleOriginal = titleOriginal;
-        if (titleRomanized != null) this.titleRomanized = titleRomanized;
+        if (this.titleRomanized == null) this.titleRomanized = titleRomanized;
         this.albumArtUrl = albumArtUrl;
         this.sortOrder = sortOrder;
     }

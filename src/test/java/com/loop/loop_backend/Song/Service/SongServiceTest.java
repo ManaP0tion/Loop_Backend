@@ -37,16 +37,17 @@ class SongServiceTest {
     void 불러오기_병합_재불러오기시_한글유지_삭제곡skip_CSV반영() {
         Artist artist = artistRepository.save(Artist.builder().name("YOASOBI").build());
         artist.linkItunes(100L, "https://music.apple.com/jp/artist/100");
-        given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.LANG_JA))).willReturn(List.of(
+        given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.COUNTRY_JP))).willReturn(List.of(
                 track(1L, "夜に駆ける", "http://x/100x100bb.jpg"),
                 track(2L, "群青", null),
-                track(3L, "アイドル", null)));
-        given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.LANG_EN))).willReturn(List.of(
-                track(3L, "アイドル", null), // en_us가 원문을 그대로 주는 곡 → 로마자 없음
+                track(3L, "アイドル", null),
+                track(4L, "夜に駆ける", null))); // 같은 제목의 다른 버전 → 중복
+        given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.COUNTRY_US))).willReturn(List.of(
+                track(3L, "アイドル", null), // US 스토어도 원문 그대로 → 로마자 없음
                 track(1L, "Yoru ni Kakeru", null)));
 
-        // 첫 불러오기: ja 순서 = sortOrder, en = 로마자, 앨범아트 200x200 + https
-        assertThat(songService.fetchSongs(artist.getId())).isEqualTo(new SongFetchResult(3, 0, 0));
+        // 첫 불러오기: JP 순서 = sortOrder, US 곡명 = 로마자 (US에 없는 곡은 null), 앨범아트 200x200 + https
+        assertThat(songService.fetchSongs(artist.getId())).isEqualTo(new SongFetchResult(3, 0, 0, 1));
         List<SongResponse> songs = songService.getSongs(artist.getId());
         assertThat(songs).extracting(SongResponse::titleOriginal).containsExactly("夜に駆ける", "群青", "アイドル");
         assertThat(songs.get(0).titleRomanized()).isEqualTo("Yoru ni Kakeru");
@@ -65,11 +66,14 @@ class SongServiceTest {
         assertThat(afterCsv.get(1).titleKo()).isNull();
         assertThat(afterCsv.get(2).titleRomanized()).isEqualTo("Idol");
 
-        // 2번 곡 소프트 삭제 후 재불러오기: 삭제곡 skip, titleKo 유지
+        // 2번 곡 소프트 삭제 후 재불러오기: 삭제곡 skip, titleKo 유지, 로마자는 비어 있을 때만 채움
         songService.deleteSong(songs.get(1).id());
+        given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.COUNTRY_US))).willReturn(List.of(
+                track(3L, "Idol (English)", null), // 이미 수동 입력값이 있으면 덮어쓰지 않음
+                track(1L, "Yoru ni Kakeru", null)));
         em.flush();
         em.clear();
-        assertThat(songService.fetchSongs(artist.getId())).isEqualTo(new SongFetchResult(0, 2, 1));
+        assertThat(songService.fetchSongs(artist.getId())).isEqualTo(new SongFetchResult(0, 2, 1, 1));
         em.flush();
         em.clear();
         List<SongResponse> after = songService.getSongs(artist.getId());
