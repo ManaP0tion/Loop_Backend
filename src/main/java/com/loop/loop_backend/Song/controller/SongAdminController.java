@@ -119,9 +119,9 @@ public class SongAdminController {
 
     @PostMapping("/artists/{artistId}/songs/fetch")
     @Operation(summary = "iTunes 곡 불러오기",
-            description = "trackId 기준 upsert. 기존 곡 titleKo 유지, 소프트 삭제 곡은 skip")
+            description = "trackId 기준 upsert. 기존 곡 titleKo 유지, 소프트 삭제 곡은 skip, 원문 제목이 같은 다른 버전은 처음 것만 저장")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "불러오기 성공 (created/updated/skipped)"),
+            @ApiResponse(responseCode = "200", description = "불러오기 성공 (created/updated/skipped/duplicated)"),
             @ApiResponse(responseCode = "404", description = "아티스트 없음"),
             @ApiResponse(responseCode = "409", description = "iTunes 미연결 아티스트"),
             @ApiResponse(responseCode = "502", description = "iTunes 연동 오류")

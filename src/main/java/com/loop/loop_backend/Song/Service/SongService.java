@@ -69,6 +69,7 @@ public class SongService {
     /**
      * iTunes(JP)에서 곡을 불러와 trackId 기준 upsert.
      * ja_jp 응답 순서 = sortOrder, en_us 곡명 = 로마자. 기존 곡의 titleKo는 유지, 소프트 삭제 곡은 skip.
+     * iTunes는 같은 곡을 싱글/앨범/라이브마다 다른 trackId로 주므로, 원문 제목이 완전히 같으면 처음 나온 것만 저장.
      */
     @Transactional
     public SongFetchResult fetchSongs(Long artistId) {
@@ -80,13 +81,21 @@ public class SongService {
                 .stream()
                 .collect(Collectors.toMap(ItunesTrack::trackId, ItunesTrack::trackName, (a, b) -> a));
 
-        Map<Long, Song> existing = activeSongsByTrackId(artistId);
+        List<Song> activeSongs = songRepository.findAllByArtistIdOrderBySortOrderAsc(artistId);
+        Map<Long, Song> existing = activeSongs.stream().filter(s -> s.getTrackId() != null)
+                .collect(Collectors.toMap(Song::getTrackId, Function.identity()));
+        Map<String, Song> existingByTitle = activeSongs.stream()
+                .collect(Collectors.toMap(Song::getTitleOriginal, Function.identity(), (a, b) -> a));
         Set<Long> deleted = new HashSet<>(songRepository.findDeletedTrackIds(artistId));
 
-        int created = 0, updated = 0, skipped = 0, order = 0;
-        Set<Long> seen = new HashSet<>();
+        int created = 0, updated = 0, skipped = 0, duplicated = 0, order = 0;
+        Set<String> seenTitles = new HashSet<>();
         for (ItunesTrack t : jaTracks) {
-            if (t.trackId() == null || !seen.add(t.trackId())) continue; // 같은 곡 중복 응답 방어
+            if (t.trackId() == null || t.trackName() == null) continue;
+            if (!seenTitles.add(t.trackName())) { // 같은 제목의 다른 버전
+                duplicated++;
+                continue;
+            }
             order++;
             if (deleted.contains(t.trackId())) {
                 skipped++;
@@ -95,8 +104,9 @@ public class SongService {
             String art = toAlbumArt200(t.artworkUrl100());
             // en_us도 원문을 그대로 주는 곡이 많다 → 로마자 없음으로 취급 (CSV/수정으로 넣은 값 보존)
             String rom = romanized.get(t.trackId());
-            if (t.trackName() != null && t.trackName().equals(rom)) rom = null;
-            Song song = existing.get(t.trackId());
+            if (t.trackName().equals(rom)) rom = null;
+            // trackId가 달라도 같은 제목 곡이 이미 있으면 그 곡을 갱신 (대표 버전이 바뀌어도 중복 생성 안 함)
+            Song song = existing.getOrDefault(t.trackId(), existingByTitle.get(t.trackName()));
             if (song != null) {
                 song.updateFromItunes(t.trackName(), rom, art, order);
                 updated++;
@@ -112,7 +122,7 @@ public class SongService {
                 created++;
             }
         }
-        return new SongFetchResult(created, updated, skipped);
+        return new SongFetchResult(created, updated, skipped, duplicated);
     }
 
     /** CSV 다운로드 (UTF-8 BOM 포함, 엑셀 한글 깨짐 방지) */

@@ -40,13 +40,14 @@ class SongServiceTest {
         given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.LANG_JA))).willReturn(List.of(
                 track(1L, "夜に駆ける", "http://x/100x100bb.jpg"),
                 track(2L, "群青", null),
-                track(3L, "アイドル", null)));
+                track(3L, "アイドル", null),
+                track(4L, "夜に駆ける", null))); // 같은 제목의 다른 버전 → 중복
         given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.LANG_EN))).willReturn(List.of(
                 track(3L, "アイドル", null), // en_us가 원문을 그대로 주는 곡 → 로마자 없음
                 track(1L, "Yoru ni Kakeru", null)));
 
         // 첫 불러오기: ja 순서 = sortOrder, en = 로마자, 앨범아트 200x200 + https
-        assertThat(songService.fetchSongs(artist.getId())).isEqualTo(new SongFetchResult(3, 0, 0));
+        assertThat(songService.fetchSongs(artist.getId())).isEqualTo(new SongFetchResult(3, 0, 0, 1));
         List<SongResponse> songs = songService.getSongs(artist.getId());
         assertThat(songs).extracting(SongResponse::titleOriginal).containsExactly("夜に駆ける", "群青", "アイドル");
         assertThat(songs.get(0).titleRomanized()).isEqualTo("Yoru ni Kakeru");
@@ -69,7 +70,7 @@ class SongServiceTest {
         songService.deleteSong(songs.get(1).id());
         em.flush();
         em.clear();
-        assertThat(songService.fetchSongs(artist.getId())).isEqualTo(new SongFetchResult(0, 2, 1));
+        assertThat(songService.fetchSongs(artist.getId())).isEqualTo(new SongFetchResult(0, 2, 1, 1));
         em.flush();
         em.clear();
         List<SongResponse> after = songService.getSongs(artist.getId());
