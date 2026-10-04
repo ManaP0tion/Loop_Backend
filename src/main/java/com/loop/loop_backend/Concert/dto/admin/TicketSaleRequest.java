@@ -9,13 +9,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 선예매·일반예매 1건 추가·수정 요청(공용). 수정은 PUT이라 블록 전체를 이 값으로 바꾼다 -
- * opensAt을 null로 보내면 예매 일시가 지워지고, vendors를 빼거나 []로 보내면 예매처가 비워진다.
+ * 예매 블록(선예매·일반예매 1건). 공연 등록·수정 요청의 presales / generalSales 목록 원소로 쓴다.
+ * 목록은 통째로 교체되므로 블록마다 예매 일시와 예매처를 모두 담아 보낸다(opensAt null = 미정).
  */
-@Schema(description = "예매 블록(선예매·일반예매 1건) 요청. 수정(PUT)은 블록 전체를 이 값으로 바꾼다")
+@Schema(description = "예매 블록(선예매·일반예매 1건). 예매 일시 + 예매처 목록")
 public record TicketSaleRequest(
 
-        @Schema(description = "예매 일시(한국 시간). 비워도 저장되며, 일시가 없는 건은 사용자 화면에 노출되지 않는다. 수정 시 null이면 지운다",
+        @Schema(description = "예매 일시(한국 시간). 미정이면 null. 일시가 없는 블록은 사용자 화면에 노출되지 않는다",
                 example = "2026-10-20T20:00", types = {"string", "null"})
         LocalDateTime opensAt,
 

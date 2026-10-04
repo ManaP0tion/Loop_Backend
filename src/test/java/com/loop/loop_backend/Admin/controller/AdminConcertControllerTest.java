@@ -111,8 +111,10 @@ class AdminConcertControllerTest {
             "{\"title\": \"\"}",              // 공연명 비움
             "{\"title\": \"  \"}",
             "{\"artistIds\": [1, 2]}",        // 아티스트 2명
+            "{\"generalSales\": [{\"opensAt\": null, \"vendors\": [{\"name\": \" \", \"url\": \"https://nol\"}]}]}", // 예매처 이름 공백
+            "{\"presales\": [{\"vendors\": [{\"url\": \"https://fc\"}]}]}",                                          // 예매처 이름 없음
     })
-    void 수정할_때_공연명을_비우거나_아티스트가_2명_이상이면_400이고_서비스를_부르지_않는다(String body) throws Exception {
+    void 수정할_때_공연명이나_예매처_이름을_비우거나_아티스트가_2명_이상이면_400이고_서비스를_부르지_않는다(String body) throws Exception {
         mockMvc.perform(patch("/api/admin/concerts/{id}", 1L).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest());
 

@@ -13,7 +13,7 @@ import java.util.List;
 @Schema(description = "예매 블록(선예매·일반예매 1건)")
 public record TicketSaleResponse(
 
-        @Schema(description = "예매 블록 id (수정·삭제 경로에 쓴다)", requiredMode = Schema.RequiredMode.REQUIRED)
+        @Schema(description = "예매 블록 id. 공연을 저장할 때마다 블록을 새로 만들어 바뀔 수 있다", requiredMode = Schema.RequiredMode.REQUIRED)
         Long id,
 
         @Schema(description = "예매 일시(한국 시간). 미정이면 null", types = {"string", "null"})

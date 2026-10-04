@@ -148,17 +148,6 @@ class ConcertAdminFieldsPersistenceTest {
                         new TicketVendorInfo("NOL", "https://nol"), new TicketVendorInfo("티켓링크", "https://link")));
     }
 
-    @Test
-    void 다른_공연의_예매_건은_그_공연_경로로_찾을_수_없다() {
-        Concert mine = saveConcert(null);
-        Concert other = saveConcert(null);
-        ConcertPresale othersPresale = presaleRepository.save(ConcertPresale.builder().concert(other).build());
-        ConcertGeneralSale othersSale = generalSaleRepository.save(ConcertGeneralSale.builder().concert(other).build());
-
-        assertThat(presaleRepository.findByIdAndConcert_Id(othersPresale.getId(), mine.getId())).isEmpty();
-        assertThat(generalSaleRepository.findByIdAndConcert_Id(othersSale.getId(), mine.getId())).isEmpty();
-    }
-
     // ---------- 함께 삭제 ----------
 
     private Concert concertWithEverything(Artist artist) {

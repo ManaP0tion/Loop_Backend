@@ -7,6 +7,9 @@ import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertCreateRequest;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertDetailResponse;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertUpdateRequest;
+import com.loop.loop_backend.Concert.dto.admin.TicketSaleRequest;
+import com.loop.loop_backend.Concert.dto.admin.TicketSaleResponse;
+import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
@@ -21,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.List;
@@ -34,6 +38,7 @@ import static org.assertj.core.groups.Tuple.tuple;
 // - 상세의 공연 시각은 기간의 모든 DAY가 순서대로 나오고, 미정인 DAY도 빠지지 않는다.
 // - 수정은 null이면 변경 없음. 목록은 보내면 통째로 교체되고 []는 비운다.
 // - 공개 토글은 수정 요청에 들어 있다. 저장 결과가 공개 상태면 필수값을 검사하고, 실패하면 아무것도 반영되지 않는다.
+// - 예매 정보(선예매·일반예매)도 수정 요청으로 함께 받는다. 보내면 통째로 교체, []는 비움, null은 유지. 예매처 이름은 필수.
 // - 이미 공개된 기존 공연(공연장 미연결)은 수정하면서 공연장을 함께 골라야 한다.
 // - 없는 공연·공연장·아티스트는 404.
 @DataJpaTest
@@ -94,10 +99,15 @@ class AdminConcertServiceTest {
         AdminConcertDetailResponse created = service.create(new AdminConcertCreateRequest(
                 ConcertCategory.J_POP_ARTIST, "YUURI LIVE", List.of("유우리"),
                 LocalDate.of(2026, 12, 5), LocalDate.of(2026, 12, 6), Arrays.asList(LocalTime.of(18, 0), null),
-                venue.getId(), List.of(yuuri.getId()), 20, false, null, List.of("PCXP-1")));
+                venue.getId(), List.of(yuuri.getId()), 20, false, null, List.of("PCXP-1"),
+                List.of(sale(null, "공식 안내")), List.of(sale(OCT_25, "NOL"))));
 
         assertThat(created.published()).isFalse();
         assertThat(created.publishedAt()).isNull();
+        assertThat(created.presales()).singleElement()
+                .satisfies(p -> assertThat(p.vendors()).extracting(TicketVendorInfo::name).containsExactly("공식 안내"));
+        assertThat(created.generalSales()).singleElement()
+                .satisfies(s -> assertThat(s.opensAt()).isEqualTo(OCT_25));
         assertThat(created.venue().id()).isEqualTo(venue.getId());
         assertThat(created.artists()).extracting(AdminConcertDetailResponse.ArtistSummary::name).containsExactly("Yuuri");
         assertThat(created.titleAliases()).containsExactly("유우리");
@@ -194,6 +204,70 @@ class AdminConcertServiceTest {
         flushAndClear();
 
         assertThat(service.get(domestic.getId()).title()).isEqualTo("잔나비 단독 콘서트");
+    }
+
+    // ---------- 예매 정보 (수정 화면의 저장 버튼으로 함께 저장) ----------
+
+    private static final LocalDateTime OCT_20 = LocalDateTime.of(2026, 10, 20, 20, 0);
+    private static final LocalDateTime OCT_25 = LocalDateTime.of(2026, 10, 25, 20, 0);
+
+    private static TicketSaleRequest sale(LocalDateTime opensAt, String... vendorNames) {
+        return new TicketSaleRequest(opensAt, Arrays.stream(vendorNames)
+                .map(name -> new TicketSaleRequest.Vendor(name, "https://" + name)).toList());
+    }
+
+    @Test
+    void 예매_정보를_보내면_선예매_일반예매가_각각_통째로_교체된다() {
+        Concert concert = approvedConcert();
+        flushAndClear();
+        service.update(concert.getId(), patch()
+                .presales(List.of(sale(OCT_20, "팬클럽")))
+                .generalSales(List.of(sale(OCT_25, "NOL", "티켓링크")))
+                .build());
+        flushAndClear();
+
+        service.update(concert.getId(), patch()
+                .presales(List.of(sale(OCT_20, "팬클럽"), sale(null, "카드사")))
+                .generalSales(List.of(sale(null, "멜론티켓")))
+                .build());
+        flushAndClear();
+
+        AdminConcertDetailResponse detail = service.get(concert.getId());
+        assertThat(detail.presales()).extracting(TicketSaleResponse::opensAt).containsExactly(OCT_20, null); // 일시 순, 미정은 뒤
+        assertThat(detail.generalSales()).singleElement().satisfies(s -> {
+            assertThat(s.opensAt()).isNull();
+            assertThat(s.vendors()).extracting(TicketVendorInfo::name).containsExactly("멜론티켓");
+        });
+    }
+
+    @Test
+    void 예매_정보를_빈_목록으로_보내면_비워지고_null이면_그대로다() {
+        Concert concert = approvedConcert();
+        flushAndClear();
+        service.update(concert.getId(), patch()
+                .presales(List.of(sale(OCT_20, "팬클럽")))
+                .generalSales(List.of(sale(OCT_25, "NOL")))
+                .build());
+        flushAndClear();
+
+        service.update(concert.getId(), patch().presales(List.of()).title("제목만 수정").build());
+        flushAndClear();
+
+        AdminConcertDetailResponse detail = service.get(concert.getId());
+        assertThat(detail.presales()).isEmpty();             // [] → 비움
+        assertThat(detail.generalSales()).hasSize(1);        // null → 유지
+    }
+
+    @Test
+    void 예매처_이름이_없으면_거절되고_예매_정보도_바뀌지_않는다() {
+        Concert concert = approvedConcert();
+        service.update(concert.getId(), patch().generalSales(List.of(sale(OCT_25, "NOL"))).build());
+        flushAndClear();
+
+        assertThatThrownBy(() -> service.update(concert.getId(), patch()
+                .generalSales(List.of(new TicketSaleRequest(OCT_20, List.of(new TicketSaleRequest.Vendor(" ", "https://x")))))
+                .build()))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     // ---------- 공개 전환 ----------

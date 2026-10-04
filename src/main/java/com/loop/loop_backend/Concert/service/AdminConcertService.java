@@ -3,6 +3,10 @@ package com.loop.loop_backend.Concert.service;
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
+import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
+import com.loop.loop_backend.Concert.domain.ticket.ConcertGeneralSale;
+import com.loop.loop_backend.Concert.domain.ticket.ConcertPresale;
+import com.loop.loop_backend.Concert.dto.admin.TicketSaleRequest;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertCreateRequest;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertDetailResponse;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertUpdateRequest;
@@ -57,8 +61,11 @@ public class AdminConcertService {
         if (req.lodgingVisible() != null) concert.changeLodgingVisible(req.lodgingVisible());
         if (req.productCodes() != null) concert.replaceProductCodes(req.productCodes());
         concert.validateState();
-        // 방금 만든 공연이라 예매 정보가 없다
-        return AdminConcertDetailResponse.from(concertRepository.save(concert), List.of(), List.of());
+        concertRepository.save(concert);
+        // 예매 블록은 공연 id가 있어야 저장할 수 있어 공연을 먼저 저장한다
+        if (req.presales() != null) replacePresales(concert, req.presales());
+        if (req.generalSales() != null) replaceGeneralSales(concert, req.generalSales());
+        return detail(concert);
     }
 
     /**
@@ -89,9 +96,35 @@ public class AdminConcertService {
         if (req.lodgingVisible() != null) concert.changeLodgingVisible(req.lodgingVisible());
         if (req.productCodes() != null) concert.replaceProductCodes(req.productCodes());
         if (req.published() != null) concert.changePublished(req.published(), LocalDateTime.now());
+        // 예매 정보도 같은 저장 버튼으로 함께 온다 - 실패하면 위 수정과 함께 롤백된다
+        if (req.presales() != null) replacePresales(concert, req.presales());
+        if (req.generalSales() != null) replaceGeneralSales(concert, req.generalSales());
 
         concert.validateState();
         return detail(concert);
+    }
+
+    /** 선예매를 통째로 교체한다(기존 블록 삭제 후 새로 저장, 블록 id는 바뀐다). 예매처 규칙은 엔티티가 검사한다. */
+    private void replacePresales(Concert concert, List<TicketSaleRequest> requests) {
+        presaleRepository.deleteAll(presaleRepository.findByConcert_Id(concert.getId()));
+        presaleRepository.saveAll(requests.stream()
+                .map(r -> ConcertPresale.builder().concert(concert).opensAt(r.opensAt()).vendors(vendorsOf(r)).build())
+                .toList());
+    }
+
+    /** 일반예매를 통째로 교체한다(기존 블록 삭제 후 새로 저장, 블록 id는 바뀐다). */
+    private void replaceGeneralSales(Concert concert, List<TicketSaleRequest> requests) {
+        generalSaleRepository.deleteAll(generalSaleRepository.findByConcert_Id(concert.getId()));
+        generalSaleRepository.saveAll(requests.stream()
+                .map(r -> ConcertGeneralSale.builder().concert(concert).opensAt(r.opensAt()).vendors(vendorsOf(r)).build())
+                .toList());
+    }
+
+    private static List<TicketVendorInfo> vendorsOf(TicketSaleRequest req) {
+        if (req.vendors() == null) return List.of();
+        return req.vendors().stream()
+                .map(v -> new TicketVendorInfo(v.name(), v.url()))
+                .toList();
     }
 
     private AdminConcertDetailResponse detail(Concert concert) {

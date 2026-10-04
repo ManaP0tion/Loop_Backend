@@ -2,6 +2,7 @@ package com.loop.loop_backend.Concert.dto.admin;
 
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Builder;
@@ -12,7 +13,8 @@ import java.util.List;
 
 /**
  * 공연 부분 수정 요청 (PATCH). 다른 PATCH API와 같은 규칙으로 null(또는 필드 없음)은 변경 없음.
- * - 목록(별칭·상품 코드·공연 시각·아티스트)은 보내면 통째로 교체되고, []를 보내면 비운다.
+ * - 목록(별칭·상품 코드·공연 시각·아티스트·선예매·일반예매)은 보내면 통째로 교체되고, []를 보내면 비운다.
+ *   수정 화면이 저장 버튼 하나로 페이지 전체를 저장하므로 예매 정보도 여기서 함께 받는다(한 트랜잭션).
  * - 공개 여부(published)도 여기서 바꾼다. 저장 결과가 공개 상태면 필수값을 검사한다.
  * 포스터는 업로드 API(POST /{id}/image)로만 바꾼다.
  */
@@ -64,6 +66,14 @@ public record AdminConcertUpdateRequest(
 
         @Schema(description = "관련 상품 코드. 보내면 통째로 교체, []는 비움", types = {"array", "null"})
         List<@Size(max = 100) String> productCodes,
+
+        @Schema(description = "선예매 목록. 보내면 통째로 교체, []는 비움, null이면 유지. 블록마다 예매 일시(미정이면 null) + 예매처 목록",
+                types = {"array", "null"})
+        List<@Valid TicketSaleRequest> presales,
+
+        @Schema(description = "일반예매 목록. 보내면 통째로 교체, []는 비움, null이면 유지. 블록마다 예매 일시(미정이면 null) + 예매처 목록",
+                types = {"array", "null"})
+        List<@Valid TicketSaleRequest> generalSales,
 
         @Schema(description = "공개 여부. true로 바꾸면 필수값을 검사하고, 비공개→공개 전환 시각이 기록된다", types = {"boolean", "null"})
         Boolean published
