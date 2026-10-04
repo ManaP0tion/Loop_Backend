@@ -8,6 +8,8 @@ import com.loop.loop_backend.ConcertImport.domain.ConcertImport;
 import com.loop.loop_backend.ConcertImport.domain.ImportStatus;
 import com.loop.loop_backend.ConcertImport.kopis.KopisClient;
 import com.loop.loop_backend.ConcertImport.repository.ConcertImportRepository;
+import com.loop.loop_backend.Venue.domain.Venue;
+import com.loop.loop_backend.Venue.service.VenueService;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
@@ -28,6 +30,7 @@ public class ConcertImportService {
     private final ConcertRepository concertRepository;
     private final ArtistRepository artistRepository;
     private final KopisClient kopisClient;
+    private final VenueService venueService;
 
     /**
      * 승인: import 원본값을 기본으로 하되, 관리자가 넘긴 수정값(non-null)이 있으면 우선 적용해 Concert 생성.
@@ -49,6 +52,9 @@ public class ConcertImportService {
         // 공연장 정보(주소/좌표/수용인원)는 상세 응답의 시설·홀 ID로 시설 API를 이어서 조회한다.
         // 상세 조회가 실패했으면 시설 ID도 없어 호출 없이 전부 null이 된다.
         KopisClient.KopisFacility facility = kopisClient.getFacility(detail.facilityId(), detail.hallId());
+        // 공연장 관리(AD-02)에 같은 KOPIS 시설·홀이 있으면 연결하고, 없으면 KOPIS 값으로 만들어 연결한다.
+        // KOPIS 조회에 실패해 공연장을 만들 수 없으면 연결 없이 승인한다 - 어드민 공연 수정 API에서 공연장을 골라 연결한다(예정).
+        Venue venue = venueService.findOrCreateFromKopis(detail.facilityId(), detail.hallId(), facility);
 
         Concert concert = Concert.builder()
                 .artist(artist)
@@ -67,6 +73,7 @@ public class ConcertImportService {
                 .venueLatitude(facility.latitude())
                 .venueLongitude(facility.longitude())
                 .venueCapacity(facility.capacity())
+                .linkedVenue(venue)
                 .category(category)
                 .build();
         concertRepository.save(concert);

@@ -136,7 +136,7 @@ public class KopisClient {
     }
 
     /**
-     * 공연장(시설) 조회: 주소/좌표/수용인원. 조회·파싱에 실패하면 모든 필드가 null.
+     * 공연장(시설) 조회: 시설명/홀명/주소/좌표/수용인원. 조회·파싱에 실패하면 모든 필드가 null.
      * 수용인원은 hallId와 일치하는 홀의 값을 쓰고, 홀 정보가 없으면 시설 전체 수용인원으로 대신한다.
      */
     public KopisFacility getFacility(String facilityId, String hallId) {
@@ -147,17 +147,25 @@ public class KopisClient {
             NodeList items = buildDocument(xml).getElementsByTagName("db");
             if (items.getLength() == 0) return KopisFacility.EMPTY;
             Element db = (Element) items.item(0);
-            return new KopisFacility(childText(db, "adres"),
+            Element hall = findHall(db, hallId);
+            return new KopisFacility(childText(db, "fcltynm"),
+                    hall != null ? childText(hall, "prfplcnm") : null,
+                    childText(db, "adres"),
                     parseDouble(childText(db, "la")), parseDouble(childText(db, "lo")),
-                    hallCapacity(db, hallId));
+                    hallCapacity(db, hall));
         } catch (Exception e) {
             log.warn("Failed to parse KOPIS facility for {}: {}", facilityId, e.getMessage());
             return KopisFacility.EMPTY;
         }
     }
 
-    public record KopisFacility(String address, Double latitude, Double longitude, Integer capacity) {
-        static final KopisFacility EMPTY = new KopisFacility(null, null, null, null);
+    /**
+     * @param name     시설명(fcltynm). 예: "인스파이어 엔터테인먼트 리조트"
+     * @param hallName 이 공연이 열리는 홀 이름(prfplcnm). 예: "아레나". 홀을 못 찾으면 null
+     */
+    public record KopisFacility(String name, String hallName, String address,
+                                Double latitude, Double longitude, Integer capacity) {
+        static final KopisFacility EMPTY = new KopisFacility(null, null, null, null, null, null);
     }
 
     private String fetchXml(String baseUrl, String id) {
@@ -245,19 +253,26 @@ public class KopisClient {
         return vendors;
     }
 
+    /** 시설 안의 mt13 중 hallId가 일치하는 홀. hallId가 없거나 일치하는 홀이 없으면 null. */
+    private Element findHall(Element facility, String hallId) {
+        if (hallId == null) return null;
+        NodeList halls = facility.getElementsByTagName("mt13");
+        for (int i = 0; i < halls.getLength(); i++) {
+            Element hall = (Element) halls.item(i);
+            if (hallId.equals(childText(hall, "mt13id"))) {
+                return hall;
+            }
+        }
+        return null;
+    }
+
     /**
-     * 시설 안의 mt13 중 hallId가 일치하는 홀의 수용인원. 홀을 찾았는데 값이 0/공백이면 "모름"이라 null로 둔다
+     * 홀의 수용인원. 홀을 찾았는데 값이 0/공백이면 "모름"이라 null로 둔다
      * (0석짜리 공간이 시설 전체 인원으로 잘못 보이지 않게). 홀 자체를 못 찾았을 때만 시설 전체 수용인원을 쓴다.
      */
-    private Integer hallCapacity(Element facility, String hallId) {
-        if (hallId != null) {
-            NodeList halls = facility.getElementsByTagName("mt13");
-            for (int i = 0; i < halls.getLength(); i++) {
-                Element hall = (Element) halls.item(i);
-                if (hallId.equals(childText(hall, "mt13id"))) {
-                    return parseSeatCount(childText(hall, "seatscale"));
-                }
-            }
+    private Integer hallCapacity(Element facility, Element hall) {
+        if (hall != null) {
+            return parseSeatCount(childText(hall, "seatscale"));
         }
         return parseSeatCount(childText(facility, "seatscale"));
     }

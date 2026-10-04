@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Concert.domain;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Venue.domain.Venue;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.OnDelete;
@@ -87,6 +88,16 @@ public class Concert {
     /** 수용 인원: 공연이 열리는 홀(mt13id 일치)의 seatscale, 홀을 못 찾으면 시설 전체 seatscale */
     @Column(name = "venue_capacity")
     private Integer venueCapacity;
+
+    /**
+     * 공연장 관리(AD-02)에 등록된 공연장. 승인 시 KOPIS 시설·홀 ID로 연결하고, 없으면 새로 만들어 연결한다.
+     * 공연장을 삭제하면 DB가 연결만 끊고(NULL) 공연은 남긴다.
+     * 위의 venue 문자열·주소·좌표 컬럼은 공개 API가 아직 쓰고 있어 함께 두고, 공연 모델 정리 때 이 연결로 옮긴다.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "venue_id")
+    @OnDelete(action = OnDeleteAction.SET_NULL)
+    private Venue linkedVenue;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "category", length = 30, nullable = false)

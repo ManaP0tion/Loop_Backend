@@ -9,6 +9,8 @@ import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
 import com.loop.loop_backend.ConcertImport.kopis.KopisClient;
 import com.loop.loop_backend.ConcertImport.repository.ConcertImportRepository;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
+import com.loop.loop_backend.Venue.domain.Venue;
+import com.loop.loop_backend.Venue.service.VenueService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,7 +28,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-// 승인하면 KOPIS 상세/공연장 정보가 Concert에 채워지는지, 조회가 실패해도 승인 자체는 되는지 검증한다.
+// 승인하면 KOPIS 상세/공연장 정보가 Concert에 채워지는지, 공연장 관리(AD-02)의 공연장이 연결되는지,
+// 조회가 실패해도 승인 자체는 되는지 검증한다.
 @ExtendWith(MockitoExtension.class)
 class ConcertImportServiceTest {
 
@@ -37,6 +40,7 @@ class ConcertImportServiceTest {
     @Mock ConcertRepository concertRepository;
     @Mock ArtistRepository artistRepository;
     @Mock KopisClient kopisClient;
+    @Mock VenueService venueService;
     @InjectMocks ConcertImportService service;
 
     private ConcertImport pendingImport;
@@ -71,7 +75,7 @@ class ConcertImportServiceTest {
                 "스탠딩석 165,000원", "토요일(17:00), 일요일(16:00)", vendors, "FC003670", "FC003670-01"));
         // 시설 조회에는 상세 응답의 시설ID/홀ID가 그대로 넘어가야 한다
         when(kopisClient.getFacility("FC003670", "FC003670-01")).thenReturn(new KopisClient.KopisFacility(
-                "인천광역시 중구 공항문화로 127 (운서동)", 37.4655301, 126.3891177, 14483));
+                "인스파이어 엔터테인먼트 리조트", "아레나", "인천광역시 중구 공항문화로 127 (운서동)", 37.4655301, 126.3891177, 14483));
 
         Concert concert = approveAndGetSavedConcert();
 
@@ -90,7 +94,7 @@ class ConcertImportServiceTest {
                 null, null, List.of(new TicketVendorInfo("인터파크", "http://a.example/1"),
                 new TicketVendorInfo("멜론티켓", "http://b.example/2")), "FC003670", "FC003670-01"));
         when(kopisClient.getFacility("FC003670", "FC003670-01"))
-                .thenReturn(new KopisClient.KopisFacility(null, null, null, null));
+                .thenReturn(new KopisClient.KopisFacility(null, null, null, null, null, null));
 
         assertThat(approveAndGetSavedConcert().getTicketUrl()).isEqualTo("http://a.example/1");
     }
@@ -99,7 +103,7 @@ class ConcertImportServiceTest {
     void KOPIS_조회가_실패해도_승인은_되고_상세와_공연장_필드는_null이다() {
         when(kopisClient.getPerformanceDetail("PF287093"))
                 .thenReturn(new KopisClient.KopisDetail(null, null, null, null, null));
-        when(kopisClient.getFacility(null, null)).thenReturn(new KopisClient.KopisFacility(null, null, null, null));
+        when(kopisClient.getFacility(null, null)).thenReturn(new KopisClient.KopisFacility(null, null, null, null, null, null));
 
         Concert concert = approveAndGetSavedConcert();
 
@@ -118,11 +122,38 @@ class ConcertImportServiceTest {
         when(kopisClient.getPerformanceDetail("PF287093"))
                 .thenReturn(new KopisClient.KopisDetail(null, null, List.of(), "FC003670", "FC003670-01"));
         when(kopisClient.getFacility("FC003670", "FC003670-01"))
-                .thenReturn(new KopisClient.KopisFacility(null, null, null, null));
+                .thenReturn(new KopisClient.KopisFacility(null, null, null, null, null, null));
         when(concertRepository.save(any(Concert.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.approve(1L, NO_OVERRIDES);
 
+        assertThat(pendingImport.getStatus()).isEqualTo(ImportStatus.APPROVED);
+    }
+
+    @Test
+    void 승인하면_KOPIS_시설_홀에_해당하는_공연장이_공연에_연결된다() {
+        when(kopisClient.getPerformanceDetail("PF287093"))
+                .thenReturn(new KopisClient.KopisDetail(null, null, List.of(), "FC003670", "FC003670-01"));
+        KopisClient.KopisFacility facility = new KopisClient.KopisFacility(
+                "인스파이어 엔터테인먼트 리조트", "아레나", "인천광역시 중구 공항문화로 127 (운서동)", null, null, 14483);
+        when(kopisClient.getFacility("FC003670", "FC003670-01")).thenReturn(facility);
+        Venue arena = Venue.builder().name("인스파이어 아레나").address("인천광역시 중구")
+                .kopisFacilityId("FC003670").kopisHallId("FC003670-01").build();
+        when(venueService.findOrCreateFromKopis("FC003670", "FC003670-01", facility)).thenReturn(arena);
+
+        assertThat(approveAndGetSavedConcert().getLinkedVenue()).isSameAs(arena);
+    }
+
+    @Test
+    void 공연장을_정할_수_없어도_승인은_되고_공연장_연결만_비어_있다() {
+        when(kopisClient.getPerformanceDetail("PF287093"))
+                .thenReturn(new KopisClient.KopisDetail(null, null, null, null, null));
+        when(kopisClient.getFacility(null, null)).thenReturn(new KopisClient.KopisFacility(null, null, null, null, null, null));
+        // 공연장 서비스가 공연장을 찾지도 만들지도 못한 경우 (null)
+
+        Concert concert = approveAndGetSavedConcert();
+
+        assertThat(concert.getLinkedVenue()).isNull();
         assertThat(pendingImport.getStatus()).isEqualTo(ImportStatus.APPROVED);
     }
 }
