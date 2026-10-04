@@ -7,6 +7,7 @@ import java.util.List;
 /**
  * KOPIS 예매처(relatenm + relateurl)를 일반예매 예매처 기본값으로 바꾼다.
  * 놀유니버스만 서비스 표기(NOL)로 바꾸고, 나머지는 KOPIS 이름 그대로 둔다. 관리자는 이 기본값을 자유롭게 고친다.
+ * 이름이 비어 있는 예매처는 건너뛴다 - 예매처 이름은 필수라 그대로 넣으면 승인이 실패한다.
  */
 public final class KopisTicketVendors {
 
@@ -18,6 +19,7 @@ public final class KopisTicketVendors {
     public static List<TicketVendorInfo> toGeneralSaleVendors(List<TicketVendorInfo> kopisVendors) {
         if (kopisVendors == null) return List.of();
         return kopisVendors.stream()
+                .filter(v -> v.name() != null && !v.name().isBlank())
                 .map(v -> new TicketVendorInfo(displayName(v.name()), v.url()))
                 .toList();
     }

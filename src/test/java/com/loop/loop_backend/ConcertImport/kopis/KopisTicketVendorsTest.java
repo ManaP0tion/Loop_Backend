@@ -33,6 +33,16 @@ class KopisTicketVendorsTest {
     }
 
     @Test
+    void 이름이_비어_있는_예매처는_건너뛴다() {
+        // 예매처 이름은 필수라, 그대로 넣으면 승인이 실패한다
+        assertThat(KopisTicketVendors.toGeneralSaleVendors(List.of(
+                new TicketVendorInfo(" ", "https://unknown"),
+                new TicketVendorInfo(null, "https://unknown2"),
+                new TicketVendorInfo("멜론티켓", "https://melon"))))
+                .containsExactly(new TicketVendorInfo("멜론티켓", "https://melon"));
+    }
+
+    @Test
     void KOPIS_예매처가_없으면_빈_목록이다() {
         assertThat(KopisTicketVendors.toGeneralSaleVendors(null)).isEmpty();
         assertThat(KopisTicketVendors.toGeneralSaleVendors(List.of())).isEmpty();
