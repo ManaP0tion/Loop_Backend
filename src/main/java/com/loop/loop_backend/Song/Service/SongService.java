@@ -68,7 +68,8 @@ public class SongService {
 
     /**
      * iTunes(JP)에서 곡을 불러와 trackId 기준 upsert.
-     * ja_jp 응답 순서 = sortOrder, en_us 곡명 = 로마자. 기존 곡의 titleKo는 유지, 소프트 삭제 곡은 skip.
+     * JP 스토어 응답 순서 = sortOrder, US 스토어 곡명 = 로마자(영문 번역 제목이 섞임, 참고값).
+     * 기존 곡의 titleKo는 유지, 로마자는 비어 있을 때만 채움, 소프트 삭제 곡은 skip.
      * iTunes는 같은 곡을 싱글/앨범/라이브마다 다른 trackId로 주므로, 원문 제목이 완전히 같으면 처음 나온 것만 저장.
      */
     @Transactional
@@ -76,8 +77,8 @@ public class SongService {
         Artist artist = findArtistOrThrow(artistId);
         if (artist.getItunesArtistId() == null) throw new BusinessException(ErrorCode.ARTIST_NOT_LINKED);
 
-        List<ItunesTrack> jaTracks = itunesClient.fetchTracks(artist.getItunesArtistId(), ItunesClient.LANG_JA);
-        Map<Long, String> romanized = itunesClient.fetchTracks(artist.getItunesArtistId(), ItunesClient.LANG_EN)
+        List<ItunesTrack> jaTracks = itunesClient.fetchTracks(artist.getItunesArtistId(), ItunesClient.COUNTRY_JP);
+        Map<Long, String> romanized = itunesClient.fetchTracks(artist.getItunesArtistId(), ItunesClient.COUNTRY_US)
                 .stream()
                 .collect(Collectors.toMap(ItunesTrack::trackId, ItunesTrack::trackName, (a, b) -> a));
 
@@ -102,7 +103,7 @@ public class SongService {
                 continue;
             }
             String art = toAlbumArt200(t.artworkUrl100());
-            // en_us도 원문을 그대로 주는 곡이 많다 → 로마자 없음으로 취급 (CSV/수정으로 넣은 값 보존)
+            // US 스토어에도 원문 그대로인 곡(TAIDADA 등)은 로마자 없음으로 취급
             String rom = romanized.get(t.trackId());
             if (t.trackName().equals(rom)) rom = null;
             // trackId가 달라도 같은 제목 곡이 이미 있으면 그 곡을 갱신 (대표 버전이 바뀌어도 중복 생성 안 함)
@@ -143,7 +144,7 @@ public class SongService {
 
     /**
      * CSV 업로드: trackId로 매칭해 로마자·한글만 반영. 빈 값은 기존 값 유지, 매칭 안 된 행은 리포트로 반환.
-     * 로마자는 iTunes en_us가 원문을 그대로 주는 곡이 있어 수동 보정용 (재불러오기는 iTunes에 진짜 로마자가 있을 때만 덮어씀)
+     * 로마자는 US 스토어에 없는 곡·영문 번역 제목 보정용 (재불러오기는 로마자가 비어 있을 때만 채움)
      */
     @Transactional
     public CsvImportResult importCsv(Long artistId, InputStream in) {
