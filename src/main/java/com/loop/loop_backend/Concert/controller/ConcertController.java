@@ -40,6 +40,10 @@ public class ConcertController {
 
     private final ConcertService concertService;
 
+    // 공연 등록·수정·삭제는 일단 막아 둔다(주석 처리). 관리자 공연 API(/api/admin/concerts, AdminConcertController)가
+    // 생기면서 같은 일을 하는 경로가 둘이 됐고, 이 API는 그쪽의 검증 규칙·공연장 연결·예매 정보를 거치지 않는다.
+    // 프론트 사용 여부를 확인한 뒤 삭제하거나 되살린다. ConcertService의 create/update/deleteConcert는 그대로 둔다.
+    /*
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "콘서트 등록", description = "새 콘서트를 등록합니다. 포스터 이미지 파일을 함께 보내면 " +
             "공개 버킷에 업로드 후 URL이 바로 반영됩니다 (이미지는 선택).")
@@ -86,6 +90,7 @@ public class ConcertController {
         concertService.deleteConcert(id);
         return ResponseEntity.noContent().build();
     }
+    */
 
     @GetMapping
     @Operation(summary = "콘서트 목록 조회",

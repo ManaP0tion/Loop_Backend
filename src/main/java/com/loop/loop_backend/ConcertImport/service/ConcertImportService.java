@@ -1,23 +1,26 @@
 package com.loop.loop_backend.ConcertImport.service;
 
-import com.loop.loop_backend.Artist.domain.Artist;
-import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
-import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
+import com.loop.loop_backend.Concert.domain.ticket.ConcertGeneralSale;
+import com.loop.loop_backend.Concert.repository.ConcertRepository;
+import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleRepository;
 import com.loop.loop_backend.ConcertImport.domain.ConcertImport;
 import com.loop.loop_backend.ConcertImport.domain.ImportStatus;
 import com.loop.loop_backend.ConcertImport.kopis.KopisClient;
+import com.loop.loop_backend.ConcertImport.kopis.KopisShowtimes;
+import com.loop.loop_backend.ConcertImport.kopis.KopisTicketVendors;
 import com.loop.loop_backend.ConcertImport.repository.ConcertImportRepository;
 import com.loop.loop_backend.Venue.domain.Venue;
 import com.loop.loop_backend.Venue.service.VenueService;
-import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.List;
 
 /**
  * 관리자 검토 → 승인/거절 처리. 승인 시 ConcertImport → Concert(운영 데이터) 변환.
@@ -28,24 +31,17 @@ public class ConcertImportService {
 
     private final ConcertImportRepository importRepository;
     private final ConcertRepository concertRepository;
-    private final ArtistRepository artistRepository;
+    private final ConcertGeneralSaleRepository generalSaleRepository;
     private final KopisClient kopisClient;
     private final VenueService venueService;
 
     /**
-     * 승인: import 원본값을 기본으로 하되, 관리자가 넘긴 수정값(non-null)이 있으면 우선 적용해 Concert 생성.
-     * 포스터 이미지 교체가 필요하면 승인 후 기존 POST /api/admin/concerts/{id}/image 를 재사용한다.
+     * 승인: KOPIS 값을 기본값으로 채워 비공개 공연을 만든다(요청 값 없음).
+     * 관리자는 이후 공연 수정 API(PATCH /api/admin/concerts/{id})로 고치고 공개하며, 포스터는 POST /{id}/image로 바꾼다.
      */
     @Transactional
-    public Concert approve(Long importId, ApproveCommand cmd) {
+    public Concert approve(Long importId) {
         ConcertImport imp = findPending(importId);
-
-        Artist artist = (cmd.artistId() != null)
-                ? artistRepository.findById(cmd.artistId())
-                        .orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND))
-                : imp.getMatchedArtist();
-
-        ConcertCategory category = firstNonNull(cmd.category(), imp.getSuggestedCategory());
 
         // 가격/공연시간/예매처 목록은 KOPIS 상세에만 있어 승인 시점에 1회 조회한다(실패해도 null로 진행).
         KopisClient.KopisDetail detail = kopisClient.getPerformanceDetail(imp.getKopisId());
@@ -57,13 +53,13 @@ public class ConcertImportService {
         Venue venue = venueService.findOrCreateFromKopis(detail.facilityId(), detail.hallId(), facility);
 
         Concert concert = Concert.builder()
-                .artist(artist)
+                .artist(imp.getMatchedArtist())
                 .kopisId(imp.getKopisId())
-                .title(firstNonNull(cmd.title(), imp.getTitle()))
-                .posterUrl(firstNonNull(cmd.posterUrl(), imp.getPosterUrl()))
-                .venue(firstNonNull(cmd.venue(), imp.getVenue()))
-                .startDate(firstNonNull(cmd.startDate(), imp.getStartDate()))
-                .endDate(firstNonNull(cmd.endDate(), imp.getEndDate()))
+                .title(imp.getTitle())
+                .posterUrl(imp.getPosterUrl())
+                .venue(imp.getVenue())
+                .startDate(imp.getStartDate())
+                .endDate(imp.getEndDate())
                 .price(detail.price())
                 .showtime(detail.showtime())
                 .ticketVendors(detail.ticketVendors())
@@ -74,9 +70,19 @@ public class ConcertImportService {
                 .venueLongitude(facility.longitude())
                 .venueCapacity(facility.capacity())
                 .linkedVenue(venue)
-                .category(category)
+                .category(imp.getSuggestedCategory())
                 .build();
+
+        // DAY별 공연 시각 기본값: KOPIS 공연 시간 안내를 날짜의 요일에 맞춰 채운다(못 정한 DAY는 비움). 기간을 모르면 건너뛴다.
+        List<LocalTime> startTimes = KopisShowtimes.startTimesByDay(detail.showtime(), concert.getStartDate(), concert.getEndDate());
+        if (!startTimes.isEmpty()) concert.replaceShowtimes(startTimes);
         concertRepository.save(concert);
+
+        // 일반예매 기본값: KOPIS 예매처를 한 블록에 모두 넣는다. 예매 일시는 KOPIS에 없어 비워 두고 관리자가 입력한다.
+        List<TicketVendorInfo> vendors = KopisTicketVendors.toGeneralSaleVendors(detail.ticketVendors());
+        if (!vendors.isEmpty()) {
+            generalSaleRepository.save(ConcertGeneralSale.builder().concert(concert).vendors(vendors).build());
+        }
 
         imp.markApproved(concert.getId());
         return concert;
@@ -96,11 +102,4 @@ public class ConcertImportService {
         return imp;
     }
 
-    private static <T> T firstNonNull(T a, T b) {
-        return a != null ? a : b;
-    }
-
-    /** 승인 시 관리자 수정값. 모두 nullable — null이면 import 원본값을 그대로 사용. */
-    public record ApproveCommand(Long artistId, String title, String posterUrl, String venue,
-                                 LocalDate startDate, LocalDate endDate, ConcertCategory category) {}
 }

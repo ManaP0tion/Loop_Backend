@@ -17,8 +17,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -57,7 +55,7 @@ class AdminImportApproveTest {
     void 승인하면_검토_큐_id와_새로_만들어진_공연_id가_구분돼_나온다() throws Exception {
         Venue venue = Venue.builder().name("인스파이어 아레나").address("인천광역시 중구").build();
         ReflectionTestUtils.setField(venue, "id", 5L);
-        when(concertImportService.approve(eq(14L), any())).thenReturn(concert(31L, venue));
+        when(concertImportService.approve(14L)).thenReturn(concert(31L, venue));
 
         mockMvc.perform(post("/api/admin/concert-imports/{id}/approve", 14L))
                 .andExpect(status().isOk())
@@ -69,7 +67,7 @@ class AdminImportApproveTest {
 
     @Test
     void 공연장을_정하지_못했으면_venueId는_null이다() throws Exception {
-        when(concertImportService.approve(eq(14L), any())).thenReturn(concert(31L, null));
+        when(concertImportService.approve(14L)).thenReturn(concert(31L, null));
 
         mockMvc.perform(post("/api/admin/concert-imports/{id}/approve", 14L))
                 .andExpect(status().isOk())

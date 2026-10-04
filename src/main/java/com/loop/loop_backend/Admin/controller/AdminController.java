@@ -385,55 +385,7 @@ public class AdminController {
 
     // ================= CONCERTS =================
 
-    @GetMapping("/concerts")
-    @Transactional(readOnly = true)
-    public ResponseEntity<CommonResponse<PageResp<ConcertRow>>> listConcerts(
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String q) {
-        String query = (q == null || q.isBlank()) ? null : q.trim();
-        Page<Concert> p = concertRepository.searchForAdmin(query, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id")));
-        return ResponseEntity.ok(CommonResponse.success(PageResp.from(p.map(ConcertRow::of))));
-    }
-
-    @PostMapping("/concerts")
-    @Transactional
-    public ResponseEntity<CommonResponse<ConcertRow>> createConcert(@RequestBody ConcertReq body) {
-        Artist artist = body.artistId() == null ? null
-                : artistRepository.findById(body.artistId())
-                        .orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
-        ConcertCategory category = body.category() != null ? body.category()
-                : (artist != null ? artist.getCategory() : null);
-        if (category == null) throw new BusinessException(ErrorCode.INVALID_INPUT);
-        Concert c = Concert.builder()
-                .artist(artist)
-                .title(body.title())
-                .posterUrl(body.posterUrl())
-                .venue(body.venue())
-                .startDate(body.startDate())
-                .endDate(body.endDate())
-                .price(body.price())
-                .ticketUrl(body.ticketUrl())
-                .showtime(body.showtime())
-                .category(category)
-                .build();
-        return ResponseEntity.ok(CommonResponse.success(ConcertRow.of(concertRepository.save(c))));
-    }
-
-    @PutMapping("/concerts/{id}")
-    @Transactional
-    public ResponseEntity<CommonResponse<ConcertRow>> updateConcert(@PathVariable Long id, @RequestBody ConcertReq body) {
-        Concert c = concertRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
-        Artist artist = body.artistId() == null ? null
-                : artistRepository.findById(body.artistId())
-                        .orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
-        ConcertCategory category = body.category() != null ? body.category()
-                : (artist != null ? artist.getCategory() : null);
-        if (category == null) throw new BusinessException(ErrorCode.INVALID_INPUT);
-        c.update(artist, body.title(), body.posterUrl(), body.venue(),
-                body.startDate(), body.endDate(), category,
-                body.price(), body.ticketUrl(), body.showtime());
-        return ResponseEntity.ok(CommonResponse.success(ConcertRow.of(c)));
-    }
+    // 공연 목록·등록(POST)·수정(PATCH)·상세는 AdminConcertController로 옮겼다.
 
     // S3 공개 버킷 업로드 후 콘서트의 posterUrl 갱신. 프론트는 JSON 저장 뒤 별도로 호출.
     @PostMapping(value = "/concerts/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -452,7 +404,7 @@ public class AdminController {
         if (!concertRepository.existsById(id)) throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
         // CompanionPost.concert ON DELETE CASCADE → 동행 프로필 함께 삭제. 채팅방은 ChatRoom.post SET_NULL 로 보존.
         // ChatRoom.concertId는 post와 별개로 저장된 스냅샷이라 DB 캐스케이드가 안 닿으므로, 여기서 직접 정리해서
-    // 삭제된 공연 id를 계속 들고 있는 유령 참조가 안 남게 한다.
+        // 삭제된 공연 id를 계속 들고 있는 유령 참조가 안 남게 한다.
         chatRoomRepository.clearConcertId(id);
         concertRepository.deleteById(id);
         return ResponseEntity.ok(CommonResponse.success(null));
@@ -487,22 +439,23 @@ public class AdminController {
         return ResponseEntity.ok(CommonResponse.success(PageResp.from(p.map(ImportRow::of))));
     }
 
-    /** 승인 → Concert(운영 데이터) 생성. body의 non-null 필드만 수집 원본값을 덮어쓴다. */
+    /** 승인 → KOPIS 기본값으로 비공개 공연 생성. 관리자는 이후 공연 수정 API로 고치고 공개한다. */
     @PostMapping("/concert-imports/{id}/approve")
     @Transactional
     @Operation(summary = "검토 대기 공연 승인",
-            description = "검토 큐(concert_imports)의 공연을 승인해 공연(concerts)을 새로 만든다. " +
+            description = "검토 큐(concert_imports)의 공연을 승인해 공연(concerts)을 **비공개로** 새로 만든다. 요청 본문은 없다.\n\n" +
+                    "**KOPIS 값을 기본값으로 채운다** (관리자는 이후 PATCH /api/admin/concerts/{concertId}로 고치고 공개한다):\n" +
+                    "- 공연명, 포스터, 기간, 유형\n" +
+                    "- 공연장: KOPIS 시설·홀로 공연장 관리의 공연장을 연결하거나 새로 만든다(venueId)\n" +
+                    "- 일반예매 1건: KOPIS 예매처 전부(놀유니버스 → NOL, 나머지는 이름 그대로). 예매 일시는 KOPIS에 없어 비어 있다\n" +
+                    "- DAY별 공연 시각: KOPIS 공연 시간 안내(예: 토요일(17:00), 일요일(16:00))를 날짜의 요일에 맞춰 채운다. " +
+                    "여러 회차이거나 못 읽으면 그 DAY는 비운다\n\n" +
                     "**경로의 id는 검토 큐 id**(GET /api/admin/concert-imports 목록의 id)이고, " +
-                    "**응답의 concertId는 새로 만들어진 공연 id**라 서로 다른 값이다. " +
-                    "승인 이후 공연 수정·포스터 업로드는 concertId로 한다. " +
-                    "공연장은 KOPIS 시설·홀로 공연장 관리의 공연장을 연결하거나 새로 만들어 연결한다(venueId).")
+                    "**응답의 concertId는 새로 만들어진 공연 id**라 서로 다른 값이다.")
     public ResponseEntity<CommonResponse<ImportApproveResp>> approveImport(
             @AuthenticationPrincipal Long adminId, HttpServletRequest req,
-            @Parameter(description = "검토 큐 id (GET /api/admin/concert-imports 목록의 id)") @PathVariable Long id,
-            @RequestBody(required = false) ConcertImportService.ApproveCommand body) {
-        ConcertImportService.ApproveCommand cmd = (body != null) ? body
-                : new ConcertImportService.ApproveCommand(null, null, null, null, null, null, null);
-        Concert c = concertImportService.approve(id, cmd);
+            @Parameter(description = "검토 큐 id (GET /api/admin/concert-imports 목록의 id)") @PathVariable Long id) {
+        Concert c = concertImportService.approve(id);
         accessLog.log(adminId, req, "APPROVE_IMPORT", "CONCERT", c.getId(),
                 "수집 공연 #" + id + " 승인 → 콘서트 #" + c.getId() + " 생성");
         return ResponseEntity.ok(CommonResponse.success(ImportApproveResp.of(id, c)));
@@ -698,24 +651,6 @@ public class AdminController {
     public record ArtistReq(String name, String baseName, String nameKo, String nameAlias,
                             String imageUrl, ConcertCategory category) {}
 
-    public record ConcertRow(Long id, Long artistId, String artistName, String title, String posterUrl,
-                             String venue, LocalDate startDate, LocalDate endDate,
-                             String price, String ticketUrl, String showtime, ConcertCategory category,
-                             Long venueId) {
-        static ConcertRow of(Concert c) {
-            return new ConcertRow(c.getId(),
-                    c.getArtist() != null ? c.getArtist().getId() : null,
-                    c.getArtist() != null ? c.getArtist().getName() : null,
-                    c.getTitle(), c.getPosterUrl(), c.getVenue(),
-                    c.getStartDate(), c.getEndDate(),
-                    c.getPrice(), c.getTicketUrl(), c.getShowtime(), c.getCategory(),
-                    // 공연장 관리(AD-02)에 연결된 공연장. 승인 시 자동 연결되며, 연결이 없으면 null
-                    c.getLinkedVenue() != null ? c.getLinkedVenue().getId() : null);
-        }
-    }
-    public record ConcertReq(Long artistId, String title, String posterUrl, String venue,
-                             LocalDate startDate, LocalDate endDate, ConcertCategory category,
-                             String price, String ticketUrl, String showtime) {}
 
     /**
      * 승인 결과. 경로의 id(검토 큐)와 새로 만들어진 공연의 id가 다른 테이블 값이라, 이름으로 구분해 돌려준다.
