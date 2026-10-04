@@ -8,8 +8,13 @@ import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 @Entity
 @Table(
@@ -114,6 +119,10 @@ public class Concert {
     @Column(name = "published", nullable = false, columnDefinition = "boolean default true")
     private boolean published;
 
+    /** 마지막으로 비공개 → 공개로 바뀐 시각. 공개 전환 1시간 후 새 공연 알림(NO.47)의 기준. 기존 공연은 비어 있다. */
+    @Column(name = "published_at")
+    private LocalDateTime publishedAt;
+
     /** 예상 곡 수(n). 단독 공연의 셋리스트 운영 기준(최대 선택 곡 수, 하이라이트 개수, 적중률 상위 n곡). */
     @Column(name = "expected_song_count")
     private Integer expectedSongCount;
@@ -179,6 +188,148 @@ public class Concert {
 
     public void updatePosterUrl(String posterUrl) {
         this.posterUrl = posterUrl;
+    }
+
+    // ---------- 관리자 수정 (AD-01) ----------
+    // 규칙 위반은 IllegalArgumentException → GlobalExceptionHandler가 400(INVALID_INPUT) 하나로 응답한다.
+
+    /** 관리자가 새로 고를 수 있는 공연 유형. 국내 유형은 V2 이전 데이터에만 남아 있다. */
+    private static final Set<ConcertCategory> SELECTABLE_CATEGORIES =
+            Set.of(ConcertCategory.J_POP_ARTIST, ConcertCategory.JAPAN_FESTIVAL);
+
+    /** 유형 변경. 페스티벌로 바꾸면 페스티벌 화면에 없는 아티스트·예상 곡 수를 비운다(PATCH의 null은 '변경 없음'이라 프론트가 비울 수 없다). */
+    public void changeCategory(ConcertCategory category) {
+        if (!SELECTABLE_CATEGORIES.contains(category)) {
+            throw new IllegalArgumentException("선택할 수 없는 공연 유형: " + category);
+        }
+        this.category = category;
+        if (isFestival()) {
+            this.artist = null;
+            this.expectedSongCount = null;
+        }
+    }
+
+    public void rename(String title) {
+        if (title == null || title.isBlank()) throw new IllegalArgumentException("공연명은 비울 수 없다");
+        this.title = title.trim();
+    }
+
+    /** 기간 변경. 새 기간 밖으로 밀려난 날짜의 공연 시각은 지운다(남겨 두면 보이지 않는 데이터가 된다). */
+    public void changePeriod(LocalDate startDate, LocalDate endDate) {
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("시작일이 종료일보다 늦다");
+        }
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.showtimes.removeIf(s -> !isWithinPeriod(s.getDate()));
+    }
+
+    /**
+     * DAY 순서대로 받은 시각으로 공연 시각을 바꾼다. i번째 시각 = 시작일 + i일. 미정인 DAY는 null.
+     * 개수는 공연 일수와 같아야 한다(화면은 기간에 맞춰 DAY 입력칸을 만든다).
+     */
+    public void replaceShowtimes(List<LocalTime> startTimesByDay) {
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException("공연 기간 없이 공연 시각을 정할 수 없다");
+        }
+        int days = (int) ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        if (startTimesByDay.size() != days) {
+            throw new IllegalArgumentException("공연 시각 개수(" + startTimesByDay.size() + ")가 공연 일수(" + days + ")와 다르다");
+        }
+        this.showtimes.clear();
+        for (int i = 0; i < days; i++) {
+            this.showtimes.add(new ConcertShowtime(startDate.plusDays(i), startTimesByDay.get(i)));
+        }
+    }
+
+    public void changeVenue(Venue venue) {
+        this.linkedVenue = venue;
+    }
+
+    /** 아티스트는 내한 공연에만 둔다(페스티벌은 라인업으로 따로 관리). 지금은 1명, null이면 비움. */
+    public void changeArtist(Artist artist) {
+        if (artist != null && isFestival()) {
+            throw new IllegalArgumentException("페스티벌에는 아티스트를 지정하지 않는다");
+        }
+        this.artist = artist;
+    }
+
+    /** 예상 곡 수는 단독(내한) 공연만, 1 이상. */
+    public void changeExpectedSongCount(Integer expectedSongCount) {
+        if (expectedSongCount != null && isFestival()) {
+            throw new IllegalArgumentException("페스티벌에는 예상 곡 수를 두지 않는다");
+        }
+        if (expectedSongCount != null && expectedSongCount < 1) {
+            throw new IllegalArgumentException("예상 곡 수는 1 이상");
+        }
+        this.expectedSongCount = expectedSongCount;
+    }
+
+    public void changeLodgingVisible(boolean lodgingVisible) {
+        this.lodgingVisible = lodgingVisible;
+    }
+
+    /** 빈 문자열이면 비운다. */
+    public void changeLodgingUrl(String lodgingUrl) {
+        this.lodgingUrl = (lodgingUrl == null || lodgingUrl.isBlank()) ? null : lodgingUrl.trim();
+    }
+
+    public void replaceTitleAliases(List<String> aliases) {
+        this.titleAliases.clear();
+        this.titleAliases.addAll(cleanDistinct(aliases));
+    }
+
+    public void replaceProductCodes(List<String> productCodes) {
+        this.productCodes.clear();
+        this.productCodes.addAll(cleanDistinct(productCodes));
+    }
+
+    /** 공개 여부 변경. 비공개 → 공개로 바뀌는 순간을 기록한다(새 공연 알림 기준). */
+    public void changePublished(boolean published, LocalDateTime now) {
+        if (published && !this.published) {
+            this.publishedAt = now;
+        }
+        this.published = published;
+    }
+
+    /**
+     * 수정을 모두 반영한 뒤 상태를 검사한다.
+     * - 항상: 숙소 노출 On이면 딥링크가 있어야 한다.
+     * - 공개 상태일 때만: 필수값(유형·공연명·포스터·기간·공연장, 내한이면 아티스트 1명). 비공개는 빈 칸이 있어도 저장된다.
+     * 이미 공개된 공연을 고칠 때도 검사하므로, 공연장이 아직 연결되지 않은 기존 공연은 수정하면서 공연장을 함께 골라야 한다.
+     */
+    public void validateState() {
+        if (lodgingVisible && lodgingUrl == null) {
+            throw new IllegalArgumentException("숙소 노출을 켜려면 딥링크가 있어야 한다");
+        }
+        if (!published) return;
+        if (category == null || title == null || posterUrl == null || posterUrl.isBlank()
+                || startDate == null || endDate == null || linkedVenue == null) {
+            throw new IllegalArgumentException("공개하려면 필수값(유형·공연명·포스터·기간·공연장)을 모두 채워야 한다");
+        }
+        // 아티스트 필수는 내한 공연만. 국내 유형(V2 이전 데이터)은 그대로 수정할 수 있게 검사하지 않는다.
+        if (category == ConcertCategory.J_POP_ARTIST && artist == null) {
+            throw new IllegalArgumentException("내한 공연을 공개하려면 아티스트가 있어야 한다");
+        }
+    }
+
+    public boolean isFestival() {
+        return category == ConcertCategory.JAPAN_FESTIVAL;
+    }
+
+    private boolean isWithinPeriod(LocalDate date) {
+        return startDate != null && endDate != null && !date.isBefore(startDate) && !date.isAfter(endDate);
+    }
+
+    /** 앞뒤 공백 제거, 빈 값 제외, 중복 제거(처음 나온 순서 유지). */
+    private static List<String> cleanDistinct(List<String> values) {
+        if (values == null) return List.of();
+        return values.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(v -> !v.isEmpty())
+                .distinct()
+                .toList();
     }
 
     // 리포지토리 쿼리들의 COALESCE(endDate, startDate) 기준과 동일한 규칙.

@@ -395,45 +395,7 @@ public class AdminController {
         return ResponseEntity.ok(CommonResponse.success(PageResp.from(p.map(ConcertRow::of))));
     }
 
-    @PostMapping("/concerts")
-    @Transactional
-    public ResponseEntity<CommonResponse<ConcertRow>> createConcert(@RequestBody ConcertReq body) {
-        Artist artist = body.artistId() == null ? null
-                : artistRepository.findById(body.artistId())
-                        .orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
-        ConcertCategory category = body.category() != null ? body.category()
-                : (artist != null ? artist.getCategory() : null);
-        if (category == null) throw new BusinessException(ErrorCode.INVALID_INPUT);
-        Concert c = Concert.builder()
-                .artist(artist)
-                .title(body.title())
-                .posterUrl(body.posterUrl())
-                .venue(body.venue())
-                .startDate(body.startDate())
-                .endDate(body.endDate())
-                .price(body.price())
-                .ticketUrl(body.ticketUrl())
-                .showtime(body.showtime())
-                .category(category)
-                .build();
-        return ResponseEntity.ok(CommonResponse.success(ConcertRow.of(concertRepository.save(c))));
-    }
-
-    @PutMapping("/concerts/{id}")
-    @Transactional
-    public ResponseEntity<CommonResponse<ConcertRow>> updateConcert(@PathVariable Long id, @RequestBody ConcertReq body) {
-        Concert c = concertRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
-        Artist artist = body.artistId() == null ? null
-                : artistRepository.findById(body.artistId())
-                        .orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
-        ConcertCategory category = body.category() != null ? body.category()
-                : (artist != null ? artist.getCategory() : null);
-        if (category == null) throw new BusinessException(ErrorCode.INVALID_INPUT);
-        c.update(artist, body.title(), body.posterUrl(), body.venue(),
-                body.startDate(), body.endDate(), category,
-                body.price(), body.ticketUrl(), body.showtime());
-        return ResponseEntity.ok(CommonResponse.success(ConcertRow.of(c)));
-    }
+    // 공연 등록(POST)·수정(PATCH)·상세는 AdminConcertController로 옮겼다.
 
     // S3 공개 버킷 업로드 후 콘서트의 posterUrl 갱신. 프론트는 JSON 저장 뒤 별도로 호출.
     @PostMapping(value = "/concerts/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -713,9 +675,6 @@ public class AdminController {
                     c.getLinkedVenue() != null ? c.getLinkedVenue().getId() : null);
         }
     }
-    public record ConcertReq(Long artistId, String title, String posterUrl, String venue,
-                             LocalDate startDate, LocalDate endDate, ConcertCategory category,
-                             String price, String ticketUrl, String showtime) {}
 
     /**
      * 승인 결과. 경로의 id(검토 큐)와 새로 만들어진 공연의 id가 다른 테이블 값이라, 이름으로 구분해 돌려준다.
