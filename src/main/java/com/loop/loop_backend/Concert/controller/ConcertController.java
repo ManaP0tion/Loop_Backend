@@ -151,12 +151,15 @@ public class ConcertController {
 
     @GetMapping("/{id}/upcoming-detail")
     @Operation(summary = "예정 공연 상세 조회",
-            description = "공연 정보와 D-day, 공연 시간 안내(showtime, KOPIS 원문 텍스트), 예매처 목록, 공연장 상세(주소/수용인원/좌표)를 포함한 상세 응답. " +
-                    "공연 시간 안내, 예매처 목록, 공연장 정보는 승인 시 KOPIS에서 가져오며, 못 가져왔거나 이 기능 이전에 승인된 공연은 null. " +
-                    "선예매 여부/날짜, 일반 예매 날짜, 자리배치도는 어드민 수동 입력 기능이 생기기 전까지 항상 null. " +
-                    "id가 가리키는 공연이 실제로 예정 공연이 아니면(이미 지난 공연) 404.")
+            description = "공연 정보와 D-day, 공연장, DAY별 공연 시각, 선예매·일반예매, 숙소 딥링크, 관련 상품 코드를 포함한 상세 응답.\n\n" +
+                    "- 공연장: 공연장 관리의 공연장. 연결 전에 승인된 공연은 KOPIS 장소 정보로 채워지고 링크(좌석 시야·지도)는 null\n" +
+                    "- 공연 시각: 기간의 모든 DAY가 순서대로, 미정인 DAY는 startTime null. 시각이 입력되지 않은 이전 공연은 KOPIS 공연 시간 안내로 채움\n" +
+                    "- 예매: 예매 일시가 정해진 블록만 일시 순으로 내려간다\n" +
+                    "- 숙소: 숙소 섹션을 노출하지 않는 공연은 lodgingUrl null\n\n" +
+                    "비공개(오픈 예정) 공연이면 403, id가 가리키는 공연이 실제로 예정 공연이 아니면(이미 지난 공연) 404.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "403", description = "오픈 예정(비공개) 공연 - CONCERT_NOT_OPEN"),
             @ApiResponse(responseCode = "404", description = "콘서트 없음 또는 예정 공연이 아님")
     })
     public ResponseEntity<CommonResponse<ConcertUpcomingDetailDto>> getUpcomingDetail(
@@ -167,11 +170,12 @@ public class ConcertController {
 
     @GetMapping("/{id}/past-detail")
     @Operation(summary = "지난 공연 상세 조회",
-            description = "공연명/아티스트/공연장/날짜/공연 시간 안내(showtime, KOPIS 원문 텍스트)만 포함하는 간단한 응답 " +
-                    "(예매정보는 지난 공연이라 의미 없음). 공연 시간 안내는 못 가져왔거나 이전에 승인된 공연이면 null. " +
-                    "id가 가리키는 공연이 실제로 지난 공연이 아니면(예정 공연) 404.")
+            description = "공연명/아티스트/공연장/날짜/DAY별 공연 시각만 포함하는 간단한 응답 " +
+                    "(예매정보는 지난 공연이라 의미 없음). 공연장·공연 시각은 예정 공연 상세와 같은 형태와 규칙이다. " +
+                    "비공개(오픈 예정) 공연이면 403, id가 가리키는 공연이 실제로 지난 공연이 아니면(예정 공연) 404.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "403", description = "오픈 예정(비공개) 공연 - CONCERT_NOT_OPEN"),
             @ApiResponse(responseCode = "404", description = "콘서트 없음 또는 지난 공연이 아님")
     })
     public ResponseEntity<CommonResponse<ConcertPastDetailDto>> getPastDetail(

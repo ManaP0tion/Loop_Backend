@@ -61,6 +61,7 @@ public enum ErrorCode {
 
     // Concert 도메인
     CONCERT_NOT_FOUND(404, "콘서트를 찾을 수 없습니다."),
+    CONCERT_NOT_OPEN(403, "오픈 예정인 공연입니다."),
     CONCERT_IMPORT_NOT_FOUND(404, "수집된 공연 정보를 찾을 수 없습니다."),
     IMPORT_ALREADY_PROCESSED(409, "이미 승인 또는 거절 처리된 공연입니다."),
     KOPIS_SYNC_ALREADY_RUNNING(409, "KOPIS 동기화가 이미 실행 중입니다. 끝난 뒤 다시 시도해 주세요."),
