@@ -24,17 +24,20 @@ public interface ConcertRepository extends JpaRepository<Concert, Long> {
             "OR LOWER(a.nameAlias) LIKE LOWER(CONCAT('%', :q, '%'))")
     Page<Concert> searchForAdmin(@Param("q") String q, Pageable pageable);
 
-    @Query("SELECT c FROM Concert c " +
+    @Query("SELECT c FROM Concert c LEFT JOIN FETCH c.artist LEFT JOIN FETCH c.linkedVenue " +
             "WHERE c.artist.id = :artistId " +
             "AND (COALESCE(c.endDate, c.startDate) IS NULL OR COALESCE(c.endDate, c.startDate) >= :date) " +
             "ORDER BY CASE WHEN c.startDate IS NULL THEN 1 ELSE 0 END, c.startDate ASC")
     List<Concert> findUpcomingOrUndatedByArtistId(@Param("artistId") Long artistId,
                                                   @Param("date") LocalDate date);
 
-    // 검색(section/period 스코프)용: 제목 또는 아티스트명(원어명/한글명/별칭)으로 매칭 + 카테고리 필터.
+    // 검색(section/period 스코프)용: 제목, 공연명 별칭(어드민 입력), 아티스트명(원어명/한글명/별칭)으로 매칭 + 카테고리 필터.
     // section 미지정(전체검색) 시 서비스가 ConcertCategory 전체 값을 넘겨서 카테고리 제한 없이 동작한다.
-    @Query("SELECT c FROM Concert c LEFT JOIN c.artist a " +
+    // 공연명 별칭은 여러 개라 조인하면 같은 공연이 여러 번 나오므로 EXISTS로 존재 여부만 본다.
+    @Query("SELECT c FROM Concert c LEFT JOIN FETCH c.artist a LEFT JOIN FETCH c.linkedVenue " +
             "WHERE (LOWER(c.title) LIKE LOWER(CONCAT('%', :title, '%')) " +
+            "   OR EXISTS (SELECT 1 FROM Concert c2 JOIN c2.titleAliases alias " +
+            "              WHERE c2.id = c.id AND LOWER(alias) LIKE LOWER(CONCAT('%', :title, '%'))) " +
             "   OR LOWER(a.name) LIKE LOWER(CONCAT('%', :title, '%')) " +
             "   OR LOWER(a.baseName) LIKE LOWER(CONCAT('%', :title, '%')) " +
             "   OR LOWER(a.nameKo) LIKE LOWER(CONCAT('%', :title, '%')) " +
@@ -46,8 +49,10 @@ public interface ConcertRepository extends JpaRepository<Concert, Long> {
                                                                @Param("categories") List<ConcertCategory> categories,
                                                                @Param("date") LocalDate date);
 
-    @Query("SELECT c FROM Concert c LEFT JOIN c.artist a " +
+    @Query("SELECT c FROM Concert c LEFT JOIN FETCH c.artist a LEFT JOIN FETCH c.linkedVenue " +
             "WHERE (LOWER(c.title) LIKE LOWER(CONCAT('%', :title, '%')) " +
+            "   OR EXISTS (SELECT 1 FROM Concert c2 JOIN c2.titleAliases alias " +
+            "              WHERE c2.id = c.id AND LOWER(alias) LIKE LOWER(CONCAT('%', :title, '%'))) " +
             "   OR LOWER(a.name) LIKE LOWER(CONCAT('%', :title, '%')) " +
             "   OR LOWER(a.baseName) LIKE LOWER(CONCAT('%', :title, '%')) " +
             "   OR LOWER(a.nameKo) LIKE LOWER(CONCAT('%', :title, '%')) " +
@@ -61,7 +66,7 @@ public interface ConcertRepository extends JpaRepository<Concert, Long> {
                                                   @Param("date") LocalDate date);
 
     // section(대분류) 조회용: 카테고리 여러 개를 한 번에 받는다. 예정 공연 - 임박순(가까운 날짜부터).
-    @Query("SELECT c FROM Concert c " +
+    @Query("SELECT c FROM Concert c LEFT JOIN FETCH c.artist LEFT JOIN FETCH c.linkedVenue " +
             "WHERE c.category IN :categories " +
             "AND (COALESCE(c.endDate, c.startDate) IS NULL OR COALESCE(c.endDate, c.startDate) >= :date) " +
             "ORDER BY CASE WHEN c.startDate IS NULL THEN 1 ELSE 0 END, c.startDate ASC")
@@ -69,7 +74,7 @@ public interface ConcertRepository extends JpaRepository<Concert, Long> {
                                                      @Param("date") LocalDate date);
 
     // section(대분류) 조회용: 이미 종료된 공연만 - 최근 종료순. 날짜 미정 공연은 "지난 공연"이 아니므로 제외.
-    @Query("SELECT c FROM Concert c " +
+    @Query("SELECT c FROM Concert c LEFT JOIN FETCH c.artist LEFT JOIN FETCH c.linkedVenue " +
             "WHERE c.category IN :categories " +
             "AND COALESCE(c.endDate, c.startDate) IS NOT NULL " +
             "AND COALESCE(c.endDate, c.startDate) < :date " +
