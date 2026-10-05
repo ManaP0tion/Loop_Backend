@@ -31,10 +31,13 @@ public interface ConcertRepository extends JpaRepository<Concert, Long> {
     List<Concert> findUpcomingOrUndatedByArtistId(@Param("artistId") Long artistId,
                                                   @Param("date") LocalDate date);
 
-    // 검색(section/period 스코프)용: 제목 또는 아티스트명(원어명/한글명/별칭)으로 매칭 + 카테고리 필터.
+    // 검색(section/period 스코프)용: 제목, 공연명 별칭(어드민 입력), 아티스트명(원어명/한글명/별칭)으로 매칭 + 카테고리 필터.
     // section 미지정(전체검색) 시 서비스가 ConcertCategory 전체 값을 넘겨서 카테고리 제한 없이 동작한다.
+    // 공연명 별칭은 여러 개라 조인하면 같은 공연이 여러 번 나오므로 EXISTS로 존재 여부만 본다.
     @Query("SELECT c FROM Concert c LEFT JOIN FETCH c.artist a LEFT JOIN FETCH c.linkedVenue " +
             "WHERE (LOWER(c.title) LIKE LOWER(CONCAT('%', :title, '%')) " +
+            "   OR EXISTS (SELECT 1 FROM Concert c2 JOIN c2.titleAliases alias " +
+            "              WHERE c2.id = c.id AND LOWER(alias) LIKE LOWER(CONCAT('%', :title, '%'))) " +
             "   OR LOWER(a.name) LIKE LOWER(CONCAT('%', :title, '%')) " +
             "   OR LOWER(a.baseName) LIKE LOWER(CONCAT('%', :title, '%')) " +
             "   OR LOWER(a.nameKo) LIKE LOWER(CONCAT('%', :title, '%')) " +
@@ -48,6 +51,8 @@ public interface ConcertRepository extends JpaRepository<Concert, Long> {
 
     @Query("SELECT c FROM Concert c LEFT JOIN FETCH c.artist a LEFT JOIN FETCH c.linkedVenue " +
             "WHERE (LOWER(c.title) LIKE LOWER(CONCAT('%', :title, '%')) " +
+            "   OR EXISTS (SELECT 1 FROM Concert c2 JOIN c2.titleAliases alias " +
+            "              WHERE c2.id = c.id AND LOWER(alias) LIKE LOWER(CONCAT('%', :title, '%'))) " +
             "   OR LOWER(a.name) LIKE LOWER(CONCAT('%', :title, '%')) " +
             "   OR LOWER(a.baseName) LIKE LOWER(CONCAT('%', :title, '%')) " +
             "   OR LOWER(a.nameKo) LIKE LOWER(CONCAT('%', :title, '%')) " +

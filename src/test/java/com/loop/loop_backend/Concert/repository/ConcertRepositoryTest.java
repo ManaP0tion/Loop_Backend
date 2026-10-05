@@ -283,7 +283,7 @@ class ConcertRepositoryTest {
     }
 
     // ===== searchUpcomingOrUndatedByTitleAndCategories / searchPastByTitleAndCategories (검색) =====
-    // 규칙: 콘서트 제목 또는 아티스트명(원어명/기본명/한글명/별칭)으로 매칭, 요청한 카테고리에 속해야 함.
+    // 규칙: 콘서트 제목, 공연명 별칭 또는 아티스트명(원어명/기본명/한글명/별칭)으로 매칭, 요청한 카테고리에 속해야 함.
     // 날짜 포함/정렬 규칙은 findUpcomingOrUndatedByCategories/findPastByCategories와 동일.
 
     @Test
@@ -376,5 +376,67 @@ class ConcertRepositoryTest {
                 "공연", List.of(ConcertCategory.J_POP_ARTIST), today);
 
         assertThat(result).isEmpty();
+    }
+
+    // ===== 검색: 공연명 별칭 =====
+    // 규칙: 관리자가 입력한 공연명 별칭으로도 찾는다(대소문자 무시, 부분 일치). 별칭이 여러 개 걸려도 같은 공연은 한 번만 나온다.
+
+    private Concert persistConcertWithAliases(String title, LocalDate date, List<String> aliases) {
+        Concert concert = persistConcert(title, date, date, ConcertCategory.J_POP_ARTIST);
+        concert.replaceTitleAliases(aliases);
+        return concert;
+    }
+
+    @Test
+    void 검색_예정_조회시_공연명_별칭으로_매칭된다() {
+        LocalDate today = LocalDate.now();
+        persistConcertWithAliases("Official HIGE DANdism Arena Tour", today.plusDays(1), List.of("히게단"));
+        persistConcertWithAliases("다른 공연", today.plusDays(1), List.of("다른 별칭"));
+        entityManager.flush();
+        entityManager.clear();
+
+        List<Concert> result = concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
+                "히게단", List.of(ConcertCategory.J_POP_ARTIST), today);
+
+        assertThat(result).extracting(Concert::getTitle).containsExactly("Official HIGE DANdism Arena Tour");
+    }
+
+    @Test
+    void 검색_지난_조회시_공연명_별칭으로_매칭된다() {
+        LocalDate today = LocalDate.now();
+        persistConcertWithAliases("Official HIGE DANdism Arena Tour", today.minusDays(1), List.of("히게단"));
+        entityManager.flush();
+        entityManager.clear();
+
+        List<Concert> result = concertRepository.searchPastByTitleAndCategories(
+                "히게단", List.of(ConcertCategory.J_POP_ARTIST), today);
+
+        assertThat(result).extracting(Concert::getTitle).containsExactly("Official HIGE DANdism Arena Tour");
+    }
+
+    @Test
+    void 검색_공연명_별칭은_대소문자_구분_없이_부분_일치로_매칭된다() {
+        LocalDate today = LocalDate.now();
+        persistConcertWithAliases("YOASOBI ASIA TOUR", today.plusDays(1), List.of("Yoasobi Seoul Live"));
+        entityManager.flush();
+        entityManager.clear();
+
+        List<Concert> result = concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
+                "seoul", List.of(ConcertCategory.J_POP_ARTIST), today);
+
+        assertThat(result).extracting(Concert::getTitle).containsExactly("YOASOBI ASIA TOUR");
+    }
+
+    @Test
+    void 검색_공연명_별칭이_여러_개_걸려도_같은_공연은_한_번만_나온다() {
+        LocalDate today = LocalDate.now();
+        persistConcertWithAliases("Official HIGE DANdism", today.plusDays(1), List.of("히게단", "오피셜히게단디즘"));
+        entityManager.flush();
+        entityManager.clear();
+
+        List<Concert> result = concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
+                "히게단", List.of(ConcertCategory.J_POP_ARTIST), today);
+
+        assertThat(result).hasSize(1);
     }
 }
