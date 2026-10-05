@@ -12,6 +12,7 @@ import com.loop.loop_backend.Concert.repository.AdminConcertRepository;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
+import com.loop.loop_backend.Lineup.repository.LineupRepository;
 import com.loop.loop_backend.Venue.domain.Venue;
 import com.loop.loop_backend.Venue.repository.VenueRepository;
 import jakarta.persistence.EntityManager;
@@ -44,6 +45,7 @@ class AdminConcertListTest {
     @Autowired private ConcertRepository concertRepository;
     @Autowired private AdminConcertRepository adminConcertRepository;
     @Autowired private ArtistRepository artistRepository;
+    @Autowired private LineupRepository lineupRepository;
     @Autowired private VenueRepository venueRepository;
     @Autowired private ConcertPresaleRepository presaleRepository;
     @Autowired private ConcertGeneralSaleRepository generalSaleRepository;
@@ -57,7 +59,7 @@ class AdminConcertListTest {
     @BeforeEach
     void setUp() {
         service = new AdminConcertService(concertRepository, adminConcertRepository, artistRepository, venueRepository,
-                presaleRepository, generalSaleRepository);
+                presaleRepository, generalSaleRepository, lineupRepository);
     }
 
     private Concert concert(String title, ConcertCategory category, boolean published) {

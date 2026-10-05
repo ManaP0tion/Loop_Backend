@@ -14,6 +14,8 @@ import com.loop.loop_backend.Concert.repository.AdminConcertRepository;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
+import com.loop.loop_backend.Lineup.domain.Lineup;
+import com.loop.loop_backend.Lineup.repository.LineupRepository;
 import com.loop.loop_backend.Venue.domain.Venue;
 import com.loop.loop_backend.Venue.repository.VenueRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -42,12 +44,14 @@ import static org.assertj.core.groups.Tuple.tuple;
 // - 예매 정보(선예매·일반예매)도 수정 요청으로 함께 받는다. 보내면 통째로 교체, []는 비움, null은 유지. 예매처 이름은 필수.
 // - 이미 공개된 기존 공연(공연장 미연결)은 수정하면서 공연장을 함께 골라야 한다.
 // - 없는 공연·공연장·아티스트는 404.
+// - 페스티벌 기간이 줄면 범위를 벗어난 DAY의 라인업이, 페스티벌이 아니게 되면 라인업 전체가 지워진다(AD-04).
 @DataJpaTest
 class AdminConcertServiceTest {
 
     @Autowired private ConcertRepository concertRepository;
     @Autowired private AdminConcertRepository adminConcertRepository;
     @Autowired private ArtistRepository artistRepository;
+    @Autowired private LineupRepository lineupRepository;
     @Autowired private VenueRepository venueRepository;
     @Autowired private ConcertPresaleRepository presaleRepository;
     @Autowired private ConcertGeneralSaleRepository generalSaleRepository;
@@ -60,7 +64,7 @@ class AdminConcertServiceTest {
     @BeforeEach
     void setUp() {
         service = new AdminConcertService(concertRepository, adminConcertRepository, artistRepository, venueRepository,
-                presaleRepository, generalSaleRepository);
+                presaleRepository, generalSaleRepository, lineupRepository);
         venue = venueRepository.save(Venue.builder().name("인스파이어 아레나").address("인천광역시 중구").build());
         yuuri = artistRepository.save(Artist.builder().name("Yuuri")
                 .autoFetchConcerts(true).category(ConcertCategory.J_POP_ARTIST).build());
@@ -317,5 +321,66 @@ class AdminConcertServiceTest {
         service.update(legacy.getId(), patch().title("새 제목").venueId(venue.getId()).build());
         flushAndClear();
         assertThat(service.get(legacy.getId()).title()).isEqualTo("새 제목");
+    }
+
+    // ---------- 라인업 정리 (AD-04) ----------
+
+    private Concert festivalWithLineupOnEveryDay() {
+        Concert festival = concertRepository.save(Concert.builder()
+                .title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL)
+                .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 22))
+                .build());
+        for (int day = 1; day <= 3; day++) {
+            lineupRepository.save(Lineup.builder().concert(festival).artist(yuuri).day(day).displayOrder(day).build());
+        }
+        flushAndClear();
+        return festival;
+    }
+
+    private List<Integer> lineupDays(Concert concert) {
+        return lineupRepository.findByConcertIdOrderByDisplayOrderAsc(concert.getId()).stream()
+                .map(Lineup::getDay).toList();
+    }
+
+    @Test
+    void 페스티벌_기간이_줄면_범위를_벗어난_DAY의_라인업만_지워진다() {
+        Concert festival = festivalWithLineupOnEveryDay();
+
+        service.update(festival.getId(), patch().endDate(LocalDate.of(2026, 11, 21)).build());
+        flushAndClear();
+
+        assertThat(lineupDays(festival)).containsExactly(1, 2);
+    }
+
+    @Test
+    void 기간을_건드리지_않는_수정은_라인업을_지우지_않는다() {
+        Concert festival = festivalWithLineupOnEveryDay();
+
+        service.update(festival.getId(), patch().title("SUMMER SONIC 2026").build());
+        flushAndClear();
+
+        assertThat(lineupDays(festival)).containsExactly(1, 2, 3);
+    }
+
+    @Test
+    void 페스티벌을_내한_공연으로_바꾸면_라인업이_모두_지워진다() {
+        Concert festival = festivalWithLineupOnEveryDay();
+
+        service.update(festival.getId(), patch().category(ConcertCategory.J_POP_ARTIST).build());
+        flushAndClear();
+
+        assertThat(lineupDays(festival)).isEmpty();
+    }
+
+    @Test
+    void 수정이_실패하면_라인업도_지워지지_않는다() {
+        Concert festival = festivalWithLineupOnEveryDay();
+
+        assertThatThrownBy(() -> service.update(festival.getId(), patch()
+                .endDate(LocalDate.of(2026, 11, 21)).published(true).build())) // 포스터·공연장이 없어 공개 불가
+                .isInstanceOf(IllegalArgumentException.class);
+        em.clear();
+
+        assertThat(lineupDays(festival)).containsExactly(1, 2, 3);
     }
 }
