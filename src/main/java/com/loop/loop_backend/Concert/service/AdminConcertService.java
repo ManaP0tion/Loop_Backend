@@ -16,6 +16,8 @@ import com.loop.loop_backend.Concert.repository.AdminConcertRepository;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
+import com.loop.loop_backend.Lineup.domain.Lineup;
+import com.loop.loop_backend.Lineup.repository.LineupRepository;
 import com.loop.loop_backend.Venue.domain.Venue;
 import com.loop.loop_backend.Venue.repository.VenueRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -45,6 +47,7 @@ public class AdminConcertService {
     private final VenueRepository venueRepository;
     private final ConcertPresaleRepository presaleRepository;
     private final ConcertGeneralSaleRepository generalSaleRepository;
+    private final LineupRepository lineupRepository;
 
     /**
      * 등록된 공연 목록. 예매 등록 여부는 페이지의 공연들을 한 번에 확인한다 - 공연마다 확인하면 공연 수만큼 쿼리가 늘어난다(N+1).
@@ -130,7 +133,20 @@ public class AdminConcertService {
         if (req.generalSales() != null) replaceGeneralSales(concert, req.generalSales());
 
         concert.validateState();
+        cleanUpLineup(concert);
         return detail(concert);
+    }
+
+    /**
+     * 라인업(AD-04) 정리. 엔티티의 changePeriod는 라인업을 모르므로 여기서 한다.
+     * 페스티벌이 아니게 됐으면 전부, 기간이 줄었으면 범위를 벗어난 DAY를 지운다. 바뀐 게 없으면 지워지는 행이 없다.
+     */
+    private void cleanUpLineup(Concert concert) {
+        if (concert.isFestival()) {
+            lineupRepository.deleteByConcertIdAndDayGreaterThan(concert.getId(), Lineup.dayCount(concert));
+        } else {
+            lineupRepository.deleteByConcertId(concert.getId());
+        }
     }
 
     /** 선예매를 통째로 교체한다(기존 블록 삭제 후 새로 저장, 블록 id는 바뀐다). 예매처 규칙은 엔티티가 검사한다. */
