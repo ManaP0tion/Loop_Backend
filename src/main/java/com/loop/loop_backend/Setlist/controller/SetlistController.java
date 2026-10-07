@@ -1,6 +1,9 @@
 package com.loop.loop_backend.Setlist.controller;
 
 import com.loop.loop_backend.Setlist.dto.SetlistCandidatesResponse;
+import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse;
+import com.loop.loop_backend.Setlist.dto.SetlistResponse;
+import com.loop.loop_backend.Setlist.service.SetlistService;
 import com.loop.loop_backend.Setlist.service.SetlistVoteService;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,10 +13,13 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /** 예상 셋리스트 조회(3-3·3-4). 비로그인 열람 - GET /api/concerts/** 는 SecurityConfig에서 permitAll. */
 @RestController
@@ -23,6 +29,43 @@ import org.springframework.web.bind.annotation.RestController;
 public class SetlistController {
 
     private final SetlistVoteService voteService;
+    private final SetlistService setlistService;
+
+    @GetMapping("/ranking")
+    @Operation(summary = "예상 셋리스트 순위",
+            description = "득표순, 동점이면 곡 정렬 순번 순(공동 순위 없음). 득표한 곡 전체를 한 번에 준다.\n\n" +
+                    "- 미리보기 = 앞 5곡, 전체 순위 = 20곡 단위 더보기(프론트)\n" +
+                    "- highlighted = 상위 n곡(n = highlightCount)\n" +
+                    "- 로그인 상태면 내가 고른 곡에 mine=true(투표 후 상태 화면)\n" +
+                    "- votingClosed = 마감 여부. 마감 후에도 순위는 그대로 열람\n" +
+                    "- 투표 0건이면 songs 빈 목록, 셋리스트를 운영하지 않는 공연이면 highlightCount null\n\n" +
+                    "비공개(오픈 예정) 공연이면 403.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "403", description = "오픈 예정(비공개) 공연 - CONCERT_NOT_OPEN"),
+            @ApiResponse(responseCode = "404", description = "콘서트 없음")
+    })
+    public ResponseEntity<CommonResponse<SetlistRankingResponse>> ranking(
+            @AuthenticationPrincipal Long userId,
+            @Parameter(description = "콘서트 PK") @PathVariable Long concertId) {
+        return ResponseEntity.ok(CommonResponse.success(voteService.ranking(concertId, userId)));
+    }
+
+    @GetMapping("/past")
+    @Operation(summary = "지난 공연 셋리스트",
+            description = "최근 공연(RECENT) → 지난 내한(PREVIOUS_VISIT) 순, 최대 2건.\n\n" +
+                    "- 2건이면 칩 2개, 1건이면 칩 없이 목록만, 0건이면 섹션 미렌더링\n" +
+                    "- 헤더: 투어명(null이면 생략) · 날짜 · 장소 · 곡 수. 앨범아트는 쓰지 않는다\n\n" +
+                    "비공개(오픈 예정) 공연이면 403.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "403", description = "오픈 예정(비공개) 공연 - CONCERT_NOT_OPEN"),
+            @ApiResponse(responseCode = "404", description = "콘서트 없음")
+    })
+    public ResponseEntity<CommonResponse<List<SetlistResponse>>> past(
+            @Parameter(description = "콘서트 PK") @PathVariable Long concertId) {
+        return ResponseEntity.ok(CommonResponse.success(setlistService.pastSetlists(concertId)));
+    }
 
     @GetMapping("/candidates")
     @Operation(summary = "예상 셋리스트 후보(곡 선택 화면)",

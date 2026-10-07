@@ -5,8 +5,11 @@ import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Setlist.domain.SetlistVote;
 import com.loop.loop_backend.Setlist.dto.MySetlistVoteResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistCandidatesResponse;
+import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse;
+import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse.RankedSong;
 import com.loop.loop_backend.Setlist.dto.SongCandidateResponse;
 import com.loop.loop_backend.Setlist.repository.SetlistVoteRepository;
+import com.loop.loop_backend.Setlist.repository.SongVoteCount;
 import com.loop.loop_backend.Song.Repository.SongRepository;
 import com.loop.loop_backend.Song.domain.Song;
 import com.loop.loop_backend.User.repository.UserRepository;
@@ -17,9 +20,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 예상 셋리스트 후보(NO.64)·투표(NO.65).
@@ -52,6 +60,36 @@ public class SetlistVoteService {
                 .toList();
         return new SetlistCandidatesResponse(concert.getExpectedSongCount(),
                 SetlistRules.isVotingClosed(concert, nowKst), songs);
+    }
+
+    @Transactional(readOnly = true)
+    public SetlistRankingResponse ranking(Long concertId, Long userId) {
+        return ranking(concertId, userId, LocalDateTime.now(SetlistRules.ZONE_KST));
+    }
+
+    /** 순위(NO.66). userId가 있으면(로그인) 내 선택 곡에 mine 표시. */
+    @Transactional(readOnly = true)
+    SetlistRankingResponse ranking(Long concertId, Long userId, LocalDateTime nowKst) {
+        Concert concert = findPublishedConcert(concertId);
+        if (!SetlistRules.isSetlistConcert(concert)) {
+            return new SetlistRankingResponse(null, 0, false, List.of());
+        }
+        int n = concert.getExpectedSongCount();
+        Set<Long> mine = userId == null ? Set.of() : voteRepository.findByConcertIdAndUserId(concertId, userId)
+                .map(v -> v.getSongs().stream().map(Song::getId).collect(Collectors.toSet()))
+                .orElse(Set.of());
+        List<SongVoteCount> counts = voteRepository.countVotesBySong(concertId);
+        Map<Long, Song> songs = songRepository.findAllById(counts.stream().map(SongVoteCount::songId).toList()).stream()
+                .collect(Collectors.toMap(Song::getId, Function.identity()));
+
+        List<RankedSong> ranked = new ArrayList<>();
+        for (SongVoteCount count : counts) {
+            int rank = ranked.size() + 1;
+            ranked.add(RankedSong.of(rank, songs.get(count.songId()), count.votes(), rank <= n,
+                    mine.contains(count.songId())));
+        }
+        return new SetlistRankingResponse(n, voteRepository.countByConcertId(concertId),
+                SetlistRules.isVotingClosed(concert, nowKst), ranked);
     }
 
     @Transactional(readOnly = true)

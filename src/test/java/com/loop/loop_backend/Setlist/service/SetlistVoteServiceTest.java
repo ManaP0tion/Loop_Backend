@@ -7,6 +7,8 @@ import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Setlist.dto.MySetlistVoteResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistCandidatesResponse;
+import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse;
+import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse.RankedSong;
 import com.loop.loop_backend.Setlist.dto.SongCandidateResponse;
 import com.loop.loop_backend.Setlist.repository.SetlistVoteRepository;
 import com.loop.loop_backend.Song.Repository.SongRepository;
@@ -197,6 +199,70 @@ class SetlistVoteServiceTest {
 
         assertThatThrownBy(() -> service.saveVote(noCount.getId(), me.getId(), List.of(s1.getId()), BEFORE_DEADLINE))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // ---------- 순위 ----------
+
+    private User user(String providerId) {
+        return userRepository.save(User.builder().authProvider(AuthProvider.KAKAO).providerId(providerId)
+                .status(Status.ACTIVE).onboardingCompleted(true).build());
+    }
+
+    private void voteAs(User user, Long... songIds) {
+        service.saveVote(concert.getId(), user.getId(), List.of(songIds), BEFORE_DEADLINE);
+    }
+
+    @Test
+    void 순위는_득표순이고_동점은_정렬_순번_순이며_상위_n곡을_하이라이트한다() {
+        voteAs(user("a"), s3.getId(), s2.getId());
+        voteAs(user("b"), s3.getId(), s1.getId());
+        voteAs(me, s2.getId());
+        em.flush();
+        em.clear();
+
+        SetlistRankingResponse res = service.ranking(concert.getId(), me.getId(), BEFORE_DEADLINE);
+
+        // s2·s3 2표 동점 → 정렬 순번(2 < 3)으로 s2가 1위. n = 2라 s1은 하이라이트 아님
+        assertThat(res.highlightCount()).isEqualTo(2);
+        assertThat(res.participantCount()).isEqualTo(3);
+        assertThat(res.votingClosed()).isFalse();
+        assertThat(res.songs()).extracting(RankedSong::rank, RankedSong::titleOriginal, RankedSong::votes,
+                        RankedSong::highlighted, RankedSong::mine)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(1, "ベテルギウス", 2L, true, true),
+                        org.assertj.core.groups.Tuple.tuple(2, "いかないで", 2L, true, false),
+                        org.assertj.core.groups.Tuple.tuple(3, "ドライフラワー", 1L, false, false));
+    }
+
+    @Test
+    void 비로그인이면_mine이_모두_false고_마감_후에도_순위는_그대로다() {
+        voteAs(me, s1.getId());
+        em.flush();
+        em.clear();
+
+        SetlistRankingResponse res = service.ranking(concert.getId(), null, DEADLINE);
+
+        assertThat(res.votingClosed()).isTrue();
+        assertThat(res.songs()).singleElement().satisfies(r -> {
+            assertThat(r.titleOriginal()).isEqualTo("ドライフラワー");
+            assertThat(r.mine()).isFalse();
+        });
+    }
+
+    @Test
+    void 투표_0건이면_빈_순위고_운영하지_않는_공연은_n이_null이다() {
+        assertThat(service.ranking(concert.getId(), me.getId(), BEFORE_DEADLINE).songs()).isEmpty();
+        assertThat(service.ranking(concert.getId(), me.getId(), BEFORE_DEADLINE).participantCount()).isZero();
+
+        Concert noCount = saveConcert(ConcertCategory.J_POP_ARTIST, yuuri, null, true);
+        assertThat(service.ranking(noCount.getId(), me.getId(), BEFORE_DEADLINE).highlightCount()).isNull();
+    }
+
+    @Test
+    void 비공개_공연_순위는_403() {
+        Concert hidden = saveConcert(ConcertCategory.J_POP_ARTIST, yuuri, 2, false);
+
+        assertErrorCode(() -> service.ranking(hidden.getId(), null, BEFORE_DEADLINE), ErrorCode.CONCERT_NOT_OPEN);
     }
 
     @Test

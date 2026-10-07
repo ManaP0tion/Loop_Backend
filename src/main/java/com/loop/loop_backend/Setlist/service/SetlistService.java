@@ -37,6 +37,13 @@ public class SetlistService {
         return currentList(concertId);
     }
 
+    /** 유저용 지난 셋리스트(NO.67): 최근 공연 → 지난 내한, 최대 2건. 비공개 공연 403. */
+    @Transactional(readOnly = true)
+    public List<SetlistResponse> pastSetlists(Long concertId) {
+        SetlistRules.requirePublished(findConcert(concertId));
+        return currentList(concertId).stream().filter(s -> s.type().isPast()).toList();
+    }
+
     /** 생성 또는 통째 교체. 응답은 그 공연의 셋리스트 전체. */
     @Transactional
     public List<SetlistResponse> save(Long concertId, SetlistType type, SetlistSaveRequest req) {

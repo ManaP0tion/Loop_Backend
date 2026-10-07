@@ -2,6 +2,12 @@ package com.loop.loop_backend.Setlist.controller;
 
 import com.loop.loop_backend.Setlist.dto.MySetlistVoteResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistCandidatesResponse;
+import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse;
+import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse.RankedSong;
+import com.loop.loop_backend.Setlist.dto.SetlistResponse;
+import com.loop.loop_backend.Setlist.dto.SetlistSongResponse;
+import com.loop.loop_backend.Setlist.domain.SetlistType;
+import com.loop.loop_backend.Setlist.service.SetlistService;
 import com.loop.loop_backend.Setlist.dto.SongCandidateResponse;
 import com.loop.loop_backend.Setlist.service.SetlistVoteService;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -37,11 +43,13 @@ class SetlistVoteControllerTest {
 
     private MockMvc mockMvc;
     private SetlistVoteService service;
+    private SetlistService setlistService;
 
     @BeforeEach
     void setUp() {
         service = mock(SetlistVoteService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new SetlistController(service), new SetlistVoteController(service))
+        setlistService = mock(SetlistService.class);
+        mockMvc = MockMvcBuilders.standaloneSetup(new SetlistController(service, setlistService), new SetlistVoteController(service))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
@@ -69,6 +77,50 @@ class SetlistVoteControllerTest {
                 .andExpect(jsonPath("$.data.songs[0].titleKo").value("드라이플라워"))
                 .andExpect(jsonPath("$.data.songs[0].albumArtUrl").value("https://img/a.jpg"))
                 .andExpect(jsonPath("$.data.songs[0].sortOrder").value(1));
+    }
+
+    @Test
+    void 순위는_로그인_유저를_넘기고_순위_필드를_모두_준다() throws Exception {
+        when(service.ranking(1L, USER_ID)).thenReturn(new SetlistRankingResponse(20, 31, true,
+                List.of(new RankedSong(1, 12L, "ドライフラワー", "드라이플라워", "https://img/a.jpg", 25, true, true))));
+
+        mockMvc.perform(get("/api/concerts/{concertId}/setlist/ranking", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.highlightCount").value(20))
+                .andExpect(jsonPath("$.data.participantCount").value(31))
+                .andExpect(jsonPath("$.data.votingClosed").value(true))
+                .andExpect(jsonPath("$.data.songs[0].rank").value(1))
+                .andExpect(jsonPath("$.data.songs[0].songId").value(12))
+                .andExpect(jsonPath("$.data.songs[0].titleOriginal").value("ドライフラワー"))
+                .andExpect(jsonPath("$.data.songs[0].titleKo").value("드라이플라워"))
+                .andExpect(jsonPath("$.data.songs[0].albumArtUrl").value("https://img/a.jpg"))
+                .andExpect(jsonPath("$.data.songs[0].votes").value(25))
+                .andExpect(jsonPath("$.data.songs[0].highlighted").value(true))
+                .andExpect(jsonPath("$.data.songs[0].mine").value(true));
+    }
+
+    @Test
+    void 비로그인_순위는_userId_없이_조회한다() throws Exception {
+        SecurityContextHolder.clearContext();
+        when(service.ranking(1L, null)).thenReturn(new SetlistRankingResponse(20, 0, false, List.of()));
+
+        mockMvc.perform(get("/api/concerts/{concertId}/setlist/ranking", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.songs").isEmpty());
+        verify(service).ranking(1L, null);
+    }
+
+    @Test
+    void 지난_셋리스트는_헤더와_곡을_준다() throws Exception {
+        when(setlistService.pastSetlists(1L)).thenReturn(List.of(new SetlistResponse(5L, SetlistType.RECENT, null,
+                null, "Zepp", 1, List.of(new SetlistSongResponse(1, 12L, "ドライフラワー", null, null)))));
+
+        mockMvc.perform(get("/api/concerts/{concertId}/setlist/past", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].type").value("RECENT"))
+                .andExpect(jsonPath("$.data[0].venueName").value("Zepp"))
+                .andExpect(jsonPath("$.data[0].songCount").value(1))
+                .andExpect(jsonPath("$.data[0].songs[0].titleOriginal").value("ドライフラワー"));
     }
 
     @Test

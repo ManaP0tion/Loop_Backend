@@ -207,6 +207,31 @@ class SetlistServiceTest {
     }
 
     @Test
+    void 유저용_지난_셋리스트는_실제_셋리스트를_빼고_최근_공연_지난_내한_순이다() {
+        Concert open = concertRepository.save(Concert.builder()
+                .title("OPEN").category(ConcertCategory.J_POP_ARTIST).artist(yuuri).expectedSongCount(3).published(true)
+                .build());
+        service.save(open.getId(), SetlistType.ACTUAL, actual(s1.getId()));
+        service.save(open.getId(), SetlistType.PREVIOUS_VISIT, past(s2.getId()));
+        service.save(open.getId(), SetlistType.RECENT, past(s3.getId(), s1.getId()));
+        em.clear();
+
+        List<SetlistResponse> past = service.pastSetlists(open.getId());
+
+        assertThat(past).extracting(SetlistResponse::type).containsExactly(SetlistType.RECENT, SetlistType.PREVIOUS_VISIT);
+        assertThat(past.get(0).songCount()).isEqualTo(2);
+    }
+
+    @Test
+    void 유저용_지난_셋리스트는_비공개_공연이면_403_없으면_빈_목록() {
+        assertErrorCode(() -> service.pastSetlists(concert.getId()), ErrorCode.CONCERT_NOT_OPEN);
+
+        Concert open = concertRepository.save(Concert.builder()
+                .title("OPEN").category(ConcertCategory.J_POP_ARTIST).artist(yuuri).published(true).build());
+        assertThat(service.pastSetlists(open.getId())).isEmpty();
+    }
+
+    @Test
     void 없는_셋리스트_삭제는_404_없는_공연은_404() {
         assertErrorCode(() -> service.delete(concert.getId(), SetlistType.ACTUAL), ErrorCode.SETLIST_NOT_FOUND);
         assertErrorCode(() -> service.list(9999L), ErrorCode.CONCERT_NOT_FOUND);
