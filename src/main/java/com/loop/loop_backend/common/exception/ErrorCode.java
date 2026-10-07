@@ -71,6 +71,9 @@ public enum ErrorCode {
     LINEUP_NOT_FOUND(404, "라인업 항목을 찾을 수 없습니다."),
     DUPLICATE_LINEUP(409, "이미 같은 DAY 라인업에 있는 아티스트입니다."),
 
+    // Setlist 도메인
+    SETLIST_NOT_FOUND(404, "셋리스트를 찾을 수 없습니다."),
+
     // CompanionPost 도메인
     COMPANION_POST_NOT_FOUND(404, "동행 모집글을 찾을 수 없습니다."),
     COMPANION_POST_ALREADY_CLOSED(409, "이미 마감된 모집글입니다."),

@@ -11,5 +11,6 @@ public interface SetlistRepository extends JpaRepository<Setlist, Long> {
 
     Optional<Setlist> findByConcertIdAndType(Long concertId, SetlistType type);
 
-    List<Setlist> findByConcertIdOrderByTypeAsc(Long concertId);
+    // 정렬은 서비스에서 enum 순서로 한다(문자열 컬럼이라 DB 정렬은 알파벳순)
+    List<Setlist> findByConcertId(Long concertId);
 }
