@@ -17,9 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * 셋리스트 관리(AD-07). 지난 셋리스트와 실제 셋리스트를 같은 방식(후보 곡 체크 + 순서)으로 저장한다.
@@ -48,7 +45,7 @@ public class SetlistService {
             // 전체 적중률(득표 상위 n곡)의 기준이 없다
             throw new IllegalArgumentException("예상 곡 수가 없는 공연은 실제 셋리스트를 저장할 수 없다");
         }
-        List<Song> songs = candidateSongs(concert, req.songIds());
+        List<Song> songs = SetlistRules.resolveSongs(songRepository, concert, req.songIds());
         setlistRepository.findByConcertIdAndType(concertId, type).ifPresentOrElse(
                 setlist -> {
                     setlist.changeHeader(req.tourName(), req.performedOn(), req.venueName());
@@ -71,27 +68,6 @@ public class SetlistService {
         setlistRepository.delete(setlist);
         setlistRepository.flush();
         return currentList(concertId);
-    }
-
-    /**
-     * 요청 순서·중복 그대로 곡을 꺼낸다. 공연 아티스트의 (삭제되지 않은) 곡만 허용 - 아니면 400.
-     * 소프트 삭제된 곡은 Song의 @SQLRestriction 때문에 조회되지 않아 '없는 곡'과 같이 거부된다.
-     */
-    private List<Song> candidateSongs(Concert concert, List<Long> songIds) {
-        if (concert.getArtist() == null) {
-            throw new IllegalArgumentException("아티스트가 지정되지 않은 공연이다");
-        }
-        Long artistId = concert.getArtist().getId();
-        Map<Long, Song> found = songRepository.findAllById(songIds.stream().distinct().toList()).stream()
-                .filter(song -> song.getArtist().getId().equals(artistId))
-                .collect(Collectors.toMap(Song::getId, Function.identity()));
-        return songIds.stream()
-                .map(id -> {
-                    Song song = found.get(id);
-                    if (song == null) throw new IllegalArgumentException("공연 아티스트의 곡이 아니다: " + id);
-                    return song;
-                })
-                .toList();
     }
 
     private List<SetlistResponse> currentList(Long concertId) {

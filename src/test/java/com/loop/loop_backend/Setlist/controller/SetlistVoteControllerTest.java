@@ -1,0 +1,128 @@
+package com.loop.loop_backend.Setlist.controller;
+
+import com.loop.loop_backend.Setlist.dto.MySetlistVoteResponse;
+import com.loop.loop_backend.Setlist.dto.SetlistCandidatesResponse;
+import com.loop.loop_backend.Setlist.dto.SongCandidateResponse;
+import com.loop.loop_backend.Setlist.service.SetlistVoteService;
+import com.loop.loop_backend.common.exception.BusinessException;
+import com.loop.loop_backend.common.exception.ErrorCode;
+import com.loop.loop_backend.common.exception.GlobalExceptionHandler;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import java.util.List;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+// 예상 셋리스트 후보·투표 API 요청·응답 요구사항(NO.57·64·65):
+// - 후보는 비로그인 열람, n·마감 여부·곡 필드(로마자 포함)를 준다.
+// - 투표는 로그인 유저 기준. songIds가 없거나 비었으면 400이고 서비스까지 가지 않는다. 마감 409.
+class SetlistVoteControllerTest {
+
+    private static final Long USER_ID = 7L;
+
+    private MockMvc mockMvc;
+    private SetlistVoteService service;
+
+    @BeforeEach
+    void setUp() {
+        service = mock(SetlistVoteService.class);
+        mockMvc = MockMvcBuilders.standaloneSetup(new SetlistController(service), new SetlistVoteController(service))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(USER_ID, null, List.of()));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void 후보는_n_마감_여부_곡_필드를_준다() throws Exception {
+        when(service.candidates(1L)).thenReturn(new SetlistCandidatesResponse(20, false,
+                List.of(new SongCandidateResponse(12L, "ドライフラワー", "Dry Flower", "드라이플라워", "https://img/a.jpg", 1))));
+
+        mockMvc.perform(get("/api/concerts/{concertId}/setlist/candidates", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.maxSelect").value(20))
+                .andExpect(jsonPath("$.data.votingClosed").value(false))
+                .andExpect(jsonPath("$.data.songs[0].songId").value(12))
+                .andExpect(jsonPath("$.data.songs[0].titleOriginal").value("ドライフラワー"))
+                .andExpect(jsonPath("$.data.songs[0].titleRomanized").value("Dry Flower"))
+                .andExpect(jsonPath("$.data.songs[0].titleKo").value("드라이플라워"))
+                .andExpect(jsonPath("$.data.songs[0].albumArtUrl").value("https://img/a.jpg"))
+                .andExpect(jsonPath("$.data.songs[0].sortOrder").value(1));
+    }
+
+    @Test
+    void 비공개_공연_후보는_403() throws Exception {
+        when(service.candidates(1L)).thenThrow(new BusinessException(ErrorCode.CONCERT_NOT_OPEN));
+
+        mockMvc.perform(get("/api/concerts/{concertId}/setlist/candidates", 1L))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void 내_투표는_로그인_유저_기준으로_조회한다() throws Exception {
+        when(service.myVote(1L, USER_ID)).thenReturn(new MySetlistVoteResponse(true, List.of(12L, 7L), true));
+
+        mockMvc.perform(get("/api/users/me/setlist-votes/{concertId}", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.voted").value(true))
+                .andExpect(jsonPath("$.data.songIds[1]").value(7))
+                .andExpect(jsonPath("$.data.resultMailConsent").value(true));
+    }
+
+    @Test
+    void 투표는_로그인_유저와_곡_목록을_넘긴다() throws Exception {
+        when(service.saveVote(1L, USER_ID, List.of(12L, 7L))).thenReturn(new MySetlistVoteResponse(true, List.of(7L, 12L), false));
+
+        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}", 1L)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"songIds\":[12,7]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.songIds[0]").value(7));
+    }
+
+    @Test
+    void songIds가_없거나_비었으면_400이고_서비스는_호출되지_않는다() throws Exception {
+        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}", 1L)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}", 1L)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"songIds\":[]}"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void 마감_이후_투표는_409_곡_수_위반은_400() throws Exception {
+        when(service.saveVote(eq(1L), eq(USER_ID), anyList())).thenThrow(new BusinessException(ErrorCode.SETLIST_VOTE_CLOSED));
+        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}", 1L)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"songIds\":[1]}"))
+                .andExpect(status().isConflict());
+
+        reset(service);
+        when(service.saveVote(any(), any(), anyList())).thenThrow(new IllegalArgumentException("곡은 1~2곡"));
+        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}", 1L)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"songIds\":[1,2,3]}"))
+                .andExpect(status().isBadRequest());
+    }
+}

@@ -73,6 +73,7 @@ public enum ErrorCode {
 
     // Setlist 도메인
     SETLIST_NOT_FOUND(404, "셋리스트를 찾을 수 없습니다."),
+    SETLIST_VOTE_CLOSED(409, "예상 셋리스트 투표가 마감되었습니다."),
 
     // CompanionPost 도메인
     COMPANION_POST_NOT_FOUND(404, "동행 모집글을 찾을 수 없습니다."),
