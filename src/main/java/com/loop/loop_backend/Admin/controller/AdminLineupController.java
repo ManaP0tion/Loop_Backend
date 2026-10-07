@@ -60,12 +60,12 @@ public class AdminLineupController {
                     "| 방식 | 요청 |\n" +
                     "|---|---|\n" +
                     "| DB 선택 | `{\"day\": 1, \"artistIds\": [3, 7]}` |\n" +
-                    "| 직접 입력 | `{\"day\": 1, \"name\": \"Vaundy\", \"imageUrl\": \"https://...\"}` - 아티스트 DB에도 저장된다 |\n\n" +
+                    "| 직접 입력 | `{\"day\": 1, \"name\": \"Vaundy\", \"imageUrl\": \"https://...\", \"category\": \"DOMESTIC_ARTIST\"}` - 아티스트 DB에도 저장된다. category 생략 시 J_POP_ARTIST |\n\n" +
                     "같은 아티스트를 다른 DAY에 또 추가할 수 있다. 같은 DAY에 이미 있으면 409이고 아무것도 추가되지 않는다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "추가 성공"),
             @ApiResponse(responseCode = "400",
-                    description = "페스티벌이 아님, 공연 기간 미정, DAY 범위 밖, artistIds와 name을 둘 다 보내거나 둘 다 안 보냄",
+                    description = "페스티벌이 아님, 공연 기간 미정, DAY 범위 밖, artistIds와 name을 둘 다 보내거나 둘 다 안 보냄, category에 페스티벌 값",
                     content = @Content(examples = @ExampleObject(value = INVALID_INPUT_EXAMPLE))),
             @ApiResponse(responseCode = "404", description = "공연 또는 아티스트 없음"),
             @ApiResponse(responseCode = "409", description = "같은 DAY에 이미 있는 아티스트",
