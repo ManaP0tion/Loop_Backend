@@ -139,7 +139,8 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserResponseDto updateNotificationSettings(Long id, NotificationSettingsRequestDto requestDto) {
         User user = findUserOrThrow(id);
-        user.updateNotificationSettings(requestDto.getConcertReminderEmail(), requestDto.getChatNotificationEmail());
+        user.updateNotificationSettings(requestDto.getConcertReminderEmail(), requestDto.getChatNotificationEmail(),
+                requestDto.getSetlistResultEmail());
         return toResponseDto(user);
     }
 

@@ -156,6 +156,18 @@ class SetlistVoteControllerTest {
     }
 
     @Test
+    void 수신_동의는_로그인_유저_기준이고_투표가_없으면_404() throws Exception {
+        when(service.agreeResultMail(1L, USER_ID)).thenReturn(new MySetlistVoteResponse(true, List.of(12L), true));
+        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}/result-mail-consent", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.resultMailConsent").value(true));
+
+        when(service.agreeResultMail(2L, USER_ID)).thenThrow(new BusinessException(ErrorCode.SETLIST_VOTE_NOT_FOUND));
+        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}/result-mail-consent", 2L))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void 비공개_공연_후보는_403() throws Exception {
         when(service.candidates(1L)).thenThrow(new BusinessException(ErrorCode.CONCERT_NOT_OPEN));
 

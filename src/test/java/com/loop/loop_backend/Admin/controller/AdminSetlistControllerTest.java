@@ -132,15 +132,18 @@ class AdminSetlistControllerTest {
 
     @Test
     void 삭제는_기록을_남기고_없으면_404() throws Exception {
-        when(service.delete(1L, SetlistType.ACTUAL)).thenReturn(List.of());
-        when(service.delete(1L, SetlistType.RECENT)).thenThrow(new BusinessException(ErrorCode.SETLIST_NOT_FOUND));
+        when(service.delete(1L, SetlistType.RECENT)).thenReturn(List.of());
+        when(service.delete(1L, SetlistType.PREVIOUS_VISIT)).thenThrow(new BusinessException(ErrorCode.SETLIST_NOT_FOUND));
+        when(service.delete(1L, SetlistType.ACTUAL)).thenThrow(new IllegalArgumentException("실제 셋리스트는 삭제할 수 없다"));
 
-        mockMvc.perform(delete(BASE + "/ACTUAL", 1L))
+        mockMvc.perform(delete(BASE + "/RECENT", 1L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isEmpty());
         verify(accessLog).log(any(), any(), eq("DELETE_SETLIST"), eq("CONCERT"), eq(1L), anyString());
 
-        mockMvc.perform(delete(BASE + "/RECENT", 1L))
+        mockMvc.perform(delete(BASE + "/PREVIOUS_VISIT", 1L))
                 .andExpect(status().isNotFound());
+        mockMvc.perform(delete(BASE + "/ACTUAL", 1L))
+                .andExpect(status().isBadRequest());
     }
 }

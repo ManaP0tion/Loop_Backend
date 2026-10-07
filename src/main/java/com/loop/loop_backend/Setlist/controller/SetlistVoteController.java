@@ -43,6 +43,21 @@ public class SetlistVoteController {
         return ResponseEntity.ok(CommonResponse.success(voteService.myVote(concertId, userId)));
     }
 
+    @PutMapping("/result-mail-consent")
+    @Operation(summary = "결과 메일 수신 동의",
+            description = "투표 완료 후 모달(MD03) 1단계. 이미 동의한 상태(resultMailConsent=true)면 모달을 띄우지 않는다.\n\n" +
+                    "실제 발송 조건: 동의 + 이메일 인증 완료 + 알림 설정의 셋리스트 결과 알림 ON. " +
+                    "인증 안 된 계정은 이어서 이메일 입력·인증(2단계)을 진행한다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "동의 저장(이미 동의했어도 200)"),
+            @ApiResponse(responseCode = "404", description = "이 공연에 투표하지 않음 - SETLIST_VOTE_NOT_FOUND")
+    })
+    public ResponseEntity<CommonResponse<MySetlistVoteResponse>> agreeResultMail(
+            @AuthenticationPrincipal Long userId,
+            @Parameter(description = "콘서트 PK") @PathVariable Long concertId) {
+        return ResponseEntity.ok(CommonResponse.success(voteService.agreeResultMail(concertId, userId)));
+    }
+
     @PutMapping
     @Operation(summary = "투표 저장·수정",
             description = "공연당 1건. 이미 투표했으면 기존 선택을 통째로 교체한다(집계에 즉시 반영).\n\n" +

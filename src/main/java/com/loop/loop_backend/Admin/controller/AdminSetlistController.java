@@ -81,10 +81,12 @@ public class AdminSetlistController {
     }
 
     @DeleteMapping("/{type}")
-    @Operation(summary = "셋리스트 삭제", description = "곡은 곡 목록에 남는다.")
+    @Operation(summary = "지난 셋리스트 삭제",
+            description = "RECENT / PREVIOUS_VISIT만. 곡은 곡 목록에 남는다. " +
+                    "실제 셋리스트(ACTUAL)는 결과 메일이 최초 저장 때 1회 나가므로 삭제할 수 없고 저장(PUT)으로 교체한다 - 400.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "삭제 성공"),
-            @ApiResponse(responseCode = "400", description = "잘못된 type",
+            @ApiResponse(responseCode = "400", description = "잘못된 type, ACTUAL 삭제 시도",
                     content = @Content(examples = @ExampleObject(value = INVALID_INPUT_EXAMPLE))),
             @ApiResponse(responseCode = "404", description = "공연 또는 셋리스트 없음",
                     content = @Content(examples = @ExampleObject(value = NOT_FOUND_EXAMPLE)))

@@ -8,6 +8,7 @@ import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Setlist.domain.SetlistType;
 import com.loop.loop_backend.Setlist.dto.SetlistResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistSaveRequest;
+import com.loop.loop_backend.Setlist.event.SetlistResultSavedEvent;
 import com.loop.loop_backend.Setlist.repository.SetlistRepository;
 import com.loop.loop_backend.Song.Repository.SongRepository;
 import com.loop.loop_backend.Song.domain.Song;
@@ -20,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,13 +42,14 @@ class SetlistServiceTest {
     @Autowired private EntityManager em;
 
     private SetlistService service;
+    private final List<Object> events = new ArrayList<>();
     private Artist yuuri;
     private Concert concert;
     private Song s1, s2, s3;
 
     @BeforeEach
     void setUp() {
-        service = new SetlistService(setlistRepository, concertRepository, songRepository);
+        service = new SetlistService(setlistRepository, concertRepository, songRepository, events::add);
         yuuri = artistRepository.save(Artist.builder().name("Yuuri").build());
         concert = concertRepository.save(Concert.builder()
                 .title("YUURI LIVE").category(ConcertCategory.J_POP_ARTIST).artist(yuuri).expectedSongCount(3)
@@ -196,14 +199,14 @@ class SetlistServiceTest {
     }
 
     @Test
-    void 삭제하면_목록에서_빠지고_곡은_남는다() {
+    void 지난_셋리스트를_삭제하면_목록에서_빠지고_곡은_남는다() {
         service.save(concert.getId(), SetlistType.ACTUAL, actual(s1.getId()));
         service.save(concert.getId(), SetlistType.RECENT, past(s2.getId()));
 
-        List<SetlistResponse> list = service.delete(concert.getId(), SetlistType.ACTUAL);
+        List<SetlistResponse> list = service.delete(concert.getId(), SetlistType.RECENT);
 
-        assertThat(list).extracting(SetlistResponse::type).containsExactly(SetlistType.RECENT);
-        assertThat(songRepository.findById(s1.getId())).isPresent();
+        assertThat(list).extracting(SetlistResponse::type).containsExactly(SetlistType.ACTUAL);
+        assertThat(songRepository.findById(s2.getId())).isPresent();
     }
 
     @Test
@@ -232,8 +235,28 @@ class SetlistServiceTest {
     }
 
     @Test
+    void 결과_메일_이벤트는_실제_셋리스트_최초_저장에만_발행된다() {
+        service.save(concert.getId(), SetlistType.RECENT, past(s1.getId()));
+        assertThat(events).isEmpty();
+
+        service.save(concert.getId(), SetlistType.ACTUAL, actual(s1.getId()));
+        service.save(concert.getId(), SetlistType.ACTUAL, actual(s2.getId()));
+
+        assertThat(events).containsExactly(new SetlistResultSavedEvent(concert.getId(), "YUURI LIVE"));
+    }
+
+    @Test
+    void 실제_셋리스트는_삭제할_수_없다_결과_메일_재발송을_막으려고() {
+        service.save(concert.getId(), SetlistType.ACTUAL, actual(s1.getId()));
+
+        assertThatThrownBy(() -> service.delete(concert.getId(), SetlistType.ACTUAL))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(setlistRepository.count()).isEqualTo(1);
+    }
+
+    @Test
     void 없는_셋리스트_삭제는_404_없는_공연은_404() {
-        assertErrorCode(() -> service.delete(concert.getId(), SetlistType.ACTUAL), ErrorCode.SETLIST_NOT_FOUND);
+        assertErrorCode(() -> service.delete(concert.getId(), SetlistType.RECENT), ErrorCode.SETLIST_NOT_FOUND);
         assertErrorCode(() -> service.list(9999L), ErrorCode.CONCERT_NOT_FOUND);
         assertErrorCode(() -> service.save(9999L, SetlistType.ACTUAL, actual(s1.getId())), ErrorCode.CONCERT_NOT_FOUND);
     }

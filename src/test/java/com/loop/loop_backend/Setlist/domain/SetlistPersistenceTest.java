@@ -6,6 +6,7 @@ import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Setlist.repository.SetlistRepository;
+import com.loop.loop_backend.Setlist.repository.SetlistResultRecipient;
 import com.loop.loop_backend.Setlist.repository.SetlistVoteRepository;
 import com.loop.loop_backend.Setlist.repository.SongVoteCount;
 import com.loop.loop_backend.Song.domain.Song;
@@ -204,6 +205,29 @@ class SetlistPersistenceTest {
         flushAndClear();
 
         assertThat(voteRepository.countByConcertId(concert.getId())).isEqualTo(1);
+    }
+
+    @Test
+    void 결과_메일_대상은_투표_수신동의_이메일인증_알림ON을_모두_만족한_유저다() {
+        User ok = user("ok");
+        ok.verifyEmail("ok@loop.com");
+        User noConsent = user("noConsent");
+        noConsent.verifyEmail("no-consent@loop.com");
+        User noEmail = user("noEmail");
+        User settingOff = user("settingOff");
+        settingOff.verifyEmail("off@loop.com");
+        settingOff.updateNotificationSettings(null, null, false);
+        User notVoted = user("notVoted");
+        notVoted.verifyEmail("not-voted@loop.com");
+
+        vote(ok, s1).agreeResultMail();
+        vote(noConsent, s1);
+        vote(noEmail, s1).agreeResultMail();
+        vote(settingOff, s1).agreeResultMail();
+        flushAndClear();
+
+        assertThat(voteRepository.findResultMailRecipients(concert.getId()))
+                .extracting(SetlistResultRecipient::email).containsExactly("ok@loop.com");
     }
 
     @Test

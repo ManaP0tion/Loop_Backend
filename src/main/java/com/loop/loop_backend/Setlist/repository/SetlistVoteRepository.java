@@ -38,4 +38,18 @@ public interface SetlistVoteRepository extends JpaRepository<SetlistVote, Long> 
             where v.concert.id = :concertId
             """)
     List<VoteSongRow> findVoteSongs(@Param("concertId") Long concertId);
+
+    /**
+     * 결과 메일 대상(NO.69): 투표 + 수신 동의 + 이메일 인증(email 존재) + 설정의 셋리스트 결과 알림 ON.
+     * 탈퇴 유저는 투표가 지워져 있어 걸리지 않는다.
+     */
+    @Query("""
+            select new com.loop.loop_backend.Setlist.repository.SetlistResultRecipient(u.email, u.nickname)
+            from SetlistVote v join v.user u
+            where v.concert.id = :concertId
+              and v.resultMailConsent = true
+              and u.email is not null
+              and u.setlistResultEmail = true
+            """)
+    List<SetlistResultRecipient> findResultMailRecipients(@Param("concertId") Long concertId);
 }

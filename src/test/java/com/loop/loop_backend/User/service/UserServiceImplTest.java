@@ -11,6 +11,7 @@ import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
+import com.loop.loop_backend.User.dto.NotificationSettingsRequestDto;
 import com.loop.loop_backend.User.dto.TermsAgreementRequestDto;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.auth.service.RefreshTokenService;
@@ -58,6 +59,26 @@ class UserServiceImplTest {
                 .status(Status.ACTIVE)
                 .onboardingCompleted(true)
                 .build();
+    }
+
+    // ── updateNotificationSettings ───────────────────────────────────────
+
+    @Test
+    void 셋리스트_결과_알림은_기본_ON이고_null이면_그대로_값이면_바뀐다() {
+        User user = testUser();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        assertThat(user.isSetlistResultEmail()).isTrue();
+
+        NotificationSettingsRequestDto keep = new NotificationSettingsRequestDto();
+        keep.setChatNotificationEmail(true);
+        userService.updateNotificationSettings(USER_ID, keep);
+        assertThat(user.isSetlistResultEmail()).isTrue();
+
+        NotificationSettingsRequestDto off = new NotificationSettingsRequestDto();
+        off.setSetlistResultEmail(false);
+        userService.updateNotificationSettings(USER_ID, off);
+        assertThat(user.isSetlistResultEmail()).isFalse();
+        assertThat(user.isChatNotificationEmail()).isTrue();
     }
 
     // ── withdrawUser ─────────────────────────────────────────────────────

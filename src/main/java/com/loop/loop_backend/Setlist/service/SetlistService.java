@@ -6,15 +6,18 @@ import com.loop.loop_backend.Setlist.domain.Setlist;
 import com.loop.loop_backend.Setlist.domain.SetlistType;
 import com.loop.loop_backend.Setlist.dto.SetlistResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistSaveRequest;
+import com.loop.loop_backend.Setlist.event.SetlistResultSavedEvent;
 import com.loop.loop_backend.Setlist.repository.SetlistRepository;
 import com.loop.loop_backend.Song.Repository.SongRepository;
 import com.loop.loop_backend.Song.domain.Song;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 
@@ -29,6 +32,7 @@ public class SetlistService {
     private final SetlistRepository setlistRepository;
     private final ConcertRepository concertRepository;
     private final SongRepository songRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** 관리자 목록: 최근 공연 → 지난 내한 → 실제 순. */
     @Transactional(readOnly = true)
@@ -53,23 +57,32 @@ public class SetlistService {
             throw new IllegalArgumentException("예상 곡 수가 없는 공연은 실제 셋리스트를 저장할 수 없다");
         }
         List<Song> songs = SetlistRules.resolveSongs(songRepository, concert, req.songIds());
-        setlistRepository.findByConcertIdAndType(concertId, type).ifPresentOrElse(
-                setlist -> {
-                    setlist.changeHeader(req.tourName(), req.performedOn(), req.venueName());
-                    setlist.replaceSongs(songs);
-                },
-                () -> setlistRepository.save(Setlist.builder()
+        Setlist setlist = setlistRepository.findByConcertIdAndType(concertId, type)
+                .map(existing -> {
+                    existing.changeHeader(req.tourName(), req.performedOn(), req.venueName());
+                    existing.replaceSongs(songs);
+                    return existing;
+                })
+                .orElseGet(() -> setlistRepository.save(Setlist.builder()
                         .concert(concert).type(type)
                         .tourName(req.tourName()).performedOn(req.performedOn()).venueName(req.venueName())
                         .songs(songs)
                         .build()));
+        // 결과 메일은 실제 셋리스트 최초 저장 때만(NO.69). 수정은 적중률만 바뀐다(조회 시 계산)
+        if (setlist.markResultMailSent(LocalDateTime.now(SetlistRules.ZONE_KST))) {
+            eventPublisher.publishEvent(new SetlistResultSavedEvent(concertId, concert.getTitle()));
+        }
         setlistRepository.flush();
         return currentList(concertId);
     }
 
+    /** 지난 셋리스트만 지울 수 있다. 실제 셋리스트는 결과 메일 기록(최초 1회)이 함께 지워지므로 수정(PUT)만 허용 - 400. */
     @Transactional
     public List<SetlistResponse> delete(Long concertId, SetlistType type) {
         findConcert(concertId);
+        if (!type.isPast()) {
+            throw new IllegalArgumentException("실제 셋리스트는 삭제할 수 없다 - 수정으로 교체한다");
+        }
         Setlist setlist = setlistRepository.findByConcertIdAndType(concertId, type)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SETLIST_NOT_FOUND));
         setlistRepository.delete(setlist);

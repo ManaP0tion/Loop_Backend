@@ -136,6 +136,15 @@ public class SetlistVoteService {
         return toResponse(vote);
     }
 
+    /** 결과 메일 수신 동의(MD03 1단계). 투표한 유저만 - 아니면 404. 이미 동의했어도 200. */
+    @Transactional
+    public MySetlistVoteResponse agreeResultMail(Long concertId, Long userId) {
+        SetlistVote vote = voteRepository.findByConcertIdAndUserId(concertId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.SETLIST_VOTE_NOT_FOUND));
+        vote.agreeResultMail();
+        return toResponse(vote);
+    }
+
     private static MySetlistVoteResponse toResponse(SetlistVote vote) {
         List<Long> songIds = vote.getSongs().stream()
                 .sorted(Comparator.comparing(Song::getSortOrder).thenComparing(Song::getId))

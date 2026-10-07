@@ -265,6 +265,25 @@ class SetlistVoteServiceTest {
         assertErrorCode(() -> service.ranking(hidden.getId(), null, BEFORE_DEADLINE), ErrorCode.CONCERT_NOT_OPEN);
     }
 
+    // ---------- 결과 메일 수신 동의 ----------
+
+    @Test
+    void 수신_동의는_투표에_저장되고_투표를_고쳐도_유지된다() {
+        vote(BEFORE_DEADLINE, s1.getId());
+
+        assertThat(service.agreeResultMail(concert.getId(), me.getId()).resultMailConsent()).isTrue();
+        em.flush();
+        em.clear();
+
+        vote(BEFORE_DEADLINE, s2.getId());
+        assertThat(service.myVote(concert.getId(), me.getId()).resultMailConsent()).isTrue();
+    }
+
+    @Test
+    void 투표하지_않았으면_수신_동의는_404() {
+        assertErrorCode(() -> service.agreeResultMail(concert.getId(), me.getId()), ErrorCode.SETLIST_VOTE_NOT_FOUND);
+    }
+
     @Test
     void 투표하지_않았으면_빈_응답이다() {
         MySetlistVoteResponse res = service.myVote(concert.getId(), me.getId());
