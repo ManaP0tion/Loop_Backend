@@ -64,7 +64,7 @@ class LineupServiceTest {
 
     private List<LineupItemResponse> select(int day, Artist... artists) {
         List<Long> ids = java.util.Arrays.stream(artists).map(Artist::getId).toList();
-        return service.add(festival.getId(), new LineupAddRequest(day, ids, null, null));
+        return service.add(festival.getId(), new LineupAddRequest(day, ids, null, null, null));
     }
 
     private static void assertErrorCode(Runnable action, ErrorCode expected) {
@@ -92,11 +92,12 @@ class LineupServiceTest {
     @Test
     void 직접_입력하면_아티스트_DB에도_저장된다() {
         List<LineupItemResponse> list = service.add(festival.getId(),
-                new LineupAddRequest(1, null, "  Ado ", "https://img/ado.png"));
+                new LineupAddRequest(1, null, "  Ado ", "https://img/ado.png", ConcertCategory.DOMESTIC_ARTIST));
 
         assertThat(list).singleElement().satisfies(r -> {
             assertThat(r.name()).isEqualTo("Ado");
             assertThat(r.imageUrl()).isEqualTo("https://img/ado.png");
+            assertThat(r.category()).isEqualTo(ConcertCategory.DOMESTIC_ARTIST);
         });
         assertThat(artistRepository.findAll()).extracting(Artist::getName).contains("Ado");
     }
@@ -104,15 +105,15 @@ class LineupServiceTest {
     @Test
     void artistIds와_name을_둘_다_보내거나_둘_다_안_보내면_400() {
         assertThatThrownBy(() -> service.add(festival.getId(),
-                new LineupAddRequest(1, List.of(yuuri.getId()), "Ado", null)))
+                new LineupAddRequest(1, List.of(yuuri.getId()), "Ado", null, null)))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> service.add(festival.getId(), new LineupAddRequest(1, List.of(), " ", null)))
+        assertThatThrownBy(() -> service.add(festival.getId(), new LineupAddRequest(1, List.of(), " ", null, null)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void 없는_아티스트를_고르면_404() {
-        assertErrorCode(() -> service.add(festival.getId(), new LineupAddRequest(1, List.of(9999L), null, null)),
+        assertErrorCode(() -> service.add(festival.getId(), new LineupAddRequest(1, List.of(9999L), null, null, null)),
                 ErrorCode.ARTIST_NOT_FOUND);
     }
 
@@ -134,7 +135,7 @@ class LineupServiceTest {
         Concert solo = concertRepository.save(Concert.builder()
                 .title("YUURI LIVE").category(ConcertCategory.J_POP_ARTIST)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 20)).build());
-        assertThatThrownBy(() -> service.add(solo.getId(), new LineupAddRequest(1, List.of(yuuri.getId()), null, null)))
+        assertThatThrownBy(() -> service.add(solo.getId(), new LineupAddRequest(1, List.of(yuuri.getId()), null, null, null)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -271,7 +272,7 @@ class LineupServiceTest {
         Long day1 = select(1, yoasobi).get(0).lineupId();
         Long day2 = idOf(select(2, yuuri), "Yuuri");
         Concert other = saveFestival();
-        Long otherFestival = service.add(other.getId(), new LineupAddRequest(1, List.of(vaundy.getId()), null, null))
+        Long otherFestival = service.add(other.getId(), new LineupAddRequest(1, List.of(vaundy.getId()), null, null, null))
                 .get(0).lineupId();
 
         assertThatThrownBy(() -> service.validateStages(festival.getId(), 1, List.of(day1, day2)))

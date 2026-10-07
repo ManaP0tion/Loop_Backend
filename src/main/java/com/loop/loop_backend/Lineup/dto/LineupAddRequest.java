@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Lineup.dto;
 
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -9,7 +10,7 @@ import java.util.List;
 /**
  * 라인업 추가. 두 방식 중 하나만 보낸다.
  * - DB 선택: artistIds (아티스트 관리에 등록된 아티스트 여러 명)
- * - 직접 입력: name (+ imageUrl) - 아티스트 DB에도 새로 저장된다
+ * - 직접 입력: name (+ imageUrl, category) - 아티스트 DB에도 새로 저장된다
  */
 @Schema(description = "라인업 추가 요청. artistIds(DB 선택)와 name(직접 입력) 중 하나만 보낸다")
 public record LineupAddRequest(
@@ -28,6 +29,10 @@ public record LineupAddRequest(
 
         @Size(max = 500)
         @Schema(description = "직접 입력: 아티스트 이미지 URL(이미지 업로드 API로 받은 값). 없으면 null", types = {"string", "null"})
-        String imageUrl
+        String imageUrl,
+
+        @Schema(description = "직접 입력: 일본/국내 구분(J_POP_ARTIST, DOMESTIC_ARTIST). 없으면 J_POP_ARTIST",
+                example = "J_POP_ARTIST", types = {"string", "null"})
+        ConcertCategory category
 ) {
 }

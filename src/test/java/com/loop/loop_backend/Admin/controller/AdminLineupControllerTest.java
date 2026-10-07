@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Admin.controller;
 
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Admin.service.AdminAccessLogService;
 import com.loop.loop_backend.Lineup.dto.LineupAddRequest;
 import com.loop.loop_backend.Lineup.dto.LineupItemResponse;
@@ -40,8 +41,8 @@ class AdminLineupControllerTest {
 
     private static final String BASE = "/api/admin/concerts/{concertId}/lineup";
     private static final List<LineupItemResponse> LIST = List.of(
-            new LineupItemResponse(10L, 3L, "YOASOBI", "요아소비", "https://img/yoasobi.png", 1, true, 1),
-            new LineupItemResponse(11L, 4L, "Yuuri", null, null, 2, false, 2));
+            new LineupItemResponse(10L, 3L, "YOASOBI", "요아소비", "https://img/yoasobi.png", ConcertCategory.J_POP_ARTIST, 1, true, 1),
+            new LineupItemResponse(11L, 4L, "Yuuri", null, null, ConcertCategory.J_POP_ARTIST, 2, false, 2));
 
     private MockMvc mockMvc;
     private LineupService service;
