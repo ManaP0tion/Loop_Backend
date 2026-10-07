@@ -3,6 +3,8 @@ package com.loop.loop_backend.Setlist.controller;
 import com.loop.loop_backend.Setlist.dto.SetlistCandidatesResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistResponse;
+import com.loop.loop_backend.Setlist.dto.SetlistResultResponse;
+import com.loop.loop_backend.Setlist.service.SetlistResultService;
 import com.loop.loop_backend.Setlist.service.SetlistService;
 import com.loop.loop_backend.Setlist.service.SetlistVoteService;
 import com.loop.loop_backend.common.exception.CommonResponse;
@@ -30,6 +32,28 @@ public class SetlistController {
 
     private final SetlistVoteService voteService;
     private final SetlistService setlistService;
+    private final SetlistResultService resultService;
+
+    @GetMapping("/result")
+    @Operation(summary = "예상 셋리스트 결과(공연 후)",
+            description = "적중률 + 실제 셋리스트 + 예상했지만 나오지 않은 곡. 실제 셋리스트를 고치면 다음 조회부터 재산출된 값.\n\n" +
+                    "- 적중률 = 맞힌 곡 수 ÷ 실제 셋리스트 곡 수(중복 연주 1회, 순서·앵코르 무시)\n" +
+                    "- overall(팬 적중률) = 득표 상위 n곡 기준, averagePercent = 투표자 개인 적중률 평균\n" +
+                    "- mine = 로그인 + 투표한 유저만. 없으면 null → 팬 적중률·참여자 수로 대체\n" +
+                    "- songs: fanPredicted(배경) · mine(체크) · unexpected(아무도 예상하지 못한 곡)\n" +
+                    "- missedSongs: 득표순. 투표 유저는 mine=true, 미투표·비로그인은 fanPredicted=true만 골라 쓴다\n" +
+                    "- 실제 셋리스트 저장 전이면 ready=false(두 섹션 대기 문구)\n\n" +
+                    "비공개(오픈 예정) 공연이면 403.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "403", description = "오픈 예정(비공개) 공연 - CONCERT_NOT_OPEN"),
+            @ApiResponse(responseCode = "404", description = "콘서트 없음")
+    })
+    public ResponseEntity<CommonResponse<SetlistResultResponse>> result(
+            @AuthenticationPrincipal Long userId,
+            @Parameter(description = "콘서트 PK") @PathVariable Long concertId) {
+        return ResponseEntity.ok(CommonResponse.success(resultService.result(concertId, userId)));
+    }
 
     @GetMapping("/ranking")
     @Operation(summary = "예상 셋리스트 순위",

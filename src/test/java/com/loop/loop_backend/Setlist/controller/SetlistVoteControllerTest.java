@@ -8,6 +8,9 @@ import com.loop.loop_backend.Setlist.dto.SetlistResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistSongResponse;
 import com.loop.loop_backend.Setlist.domain.SetlistType;
 import com.loop.loop_backend.Setlist.service.SetlistService;
+import com.loop.loop_backend.Setlist.service.SetlistResultService;
+import com.loop.loop_backend.Setlist.dto.SetlistResultResponse;
+import com.loop.loop_backend.Setlist.domain.HitGrade;
 import com.loop.loop_backend.Setlist.dto.SongCandidateResponse;
 import com.loop.loop_backend.Setlist.service.SetlistVoteService;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -44,12 +47,14 @@ class SetlistVoteControllerTest {
     private MockMvc mockMvc;
     private SetlistVoteService service;
     private SetlistService setlistService;
+    private SetlistResultService resultService;
 
     @BeforeEach
     void setUp() {
         service = mock(SetlistVoteService.class);
         setlistService = mock(SetlistService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new SetlistController(service, setlistService), new SetlistVoteController(service))
+        resultService = mock(SetlistResultService.class);
+        mockMvc = MockMvcBuilders.standaloneSetup(new SetlistController(service, setlistService, resultService), new SetlistVoteController(service))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
@@ -121,6 +126,33 @@ class SetlistVoteControllerTest {
                 .andExpect(jsonPath("$.data[0].venueName").value("Zepp"))
                 .andExpect(jsonPath("$.data[0].songCount").value(1))
                 .andExpect(jsonPath("$.data[0].songs[0].titleOriginal").value("ドライフラワー"));
+    }
+
+    @Test
+    void 결과는_적중률_실제_셋리스트_미출현_곡_필드를_모두_준다() throws Exception {
+        when(resultService.result(1L, USER_ID)).thenReturn(new SetlistResultResponse(true, 31,
+                new SetlistResultResponse.HitRate(1, 3, 33, HitGrade.LOW), 48,
+                new SetlistResultResponse.HitRate(2, 3, 67, HitGrade.MID),
+                List.of(new SetlistResultResponse.ResultSong(1, 12L, "ドライフラワー", "드라이플라워", "https://img/a.jpg", true, true, false)),
+                List.of(new SetlistResultResponse.MissedSong(7L, "いかないで", null, null, 20, true, false))));
+
+        mockMvc.perform(get("/api/concerts/{concertId}/setlist/result", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.ready").value(true))
+                .andExpect(jsonPath("$.data.participantCount").value(31))
+                .andExpect(jsonPath("$.data.overall.hitCount").value(1))
+                .andExpect(jsonPath("$.data.overall.totalCount").value(3))
+                .andExpect(jsonPath("$.data.overall.percent").value(33))
+                .andExpect(jsonPath("$.data.overall.grade").value("LOW"))
+                .andExpect(jsonPath("$.data.averagePercent").value(48))
+                .andExpect(jsonPath("$.data.mine.grade").value("MID"))
+                .andExpect(jsonPath("$.data.songs[0].position").value(1))
+                .andExpect(jsonPath("$.data.songs[0].fanPredicted").value(true))
+                .andExpect(jsonPath("$.data.songs[0].mine").value(true))
+                .andExpect(jsonPath("$.data.songs[0].unexpected").value(false))
+                .andExpect(jsonPath("$.data.missedSongs[0].songId").value(7))
+                .andExpect(jsonPath("$.data.missedSongs[0].votes").value(20))
+                .andExpect(jsonPath("$.data.missedSongs[0].fanPredicted").value(true));
     }
 
     @Test

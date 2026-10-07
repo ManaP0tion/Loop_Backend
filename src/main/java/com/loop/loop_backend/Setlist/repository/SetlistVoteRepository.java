@@ -30,4 +30,12 @@ public interface SetlistVoteRepository extends JpaRepository<SetlistVote, Long> 
             order by count(v) desc, s.sortOrder asc, s.id asc
             """)
     List<SongVoteCount> countVotesBySong(@Param("concertId") Long concertId);
+
+    // 적중률 전체 평균(NO.68): 투표자별로 고른 곡을 한 번에 가져온다
+    @Query("""
+            select new com.loop.loop_backend.Setlist.repository.VoteSongRow(v.id, s.id)
+            from SetlistVote v join v.songs s
+            where v.concert.id = :concertId
+            """)
+    List<VoteSongRow> findVoteSongs(@Param("concertId") Long concertId);
 }
