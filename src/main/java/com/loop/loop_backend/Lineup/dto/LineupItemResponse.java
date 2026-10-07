@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Lineup.dto;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Lineup.domain.Lineup;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -11,6 +12,8 @@ public record LineupItemResponse(
         @Schema(description = "아티스트 이름", requiredMode = Schema.RequiredMode.REQUIRED) String name,
         @Schema(description = "아티스트 한글 이름", types = {"string", "null"}) String nameKo,
         @Schema(description = "아티스트 이미지 URL", types = {"string", "null"}) String imageUrl,
+        @Schema(description = "일본/국내 구분(J_POP_ARTIST, DOMESTIC_ARTIST)", example = "J_POP_ARTIST",
+                requiredMode = Schema.RequiredMode.REQUIRED) ConcertCategory category,
         @Schema(description = "DAY 번호(1부터)", requiredMode = Schema.RequiredMode.REQUIRED) int day,
         @Schema(description = "헤드라이너 여부", requiredMode = Schema.RequiredMode.REQUIRED) boolean headliner,
         @Schema(description = "전체 탭 노출 순서", requiredMode = Schema.RequiredMode.REQUIRED) int displayOrder
@@ -18,6 +21,6 @@ public record LineupItemResponse(
     public static LineupItemResponse from(Lineup lineup) {
         Artist artist = lineup.getArtist();
         return new LineupItemResponse(lineup.getId(), artist.getId(), artist.getName(), artist.getNameKo(),
-                artist.getImageUrl(), lineup.getDay(), lineup.isHeadliner(), lineup.getDisplayOrder());
+                artist.getImageUrl(), artist.getCategory(), lineup.getDay(), lineup.isHeadliner(), lineup.getDisplayOrder());
     }
 }

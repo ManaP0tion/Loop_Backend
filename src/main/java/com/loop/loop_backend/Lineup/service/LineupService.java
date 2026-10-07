@@ -139,12 +139,15 @@ public class LineupService {
         if (bySelect == byInput) {
             throw new IllegalArgumentException("artistIds와 name 중 하나만 보내야 한다");
         }
+        if (req.category() == ConcertCategory.JAPAN_FESTIVAL || req.category() == ConcertCategory.DOMESTIC_FESTIVAL) {
+            throw new IllegalArgumentException("아티스트 구분은 J_POP_ARTIST 또는 DOMESTIC_ARTIST");
+        }
         if (byInput) {
             // 직접 입력한 아티스트는 아티스트 DB에도 남아 다음 페스티벌부터 DB 선택으로 고를 수 있다
             return List.of(artistRepository.save(Artist.builder()
                     .name(req.name().trim())
                     .imageUrl(blankToNull(req.imageUrl()))
-                    .category(ConcertCategory.J_POP_ARTIST)
+                    .category(req.category() != null ? req.category() : ConcertCategory.J_POP_ARTIST)
                     .build()));
         }
         List<Long> ids = req.artistIds().stream().distinct().toList();
