@@ -6,6 +6,7 @@ import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
 import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
+import com.loop.loop_backend.Setlist.repository.SetlistVoteRepository;
 import com.loop.loop_backend.Storage.dto.ImageUploadResponseDto;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.User.domain.AuthProvider;
@@ -36,6 +37,7 @@ public class UserServiceImpl implements UserService {
     private final CompanionPostRepository companionPostRepository;
     private final CompanionHeartRepository companionHeartRepository;
     private final ConcertScrapRepository concertScrapRepository;
+    private final SetlistVoteRepository setlistVoteRepository;
     private final PasswordEncoder passwordEncoder;
     private final S3StorageService s3StorageService;
     private final ChatService chatService;
@@ -137,7 +139,8 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserResponseDto updateNotificationSettings(Long id, NotificationSettingsRequestDto requestDto) {
         User user = findUserOrThrow(id);
-        user.updateNotificationSettings(requestDto.getConcertReminderEmail(), requestDto.getChatNotificationEmail());
+        user.updateNotificationSettings(requestDto.getConcertReminderEmail(), requestDto.getChatNotificationEmail(),
+                requestDto.getSetlistResultEmail());
         return toResponseDto(user);
     }
 
@@ -189,6 +192,7 @@ public class UserServiceImpl implements UserService {
         userHashtagRepository.deleteAllByUser(user);
         favoriteArtistRepository.deleteAllByUser(user);
         concertScrapRepository.deleteAllByUser(user);
+        setlistVoteRepository.deleteAllByUser(user);
 
         user.withdraw();
         refreshTokenService.delete(id);

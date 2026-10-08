@@ -83,6 +83,11 @@ public class User {
     @Column(name = "chat_notification_email", nullable = false)
     private boolean chatNotificationEmail = false;
 
+    // 셋리스트 결과 메일(NO.69). 기본 ON(PRD 5-7) - 실제 발송은 투표 후 수신 동의 + 이메일 인증까지 해야 된다
+    // columnDefinition: 기존 행이 있는 테이블에 컬럼을 추가할 때 true로 채우려고(ddl-auto update)
+    @Column(name = "setlist_result_email", nullable = false, columnDefinition = "boolean default true")
+    private boolean setlistResultEmail = true;
+
     // 약관 동의 (첫 로그인 시 저장) - 나이/이용약관/개인정보 수집은 필수, 프로필 정보 수집은 선택
     @Column(name = "age19_agreed", nullable = false)
     private boolean age19Agreed;
@@ -195,9 +200,11 @@ public class User {
         this.agreedAt = null;
     }
 
-    public void updateNotificationSettings(Boolean concertReminderEmail, Boolean chatNotificationEmail) {
+    public void updateNotificationSettings(Boolean concertReminderEmail, Boolean chatNotificationEmail,
+                                           Boolean setlistResultEmail) {
         if (concertReminderEmail != null) this.concertReminderEmail = concertReminderEmail;
         if (chatNotificationEmail != null) this.chatNotificationEmail = chatNotificationEmail;
+        if (setlistResultEmail != null) this.setlistResultEmail = setlistResultEmail;
     }
 
     // 관리자 조작

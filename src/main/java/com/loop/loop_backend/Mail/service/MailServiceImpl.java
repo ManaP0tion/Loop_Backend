@@ -188,6 +188,25 @@ public class MailServiceImpl implements MailService {
                 "[Loop] 새로운 채팅이 시작됐어요", html);
     }
 
+    // 동기 발송 - 호출하는 SetlistResultMailListener가 이미 mailExecutor에서 돈다
+    // 적중률 수치는 넣지 않는다(NO.69) - 공연 후 페이지에서 확인하게
+    @Override
+    public void sendSetlistResultNotification(String toEmail, String recipientNickname, Long concertId, String concertTitle) {
+        if (toEmail == null || toEmail.isBlank()) {
+            return;
+        }
+
+        Context context = new Context();
+        context.setVariable("recipientNickname", recipientNickname);
+        context.setVariable("concertId", concertId);
+        context.setVariable("concertTitle", concertTitle);
+        context.setVariable("frontendUrl", frontendUrl);
+
+        String html = templateEngine.process("mail/setlist-result-notification", context);
+        dispatch(sesMailSender, MailType.SETLIST_RESULT, toEmail,
+                "[Loop] " + concertTitle + " 셋리스트가 공개됐어요", html);
+    }
+
     @Override
     public void sendTest(MailType type, String toEmail) {
         switch (type) {
@@ -219,6 +238,7 @@ public class MailServiceImpl implements MailService {
             case CONCERT_REMINDER -> sendConcertReminderNotification(toEmail, "테스터",
                     List.of(new ConcertReminderSummary(0L, "테스트 콘서트", "테스트 공연장", LocalDate.now().plusDays(1))));
             case NEW_CHAT -> sendNewChatNotification(toEmail, "테스터", "테스트상대", "테스트 콘서트");
+            case SETLIST_RESULT -> sendSetlistResultNotification(toEmail, "테스터", 0L, "테스트 콘서트");
         }
     }
 }

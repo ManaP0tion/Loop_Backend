@@ -59,6 +59,9 @@ public class UserResponseDto {
     @Schema(description = "미확인 채팅 일일 다이제스트 이메일 수신 여부", example = "true")
     private final boolean chatNotificationEmail;
 
+    @Schema(description = "예상 셋리스트 결과 이메일 수신 여부(기본 true)", example = "true")
+    private final boolean setlistResultEmail;
+
     @Schema(description = "생성일시")
     private final LocalDateTime createdAt;
 
@@ -81,6 +84,7 @@ public class UserResponseDto {
         this.favoriteArtists = favoriteArtists;
         this.concertReminderEmail = user.isConcertReminderEmail();
         this.chatNotificationEmail = user.isChatNotificationEmail();
+        this.setlistResultEmail = user.isSetlistResultEmail();
         this.createdAt = user.getCreatedAt();
         this.updatedAt = user.getUpdatedAt();
     }

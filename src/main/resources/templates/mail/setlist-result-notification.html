@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+</head>
+<body style="font-family: sans-serif; line-height: 1.6; color: #222;">
+    <h2 style="margin-bottom: 8px;">
+        <strong th:text="${concertTitle}">공연명</strong> 실제 셋리스트가 공개됐어요.🎤
+    </h2>
+
+    <p>
+        <strong th:text="${recipientNickname != null} ? ${recipientNickname} : '회원'">회원</strong>님의 예상은 몇 곡이나 맞았을까요?
+    </p>
+
+    <p style="margin-top: 20px;">
+        <a th:href="${frontendUrl} + '/concerts/' + ${concertId}"
+           style="display: inline-block; padding: 10px 16px; background: #111; color: #fff; text-decoration: none; border-radius: 4px;">
+            내 적중률 확인하기
+        </a>
+    </p>
+
+    <p style="margin-top: 32px; font-size: 12px; color: #888;">
+        더 이상 셋리스트 결과 메일을 받지 않으려면
+        <a th:href="${frontendUrl} + '/settings/notifications'" style="color: #888;">알림 설정</a>에서 셋리스트 결과 알림을 꺼주세요.
+    </p>
+</body>
+</html>
