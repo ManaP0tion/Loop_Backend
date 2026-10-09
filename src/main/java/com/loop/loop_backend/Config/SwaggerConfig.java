@@ -25,6 +25,10 @@ public class SwaggerConfig {
 
     private static final String ADMIN_CONCERT_TAG = "Admin Concert";
     private static final String ADMIN_CONCERT_IMPORT_TAG = "Admin Concert Import";
+    private static final String ADMIN_SONG_TAG = "Admin Song";
+
+    // 곡 관리 API는 /artists/{id}/songs·/artists/{id}/itunes 처럼 artists 아래에도 있어서, Admin Artist보다 먼저 본다.
+    private static final String ADMIN_SONG_PATH = "/api/admin/(songs|itunes)(/.*)?|/api/admin/artists/[^/]+/(songs|itunes)(/.*)?";
 
     // 경로 조각 규칙보다 먼저 보는 예외. KOPIS 수동 수집은 경로가 concerts지만 선별 대기 화면의 기능이다.
     private static final Map<String, String> ADMIN_TAG_BY_PATH = Map.of(
@@ -49,7 +53,8 @@ public class SwaggerConfig {
     private static final Map<String, String> ADMIN_TAG_DESCRIPTIONS = Map.of(
             ADMIN_CONCERT_IMPORT_TAG, "공연 관리 > 선별 대기: KOPIS 수집 공연 목록, 등록(승인)·제외, KOPIS 수동 수집",
             ADMIN_CONCERT_TAG, "공연 관리 > 등록된 공연: 목록, 상세, 직접 등록, 저장(공개 토글·예매 정보 포함), 포스터 업로드, 삭제",
-            "Admin Venue", "공연장 관리: 목록, 상세, 직접 등록, 수정, 삭제");
+            "Admin Venue", "공연장 관리: 목록, 상세, 직접 등록, 수정, 삭제",
+            ADMIN_SONG_TAG, "곡 관리: 곡 목록·수동 추가·수정·삭제·앨범아트, iTunes 아티스트 검색·연결·곡 불러오기, CSV 업로드·다운로드");
 
     @Bean
     public GroupedOpenApi publicApi() {
@@ -88,6 +93,7 @@ public class SwaggerConfig {
 
     static String adminTagFor(String path) {
         if (ADMIN_TAG_BY_PATH.containsKey(path)) return ADMIN_TAG_BY_PATH.get(path);
+        if (path.matches(ADMIN_SONG_PATH)) return ADMIN_SONG_TAG;
         if (!path.startsWith(ADMIN_PATH_PREFIX)) return ADMIN_ETC_TAG;
         String segment = path.substring(ADMIN_PATH_PREFIX.length()).split("/")[0];
         return ADMIN_TAG_BY_SEGMENT.getOrDefault(segment, ADMIN_ETC_TAG);
