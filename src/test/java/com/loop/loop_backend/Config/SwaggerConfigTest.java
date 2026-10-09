@@ -43,6 +43,19 @@ class SwaggerConfigTest {
     }
 
     @Test
+    void 곡_관리_API는_artists_아래_경로도_Admin_Song으로_묶인다() {
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/artists/{artistId}/songs")).isEqualTo("Admin Song");
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/artists/{artistId}/songs/fetch")).isEqualTo("Admin Song");
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/artists/{artistId}/songs/csv")).isEqualTo("Admin Song");
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/artists/{artistId}/itunes")).isEqualTo("Admin Song");
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/itunes/artists")).isEqualTo("Admin Song");
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/songs/{songId}")).isEqualTo("Admin Song");
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/songs/{songId}/image")).isEqualTo("Admin Song");
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/artists/{id}")).isEqualTo("Admin Artist");
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/artists/{id}/image")).isEqualTo("Admin Artist");
+    }
+
+    @Test
     void 매핑에_없는_관리자_경로는_Admin_Etc로_모인다() {
         assertThat(SwaggerConfig.adminTagFor("/api/admin/something-new")).isEqualTo("Admin Etc");
     }
