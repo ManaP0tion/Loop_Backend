@@ -132,7 +132,7 @@ class SetlistVoteControllerTest {
     void 결과는_적중률_실제_셋리스트_미출현_곡_필드를_모두_준다() throws Exception {
         when(resultService.result(1L, USER_ID)).thenReturn(new SetlistResultResponse(true, 31,
                 new SetlistResultResponse.HitRate(1, 3, 33, HitGrade.LOW), 48,
-                new SetlistResultResponse.HitRate(2, 3, 67, HitGrade.MID),
+                new SetlistResultResponse.HitRate(2, 3, 67, HitGrade.MID), 12,
                 List.of(new SetlistResultResponse.ResultSong(1, 12L, "ドライフラワー", "드라이플라워", "https://img/a.jpg", true, true, false)),
                 List.of(new SetlistResultResponse.MissedSong(7L, "いかないで", null, null, 20, true, false))));
 
@@ -145,6 +145,7 @@ class SetlistVoteControllerTest {
                 .andExpect(jsonPath("$.data.overall.percent").value(33))
                 .andExpect(jsonPath("$.data.overall.grade").value("LOW"))
                 .andExpect(jsonPath("$.data.averagePercent").value(48))
+                .andExpect(jsonPath("$.data.myTopPercent").value(12))
                 .andExpect(jsonPath("$.data.mine.grade").value("MID"))
                 .andExpect(jsonPath("$.data.songs[0].position").value(1))
                 .andExpect(jsonPath("$.data.songs[0].fanPredicted").value(true))

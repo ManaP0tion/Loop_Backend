@@ -6,6 +6,7 @@ import com.loop.loop_backend.Song.DTO.CsvImportResult;
 import com.loop.loop_backend.Song.DTO.SongFetchResult;
 import com.loop.loop_backend.Song.DTO.SongResponse;
 import com.loop.loop_backend.Song.Repository.SongRepository;
+import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.infra.itunes.ItunesClient;
 import com.loop.loop_backend.infra.itunes.ItunesTrack;
 import jakarta.persistence.EntityManager;
@@ -32,6 +33,7 @@ class SongServiceTest {
     @Autowired ArtistRepository artistRepository;
     @Autowired EntityManager em;
     @MockitoBean ItunesClient itunesClient;
+    @MockitoBean S3StorageService s3StorageService;
 
     @Test
     void 불러오기_병합_재불러오기시_한글유지_삭제곡skip_CSV반영() {

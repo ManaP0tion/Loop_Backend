@@ -5,6 +5,7 @@ import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Song.DTO.*;
 import com.loop.loop_backend.Song.Repository.SongRepository;
 import com.loop.loop_backend.Song.domain.Song;
+import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.infra.itunes.ItunesClient;
@@ -15,6 +16,7 @@ import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -33,6 +35,7 @@ public class SongService {
     private final SongRepository songRepository;
     private final ArtistRepository artistRepository;
     private final ItunesClient itunesClient;
+    private final S3StorageService s3StorageService;
 
     public List<SongResponse> getSongs(Long artistId) {
         findArtistOrThrow(artistId);
@@ -58,6 +61,15 @@ public class SongService {
     public SongResponse updateSong(Long songId, SongUpdateRequest req) {
         Song song = findSongOrThrow(songId);
         song.update(req.titleOriginal(), req.titleRomanized(), req.titleKo(), req.albumArtUrl());
+        return SongResponse.from(song);
+    }
+
+    // S3 공개 버킷 업로드 후 albumArtUrl 갱신. iTunes 곡은 재불러오기 시 iTunes 앨범아트로 덮어써진다
+    @Transactional
+    public SongResponse uploadAlbumArt(Long songId, MultipartFile image) {
+        Song song = findSongOrThrow(songId);
+        String url = s3StorageService.uploadPublic("songs", songId, image);
+        song.update(song.getTitleOriginal(), song.getTitleRomanized(), song.getTitleKo(), url);
         return SongResponse.from(song);
     }
 
