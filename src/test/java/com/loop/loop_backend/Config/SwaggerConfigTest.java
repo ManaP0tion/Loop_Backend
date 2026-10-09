@@ -15,9 +15,31 @@ class SwaggerConfigTest {
     @Test
     void 관리자_경로는_도메인별_태그로_묶인다() {
         assertThat(SwaggerConfig.adminTagFor("/api/admin/concerts/{id}")).isEqualTo("Admin Concert");
-        assertThat(SwaggerConfig.adminTagFor("/api/admin/concert-imports/{id}/approve")).isEqualTo("Admin Concert");
         assertThat(SwaggerConfig.adminTagFor("/api/admin/users/{id}/suspend")).isEqualTo("Admin User");
         assertThat(SwaggerConfig.adminTagFor("/api/admin/reports")).isEqualTo("Admin Report");
+    }
+
+    // 공연 관리 페이지의 두 목록(선별 대기 / 등록된 공연)을 스웨거에서도 나눠 보이게 한다.
+    @Test
+    void 선별_대기와_KOPIS_수동_수집은_등록된_공연과_다른_태그로_묶인다() {
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/concert-imports")).isEqualTo("Admin Concert Import");
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/concert-imports/{id}/approve")).isEqualTo("Admin Concert Import");
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/concerts/sync")).isEqualTo("Admin Concert Import");
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/concerts")).isEqualTo("Admin Concert");
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/concerts/{id}/image")).isEqualTo("Admin Concert");
+    }
+
+    @Test
+    void 공연_관련_태그에는_어느_화면용인지_설명이_붙는다() {
+        OpenAPI openApi = new OpenAPI()
+                .paths(new Paths()
+                        .addPathItem("/api/admin/concerts/{id}", new PathItem().get(new Operation()))
+                        .addPathItem("/api/admin/concert-imports", new PathItem().get(new Operation()))
+                        .addPathItem("/api/admin/venues", new PathItem().get(new Operation())));
+
+        SwaggerConfig.groupAdminTags(openApi);
+
+        assertThat(openApi.getTags()).allSatisfy(tag -> assertThat(tag.getDescription()).isNotBlank());
     }
 
     @Test

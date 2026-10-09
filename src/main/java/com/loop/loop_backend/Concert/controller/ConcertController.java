@@ -40,6 +40,10 @@ public class ConcertController {
 
     private final ConcertService concertService;
 
+    // 공연 등록·수정·삭제는 일단 막아 둔다(주석 처리). 관리자 공연 API(/api/admin/concerts, AdminConcertController)가
+    // 생기면서 같은 일을 하는 경로가 둘이 됐고, 이 API는 그쪽의 검증 규칙·공연장 연결·예매 정보를 거치지 않는다.
+    // 프론트 사용 여부를 확인한 뒤 삭제하거나 되살린다. ConcertService의 create/update/deleteConcert는 그대로 둔다.
+    /*
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "콘서트 등록", description = "새 콘서트를 등록합니다. 포스터 이미지 파일을 함께 보내면 " +
             "공개 버킷에 업로드 후 URL이 바로 반영됩니다 (이미지는 선택).")
@@ -86,6 +90,7 @@ public class ConcertController {
         concertService.deleteConcert(id);
         return ResponseEntity.noContent().build();
     }
+    */
 
     @GetMapping
     @Operation(summary = "콘서트 목록 조회",
@@ -146,12 +151,15 @@ public class ConcertController {
 
     @GetMapping("/{id}/upcoming-detail")
     @Operation(summary = "예정 공연 상세 조회",
-            description = "공연 정보와 D-day, 공연 시간 안내(showtime, KOPIS 원문 텍스트), 예매처 목록, 공연장 상세(주소/수용인원/좌표)를 포함한 상세 응답. " +
-                    "공연 시간 안내, 예매처 목록, 공연장 정보는 승인 시 KOPIS에서 가져오며, 못 가져왔거나 이 기능 이전에 승인된 공연은 null. " +
-                    "선예매 여부/날짜, 일반 예매 날짜, 자리배치도는 어드민 수동 입력 기능이 생기기 전까지 항상 null. " +
-                    "id가 가리키는 공연이 실제로 예정 공연이 아니면(이미 지난 공연) 404.")
+            description = "공연 정보와 D-day, 공연장, DAY별 공연 시각, 선예매·일반예매, 숙소 딥링크, 관련 상품 코드를 포함한 상세 응답.\n\n" +
+                    "- 공연장: 공연장 관리의 공연장. 연결 전에 승인된 공연은 KOPIS 장소 정보로 채워지고 링크(좌석 시야·지도)는 null\n" +
+                    "- 공연 시각: 기간의 모든 DAY가 순서대로, 미정인 DAY는 startTime null. 시각이 입력되지 않은 이전 공연은 KOPIS 공연 시간 안내로 채움\n" +
+                    "- 예매: 예매 일시가 정해진 블록만 일시 순으로 내려간다\n" +
+                    "- 숙소: 숙소 섹션을 노출하지 않는 공연은 lodgingUrl null\n\n" +
+                    "비공개(오픈 예정) 공연이면 403, id가 가리키는 공연이 실제로 예정 공연이 아니면(이미 지난 공연) 404.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "403", description = "오픈 예정(비공개) 공연 - CONCERT_NOT_OPEN"),
             @ApiResponse(responseCode = "404", description = "콘서트 없음 또는 예정 공연이 아님")
     })
     public ResponseEntity<CommonResponse<ConcertUpcomingDetailDto>> getUpcomingDetail(
@@ -162,11 +170,12 @@ public class ConcertController {
 
     @GetMapping("/{id}/past-detail")
     @Operation(summary = "지난 공연 상세 조회",
-            description = "공연명/아티스트/공연장/날짜/공연 시간 안내(showtime, KOPIS 원문 텍스트)만 포함하는 간단한 응답 " +
-                    "(예매정보는 지난 공연이라 의미 없음). 공연 시간 안내는 못 가져왔거나 이전에 승인된 공연이면 null. " +
-                    "id가 가리키는 공연이 실제로 지난 공연이 아니면(예정 공연) 404.")
+            description = "공연명/아티스트/공연장/날짜/DAY별 공연 시각만 포함하는 간단한 응답 " +
+                    "(예매정보는 지난 공연이라 의미 없음). 공연장·공연 시각은 예정 공연 상세와 같은 형태와 규칙이다. " +
+                    "비공개(오픈 예정) 공연이면 403, id가 가리키는 공연이 실제로 지난 공연이 아니면(예정 공연) 404.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "403", description = "오픈 예정(비공개) 공연 - CONCERT_NOT_OPEN"),
             @ApiResponse(responseCode = "404", description = "콘서트 없음 또는 지난 공연이 아님")
     })
     public ResponseEntity<CommonResponse<ConcertPastDetailDto>> getPastDetail(
@@ -177,7 +186,8 @@ public class ConcertController {
 
     @GetMapping("/search")
     @Operation(summary = "콘서트 검색",
-            description = "키워드로 콘서트를 검색합니다. 콘서트 제목뿐 아니라 아티스트의 원어명/기본명/한글명/별칭도 함께 매칭됩니다. " +
+            description = "키워드로 콘서트를 검색합니다. 콘서트 제목뿐 아니라 공연명 별칭(관리자 입력, 예: '히게단'), " +
+                    "아티스트의 원어명/기본명/한글명/별칭도 함께 매칭됩니다. " +
                     "예) 'King Gnu' 공연은 '킹누'로도 검색 가능\n\n" +
                     "section/period로 검색 범위를 좁힐 수 있습니다 (목록 조회와 동일한 파라미터, 둘 다 생략 가능):\n" +
                     "- 둘 다 생략 : 전체검색 - 카테고리 무관, 예정 목록 뒤에 지난 목록을 이어붙여 반환\n" +

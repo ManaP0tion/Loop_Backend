@@ -19,6 +19,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 // ModelConverters.getInstance()의 기본 ModelResolver는 openapi31=false라서 @Schema(types=...)를 줘도
 // nullable로 접혀버린다 - 이 프로젝트가 실제로 쓰는 openapi31=true 모드로 직접 리졸버를 만들어야
 // 우리가 스웨거에서 실제로 보게 될 것과 같은 결과가 나온다.
+//
+// 프론트 계약: 목록 필드는 비어 있으면 null이 아니라 빈 배열이고, 값이 없을 수 있는 필드만 null 가능으로 표기한다.
 class ConcertDetailDtoSchemaTest {
 
     private Schema<?> resolve(Class<?> dtoClass) {
@@ -26,53 +28,77 @@ class ConcertDetailDtoSchemaTest {
         return new ModelConverterContextImpl(resolver).resolve(new AnnotatedType(dtoClass));
     }
 
-    // "승인 시 필수값 검증"이 생기면 실제로도 이렇게 된다는 전제의 최종 계약이다.
-    // 그 검증 기능은 아직 없어서 지금 실제 응답은 이 필드들도 null일 수 있다 - 클래스 상단 주석 참고.
-    private static final String[] UPCOMING_NON_NULL_FIELDS = {
-            "artistId", "artistName", "posterUrl", "venue", "startDate", "endDate",
-            // dday는 Lombok getDDay() -> Jackson이 "dday"(소문자)로 직렬화한다. 실제 응답 필드명도 dday다.
-            "dday", "showtime", "presaleAvailable",
-            "venueAddress", "venueCapacity", "venueLatitude", "venueLongitude", "seatingChartImageUrl", "scrapped"
+    // ---------- 예정 공연 상세 ----------
+
+    // 항상 값이 있는 필드: 식별자·공연명·스크랩 여부, 그리고 비어 있으면 빈 배열로 내려가는 목록들
+    private static final String[] UPCOMING_ALWAYS = {
+            "concertId", "title", "artists", "showtimes", "presales", "generalSales", "productCodes", "scrapped"
     };
 
-    // 예매처가 아직 안 정해졌거나 선예매/일반예매 날짜가 미정인 공연은 계속 있을 수 있어 null 허용.
-    private static final String[] UPCOMING_NULLABLE_FIELDS = {"presaleDate", "generalSaleDate", "ticketVendors"};
+    // 공연 상태에 따라 없을 수 있는 필드: 포스터·날짜 미정, 공연장 정보 없음, 숙소 미노출
+    private static final String[] UPCOMING_NULLABLE = {
+            "posterUrl", "venue", "startDate", "endDate", "dday", "lodgingUrl"
+    };
 
     @Test
-    void upcomingDetailDto_필수_필드와_non_null_필드는_required_목록에_있고_null_타입이_없다() {
+    void upcomingDetailDto_항상_있는_필드는_required이고_null_타입이_없다() {
         Schema<?> schema = resolve(ConcertUpcomingDetailDto.class);
-        Set<String> required = schema.getRequired() == null ? Set.of() : Set.copyOf(schema.getRequired());
 
-        assertThat(required).contains("concertId", "title", "scrapped");
-        assertThat(typesOf(schema, "concertId")).doesNotContain("null");
-        assertThat(typesOf(schema, "title")).doesNotContain("null");
-
-        for (String field : UPCOMING_NON_NULL_FIELDS) {
+        for (String field : UPCOMING_ALWAYS) {
+            assertThat(requiredOf(schema)).as("required 목록에 %s가 있어야 함", field).contains(field);
             assertThat(typesOf(schema, field)).as("%s의 type에 null이 없어야 함", field).doesNotContain("null");
         }
     }
 
     @Test
-    void upcomingDetailDto_예매처와_예매날짜만_null_가능하다() {
+    void upcomingDetailDto_없을_수_있는_필드는_null_타입이_있다() {
         Schema<?> schema = resolve(ConcertUpcomingDetailDto.class);
-        Set<String> required = schema.getRequired() == null ? Set.of() : Set.copyOf(schema.getRequired());
 
-        for (String field : UPCOMING_NULLABLE_FIELDS) {
-            assertThat(required).as("required 목록에 %s가 없어야 함", field).doesNotContain(field);
+        for (String field : UPCOMING_NULLABLE) {
+            assertThat(requiredOf(schema)).as("required 목록에 %s가 없어야 함", field).doesNotContain(field);
             assertThat(typesOf(schema, field)).as("%s의 type에 null이 포함돼야 함", field).contains("null");
         }
     }
 
-    // ConcertUpcomingDetailDto와 같은 정책: "승인 시 필수값 검증"을 전제로 한 최종 계약이라 전부 non-null.
     @Test
-    void pastDetailDto_모든_필드는_required_목록에_있고_null_타입이_없다() {
-        Schema<?> schema = resolve(ConcertPastDetailDto.class);
-        Set<String> required = schema.getRequired() == null ? Set.of() : Set.copyOf(schema.getRequired());
+    void upcomingDetailDto_옛_필드는_응답에_없다() {
+        Schema<?> schema = resolve(ConcertUpcomingDetailDto.class);
 
-        assertThat(required).contains("concertId", "title", "scrapped");
-        for (String field : new String[]{"concertId", "title", "artistName", "venue", "startDate", "endDate", "showtime", "scrapped"}) {
+        assertThat(schema.getProperties()).doesNotContainKeys(
+                "artistId", "artistName", "showtime", "presaleAvailable", "presaleDate", "generalSaleDate",
+                "ticketVendors", "venueAddress", "venueCapacity", "venueLatitude", "venueLongitude", "seatingChartImageUrl");
+    }
+
+    // ---------- 지난 공연 상세 ----------
+
+    @Test
+    void pastDetailDto_항상_있는_필드는_required이고_없을_수_있는_필드는_null_타입이_있다() {
+        Schema<?> schema = resolve(ConcertPastDetailDto.class);
+
+        // 지난 공연은 날짜로 판단하므로 시작일이 항상 있다
+        for (String field : new String[]{"concertId", "title", "startDate", "showtimes", "scrapped"}) {
+            assertThat(requiredOf(schema)).as("required 목록에 %s가 있어야 함", field).contains(field);
             assertThat(typesOf(schema, field)).as("%s의 type에 null이 없어야 함", field).doesNotContain("null");
         }
+        for (String field : new String[]{"artistName", "venue", "endDate"}) {
+            assertThat(typesOf(schema, field)).as("%s의 type에 null이 포함돼야 함", field).contains("null");
+        }
+    }
+
+    // ---------- 공연장 ----------
+
+    @Test
+    void 공연장은_이름만_항상_있고_나머지는_null일_수_있다() {
+        Schema<?> schema = resolve(ConcertVenueDto.class);
+
+        assertThat(requiredOf(schema)).contains("name");
+        for (String field : new String[]{"address", "capacity", "seatViewUrl", "kakaoMapUrl", "naverMapUrl", "latitude", "longitude"}) {
+            assertThat(typesOf(schema, field)).as("%s의 type에 null이 포함돼야 함", field).contains("null");
+        }
+    }
+
+    private static Set<String> requiredOf(Schema<?> schema) {
+        return schema.getRequired() == null ? Set.of() : Set.copyOf(schema.getRequired());
     }
 
     // OAS 3.1은 nullable 대신 type을 집합으로 표현한다(예: {"string","null"}). 단일 타입이면 getType()에,

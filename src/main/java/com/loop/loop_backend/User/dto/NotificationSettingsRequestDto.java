@@ -16,4 +16,7 @@ public class NotificationSettingsRequestDto {
 
     @Schema(description = "미확인 채팅 일일 다이제스트 이메일 수신 여부", example = "false")
     private Boolean chatNotificationEmail;
+
+    @Schema(description = "예상 셋리스트 결과 이메일 수신 여부", example = "true")
+    private Boolean setlistResultEmail;
 }

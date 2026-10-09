@@ -13,6 +13,8 @@ import com.loop.loop_backend.Concert.dto.ConcertSection;
 import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
 import com.loop.loop_backend.Concert.dto.ConcertUpcomingDetailDto;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
+import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleRepository;
+import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
 import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
@@ -45,6 +47,8 @@ public class ConcertServiceImpl implements ConcertService {
     private final CompanionService companionService;
     private final S3StorageService s3StorageService;
     private final ConcertScrapRepository concertScrapRepository;
+    private final ConcertPresaleRepository presaleRepository;
+    private final ConcertGeneralSaleRepository generalSaleRepository;
 
     @Override
     @Transactional
@@ -106,19 +110,21 @@ public class ConcertServiceImpl implements ConcertService {
 
     @Override
     public ConcertUpcomingDetailDto getUpcomingDetail(Long id, Long userId) {
-        Concert concert = findConcertOrThrow(id);
+        Concert concert = findOpenConcertOrThrow(id);
         // 이미 지난 공연이면 예정 공연 상세로 보여주지 않는다 - 잘못된 엔드포인트 호출을 404로 처리(getPastDetail과 대칭).
         // 날짜 미정 공연은 isPast가 false라서 예정으로 취급된다.
         if (concert.isPast(ExpiryCutoff.cutoffDate())) {
             throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
         }
         // D-day는 노출 만료 기준(오전 10시 리셋)과 별개로 한국 날짜 기준 남은 일수다.
-        return ConcertUpcomingDetailDto.from(concert, LocalDate.now(ZoneId.of("Asia/Seoul")), isScrapped(userId, id));
+        return ConcertUpcomingDetailDto.from(concert, LocalDate.now(ZoneId.of("Asia/Seoul")),
+                presaleRepository.findByConcert_Id(id), generalSaleRepository.findByConcert_Id(id),
+                isScrapped(userId, id));
     }
 
     @Override
     public ConcertPastDetailDto getPastDetail(Long id, Long userId) {
-        Concert concert = findConcertOrThrow(id);
+        Concert concert = findOpenConcertOrThrow(id);
         if (!concert.isPast(ExpiryCutoff.cutoffDate())) {
             // id는 존재하지만 지난 공연이 아님(예정 공연) - 잘못된 엔드포인트 호출을 404로 처리
             throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
@@ -202,6 +208,15 @@ public class ConcertServiceImpl implements ConcertService {
     private Concert findConcertOrThrow(Long id) {
         return concertRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
+    }
+
+    // 상세 화면용: 비공개 공연은 목록에 "오픈 예정"으로만 보이고 상세에는 들어올 수 없다(명세).
+    private Concert findOpenConcertOrThrow(Long id) {
+        Concert concert = findConcertOrThrow(id);
+        if (!concert.isPublished()) {
+            throw new BusinessException(ErrorCode.CONCERT_NOT_OPEN);
+        }
+        return concert;
     }
 
     private Artist resolveArtist(Long artistId) {

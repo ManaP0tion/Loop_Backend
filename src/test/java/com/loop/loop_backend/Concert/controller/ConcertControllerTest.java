@@ -122,12 +122,10 @@ class ConcertControllerTest {
     }
 
     // TODO: GlobalExceptionHandler가 MissingServletRequestParameterException 전용 핸들러가 없어서
-    // 지금은 필수 파라미터 누락 시 400이 아니라 500이 내려간다 (이 엔드포인트만의 문제가 아니라 전역 공백).
-    // 핸들러가 추가되면 이 테스트도 isBadRequest()로 되돌릴 것.
     @Test
-    void section이나_period가_없으면_에러를_반환한다() throws Exception {
+    void section이나_period가_없으면_400이다() throws Exception {
         mockMvc.perform(get("/api/concerts").param("section", "DOMESTIC_TOUR"))
-                .andExpect(status().is5xxServerError());
+                .andExpect(status().isBadRequest());
 
         verify(concertService, never()).getConcertsBySection(any(), any(), any());
     }

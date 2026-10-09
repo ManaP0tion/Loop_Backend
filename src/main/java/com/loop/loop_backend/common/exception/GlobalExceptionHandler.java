@@ -7,10 +7,12 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.List;
 
@@ -42,6 +44,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<CommonResponse<Void>> handleNotReadable(HttpMessageNotReadableException e, HttpServletRequest request) {
         logWarn(request, ErrorCode.INVALID_REQUEST_FORMAT, e.getMessage());
         return respond(ErrorCode.INVALID_REQUEST_FORMAT);
+    }
+
+    // 필수 쿼리 파라미터 누락, enum·숫자 변환 실패(?period=ALL, /setlists/UNKNOWN) - 클라이언트 입력 오류라 400
+    @ExceptionHandler({MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class})
+    public ResponseEntity<CommonResponse<Void>> handleBadParameter(Exception e, HttpServletRequest request) {
+        logWarn(request, ErrorCode.INVALID_INPUT, e.getMessage());
+        return respond(ErrorCode.INVALID_INPUT);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

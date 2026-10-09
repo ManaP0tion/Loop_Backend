@@ -61,9 +61,20 @@ public enum ErrorCode {
 
     // Concert 도메인
     CONCERT_NOT_FOUND(404, "콘서트를 찾을 수 없습니다."),
+    CONCERT_NOT_OPEN(403, "오픈 예정인 공연입니다."),
     CONCERT_IMPORT_NOT_FOUND(404, "수집된 공연 정보를 찾을 수 없습니다."),
     IMPORT_ALREADY_PROCESSED(409, "이미 승인 또는 거절 처리된 공연입니다."),
     KOPIS_SYNC_ALREADY_RUNNING(409, "KOPIS 동기화가 이미 실행 중입니다. 끝난 뒤 다시 시도해 주세요."),
+    VENUE_NOT_FOUND(404, "공연장을 찾을 수 없습니다."),
+
+    // Lineup 도메인
+    LINEUP_NOT_FOUND(404, "라인업 항목을 찾을 수 없습니다."),
+    DUPLICATE_LINEUP(409, "이미 같은 DAY 라인업에 있는 아티스트입니다."),
+
+    // Setlist 도메인
+    SETLIST_NOT_FOUND(404, "셋리스트를 찾을 수 없습니다."),
+    SETLIST_VOTE_CLOSED(409, "예상 셋리스트 투표가 마감되었습니다."),
+    SETLIST_VOTE_NOT_FOUND(404, "예상 셋리스트 투표 내역이 없습니다."),
 
     // CompanionPost 도메인
     COMPANION_POST_NOT_FOUND(404, "동행 모집글을 찾을 수 없습니다."),

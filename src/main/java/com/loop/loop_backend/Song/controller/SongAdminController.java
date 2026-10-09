@@ -80,6 +80,18 @@ public class SongAdminController {
         return ResponseEntity.ok(CommonResponse.success(songService.updateSong(songId, request)));
     }
 
+    @PostMapping(value = "/songs/{songId}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "곡 앨범아트 업로드", description = "S3 업로드 후 albumArtUrl 갱신. iTunes 곡은 재불러오기 시 덮어써짐")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "업로드 성공"),
+            @ApiResponse(responseCode = "404", description = "곡 없음")
+    })
+    public ResponseEntity<CommonResponse<SongResponse>> uploadAlbumArt(
+            @Parameter(description = "곡 PK") @PathVariable Long songId,
+            @RequestPart("image") MultipartFile image) {
+        return ResponseEntity.ok(CommonResponse.success(songService.uploadAlbumArt(songId, image)));
+    }
+
     @DeleteMapping("/songs/{songId}")
     @Operation(summary = "곡 삭제", description = "소프트 삭제. 이후 iTunes 재불러오기 시에도 되살리지 않음")
     @ApiResponses({
