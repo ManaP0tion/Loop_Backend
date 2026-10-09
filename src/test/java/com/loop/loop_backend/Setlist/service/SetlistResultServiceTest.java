@@ -115,6 +115,8 @@ class SetlistResultServiceTest {
         assertThat(res.overall()).isEqualTo(new HitRate(1, 3, 33, HitGrade.LOW));   // 팬 예상 {s1, s3} 중 s1
         assertThat(res.mine()).isEqualTo(new HitRate(2, 3, 67, HitGrade.MID));      // {s1, s2} 둘 다
         assertThat(res.averagePercent()).isEqualTo(33);                             // (66.7 + 33.3 + 0) / 3
+        assertThat(res.myTopPercent()).isEqualTo(34);                               // 3명 중 1위 → ceil(100/3)
+        assertThat(service.result(concert.getId(), a.getId()).myTopPercent()).isEqualTo(67);  // 2위 → ceil(200/3)
     }
 
     @Test
@@ -156,6 +158,7 @@ class SetlistResultServiceTest {
         for (Long userId : new Long[]{null, stranger.getId()}) {
             SetlistResultResponse res = service.result(concert.getId(), userId);
             assertThat(res.mine()).isNull();
+            assertThat(res.myTopPercent()).isNull();
             assertThat(res.overall().percent()).isEqualTo(33);
             assertThat(res.songs()).noneMatch(ResultSong::mine);
             assertThat(res.missedSongs()).noneMatch(MissedSong::mine);

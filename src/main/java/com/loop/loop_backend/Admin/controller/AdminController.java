@@ -642,10 +642,10 @@ public class AdminController {
     public record InquiryStatusReq(InquiryStatus status) {}
 
     public record ArtistRow(Long id, String name, String baseName, String nameKo, String nameAlias,
-                            String imageUrl, ConcertCategory category) {
+                            String imageUrl, ConcertCategory category, Long itunesArtistId) {
         static ArtistRow of(Artist a) {
             return new ArtistRow(a.getId(), a.getName(), a.getBaseName(), a.getNameKo(),
-                    a.getNameAlias(), a.getImageUrl(), a.getCategory());
+                    a.getNameAlias(), a.getImageUrl(), a.getCategory(), a.getItunesArtistId());
         }
     }
     public record ArtistReq(String name, String baseName, String nameKo, String nameAlias,

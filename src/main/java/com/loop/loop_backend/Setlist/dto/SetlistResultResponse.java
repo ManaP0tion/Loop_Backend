@@ -29,6 +29,10 @@ public record SetlistResultResponse(
         @Schema(description = "내 적중률. 비로그인·미투표면 null(팬 적중률로 대체해 보여준다)", types = {"object", "null"})
         HitRate mine,
 
+        @Schema(description = "내 적중률 순위: 상위 n%(나보다 많이 맞힌 참여자 수 + 1 ÷ 참여자 수, 올림). mine이 null이면 null",
+                example = "12", types = {"integer", "null"})
+        Integer myTopPercent,
+
         @Schema(description = "실제 셋리스트(공연 순서대로)", requiredMode = Schema.RequiredMode.REQUIRED)
         List<ResultSong> songs,
 
@@ -38,7 +42,7 @@ public record SetlistResultResponse(
 ) {
 
     public static SetlistResultResponse waiting(long participantCount) {
-        return new SetlistResultResponse(false, participantCount, null, null, null, List.of(), List.of());
+        return new SetlistResultResponse(false, participantCount, null, null, null, null, List.of(), List.of());
     }
 
     @Schema(description = "적중률")

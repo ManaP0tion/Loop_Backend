@@ -40,6 +40,7 @@ public class SetlistController {
                     "- 적중률 = 맞힌 곡 수 ÷ 실제 셋리스트 곡 수(중복 연주 1회, 순서·앵코르 무시)\n" +
                     "- overall(팬 적중률) = 득표 상위 n곡 기준, averagePercent = 투표자 개인 적중률 평균\n" +
                     "- mine = 로그인 + 투표한 유저만. 없으면 null → 팬 적중률·참여자 수로 대체\n" +
+                    "- myTopPercent = 내 적중률 상위 n%(동점은 같은 순위). mine이 null이면 null\n" +
                     "- songs: fanPredicted(배경) · mine(체크) · unexpected(아무도 예상하지 못한 곡)\n" +
                     "- missedSongs: 득표순. 투표 유저는 mine=true, 미투표·비로그인은 fanPredicted=true만 골라 쓴다\n" +
                     "- 실제 셋리스트 저장 전이면 ready=false(두 섹션 대기 문구)\n\n" +

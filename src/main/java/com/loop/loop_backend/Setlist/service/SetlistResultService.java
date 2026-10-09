@@ -81,6 +81,9 @@ public class SetlistResultService {
                 .mapToDouble(picks -> countHits(picks, actual) * 100.0 / total)
                 .average().orElseThrow());
         HitRate myRate = mine == null ? null : HitRate.of(countHits(mine, actual), total);
+        // 상위 n% = (나보다 많이 맞힌 투표자 수 + 1) ÷ 참여자 수, 올림. 동점은 같은 순위
+        Integer myTopPercent = myRate == null ? null : (int) Math.ceil(100.0 * (1 + songsByVote.values().stream()
+                .filter(picks -> countHits(picks, actual) > myRate.hitCount()).count()) / participants);
         Set<Long> myPicks = mine == null ? Set.of() : mine;
 
         List<ResultSong> songs = new ArrayList<>();
@@ -97,7 +100,7 @@ public class SetlistResultService {
                         myPicks.contains(c.songId())))
                 .toList();
 
-        return new SetlistResultResponse(true, participants, overall, average, myRate, songs, missed);
+        return new SetlistResultResponse(true, participants, overall, average, myRate, myTopPercent, songs, missed);
     }
 
     private static int countHits(Set<Long> picks, Set<Long> actual) {
