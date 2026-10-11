@@ -7,6 +7,7 @@ import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertGeneralSale;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertPresale;
+import com.loop.loop_backend.Concert.dto.ConcertProductDto;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertCreateRequest;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertDetailResponse;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertRow;
@@ -92,7 +93,7 @@ public class AdminConcertService {
         concert.changeLodgingUrl(req.lodgingUrl());
         if (req.lodgingVisible() != null) concert.changeLodgingVisible(req.lodgingVisible());
         concert.changeOfficialSiteUrl(req.officialSiteUrl());
-        if (req.productCodes() != null) concert.replaceProductCodes(req.productCodes());
+        if (req.products() != null) concert.replaceProducts(ConcertProductDto.toDomain(req.products()));
         concert.validateState();
         concertRepository.save(concert);
         // 예매 블록은 공연 id가 있어야 저장할 수 있어 공연을 먼저 저장한다
@@ -128,7 +129,7 @@ public class AdminConcertService {
         if (req.lodgingUrl() != null) concert.changeLodgingUrl(req.lodgingUrl());
         if (req.lodgingVisible() != null) concert.changeLodgingVisible(req.lodgingVisible());
         if (req.officialSiteUrl() != null) concert.changeOfficialSiteUrl(req.officialSiteUrl());
-        if (req.productCodes() != null) concert.replaceProductCodes(req.productCodes());
+        if (req.products() != null) concert.replaceProducts(ConcertProductDto.toDomain(req.products()));
         if (req.published() != null) concert.changePublished(req.published(), LocalDateTime.now());
         // 예매 정보도 같은 저장 버튼으로 함께 온다 - 실패하면 위 수정과 함께 롤백된다
         if (req.presales() != null) replacePresales(concert, req.presales());

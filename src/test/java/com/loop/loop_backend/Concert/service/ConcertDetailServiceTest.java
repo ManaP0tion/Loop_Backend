@@ -7,11 +7,13 @@ import com.loop.loop_backend.CompanionPost.service.CompanionService;
 import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.Concert.domain.ConcertProduct;
 import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertGeneralSale;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertPresale;
 import com.loop.loop_backend.Concert.dto.ConcertPastDetailDto;
 import com.loop.loop_backend.Concert.dto.ConcertPeriod;
+import com.loop.loop_backend.Concert.dto.ConcertProductDto;
 import com.loop.loop_backend.Concert.dto.ConcertShowtimeDto;
 import com.loop.loop_backend.Concert.dto.ConcertTicketSaleDto;
 import com.loop.loop_backend.Concert.dto.ConcertUpcomingDetailDto;
@@ -57,6 +59,7 @@ import static org.mockito.Mockito.when;
 // - 공연 시각: 기간의 모든 DAY. 시각이 입력되지 않은 이전 공연은 KOPIS 공연 시간 안내로 채운다.
 // - 예매: 예매 일시가 정해진 선예매·일반예매만 일시 순으로 보인다.
 // - 숙소: 노출이 켜진 공연만 딥링크가 나간다.
+// - 관련 상품: 예정·지난 공연 상세 모두 관리자가 입력한 순서대로(상품명·종류·링크·이미지). 없으면 빈 목록.
 // - 특설 공식 사이트·아티스트 공식 SNS(인스타·X·홈페이지)는 예정·지난 공연 상세 모두에 나간다. 없으면 null.
 // - 예매 알림: 예정 공연 상세에 내가 켠 선예매·일반예매 알림이 나간다(지난 공연 상세에는 예매 정보가 없어 없음).
 // 날짜는 만료 기준(오전 10시 리셋)에 걸리지 않도록 오늘에서 충분히 떨어뜨려 잡는다.
@@ -428,13 +431,33 @@ class ConcertDetailServiceTest {
                 .isEqualTo("https://trip.example/deeplink");
     }
 
-    @Test
-    void 관련_상품_코드가_나가고_없으면_빈_목록이다() {
-        Concert concert = givenConcert(TODAY.plusDays(10), TODAY.plusDays(11));
-        assertThat(concertService.getUpcomingDetail(CONCERT_ID, null).getProductCodes()).isEmpty();
+    private static final ConcertProduct CD = new ConcertProduct("ベテルギウス", "CD",
+            "https://www.cdjapan.co.jp/aff/click.cgi/e86NDzbdSLQ/7784/A103176/product%2FPCXP-51237",
+            "https://www.cdjapan.co.jp/image.html?id=PCXP-51237");
+    private static final ConcertProduct BLU_RAY = new ConcertProduct(null, "Blu-ray",
+            "https://www.cdjapan.co.jp/aff/2", "https://www.cdjapan.co.jp/image.html?id=2");
 
-        concert.replaceProductCodes(List.of("PCXP-51237"));
-        assertThat(concertService.getUpcomingDetail(CONCERT_ID, null).getProductCodes()).containsExactly("PCXP-51237");
+    @Test
+    void 예정_공연_상세에_관련_상품이_입력한_순서대로_나가고_없으면_빈_목록이다() {
+        Concert concert = givenConcert(TODAY.plusDays(10), TODAY.plusDays(11));
+        assertThat(concertService.getUpcomingDetail(CONCERT_ID, null).getProducts()).isEmpty();
+
+        concert.replaceProducts(List.of(CD, BLU_RAY));
+
+        assertThat(concertService.getUpcomingDetail(CONCERT_ID, null).getProducts()).containsExactly(
+                new ConcertProductDto("ベテルギウス", "CD", CD.getLinkUrl(), CD.getImageUrl()),
+                new ConcertProductDto(null, "Blu-ray", BLU_RAY.getLinkUrl(), BLU_RAY.getImageUrl()));
+    }
+
+    @Test
+    void 지난_공연_상세에도_관련_상품이_나간다() {
+        Concert concert = givenConcert(TODAY.minusDays(30), TODAY.minusDays(29));
+        assertThat(concertService.getPastDetail(CONCERT_ID, null).getProducts()).isEmpty();
+
+        concert.replaceProducts(List.of(CD));
+
+        assertThat(concertService.getPastDetail(CONCERT_ID, null).getProducts()).containsExactly(
+                new ConcertProductDto("ベテルギウス", "CD", CD.getLinkUrl(), CD.getImageUrl()));
     }
 
     // ---------- 스크랩 여부 ----------

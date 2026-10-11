@@ -72,8 +72,8 @@ public class ConcertUpcomingDetailDto {
     @Schema(description = "특설 공식 사이트 URL. 없으면 null(버튼 숨김)", types = {"string", "null"})
     private final String officialSiteUrl;
 
-    @Schema(description = "관련 상품 코드(CD Japan). 없으면 빈 목록(섹션 숨김)", requiredMode = Schema.RequiredMode.REQUIRED)
-    private final List<String> productCodes;
+    @Schema(description = "관련 상품. 관리자가 입력한 순서대로, 없으면 빈 목록(섹션 숨김)", requiredMode = Schema.RequiredMode.REQUIRED)
+    private final List<ConcertProductDto> products;
 
     @Schema(description = "내가 스크랩한 공연인지. 비로그인 조회면 항상 false", requiredMode = Schema.RequiredMode.REQUIRED)
     private final boolean scrapped;
@@ -118,7 +118,7 @@ public class ConcertUpcomingDetailDto {
                 .generalSales(ConcertTicketSaleDto.fromGeneralSales(generalSales))
                 .lodgingUrl(concert.isLodgingVisible() ? concert.getLodgingUrl() : null)
                 .officialSiteUrl(concert.getOfficialSiteUrl())
-                .productCodes(List.copyOf(concert.getProductCodes()))
+                .products(ConcertProductDto.listOf(concert))
                 .scrapped(scrapped)
                 .presaleAlarm(alarms.contains(TicketAlarmType.PRESALE))
                 .generalSaleAlarm(alarms.contains(TicketAlarmType.GENERAL_SALE))
