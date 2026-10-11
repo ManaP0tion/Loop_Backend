@@ -77,10 +77,12 @@ public class ConcertUpcomingDetailDto {
     @Schema(description = "내가 스크랩한 공연인지. 비로그인 조회면 항상 false", requiredMode = Schema.RequiredMode.REQUIRED)
     private final boolean scrapped;
 
-    @Schema(description = "선예매 알림을 켰는지. 기본 false, 비로그인 조회면 항상 false", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "선예매 알림 켜짐 여부. 기본 false, 비로그인이면 항상 false. 켜 두었어도 presales가 비어 있으면 false",
+            requiredMode = Schema.RequiredMode.REQUIRED)
     private final boolean presaleAlarm;
 
-    @Schema(description = "일반예매 알림을 켰는지. 기본 false, 비로그인 조회면 항상 false", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "일반예매 알림 켜짐 여부. 기본 false, 비로그인이면 항상 false. 켜 두었어도 generalSales가 비어 있으면 false",
+            requiredMode = Schema.RequiredMode.REQUIRED)
     private final boolean generalSaleAlarm;
 
     /**

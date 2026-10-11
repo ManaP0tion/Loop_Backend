@@ -38,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 // - 스크랩과 별개다 - 스크랩하지 않아도 켤 수 있고, 스크랩을 해제해도 알림은 그대로다.
 // - 그 유형에 예매 일정(예매 일시가 정해진 것)이 없으면 켤 수 없다(400). 일시가 미정인 일정은 사용자에게 보이지 않아 없는 것으로 본다.
 // - 끄기는 일정이 없어도 된다.
+// - 켜 둔 뒤 그 유형의 예매 일정이 없어지면 꺼짐으로 보이고, 일정이 다시 잡히면 다시 켜지 않아도 켜짐으로 돌아온다.
 // - 토글이라 이미 켜진 것을 켜거나 꺼진 것을 꺼도 에러 없이 현재 상태를 돌려준다.
 // - 비공개(오픈 예정) 공연은 켤 수 없다(403). 없는 공연은 404.
 // - 비로그인 사용자의 알림 상태는 모두 꺼짐이다.
@@ -214,6 +215,41 @@ class TicketAlarmServiceTest {
 
         assertErrorCode(() -> service.turnOn(me.getId(), concert.getId(), TicketAlarmType.PRESALE),
                 ErrorCode.TICKET_SCHEDULE_NOT_FOUND);
+    }
+
+    @Test
+    void 켜_둔_뒤_예매_일정이_지워지면_꺼짐으로_보인다() {
+        Concert concert = scheduledConcert();
+        service.turnOn(me.getId(), concert.getId(), TicketAlarmType.PRESALE);
+        service.turnOn(me.getId(), concert.getId(), TicketAlarmType.GENERAL_SALE);
+
+        presaleRepository.deleteAll(presaleRepository.findByConcert_Id(concert.getId()));
+        em.flush();
+
+        assertThat(service.typesOf(me.getId(), concert.getId())).containsExactly(TicketAlarmType.GENERAL_SALE);
+    }
+
+    @Test
+    void 켜_둔_뒤_예매_일시가_미정으로_바뀌어도_꺼짐으로_보인다() {
+        Concert concert = scheduledConcert();
+        service.turnOn(me.getId(), concert.getId(), TicketAlarmType.PRESALE);
+
+        presaleRepository.findByConcert_Id(concert.getId()).forEach(p -> p.update(null, p.getVendors()));
+        em.flush();
+
+        assertThat(service.typesOf(me.getId(), concert.getId())).isEmpty();
+    }
+
+    @Test
+    void 지워졌던_예매_일정이_다시_잡히면_다시_켜지_않아도_켜짐으로_돌아온다() {
+        Concert concert = scheduledConcert();
+        service.turnOn(me.getId(), concert.getId(), TicketAlarmType.PRESALE);
+        presaleRepository.deleteAll(presaleRepository.findByConcert_Id(concert.getId()));
+        em.flush();
+
+        presale(concert, OPENS_AT.plusDays(1));
+
+        assertThat(service.typesOf(me.getId(), concert.getId())).containsExactly(TicketAlarmType.PRESALE);
     }
 
     @Test

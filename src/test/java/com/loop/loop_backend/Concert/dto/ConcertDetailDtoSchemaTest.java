@@ -30,14 +30,15 @@ class ConcertDetailDtoSchemaTest {
 
     // ---------- 예정 공연 상세 ----------
 
-    // 항상 값이 있는 필드: 식별자·공연명·스크랩 여부, 그리고 비어 있으면 빈 배열로 내려가는 목록들
+    // 항상 값이 있는 필드: 식별자·공연명·스크랩/예매 알림 여부, 그리고 비어 있으면 빈 배열로 내려가는 목록들
     private static final String[] UPCOMING_ALWAYS = {
-            "concertId", "title", "artists", "showtimes", "presales", "generalSales", "productCodes", "scrapped"
+            "concertId", "title", "artists", "showtimes", "presales", "generalSales", "productCodes", "scrapped",
+            "presaleAlarm", "generalSaleAlarm"
     };
 
-    // 공연 상태에 따라 없을 수 있는 필드: 포스터·날짜 미정, 공연장 정보 없음, 숙소 미노출
+    // 공연 상태에 따라 없을 수 있는 필드: 포스터·날짜 미정, 공연장 정보 없음, 숙소 미노출, 공식 사이트 미등록
     private static final String[] UPCOMING_NULLABLE = {
-            "posterUrl", "venue", "startDate", "endDate", "dday", "lodgingUrl"
+            "posterUrl", "venue", "startDate", "endDate", "dday", "lodgingUrl", "officialSiteUrl"
     };
 
     @Test
@@ -76,11 +77,24 @@ class ConcertDetailDtoSchemaTest {
         Schema<?> schema = resolve(ConcertPastDetailDto.class);
 
         // 지난 공연은 날짜로 판단하므로 시작일이 항상 있다
-        for (String field : new String[]{"concertId", "title", "startDate", "showtimes", "scrapped"}) {
+        for (String field : new String[]{"concertId", "title", "artists", "startDate", "showtimes", "scrapped"}) {
             assertThat(requiredOf(schema)).as("required 목록에 %s가 있어야 함", field).contains(field);
             assertThat(typesOf(schema, field)).as("%s의 type에 null이 없어야 함", field).doesNotContain("null");
         }
-        for (String field : new String[]{"artistName", "venue", "endDate"}) {
+        for (String field : new String[]{"artistName", "venue", "endDate", "officialSiteUrl"}) {
+            assertThat(typesOf(schema, field)).as("%s의 type에 null이 포함돼야 함", field).contains("null");
+        }
+    }
+
+    // ---------- 공연 아티스트 ----------
+
+    @Test
+    void 아티스트는_id와_이름만_항상_있고_공식_링크는_null일_수_있다() {
+        Schema<?> schema = resolve(ConcertArtistDto.class);
+
+        assertThat(requiredOf(schema)).contains("artistId", "artistName");
+        for (String field : new String[]{"instagramUrl", "xUrl", "homepageUrl"}) {
+            assertThat(requiredOf(schema)).as("required 목록에 %s가 없어야 함", field).doesNotContain(field);
             assertThat(typesOf(schema, field)).as("%s의 type에 null이 포함돼야 함", field).contains("null");
         }
     }

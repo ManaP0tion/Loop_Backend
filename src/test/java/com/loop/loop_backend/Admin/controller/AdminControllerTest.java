@@ -221,6 +221,15 @@ class AdminControllerTest {
     }
 
     @Test
+    void 공식_링크가_500자를_넘으면_DB_오류가_아니라_입력_오류다() {
+        givenArtist();
+        String tooLong = "https://yuuri.jp/" + "a".repeat(500);
+
+        assertThatThrownBy(() -> adminController.updateArtist(ARTIST_ID, artistReq(null, null, tooLong)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void 아티스트_이미지만_올리면_공식_링크는_그대로다() {
         Artist artist = givenArtist();
         artist.changeLinks("https://www.instagram.com/yuuri_official", null, "https://yuuri.jp");

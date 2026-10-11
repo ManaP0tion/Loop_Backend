@@ -33,7 +33,7 @@ public class TicketAlarmController {
             description = "type: PRESALE(선예매) / GENERAL_SALE(일반예매). 이미 켜져 있어도 200.\n\n" +
                     "그 유형에 예매 일시가 정해진 일정이 하나도 없으면 400(TICKET_SCHEDULE_NOT_FOUND) - " +
                     "공연 상세의 presales / generalSales가 빈 목록이면 토글을 켤 수 없다.\n\n" +
-                    "응답은 이 공연의 알림 상태 전체(토글 두 개).")
+                    "응답은 이 공연의 알림 상태 전체(토글 두 개). 켜 둔 유형이라도 그 유형의 예매 일정이 지금 없으면 false로 나간다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "켜짐"),
             @ApiResponse(responseCode = "400", description = "예매 일정 없음 - TICKET_SCHEDULE_NOT_FOUND",
