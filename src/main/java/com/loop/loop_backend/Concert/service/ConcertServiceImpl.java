@@ -18,6 +18,7 @@ import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
 import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
+import com.loop.loop_backend.Setlist.service.SetlistVoteService;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.TicketAlarm.service.TicketAlarmService;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -51,6 +52,7 @@ public class ConcertServiceImpl implements ConcertService {
     private final ConcertPresaleRepository presaleRepository;
     private final ConcertGeneralSaleRepository generalSaleRepository;
     private final TicketAlarmService ticketAlarmService;
+    private final SetlistVoteService setlistVoteService;
 
     @Override
     @Transactional
@@ -121,7 +123,8 @@ public class ConcertServiceImpl implements ConcertService {
         // D-day는 노출 만료 기준(오전 10시 리셋)과 별개로 한국 날짜 기준 남은 일수다.
         return ConcertUpcomingDetailDto.from(concert, LocalDate.now(ZoneId.of("Asia/Seoul")),
                 presaleRepository.findByConcert_Id(id), generalSaleRepository.findByConcert_Id(id),
-                isScrapped(userId, id), ticketAlarmService.typesOf(userId, id));
+                isScrapped(userId, id), ticketAlarmService.typesOf(userId, id),
+                setlistVoteService.rankingPreview(id, userId));
     }
 
     @Override
@@ -131,7 +134,8 @@ public class ConcertServiceImpl implements ConcertService {
             // id는 존재하지만 지난 공연이 아님(예정 공연) - 잘못된 엔드포인트 호출을 404로 처리
             throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
         }
-        return ConcertPastDetailDto.from(concert, isScrapped(userId, id));
+        return ConcertPastDetailDto.from(concert, isScrapped(userId, id),
+                setlistVoteService.rankingPreview(id, userId));
     }
 
     // 상세는 비로그인도 조회 가능하다(GET /api/concerts/** permitAll) - 비로그인이면 스크랩 여부는 항상 false.

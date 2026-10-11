@@ -67,6 +67,12 @@ public class SetlistVoteService {
         return ranking(concertId, userId, LocalDateTime.now(SetlistRules.ZONE_KST));
     }
 
+    /** 공연 상세 화면용 순위 미리보기(상위 5곡). 전체 순위는 ranking. */
+    @Transactional(readOnly = true)
+    public SetlistRankingResponse rankingPreview(Long concertId, Long userId) {
+        return ranking(concertId, userId).top(5);
+    }
+
     /** 순위(NO.66). userId가 있으면(로그인) 내 선택 곡에 mine 표시. */
     @Transactional(readOnly = true)
     SetlistRankingResponse ranking(Long concertId, Long userId, LocalDateTime nowKst) {

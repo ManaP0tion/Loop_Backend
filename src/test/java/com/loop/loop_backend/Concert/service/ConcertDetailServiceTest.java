@@ -21,6 +21,7 @@ import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleReposit
 import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.TicketAlarm.domain.TicketAlarmType;
+import com.loop.loop_backend.Setlist.service.SetlistVoteService;
 import com.loop.loop_backend.TicketAlarm.service.TicketAlarmService;
 import com.loop.loop_backend.Venue.domain.Venue;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -74,6 +75,7 @@ class ConcertDetailServiceTest {
     @Mock ConcertPresaleRepository presaleRepository;
     @Mock ConcertGeneralSaleRepository generalSaleRepository;
     @Mock TicketAlarmService ticketAlarmService;
+    @Mock SetlistVoteService setlistVoteService;
     @InjectMocks ConcertServiceImpl concertService;
 
     private Concert givenConcert(LocalDate startDate, LocalDate endDate) {

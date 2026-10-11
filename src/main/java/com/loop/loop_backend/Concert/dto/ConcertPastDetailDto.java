@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Concert.dto;
 
 import com.loop.loop_backend.Concert.domain.Concert;
+import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
@@ -10,7 +11,6 @@ import java.util.List;
 
 // 지난 공연 상세. 예매 정보·예매 알림은 이제 와서 의미가 없어 제외 — 공연명/아티스트(공식 링크 포함)/공연장/날짜/공연 시각/공식 사이트.
 // 공연장·공연 시각은 예정 공연 상세와 같은 형태와 규칙이다(ConcertVenueDto, ConcertShowtimeDto).
-// 추후 셋리스트 기능이 붙으면 이 DTO에 필드가 추가될 예정.
 @Getter
 @Builder
 public class ConcertPastDetailDto {
@@ -48,7 +48,12 @@ public class ConcertPastDetailDto {
     @Schema(description = "내가 스크랩한 공연인지. 비로그인 조회면 항상 false", requiredMode = Schema.RequiredMode.REQUIRED)
     private final boolean scrapped;
 
-    public static ConcertPastDetailDto from(Concert concert, boolean scrapped) {
+    @Schema(description = "예상 셋리스트 순위 미리보기(상위 5곡). 형태는 GET /api/concerts/{id}/setlist/ranking과 같고 songs만 최대 5곡. " +
+            "투표 0건이면 songs 빈 목록, 셋리스트를 운영하지 않는 공연이면 highlightCount null(섹션 숨김)",
+            requiredMode = Schema.RequiredMode.REQUIRED)
+    private final SetlistRankingResponse setlistPreview;
+
+    public static ConcertPastDetailDto from(Concert concert, boolean scrapped, SetlistRankingResponse setlistPreview) {
         return ConcertPastDetailDto.builder()
                 .concertId(concert.getId())
                 .title(concert.getTitle())
@@ -60,6 +65,7 @@ public class ConcertPastDetailDto {
                 .showtimes(ConcertShowtimeDto.byDay(concert))
                 .officialSiteUrl(concert.getOfficialSiteUrl())
                 .scrapped(scrapped)
+                .setlistPreview(setlistPreview)
                 .build();
     }
 }
