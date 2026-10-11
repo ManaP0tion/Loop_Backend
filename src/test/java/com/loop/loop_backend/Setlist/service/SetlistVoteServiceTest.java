@@ -232,6 +232,11 @@ class SetlistVoteServiceTest {
                         org.assertj.core.groups.Tuple.tuple(1, "ベテルギウス", 2L, true, true),
                         org.assertj.core.groups.Tuple.tuple(2, "いかないで", 2L, true, false),
                         org.assertj.core.groups.Tuple.tuple(3, "ドライフラワー", 1L, false, false));
+
+        // 상세 화면 미리보기: 앞 곡만 자르고 나머지 값은 그대로. 곡 수보다 크게 잘라도 안전
+        assertThat(res.top(2).songs()).extracting(RankedSong::rank).containsExactly(1, 2);
+        assertThat(res.top(2).participantCount()).isEqualTo(3);
+        assertThat(res.top(5).songs()).hasSize(3);
     }
 
     @Test

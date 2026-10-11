@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Concert.dto;
 
 import com.loop.loop_backend.Concert.domain.Concert;
+import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertGeneralSale;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertPresale;
 import com.loop.loop_backend.TicketAlarm.domain.TicketAlarmType;
@@ -85,6 +86,11 @@ public class ConcertUpcomingDetailDto {
             requiredMode = Schema.RequiredMode.REQUIRED)
     private final boolean generalSaleAlarm;
 
+    @Schema(description = "예상 셋리스트 순위 미리보기(상위 5곡). 형태는 GET /api/concerts/{id}/setlist/ranking과 같고 songs만 최대 5곡. " +
+            "투표 0건이면 songs 빈 목록, 셋리스트를 운영하지 않는 공연이면 highlightCount null(섹션 숨김)",
+            requiredMode = Schema.RequiredMode.REQUIRED)
+    private final SetlistRankingResponse setlistPreview;
+
     /**
      * @param today D-day 계산 기준일. "지금"을 이 클래스 안에서 정하지 않고 호출한 쪽(서비스)이 넘기게 해서,
      *              테스트에서 날짜를 고정해 검증할 수 있게 한다.
@@ -92,7 +98,8 @@ public class ConcertUpcomingDetailDto {
      */
     public static ConcertUpcomingDetailDto from(Concert concert, LocalDate today, List<ConcertPresale> presales,
                                                 List<ConcertGeneralSale> generalSales, boolean scrapped,
-                                                Set<TicketAlarmType> alarms) {
+                                                Set<TicketAlarmType> alarms,
+                                                SetlistRankingResponse setlistPreview) {
         return ConcertUpcomingDetailDto.builder()
                 .concertId(concert.getId())
                 .artists(ConcertArtistDto.listOf(concert))
@@ -115,6 +122,7 @@ public class ConcertUpcomingDetailDto {
                 .scrapped(scrapped)
                 .presaleAlarm(alarms.contains(TicketAlarmType.PRESALE))
                 .generalSaleAlarm(alarms.contains(TicketAlarmType.GENERAL_SALE))
+                .setlistPreview(setlistPreview)
                 .build();
     }
 }

@@ -26,6 +26,12 @@ public record SetlistRankingResponse(
         List<RankedSong> songs
 ) {
 
+    /** 앞 limit곡만 남긴다(상세 화면 미리보기). 나머지 값은 그대로. */
+    public SetlistRankingResponse top(int limit) {
+        return new SetlistRankingResponse(highlightCount, participantCount, votingClosed,
+                songs.subList(0, Math.min(limit, songs.size())));
+    }
+
     @Schema(description = "순위 한 줄")
     public record RankedSong(
             @Schema(description = "순위(1부터, 공동 순위 없음)", requiredMode = Schema.RequiredMode.REQUIRED) int rank,
