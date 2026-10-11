@@ -8,6 +8,7 @@ import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
 import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.Storage.service.S3StorageService;
+import com.loop.loop_backend.TicketAlarm.repository.TicketAlarmRepository;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
@@ -44,6 +45,7 @@ class UserServiceImplTest {
     @Mock CompanionHeartRepository companionHeartRepository;
     @Mock ConcertScrapRepository concertScrapRepository;
     @Mock SetlistVoteRepository setlistVoteRepository;
+    @Mock TicketAlarmRepository ticketAlarmRepository;
     @Mock PasswordEncoder passwordEncoder;
     @Mock S3StorageService s3StorageService;
     @Mock ChatService chatService;
@@ -96,7 +98,7 @@ class UserServiceImplTest {
     }
 
     @Test
-    void 탈퇴_시점에_동행글_하트_해시태그_관심아티스트_콘서트스크랩_셋리스트투표가_정리된다() {
+    void 탈퇴_시점에_동행글_하트_해시태그_관심아티스트_콘서트스크랩_셋리스트투표_예매알림이_정리된다() {
         User user = testUser();
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
 
@@ -109,6 +111,7 @@ class UserServiceImplTest {
         verify(favoriteArtistRepository).deleteAllByUser(user);
         verify(concertScrapRepository).deleteAllByUser(user);
         verify(setlistVoteRepository).deleteAllByUser(user);
+        verify(ticketAlarmRepository).deleteAllByUser(user);
     }
 
     @Test

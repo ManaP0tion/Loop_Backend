@@ -48,7 +48,7 @@ class AdminConcertControllerTest {
             LocalDate.of(2026, 12, 5), LocalDate.of(2026, 12, 6),
             List.of(new AdminConcertDetailResponse.Showtime(1, LocalDate.of(2026, 12, 5), LocalTime.of(18, 0)),
                     new AdminConcertDetailResponse.Showtime(2, LocalDate.of(2026, 12, 6), null)),
-            null, List.of(), false, null, null, false, null, List.of(), List.of(), List.of());
+            null, List.of(), false, null, null, false, null, null, List.of(), List.of(), List.of());
 
     @BeforeEach
     void setUp() {

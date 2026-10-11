@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Artist.domain;
 
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.common.util.WebUrls;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -48,6 +49,16 @@ public class Artist {
     @Column(name = "artist_view_url", length = 500)
     private String artistViewUrl;
 
+    // 공식 SNS·홈페이지 (관리자 수기 입력). 공연 상세에 노출. http/https 주소만.
+    @Column(name = "instagram_url", length = 500)
+    private String instagramUrl;
+
+    @Column(name = "x_url", length = 500)
+    private String xUrl;
+
+    @Column(name = "homepage_url", length = 500)
+    private String homepageUrl;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -69,6 +80,13 @@ public class Artist {
 
     public void updateAutoFetch(boolean autoFetchConcerts) {
         this.autoFetchConcerts = autoFetchConcerts;
+    }
+
+    /** 공식 링크 전체 교체. 빈 값은 비우고, http/https 주소가 아니면 400. */
+    public void changeLinks(String instagramUrl, String xUrl, String homepageUrl) {
+        this.instagramUrl = WebUrls.normalize(instagramUrl);
+        this.xUrl = WebUrls.normalize(xUrl);
+        this.homepageUrl = WebUrls.normalize(homepageUrl);
     }
 
     public void linkItunes(Long itunesArtistId, String artistViewUrl) {

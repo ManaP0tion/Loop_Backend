@@ -14,11 +14,21 @@ public record ConcertArtistDto(
         Long artistId,
 
         @Schema(description = "아티스트명", requiredMode = Schema.RequiredMode.REQUIRED)
-        String artistName
+        String artistName,
+
+        @Schema(description = "공식 인스타그램 URL. 없으면 null", types = {"string", "null"})
+        String instagramUrl,
+
+        @Schema(description = "공식 X URL. 없으면 null", types = {"string", "null"})
+        String xUrl,
+
+        @Schema(description = "공식 홈페이지 URL. 없으면 null", types = {"string", "null"})
+        String homepageUrl
 ) {
 
     public static List<ConcertArtistDto> listOf(Concert concert) {
         Artist artist = concert.getArtist();
-        return artist == null ? List.of() : List.of(new ConcertArtistDto(artist.getId(), artist.getName()));
+        return artist == null ? List.of() : List.of(new ConcertArtistDto(artist.getId(), artist.getName(),
+                artist.getInstagramUrl(), artist.getXUrl(), artist.getHomepageUrl()));
     }
 }

@@ -19,6 +19,7 @@ import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
 import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
 import com.loop.loop_backend.Storage.service.S3StorageService;
+import com.loop.loop_backend.TicketAlarm.service.TicketAlarmService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.common.time.ExpiryCutoff;
@@ -49,6 +50,7 @@ public class ConcertServiceImpl implements ConcertService {
     private final ConcertScrapRepository concertScrapRepository;
     private final ConcertPresaleRepository presaleRepository;
     private final ConcertGeneralSaleRepository generalSaleRepository;
+    private final TicketAlarmService ticketAlarmService;
 
     @Override
     @Transactional
@@ -119,7 +121,7 @@ public class ConcertServiceImpl implements ConcertService {
         // D-day는 노출 만료 기준(오전 10시 리셋)과 별개로 한국 날짜 기준 남은 일수다.
         return ConcertUpcomingDetailDto.from(concert, LocalDate.now(ZoneId.of("Asia/Seoul")),
                 presaleRepository.findByConcert_Id(id), generalSaleRepository.findByConcert_Id(id),
-                isScrapped(userId, id));
+                isScrapped(userId, id), ticketAlarmService.typesOf(userId, id));
     }
 
     @Override

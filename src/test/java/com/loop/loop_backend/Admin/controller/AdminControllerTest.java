@@ -1,6 +1,10 @@
 package com.loop.loop_backend.Admin.controller;
 
 import com.loop.loop_backend.Admin.service.AdminAccessLogService;
+import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.repository.ArtistRepository;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.Report.domain.Report;
 import com.loop.loop_backend.Report.domain.ReportAction;
 import com.loop.loop_backend.Report.domain.SanctionRecord;
@@ -20,15 +24,17 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
-// AdminController 중 이번에 SanctionRecord 기록을 추가한 부분(suspend/applyAction, applySuspension 헬퍼)만 검증한다.
+// AdminController 중 SanctionRecord 기록 부분(suspend/applyAction, applySuspension 헬퍼)과 아티스트 공식 링크 입력을 검증한다.
 // AdminController 자체는 기존에 테스트가 없던 클래스라, 전체 커버리지 대신 이번에 변경한 조치 로직에 한정했다.
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -38,6 +44,8 @@ class AdminControllerTest {
     @Mock ReportRepository reportRepository;
     @Mock SanctionRecordRepository sanctionRecordRepository;
     @Mock AdminAccessLogService accessLog;
+    @Mock ArtistRepository artistRepository;
+    @Mock S3StorageService s3StorageService;
     @InjectMocks AdminController adminController;
 
     private static final Long ADMIN_ID = 1L;
@@ -155,5 +163,74 @@ class AdminControllerTest {
 
         assertThat(target.getStatus()).isEqualTo(Status.ACTIVE);
         verifyNoInteractions(sanctionRecordRepository);
+    }
+
+    // ── 아티스트 공식 링크 (인스타·X·홈페이지) ──────────────────────────
+    // 요구사항: 관리자가 아티스트 수정에서 직접 입력한다. http/https 주소만 받는다(아니면 400).
+    // 수정은 PUT이라 링크도 통째로 교체되고, 비워 보내면 지워진다. 이미지만 올릴 때는 링크가 그대로다.
+
+    private static final Long ARTIST_ID = 5L;
+
+    private Artist givenArtist() {
+        Artist artist = Artist.builder().name("Yuuri").category(ConcertCategory.J_POP_ARTIST).build();
+        ReflectionTestUtils.setField(artist, "id", ARTIST_ID);
+        when(artistRepository.findById(ARTIST_ID)).thenReturn(Optional.of(artist));
+        return artist;
+    }
+
+    private static AdminController.ArtistReq artistReq(String instagram, String x, String homepage) {
+        return new AdminController.ArtistReq("Yuuri", null, "유우리", null, null, ConcertCategory.J_POP_ARTIST,
+                instagram, x, homepage);
+    }
+
+    @Test
+    void 아티스트_수정으로_공식_링크를_등록한다() {
+        givenArtist();
+
+        AdminController.ArtistRow row = adminController.updateArtist(ARTIST_ID, artistReq(
+                "https://www.instagram.com/yuuri_official", "https://x.com/yuuri_official", "https://yuuri.jp"))
+                .getBody().getData();
+
+        assertThat(row.instagramUrl()).isEqualTo("https://www.instagram.com/yuuri_official");
+        assertThat(row.xUrl()).isEqualTo("https://x.com/yuuri_official");
+        assertThat(row.homepageUrl()).isEqualTo("https://yuuri.jp");
+    }
+
+    @Test
+    void 공식_링크를_비워_보내면_지워진다() {
+        Artist artist = givenArtist();
+        artist.changeLinks("https://www.instagram.com/yuuri_official", "https://x.com/yuuri_official", "https://yuuri.jp");
+
+        AdminController.ArtistRow row = adminController.updateArtist(ARTIST_ID, artistReq(null, "", "  "))
+                .getBody().getData();
+
+        assertThat(row.instagramUrl()).isNull();
+        assertThat(row.xUrl()).isNull();
+        assertThat(row.homepageUrl()).isNull();
+    }
+
+    @Test
+    void 공식_링크는_http_https_주소만_받는다() {
+        givenArtist();
+
+        for (String invalid : List.of("javascript:alert(1)", "instagram.com/yuuri_official", "@yuuri_official")) {
+            assertThatThrownBy(() -> adminController.updateArtist(ARTIST_ID, artistReq(invalid, null, null)))
+                    .as(invalid)
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @Test
+    void 아티스트_이미지만_올리면_공식_링크는_그대로다() {
+        Artist artist = givenArtist();
+        artist.changeLinks("https://www.instagram.com/yuuri_official", null, "https://yuuri.jp");
+        MockMultipartFile image = new MockMultipartFile("image", "a.png", "image/png", new byte[]{1});
+        when(s3StorageService.uploadPublic("artists", ARTIST_ID, image)).thenReturn("https://cdn/artists/5/a.png");
+
+        adminController.uploadArtistImage(ARTIST_ID, image);
+
+        assertThat(artist.getImageUrl()).isEqualTo("https://cdn/artists/5/a.png");
+        assertThat(artist.getInstagramUrl()).isEqualTo("https://www.instagram.com/yuuri_official");
+        assertThat(artist.getHomepageUrl()).isEqualTo("https://yuuri.jp");
     }
 }

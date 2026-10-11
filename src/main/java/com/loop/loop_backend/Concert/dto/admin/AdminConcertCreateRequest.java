@@ -60,6 +60,11 @@ public record AdminConcertCreateRequest(
                 types = {"string", "null"})
         String lodgingUrl,
 
+        @Size(max = 500)
+        @Schema(description = "특설 공식 사이트 URL. http/https 주소만(아니면 400)", example = "https://yuuri-live.example.com",
+                types = {"string", "null"})
+        String officialSiteUrl,
+
         @Schema(description = "관련 상품 코드(CD Japan). 공백·중복은 정리된다", example = "[\"PCXP-51237\"]", types = {"array", "null"})
         List<@Size(max = 100) String> productCodes,
 

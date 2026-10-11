@@ -91,6 +91,7 @@ public class AdminConcertService {
         if (req.expectedSongCount() != null) concert.changeExpectedSongCount(req.expectedSongCount());
         concert.changeLodgingUrl(req.lodgingUrl());
         if (req.lodgingVisible() != null) concert.changeLodgingVisible(req.lodgingVisible());
+        concert.changeOfficialSiteUrl(req.officialSiteUrl());
         if (req.productCodes() != null) concert.replaceProductCodes(req.productCodes());
         concert.validateState();
         concertRepository.save(concert);
@@ -126,6 +127,7 @@ public class AdminConcertService {
         if (req.expectedSongCount() != null) concert.changeExpectedSongCount(req.expectedSongCount());
         if (req.lodgingUrl() != null) concert.changeLodgingUrl(req.lodgingUrl());
         if (req.lodgingVisible() != null) concert.changeLodgingVisible(req.lodgingVisible());
+        if (req.officialSiteUrl() != null) concert.changeOfficialSiteUrl(req.officialSiteUrl());
         if (req.productCodes() != null) concert.replaceProductCodes(req.productCodes());
         if (req.published() != null) concert.changePublished(req.published(), LocalDateTime.now());
         // 예매 정보도 같은 저장 버튼으로 함께 온다 - 실패하면 위 수정과 함께 롤백된다

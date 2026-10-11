@@ -3,6 +3,7 @@ package com.loop.loop_backend.Concert.dto;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertGeneralSale;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertPresale;
+import com.loop.loop_backend.TicketAlarm.domain.TicketAlarmType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
@@ -10,6 +11,7 @@ import lombok.Getter;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Set;
 
 // 예정 공연 상세. 어드민이 입력한 값(공연장 관리의 공연장, DAY별 공연 시각, 선예매·일반예매, 숙소, 관련 상품)을 내려준다.
 // 비공개 공연은 상세에 들어올 수 없다(서비스에서 403).
@@ -66,18 +68,29 @@ public class ConcertUpcomingDetailDto {
     @Schema(description = "숙소 딥링크. 숙소 섹션을 노출하지 않는 공연은 null(섹션 숨김)", types = {"string", "null"})
     private final String lodgingUrl;
 
+    @Schema(description = "특설 공식 사이트 URL. 없으면 null(버튼 숨김)", types = {"string", "null"})
+    private final String officialSiteUrl;
+
     @Schema(description = "관련 상품 코드(CD Japan). 없으면 빈 목록(섹션 숨김)", requiredMode = Schema.RequiredMode.REQUIRED)
     private final List<String> productCodes;
 
     @Schema(description = "내가 스크랩한 공연인지. 비로그인 조회면 항상 false", requiredMode = Schema.RequiredMode.REQUIRED)
     private final boolean scrapped;
 
+    @Schema(description = "선예매 알림을 켰는지. 기본 false, 비로그인 조회면 항상 false", requiredMode = Schema.RequiredMode.REQUIRED)
+    private final boolean presaleAlarm;
+
+    @Schema(description = "일반예매 알림을 켰는지. 기본 false, 비로그인 조회면 항상 false", requiredMode = Schema.RequiredMode.REQUIRED)
+    private final boolean generalSaleAlarm;
+
     /**
      * @param today D-day 계산 기준일. "지금"을 이 클래스 안에서 정하지 않고 호출한 쪽(서비스)이 넘기게 해서,
      *              테스트에서 날짜를 고정해 검증할 수 있게 한다.
+     * @param alarms 내가 켠 예매 알림 종류. 비로그인이면 빈 집합
      */
     public static ConcertUpcomingDetailDto from(Concert concert, LocalDate today, List<ConcertPresale> presales,
-                                                List<ConcertGeneralSale> generalSales, boolean scrapped) {
+                                                List<ConcertGeneralSale> generalSales, boolean scrapped,
+                                                Set<TicketAlarmType> alarms) {
         return ConcertUpcomingDetailDto.builder()
                 .concertId(concert.getId())
                 .artists(ConcertArtistDto.listOf(concert))
@@ -95,8 +108,11 @@ public class ConcertUpcomingDetailDto {
                 .presales(ConcertTicketSaleDto.fromPresales(presales))
                 .generalSales(ConcertTicketSaleDto.fromGeneralSales(generalSales))
                 .lodgingUrl(concert.isLodgingVisible() ? concert.getLodgingUrl() : null)
+                .officialSiteUrl(concert.getOfficialSiteUrl())
                 .productCodes(List.copyOf(concert.getProductCodes()))
                 .scrapped(scrapped)
+                .presaleAlarm(alarms.contains(TicketAlarmType.PRESALE))
+                .generalSaleAlarm(alarms.contains(TicketAlarmType.GENERAL_SALE))
                 .build();
     }
 }

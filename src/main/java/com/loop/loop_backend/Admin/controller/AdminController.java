@@ -352,6 +352,7 @@ public class AdminController {
                 .category(body.category())
                 .autoFetchConcerts(false)
                 .build());
+        a.changeLinks(body.instagramUrl(), body.xUrl(), body.homepageUrl());
         return ResponseEntity.ok(CommonResponse.success(ArtistRow.of(a)));
     }
 
@@ -360,6 +361,7 @@ public class AdminController {
     public ResponseEntity<CommonResponse<ArtistRow>> updateArtist(@PathVariable Long id, @RequestBody ArtistReq body) {
         Artist a = artistRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
         a.update(body.name(), body.baseName(), body.nameKo(), body.nameAlias(), body.imageUrl(), body.category());
+        a.changeLinks(body.instagramUrl(), body.xUrl(), body.homepageUrl());
         return ResponseEntity.ok(CommonResponse.success(ArtistRow.of(a)));
     }
 
@@ -643,15 +645,25 @@ public class AdminController {
 
     public record ArtistRow(Long id, String name, String baseName, String nameKo, String nameAlias,
                             String imageUrl, ConcertCategory category, Long itunesArtistId,
-                            String artistViewUrl) {
+                            String artistViewUrl, String instagramUrl, String xUrl, String homepageUrl) {
         static ArtistRow of(Artist a) {
             return new ArtistRow(a.getId(), a.getName(), a.getBaseName(), a.getNameKo(),
                     a.getNameAlias(), a.getImageUrl(), a.getCategory(), a.getItunesArtistId(),
-                    a.getArtistViewUrl());
+                    a.getArtistViewUrl(), a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
         }
     }
+    // PUT이라 공식 링크(instagramUrl·xUrl·homepageUrl)도 통째로 교체된다 - 보내지 않으면 비워진다. http/https 주소만(아니면 400).
     public record ArtistReq(String name, String baseName, String nameKo, String nameAlias,
-                            String imageUrl, ConcertCategory category) {}
+                            String imageUrl, ConcertCategory category,
+                            @Schema(description = "공식 인스타그램 URL. 비우거나 보내지 않으면 삭제",
+                                    example = "https://www.instagram.com/yuuri_official", types = {"string", "null"})
+                            String instagramUrl,
+                            @Schema(description = "공식 X URL. 비우거나 보내지 않으면 삭제",
+                                    example = "https://x.com/yuuri_official", types = {"string", "null"})
+                            String xUrl,
+                            @Schema(description = "공식 홈페이지 URL. 비우거나 보내지 않으면 삭제",
+                                    example = "https://yuuri.jp", types = {"string", "null"})
+                            String homepageUrl) {}
 
 
     /**

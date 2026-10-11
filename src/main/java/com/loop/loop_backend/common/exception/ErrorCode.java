@@ -67,6 +67,9 @@ public enum ErrorCode {
     KOPIS_SYNC_ALREADY_RUNNING(409, "KOPIS 동기화가 이미 실행 중입니다. 끝난 뒤 다시 시도해 주세요."),
     VENUE_NOT_FOUND(404, "공연장을 찾을 수 없습니다."),
 
+    // TicketAlarm 도메인
+    TICKET_SCHEDULE_NOT_FOUND(400, "예매 일정이 없어 알림을 켤 수 없습니다."),
+
     // Lineup 도메인
     LINEUP_NOT_FOUND(404, "라인업 항목을 찾을 수 없습니다."),
     DUPLICATE_LINEUP(409, "이미 같은 DAY 라인업에 있는 아티스트입니다."),

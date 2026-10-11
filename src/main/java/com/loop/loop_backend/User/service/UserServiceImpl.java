@@ -9,6 +9,7 @@ import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.Setlist.repository.SetlistVoteRepository;
 import com.loop.loop_backend.Storage.dto.ImageUploadResponseDto;
 import com.loop.loop_backend.Storage.service.S3StorageService;
+import com.loop.loop_backend.TicketAlarm.repository.TicketAlarmRepository;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
@@ -38,6 +39,7 @@ public class UserServiceImpl implements UserService {
     private final CompanionHeartRepository companionHeartRepository;
     private final ConcertScrapRepository concertScrapRepository;
     private final SetlistVoteRepository setlistVoteRepository;
+    private final TicketAlarmRepository ticketAlarmRepository;
     private final PasswordEncoder passwordEncoder;
     private final S3StorageService s3StorageService;
     private final ChatService chatService;
@@ -193,6 +195,7 @@ public class UserServiceImpl implements UserService {
         favoriteArtistRepository.deleteAllByUser(user);
         concertScrapRepository.deleteAllByUser(user);
         setlistVoteRepository.deleteAllByUser(user);
+        ticketAlarmRepository.deleteAllByUser(user);
 
         user.withdraw();
         refreshTokenService.delete(id);

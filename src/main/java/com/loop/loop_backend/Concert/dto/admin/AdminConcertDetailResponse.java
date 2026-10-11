@@ -69,6 +69,9 @@ public record AdminConcertDetailResponse(
         @Schema(description = "숙소 딥링크", types = {"string", "null"})
         String lodgingUrl,
 
+        @Schema(description = "특설 공식 사이트 URL", types = {"string", "null"})
+        String officialSiteUrl,
+
         @Schema(description = "관련 상품 코드", requiredMode = Schema.RequiredMode.REQUIRED)
         List<String> productCodes,
 
@@ -105,7 +108,7 @@ public record AdminConcertDetailResponse(
                         c.getLinkedVenue().getId(), c.getLinkedVenue().getName(), c.getLinkedVenue().getAddress()),
                 c.getArtist() == null ? List.of() : List.of(new ArtistSummary(c.getArtist().getId(), c.getArtist().getName())),
                 c.isPublished(), c.getPublishedAt(), c.getExpectedSongCount(),
-                c.isLodgingVisible(), c.getLodgingUrl(), List.copyOf(c.getProductCodes()),
+                c.isLodgingVisible(), c.getLodgingUrl(), c.getOfficialSiteUrl(), List.copyOf(c.getProductCodes()),
                 TicketSaleResponse.fromPresales(presales), TicketSaleResponse.fromGeneralSales(generalSales));
     }
 

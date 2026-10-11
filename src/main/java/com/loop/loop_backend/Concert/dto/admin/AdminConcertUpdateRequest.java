@@ -66,6 +66,11 @@ public record AdminConcertUpdateRequest(
                 example = "https://trip.example/deeplink?trip_sub=PF297519", types = {"string", "null"})
         String lodgingUrl,
 
+        @Size(max = 500)
+        @Schema(description = "특설 공식 사이트 URL. http/https 주소만(아니면 400). 빈 문자열(\"\")이면 비움",
+                example = "https://yuuri-live.example.com", types = {"string", "null"})
+        String officialSiteUrl,
+
         @Schema(description = "관련 상품 코드(CD Japan). 보내면 통째로 교체, []는 비움", example = "[\"PCXP-51237\"]", types = {"array", "null"})
         List<@Size(max = 100) String> productCodes,
 
