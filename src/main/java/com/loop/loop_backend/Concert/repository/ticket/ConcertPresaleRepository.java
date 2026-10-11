@@ -12,6 +12,9 @@ public interface ConcertPresaleRepository extends JpaRepository<ConcertPresale, 
 
     List<ConcertPresale> findByConcert_Id(Long concertId);
 
+    // 예매 알림을 켤 수 있는지: 사용자 화면에 보이는(예매 일시가 정해진) 선예매가 있는지
+    boolean existsByConcert_IdAndOpensAtIsNotNull(Long concertId);
+
     // 관리자 목록의 예매 등록 여부: 주어진 공연 중 예매 일시가 입력된 선예매가 있는 공연 id (한 페이지를 한 번에 확인)
     @Query("SELECT DISTINCT p.concert.id FROM ConcertPresale p WHERE p.concert.id IN :concertIds AND p.opensAt IS NOT NULL")
     List<Long> findConcertIdsWithOpensAt(@Param("concertIds") Collection<Long> concertIds);

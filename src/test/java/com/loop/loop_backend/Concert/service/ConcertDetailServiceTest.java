@@ -20,6 +20,8 @@ import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
 import com.loop.loop_backend.Storage.service.S3StorageService;
+import com.loop.loop_backend.TicketAlarm.domain.TicketAlarmType;
+import com.loop.loop_backend.TicketAlarm.service.TicketAlarmService;
 import com.loop.loop_backend.Venue.domain.Venue;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
@@ -39,6 +41,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -53,6 +56,8 @@ import static org.mockito.Mockito.when;
 // - 공연 시각: 기간의 모든 DAY. 시각이 입력되지 않은 이전 공연은 KOPIS 공연 시간 안내로 채운다.
 // - 예매: 예매 일시가 정해진 선예매·일반예매만 일시 순으로 보인다.
 // - 숙소: 노출이 켜진 공연만 딥링크가 나간다.
+// - 특설 공식 사이트·아티스트 공식 SNS(인스타·X·홈페이지)는 예정·지난 공연 상세 모두에 나간다. 없으면 null.
+// - 예매 알림: 예정 공연 상세에 내가 켠 선예매·일반예매 알림이 나간다(지난 공연 상세에는 예매 정보가 없어 없음).
 // 날짜는 만료 기준(오전 10시 리셋)에 걸리지 않도록 오늘에서 충분히 떨어뜨려 잡는다.
 @ExtendWith(MockitoExtension.class)
 class ConcertDetailServiceTest {
@@ -68,6 +73,7 @@ class ConcertDetailServiceTest {
     @Mock ConcertScrapRepository concertScrapRepository;
     @Mock ConcertPresaleRepository presaleRepository;
     @Mock ConcertGeneralSaleRepository generalSaleRepository;
+    @Mock TicketAlarmService ticketAlarmService;
     @InjectMocks ConcertServiceImpl concertService;
 
     private Concert givenConcert(LocalDate startDate, LocalDate endDate) {
@@ -478,5 +484,74 @@ class ConcertDetailServiceTest {
         givenConcert(TODAY.minusDays(30), TODAY.minusDays(29));
 
         assertThat(concertService.getPastDetail(CONCERT_ID, null).isScrapped()).isFalse();
+    }
+
+    // ---------- 특설 공식 사이트·아티스트 공식 링크 ----------
+
+    private static Artist artistWithLinks() {
+        Artist artist = Artist.builder().name("Yuuri").build();
+        artist.changeLinks("https://www.instagram.com/yuuri_official", "https://x.com/yuuri_official", "https://yuuri.jp");
+        return artist;
+    }
+
+    @Test
+    void 예정_공연_상세에_공식_사이트와_아티스트_공식_링크가_나온다() {
+        Concert concert = givenConcert(TODAY.plusDays(30), TODAY.plusDays(30), artistWithLinks());
+        concert.changeOfficialSiteUrl("https://yuuri-live.example.com");
+
+        ConcertUpcomingDetailDto dto = concertService.getUpcomingDetail(CONCERT_ID, null);
+
+        assertThat(dto.getOfficialSiteUrl()).isEqualTo("https://yuuri-live.example.com");
+        assertThat(dto.getArtists()).extracting("artistName", "instagramUrl", "xUrl", "homepageUrl")
+                .containsExactly(tuple("Yuuri", "https://www.instagram.com/yuuri_official",
+                        "https://x.com/yuuri_official", "https://yuuri.jp"));
+    }
+
+    @Test
+    void 지난_공연_상세에도_공식_사이트와_아티스트_공식_링크가_나온다() {
+        Concert concert = givenConcert(TODAY.minusDays(30), TODAY.minusDays(29), artistWithLinks());
+        concert.changeOfficialSiteUrl("https://yuuri-live.example.com");
+
+        ConcertPastDetailDto dto = concertService.getPastDetail(CONCERT_ID, null);
+
+        assertThat(dto.getOfficialSiteUrl()).isEqualTo("https://yuuri-live.example.com");
+        assertThat(dto.getArtists()).extracting("artistName", "instagramUrl", "xUrl", "homepageUrl")
+                .containsExactly(tuple("Yuuri", "https://www.instagram.com/yuuri_official",
+                        "https://x.com/yuuri_official", "https://yuuri.jp"));
+    }
+
+    @Test
+    void 공식_사이트와_링크를_등록하지_않은_공연은_null로_나온다() {
+        givenConcert(TODAY.plusDays(30), TODAY.plusDays(30));
+
+        ConcertUpcomingDetailDto dto = concertService.getUpcomingDetail(CONCERT_ID, null);
+
+        assertThat(dto.getOfficialSiteUrl()).isNull();
+        assertThat(dto.getArtists()).extracting("instagramUrl", "xUrl", "homepageUrl")
+                .containsExactly(tuple(null, null, null));
+    }
+
+    // ---------- 예매 알림 ----------
+
+    @Test
+    void 예정_공연_상세에_내가_켠_예매_알림이_나온다() {
+        givenConcert(TODAY.plusDays(30), TODAY.plusDays(30));
+        when(ticketAlarmService.typesOf(USER_ID, CONCERT_ID)).thenReturn(Set.of(TicketAlarmType.PRESALE));
+
+        ConcertUpcomingDetailDto dto = concertService.getUpcomingDetail(CONCERT_ID, USER_ID);
+
+        assertThat(dto.isPresaleAlarm()).isTrue();
+        assertThat(dto.isGeneralSaleAlarm()).isFalse();
+    }
+
+    @Test
+    void 알림을_켜지_않았으면_예매_알림은_모두_꺼져_있다() {
+        givenConcert(TODAY.plusDays(30), TODAY.plusDays(30));
+        when(ticketAlarmService.typesOf(USER_ID, CONCERT_ID)).thenReturn(Set.of());
+
+        ConcertUpcomingDetailDto dto = concertService.getUpcomingDetail(CONCERT_ID, USER_ID);
+
+        assertThat(dto.isPresaleAlarm()).isFalse();
+        assertThat(dto.isGeneralSaleAlarm()).isFalse();
     }
 }

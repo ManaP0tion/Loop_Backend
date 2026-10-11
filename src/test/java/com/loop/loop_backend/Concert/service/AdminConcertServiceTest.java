@@ -105,7 +105,7 @@ class AdminConcertServiceTest {
         AdminConcertDetailResponse created = service.create(new AdminConcertCreateRequest(
                 ConcertCategory.J_POP_ARTIST, "YUURI LIVE", List.of("유우리"),
                 LocalDate.of(2026, 12, 5), LocalDate.of(2026, 12, 6), Arrays.asList(LocalTime.of(18, 0), null),
-                venue.getId(), List.of(yuuri.getId()), 20, false, null, List.of("PCXP-1"),
+                venue.getId(), List.of(yuuri.getId()), 20, false, null, "https://yuuri-live.example.com", List.of("PCXP-1"),
                 List.of(sale(null, "공식 안내")), List.of(sale(OCT_25, "NOL"))));
 
         assertThat(created.published()).isFalse();
@@ -118,6 +118,42 @@ class AdminConcertServiceTest {
         assertThat(created.artists()).extracting(AdminConcertDetailResponse.ArtistSummary::name).containsExactly("Yuuri");
         assertThat(created.titleAliases()).containsExactly("유우리");
         assertThat(created.productCodes()).containsExactly("PCXP-1");
+        assertThat(created.officialSiteUrl()).isEqualTo("https://yuuri-live.example.com");
+    }
+
+    // ---------- 특설 공식 사이트 ----------
+
+    @Test
+    void 공식_사이트는_수정으로_등록하고_null이면_유지된다() {
+        Concert concert = approvedConcert();
+
+        service.update(concert.getId(), patch().officialSiteUrl("  https://yuuri-live.example.com  ").build());
+        AdminConcertDetailResponse kept = service.update(concert.getId(), patch().title("YUURI LIVE 2026").build());
+
+        assertThat(kept.officialSiteUrl()).isEqualTo("https://yuuri-live.example.com");
+    }
+
+    @Test
+    void 공식_사이트를_빈_문자열로_보내면_비워진다() {
+        Concert concert = approvedConcert();
+        service.update(concert.getId(), patch().officialSiteUrl("https://yuuri-live.example.com").build());
+
+        AdminConcertDetailResponse cleared = service.update(concert.getId(), patch().officialSiteUrl("").build());
+
+        assertThat(cleared.officialSiteUrl()).isNull();
+    }
+
+    @Test
+    void 공식_사이트는_http_https_주소만_받는다() {
+        Concert concert = approvedConcert();
+
+        for (String invalid : List.of("javascript:alert(1)", "yuuri-live.example.com", "ftp://yuuri-live.example.com")) {
+            assertThatThrownBy(() -> service.update(concert.getId(), patch().officialSiteUrl(invalid).build()))
+                    .as(invalid)
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+        assertThat(service.update(concert.getId(), patch().officialSiteUrl("http://yuuri-live.example.com").build())
+                .officialSiteUrl()).isEqualTo("http://yuuri-live.example.com");
     }
 
     // ---------- 상세 ----------

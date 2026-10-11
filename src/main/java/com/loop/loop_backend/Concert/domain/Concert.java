@@ -2,6 +2,7 @@ package com.loop.loop_backend.Concert.domain;
 
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Venue.domain.Venue;
+import com.loop.loop_backend.common.util.WebUrls;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.OnDelete;
@@ -134,6 +135,10 @@ public class Concert {
     /** 숙소 딥링크. 완성된 URL을 그대로 저장한다(자동 생성 없음). */
     @Column(name = "lodging_url", length = 1000)
     private String lodgingUrl;
+
+    /** 공연 특설 공식 사이트. 있는 공연만 상세에서 연결한다. http/https 주소만. */
+    @Column(name = "official_site_url", length = 500)
+    private String officialSiteUrl;
 
     // 여러 개 값은 공연에 딸린 목록으로 둔다. 공연이 DB 단에서 지워질 때(아티스트 삭제 연쇄)도 함께 지워지게 한다.
 
@@ -272,6 +277,11 @@ public class Concert {
     /** 빈 문자열이면 비운다. */
     public void changeLodgingUrl(String lodgingUrl) {
         this.lodgingUrl = (lodgingUrl == null || lodgingUrl.isBlank()) ? null : lodgingUrl.trim();
+    }
+
+    /** 빈 문자열이면 비운다. http/https 주소가 아니면 400. */
+    public void changeOfficialSiteUrl(String officialSiteUrl) {
+        this.officialSiteUrl = WebUrls.normalize(officialSiteUrl);
     }
 
     public void replaceTitleAliases(List<String> aliases) {
