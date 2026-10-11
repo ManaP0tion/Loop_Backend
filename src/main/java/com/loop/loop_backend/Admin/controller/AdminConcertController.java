@@ -110,8 +110,10 @@ public class AdminConcertController {
                     "| 필드 종류 | 보내면 | null·안 보냄 |\n" +
                     "|---|---|---|\n" +
                     "| 값 (title, venueId 등) | 그 값으로 변경 | 유지 |\n" +
-                    "| 목록 (titleAliases, productCodes, showtimes, artistIds, presales, generalSales) | 통째로 교체, `[]`는 비움 | 유지 |\n" +
-                    "| lodgingUrl | `\"\"`이면 비움 | 유지 |\n\n" +
+                    "| 목록 (titleAliases, products, showtimes, artistIds, presales, generalSales) | 통째로 교체, `[]`는 비움 | 유지 |\n" +
+                    "| lodgingUrl, officialSiteUrl | `\"\"`이면 비움 | 유지 |\n\n" +
+                    "**관련 상품(products)**: 상품마다 `{ title, type, linkUrl, imageUrl }` - 링크·이미지 주소는 필수(http/https), " +
+                    "상품명·종류(CD, Blu-ray 등 자유 입력)는 선택. 보낸 순서대로 사용자 화면에 나온다.\n\n" +
                     "**공개 전환**: 수정 화면의 토글 값을 published로 보낸다. **저장 결과가 공개 상태면** 필수값" +
                     "(유형·공연명·포스터·기간·공연장, 내한 공연이면 아티스트 1명)을 검사하고, 빠지면 400. 비공개는 빈 칸이 있어도 저장된다.\n\n" +
                     "**공연 시각**: DAY 순서대로 시각만 보낸다(개수 = 공연 일수). 기간만 바꾸고 시각을 안 보내면 같은 날짜의 시각은 유지, " +
@@ -125,7 +127,7 @@ public class AdminConcertController {
             @ApiResponse(responseCode = "200", description = "수정 성공"),
             @ApiResponse(responseCode = "400",
                     description = "공개 상태인데 필수값 누락, 공연명 빈 값, 국내 유형 선택, 시작일 > 종료일, 공연 시각 개수 불일치, 예매처 이름 누락, " +
-                            "페스티벌에 아티스트·예상 곡 수, 숙소 노출인데 딥링크 없음 등 - 필드 구분 없이 하나로 응답",
+                            "페스티벌에 아티스트·예상 곡 수, 숙소 노출인데 딥링크 없음, 상품 링크·이미지 주소 누락 또는 http/https가 아님 등 - 필드 구분 없이 하나로 응답",
                     content = @Content(examples = @ExampleObject(value = INVALID_INPUT_EXAMPLE))),
             @ApiResponse(responseCode = "404", description = "없는 공연·공연장·아티스트",
                     content = @Content(examples = @ExampleObject(value = CONCERT_NOT_FOUND_EXAMPLE)))
