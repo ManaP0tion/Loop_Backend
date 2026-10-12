@@ -1,7 +1,7 @@
 package com.loop.loop_backend.Concert.dto;
 
 import com.loop.loop_backend.Concert.domain.Concert;
-import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse;
+import com.loop.loop_backend.Setlist.dto.SetlistResultResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
@@ -48,12 +48,12 @@ public class ConcertPastDetailDto {
     @Schema(description = "내가 스크랩한 공연인지. 비로그인 조회면 항상 false", requiredMode = Schema.RequiredMode.REQUIRED)
     private final boolean scrapped;
 
-    @Schema(description = "예상 셋리스트 순위 미리보기(상위 5곡). 형태는 GET /api/concerts/{id}/setlist/ranking과 같고 songs만 최대 5곡. " +
-            "투표 0건이면 songs 빈 목록, 셋리스트를 운영하지 않는 공연이면 highlightCount null(섹션 숨김)",
+    @Schema(description = "셋리스트 결과(내 적중률 mine·실제 셋리스트 songs 등). 형태는 GET /api/concerts/{id}/setlist/result와 같다. " +
+            "실제 셋리스트 저장 전이거나 셋리스트를 운영하지 않는 공연이면 ready=false(대기 문구), 비로그인·미투표면 mine null",
             requiredMode = Schema.RequiredMode.REQUIRED)
-    private final SetlistRankingResponse setlistPreview;
+    private final SetlistResultResponse setlistResult;
 
-    public static ConcertPastDetailDto from(Concert concert, boolean scrapped, SetlistRankingResponse setlistPreview) {
+    public static ConcertPastDetailDto from(Concert concert, boolean scrapped, SetlistResultResponse setlistResult) {
         return ConcertPastDetailDto.builder()
                 .concertId(concert.getId())
                 .title(concert.getTitle())
@@ -65,7 +65,7 @@ public class ConcertPastDetailDto {
                 .showtimes(ConcertShowtimeDto.byDay(concert))
                 .officialSiteUrl(concert.getOfficialSiteUrl())
                 .scrapped(scrapped)
-                .setlistPreview(setlistPreview)
+                .setlistResult(setlistResult)
                 .build();
     }
 }
