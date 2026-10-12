@@ -242,4 +242,43 @@ class AdminControllerTest {
         assertThat(artist.getInstagramUrl()).isEqualTo("https://www.instagram.com/yuuri_official");
         assertThat(artist.getHomepageUrl()).isEqualTo("https://yuuri.jp");
     }
+
+    @Test
+    void 공식_링크_CSV는_빈_칸을_유지하고_못_찾은_행과_잘못된_링크_행을_알려준다() throws Exception {
+        Artist artist = givenArtist();
+        artist.changeLinks(null, "https://x.com/old", "https://yuuri.jp");
+        Artist ado = Artist.builder().name("Ado").category(ConcertCategory.J_POP_ARTIST).build();
+        when(artistRepository.findByName("Ado")).thenReturn(Optional.of(ado));
+        String csv = "\uFEFFid,name,instagramUrl,xUrl,homepageUrl\n"
+                + "5,Yuuri,https://www.instagram.com/yuuri_official,,\n"   // 1: 반영, 빈 칸 유지
+                + ",Ado,,https://x.com/ado1024,\n"                            // 2: name 매칭
+                + "999,,https://a.com,,\n"                                    // 3: 없는 id
+                + "5,,https://ok.com,javascript:alert(1),\n"                  // 4: 잘못된 링크 → 행 전체 건너뜀
+                + "5,,,,\n";                                                  // 5: 유지
+        MockMultipartFile file = new MockMultipartFile("file", "links.csv", "text/csv",
+                csv.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        AdminController.ArtistLinkCsvResult r = adminController.importArtistLinksCsv(file).getBody().getData();
+
+        assertThat(r.updated()).isEqualTo(2);
+        assertThat(r.unchanged()).isEqualTo(1);
+        assertThat(r.failedRows()).containsExactly(3L, 4L);
+        assertThat(artist.getInstagramUrl()).isEqualTo("https://www.instagram.com/yuuri_official");
+        assertThat(artist.getXUrl()).isEqualTo("https://x.com/old");
+        assertThat(artist.getHomepageUrl()).isEqualTo("https://yuuri.jp");
+        assertThat(ado.getXUrl()).isEqualTo("https://x.com/ado1024");
+    }
+
+    @Test
+    void 공식_링크_CSV_다운로드는_업로드와_같은_헤더로_내보낸다() throws Exception {
+        Artist artist = Artist.builder().name("Yuuri, Jr").category(ConcertCategory.J_POP_ARTIST).build();
+        ReflectionTestUtils.setField(artist, "id", ARTIST_ID);
+        artist.changeLinks("https://www.instagram.com/yuuri_official", null, "https://yuuri.jp");
+        when(artistRepository.findAll(any(org.springframework.data.domain.Sort.class))).thenReturn(List.of(artist));
+
+        String csv = new String(adminController.exportArtistLinksCsv().getBody(), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(csv).isEqualTo("\uFEFFid,name,instagramUrl,xUrl,homepageUrl\r\n"
+                + "5,\"Yuuri, Jr\",https://www.instagram.com/yuuri_official,,https://yuuri.jp\r\n");
+    }
 }

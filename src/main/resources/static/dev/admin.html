@@ -1015,8 +1015,11 @@ sections.artists = async () => {
         <div class="page-header">
             <div><div class="page-title">아티스트 관리</div><div class="page-sub">삭제 시 관련 콘서트 함께 삭제 (cascade)</div></div>
             <div class="spacer" style="flex:1"></div>
+            <button class="btn" id="csvDown">공식 링크 CSV 다운로드</button>
+            <button class="btn" id="csv">공식 링크 CSV 업로드</button>
             <button class="btn primary" id="new">+ 아티스트 등록</button>
         </div>
+        <input id="csvFile" type="file" accept=".csv,text/csv" hidden />
         <div class="toolbar">
             <input placeholder="이름/Base/한글/Alias 검색" id="q" />
         </div>
@@ -1067,6 +1070,30 @@ sections.artists = async () => {
         root.querySelector('#slot').replaceChildren(t);
     }
     root.querySelector('#new').onclick = () => artistForm(null, load);
+    // 헤더: id, name, instagramUrl, xUrl, homepageUrl (id가 비면 name으로 매칭, 빈 칸은 기존 값 유지)
+    const csvInput = root.querySelector('#csvFile');
+    root.querySelector('#csv').onclick = () => csvInput.click();
+    root.querySelector('#csvDown').onclick = async () => {
+        try {
+            const res = await fetch(api._url('/api/admin/artists/links/csv'), { headers: { 'Authorization': 'Bearer ' + api._token() } });
+            if (!res.ok) throw { status: res.status, payload: await res.json().catch(() => null) };
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(await res.blob());
+            link.download = 'artist-links.csv';
+            link.click();
+            URL.revokeObjectURL(link.href);
+        } catch (e) { handleErr(e); }
+    };
+    csvInput.onchange = async () => {
+        const file = csvInput.files[0];
+        csvInput.value = '';
+        if (!file) return;
+        try {
+            const r = await api.upload('/api/admin/artists/links/csv', file, 'file');
+            toast(`반영 ${r.updated} · 유지 ${r.unchanged}` + (r.failedRows.length ? ` · 실패 행 ${r.failedRows.join(', ')}` : ''));
+            load();
+        } catch (e) { handleErr(e); }
+    };
     await load();
 };
 
@@ -1086,6 +1113,9 @@ function artistForm(a, refresh) {
         <div class="form-row"><label>카테고리</label>
             <select id="category">${cats.map(c => `<option ${a?.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
         </div>
+        <div class="form-row"><label>Instagram URL</label><input id="instagramUrl" type="url" value="${esc(a?.instagramUrl || '')}" placeholder="https://www.instagram.com/..." /></div>
+        <div class="form-row"><label>X URL</label><input id="xUrl" type="url" value="${esc(a?.xUrl || '')}" placeholder="https://x.com/..." /></div>
+        <div class="form-row"><label>웹사이트 URL</label><input id="homepageUrl" type="url" value="${esc(a?.homepageUrl || '')}" placeholder="https://..." /></div>
     </div>`);
     const foot = el(`<div><button class="btn primary" id="ok">${a ? '저장' : '등록'}</button></div>`);
     foot.querySelector('#ok').onclick = async () => {
@@ -1097,6 +1127,9 @@ function artistForm(a, refresh) {
             nameAlias: body.querySelector('#nameAlias').value || null,
             imageUrl: body.querySelector('#imageUrl').value || null,
             category: body.querySelector('#category').value,
+            instagramUrl: body.querySelector('#instagramUrl').value || null,
+            xUrl: body.querySelector('#xUrl').value || null,
+            homepageUrl: body.querySelector('#homepageUrl').value || null,
         };
         try {
             // 1) 먼저 JSON으로 저장(신규는 id 확보) 2) 파일이 있으면 S3 업로드 → 서버가 imageUrl 갱신
