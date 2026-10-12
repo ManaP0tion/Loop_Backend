@@ -52,6 +52,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -60,6 +61,19 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.loop.loop_backend.common.util.WebUrls;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
+import org.apache.commons.csv.CSVRecord;
+import org.apache.commons.io.input.BOMInputStream;
+
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.io.StringWriter;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -385,6 +399,81 @@ public class AdminController {
         return ResponseEntity.ok(CommonResponse.success(Map.of("imageUrl", url)));
     }
 
+    // 업로드와 같은 헤더라 받은 파일을 고쳐 그대로 다시 올리면 된다. UTF-8 BOM(엑셀 한글 깨짐 방지).
+    @GetMapping("/artists/links/csv")
+    @Operation(summary = "아티스트 공식 링크 CSV 다운로드", description = "헤더: id, name, instagramUrl, xUrl, homepageUrl")
+    public ResponseEntity<byte[]> exportArtistLinksCsv() throws IOException {
+        StringWriter out = new StringWriter();
+        out.write('\uFEFF');
+        try (CSVPrinter printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder().setHeader(ARTIST_LINK_CSV_HEADER).build())) {
+            for (Artist a : artistRepository.findAll(Sort.by("id"))) {
+                printer.printRecord(a.getId(), a.getName(), a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
+            }
+        }
+        return ResponseEntity.ok()
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"artist-links.csv\"")
+                .body(out.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static final String[] ARTIST_LINK_CSV_HEADER = {"id", "name", "instagramUrl", "xUrl", "homepageUrl"};
+
+    // 공식 링크 일괄 입력. id(없으면 name)로 매칭, 빈 칸은 기존 값 유지. 못 찾은 행·잘못된 링크 행은 건너뛰고 행 번호로 알려준다.
+    @PostMapping(value = "/artists/links/csv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "아티스트 공식 링크 CSV 업로드",
+            description = "UTF-8(BOM 허용). 헤더: id, name, instagramUrl, xUrl, homepageUrl. id가 비면 name으로 매칭. 빈 칸은 기존 값 유지")
+    @Transactional
+    public ResponseEntity<CommonResponse<ArtistLinkCsvResult>> importArtistLinksCsv(
+            @RequestPart("file") MultipartFile file) throws IOException {
+        if (file.isEmpty()) throw new BusinessException(ErrorCode.EMPTY_FILE);
+        int updated = 0, unchanged = 0;
+        List<Long> failedRows = new ArrayList<>();
+        CSVFormat format = CSVFormat.DEFAULT.builder()
+                .setHeader().setSkipHeaderRecord(true).setTrim(true).setIgnoreEmptyLines(true).build();
+        try (Reader reader = new InputStreamReader(
+                BOMInputStream.builder().setInputStream(file.getInputStream()).get(), StandardCharsets.UTF_8)) {
+            for (CSVRecord r : format.parse(reader)) {
+                Artist a = findArtistForCsv(csvColumn(r, "id"), csvColumn(r, "name"));
+                String ig = csvColumn(r, "instagramUrl"), x = csvColumn(r, "xUrl"), home = csvColumn(r, "homepageUrl");
+                if (a == null) {
+                    failedRows.add(r.getRecordNumber());
+                } else if (ig.isEmpty() && x.isEmpty() && home.isEmpty()) {
+                    unchanged++;
+                } else {
+                    try {
+                        // 먼저 셋 다 검증해 한 칸만 잘못돼도 행 전체를 건너뛴다(일부만 반영되지 않게)
+                        String nIg = ig.isEmpty() ? a.getInstagramUrl() : WebUrls.normalize(ig);
+                        String nX = x.isEmpty() ? a.getXUrl() : WebUrls.normalize(x);
+                        String nHome = home.isEmpty() ? a.getHomepageUrl() : WebUrls.normalize(home);
+                        a.changeLinks(nIg, nX, nHome);
+                        updated++;
+                    } catch (IllegalArgumentException e) {
+                        failedRows.add(r.getRecordNumber());
+                    }
+                }
+            }
+        } catch (IllegalArgumentException | IllegalStateException | UncheckedIOException e) {
+            // 깨진 CSV(따옴표 짝 안 맞음, 헤더 중복 등)
+            throw new BusinessException(ErrorCode.INVALID_REQUEST_FORMAT);
+        }
+        return ResponseEntity.ok(CommonResponse.success(new ArtistLinkCsvResult(updated, unchanged, failedRows)));
+    }
+
+    private Artist findArtistForCsv(String id, String name) {
+        if (!id.isEmpty()) {
+            try {
+                return artistRepository.findById(Long.valueOf(id)).orElse(null);
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return name.isEmpty() ? null : artistRepository.findByName(name).orElse(null);
+    }
+
+    private static String csvColumn(CSVRecord r, String name) {
+        return r.isMapped(name) && r.isSet(name) ? r.get(name) : "";
+    }
+
     // ================= CONCERTS =================
 
     // 공연 목록·등록(POST)·수정(PATCH)·상세는 AdminConcertController로 옮겼다.
@@ -652,6 +741,9 @@ public class AdminController {
                     a.getArtistViewUrl(), a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
         }
     }
+    /** updated = 링크 반영, unchanged = 링크 칸이 모두 비어 유지, failedRows = 아티스트를 못 찾았거나 링크가 잘못된 행 번호(헤더 제외 1부터) */
+    public record ArtistLinkCsvResult(int updated, int unchanged, List<Long> failedRows) {}
+
     // PUT이라 공식 링크(instagramUrl·xUrl·homepageUrl)도 통째로 교체된다 - 보내지 않으면 비워진다. http/https 주소만(아니면 400).
     public record ArtistReq(String name, String baseName, String nameKo, String nameAlias,
                             String imageUrl, ConcertCategory category,

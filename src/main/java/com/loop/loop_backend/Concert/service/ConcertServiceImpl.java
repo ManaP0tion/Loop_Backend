@@ -18,6 +18,7 @@ import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
 import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
+import com.loop.loop_backend.Setlist.service.SetlistResultService;
 import com.loop.loop_backend.Setlist.service.SetlistVoteService;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.TicketAlarm.service.TicketAlarmService;
@@ -53,6 +54,7 @@ public class ConcertServiceImpl implements ConcertService {
     private final ConcertGeneralSaleRepository generalSaleRepository;
     private final TicketAlarmService ticketAlarmService;
     private final SetlistVoteService setlistVoteService;
+    private final SetlistResultService setlistResultService;
 
     @Override
     @Transactional
@@ -135,7 +137,7 @@ public class ConcertServiceImpl implements ConcertService {
             throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
         }
         return ConcertPastDetailDto.from(concert, isScrapped(userId, id),
-                setlistVoteService.rankingPreview(id, userId));
+                setlistResultService.result(id, userId));
     }
 
     // 상세는 비로그인도 조회 가능하다(GET /api/concerts/** permitAll) - 비로그인이면 스크랩 여부는 항상 false.
