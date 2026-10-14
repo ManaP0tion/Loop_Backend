@@ -10,16 +10,22 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import java.nio.charset.StandardCharsets;
 
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -43,6 +49,29 @@ class AdminVenueControllerTest {
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
+    }
+
+    // ---------- CSV ----------
+
+    @Test
+    void CSV_다운로드는_공연장_상세가_아니라_파일로_내려준다() throws Exception {
+        when(venueService.exportCsv()).thenReturn("﻿id,name".getBytes(StandardCharsets.UTF_8));
+
+        mockMvc.perform(get("/api/admin/venues/csv"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"venues.csv\""));
+
+        verify(venueService, never()).get(any());
+    }
+
+    @Test
+    void 빈_CSV_파일은_400이고_서비스를_부르지_않는다() throws Exception {
+        MockMultipartFile empty = new MockMultipartFile("file", "venues.csv", "text/csv", new byte[0]);
+
+        mockMvc.perform(multipart("/api/admin/venues/csv").file(empty))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(venueService);
     }
 
     // ---------- 등록 ----------

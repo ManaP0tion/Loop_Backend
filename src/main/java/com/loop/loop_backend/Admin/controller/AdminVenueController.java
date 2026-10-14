@@ -2,11 +2,14 @@ package com.loop.loop_backend.Admin.controller;
 
 import com.loop.loop_backend.Admin.controller.AdminController.PageResp;
 import com.loop.loop_backend.Admin.service.AdminAccessLogService;
+import com.loop.loop_backend.Venue.dto.VenueCsvImportResult;
 import com.loop.loop_backend.Venue.dto.VenueRequestDto;
 import com.loop.loop_backend.Venue.dto.VenueResponseDto;
 import com.loop.loop_backend.Venue.dto.VenueUpdateRequestDto;
 import com.loop.loop_backend.Venue.service.VenueService;
+import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.CommonResponse;
+import com.loop.loop_backend.common.exception.ErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -19,9 +22,15 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 /**
  * 공연장 관리(AD-02) - 공연 등록과 분리된 독립 탭.
@@ -61,6 +70,46 @@ public class AdminVenueController {
             @RequestParam(defaultValue = "20") int size) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
         return ResponseEntity.ok(CommonResponse.success(PageResp.from(venueService.search(q, pageable))));
+    }
+
+    // 업로드와 같은 헤더라 받은 파일을 고쳐 그대로 다시 올리면 된다. UTF-8 BOM(엑셀 한글 깨짐 방지).
+    @GetMapping("/csv")
+    @Operation(summary = "공연장 CSV 다운로드",
+            description = "전체 공연장을 id 순으로 내려준다. UTF-8 BOM.\n\n" +
+                    "헤더: id, name, address, capacity, seatViewUrl, kakaoMapUrl, naverMapUrl, kopisFacilityId, kopisHallId " +
+                    "(KOPIS ID는 어느 공연장인지 알아보는 참고용 - 업로드 때 무시)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "다운로드 성공")
+    })
+    public ResponseEntity<byte[]> exportCsv() {
+        return ResponseEntity.ok()
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"venues.csv\"")
+                .body(venueService.exportCsv());
+    }
+
+    @PostMapping(value = "/csv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "공연장 CSV 일괄 수정",
+            description = "다운로드한 CSV를 고쳐 올리면 **id로 공연장을 찾아** 이름·주소·수용 인원·링크 3개를 바꾼다. 연결된 공연에 바로 반영된다.\n\n" +
+                    "- 빈 칸은 기존 값 유지 (CSV로는 링크를 비울 수 없다 - 비우기는 공연장 수정 화면에서)\n" +
+                    "- 이름으로 찾지 않는다 - 이름은 고칠 값이고 같은 이름의 공연장도 있을 수 있다\n" +
+                    "- 새 공연장은 만들지 않는다. id가 비었거나 없는 공연장인 행은 failedRows\n" +
+                    "- 링크는 http/https 주소만, 수용 인원은 0 이상 정수, 이름·주소는 255자까지. 한 칸이라도 잘못되면 그 행 전체를 건너뛴다(failedRows)\n" +
+                    "- kopisFacilityId, kopisHallId 칸은 무시\n\n" +
+                    "UTF-8(BOM 허용)만 받는다. 다른 인코딩(엑셀의 'CSV (쉼표로 분리)' 저장 등)으로 한글이 깨진 파일은 " +
+                    "깨진 이름이 저장되지 않도록 전체를 거절한다(400, 아무것도 반영 안 됨).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "업로드 성공 (결과 리포트)"),
+            @ApiResponse(responseCode = "400", description = "빈 파일 / CSV 형식 오류 / UTF-8이 아닌 파일 - 아무것도 반영 안 됨")
+    })
+    public ResponseEntity<CommonResponse<VenueCsvImportResult>> importCsv(
+            @AuthenticationPrincipal Long adminId, HttpServletRequest req,
+            @RequestPart("file") MultipartFile file) throws IOException {
+        if (file.isEmpty()) throw new BusinessException(ErrorCode.EMPTY_FILE);
+        VenueCsvImportResult result = venueService.importCsv(file.getInputStream());
+        accessLog.log(adminId, req, "IMPORT_VENUE_CSV", "VENUE", null,
+                "공연장 CSV 일괄 수정: 변경 " + result.updated() + "건, 실패 " + result.failedRows().size() + "건");
+        return ResponseEntity.ok(CommonResponse.success(result));
     }
 
     @GetMapping("/{id}")
