@@ -78,7 +78,7 @@ class ConcertDetailDtoSchemaTest {
         Schema<?> schema = resolve(ConcertPastDetailDto.class);
 
         // 지난 공연은 날짜로 판단하므로 시작일이 항상 있다
-        for (String field : new String[]{"concertId", "title", "artists", "startDate", "showtimes", "products", "scrapped"}) {
+        for (String field : new String[]{"concertId", "title", "artists", "startDate", "showtimes", "products", "scrapped", "upcomingConcerts"}) {
             assertThat(requiredOf(schema)).as("required 목록에 %s가 있어야 함", field).contains(field);
             assertThat(typesOf(schema, field)).as("%s의 type에 null이 없어야 함", field).doesNotContain("null");
         }

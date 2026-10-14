@@ -73,6 +73,15 @@ public interface ConcertRepository extends JpaRepository<Concert, Long> {
     List<Concert> findUpcomingOrUndatedByCategories(@Param("categories") List<ConcertCategory> categories,
                                                      @Param("date") LocalDate date);
 
+    // 지난 공연 상세의 "다가오는 공연" 미리보기용: 위와 같은 조건·정렬에서 공개 공연만, pageable 크기만큼.
+    @Query("SELECT c FROM Concert c LEFT JOIN FETCH c.artist LEFT JOIN FETCH c.linkedVenue " +
+            "WHERE c.category IN :categories AND c.published = true " +
+            "AND (COALESCE(c.endDate, c.startDate) IS NULL OR COALESCE(c.endDate, c.startDate) >= :date) " +
+            "ORDER BY CASE WHEN c.startDate IS NULL THEN 1 ELSE 0 END, c.startDate ASC")
+    List<Concert> findPublishedUpcomingOrUndatedByCategories(@Param("categories") List<ConcertCategory> categories,
+                                                              @Param("date") LocalDate date,
+                                                              Pageable pageable);
+
     // section(대분류) 조회용: 이미 종료된 공연만 - 최근 종료순. 날짜 미정 공연은 "지난 공연"이 아니므로 제외.
     @Query("SELECT c FROM Concert c LEFT JOIN FETCH c.artist LEFT JOIN FETCH c.linkedVenue " +
             "WHERE c.category IN :categories " +

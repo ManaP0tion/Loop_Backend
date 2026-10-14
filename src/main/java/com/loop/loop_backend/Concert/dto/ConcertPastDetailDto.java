@@ -9,7 +9,8 @@ import lombok.Getter;
 import java.time.LocalDate;
 import java.util.List;
 
-// 지난 공연 상세. 예매 정보·예매 알림은 이제 와서 의미가 없어 제외 — 공연명/아티스트(공식 링크 포함)/공연장/날짜/공연 시각/공식 사이트/관련 상품.
+// 지난 공연 상세. 예매 정보·예매 알림은 이제 와서 의미가 없어 제외 — 공연명/아티스트(공식 링크 포함)/공연장/날짜/공연 시각/공식 사이트/관련 상품
+// + 다음에 볼 만한 다가오는 내한 공연.
 // 공연장·공연 시각은 예정 공연 상세와 같은 형태와 규칙이다(ConcertVenueDto, ConcertShowtimeDto).
 @Getter
 @Builder
@@ -56,7 +57,12 @@ public class ConcertPastDetailDto {
             requiredMode = Schema.RequiredMode.REQUIRED)
     private final SetlistResultResponse setlistResult;
 
-    public static ConcertPastDetailDto from(Concert concert, boolean scrapped, SetlistResultResponse setlistResult) {
+    @Schema(description = "다가오는 J-POP 내한 공연. 목록 조회(GET /api/concerts)와 같은 형태로, 내한 탭 예정 목록 순서(가까운 날짜순, 날짜 미정은 뒤)의 " +
+            "공개 공연 최대 4건. 없으면 빈 목록(섹션 숨김)", requiredMode = Schema.RequiredMode.REQUIRED)
+    private final List<ConcertSummaryDto> upcomingConcerts;
+
+    public static ConcertPastDetailDto from(Concert concert, boolean scrapped, SetlistResultResponse setlistResult,
+                                            List<ConcertSummaryDto> upcomingConcerts) {
         return ConcertPastDetailDto.builder()
                 .concertId(concert.getId())
                 .title(concert.getTitle())
@@ -70,6 +76,7 @@ public class ConcertPastDetailDto {
                 .products(ConcertProductDto.listOf(concert))
                 .scrapped(scrapped)
                 .setlistResult(setlistResult)
+                .upcomingConcerts(upcomingConcerts)
                 .build();
     }
 }

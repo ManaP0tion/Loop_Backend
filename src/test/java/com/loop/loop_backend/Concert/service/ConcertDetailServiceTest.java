@@ -35,6 +35,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
@@ -52,6 +53,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -244,6 +246,35 @@ class ConcertDetailServiceTest {
         assertThat(dto.getEndDate()).isEqualTo(TODAY.minusDays(29));
         assertThat(dto.getShowtimes()).extracting(ConcertShowtimeDto::startTime)
                 .containsExactly(LocalTime.of(17, 0), LocalTime.of(16, 0));
+    }
+
+    @Test
+    void 지난_공연_상세는_다가오는_J_POP_내한_공연_4건을_목록_형식으로_돌려준다() {
+        givenConcert(TODAY.minusDays(30), TODAY.minusDays(29));
+        Concert upcoming = Concert.builder().title("YUURI LIVE").category(ConcertCategory.J_POP_ARTIST)
+                .artist(Artist.builder().name("優里").build())
+                .startDate(TODAY.plusDays(7)).endDate(TODAY.plusDays(7)).posterUrl("https://img.example/yuuri.jpg").build();
+        ReflectionTestUtils.setField(upcoming, "id", 99L);
+        when(concertRepository.findPublishedUpcomingOrUndatedByCategories(
+                eq(List.of(ConcertCategory.J_POP_ARTIST)), any(), eq(PageRequest.of(0, 4))))
+                .thenReturn(List.of(upcoming));
+
+        ConcertPastDetailDto dto = concertService.getPastDetail(CONCERT_ID, null);
+
+        assertThat(dto.getUpcomingConcerts()).singleElement().satisfies(c -> {
+            assertThat(c.getConcertId()).isEqualTo(99L);
+            assertThat(c.getTitle()).isEqualTo("YUURI LIVE");
+            assertThat(c.getArtistName()).isEqualTo("優里");
+            assertThat(c.getPosterUrl()).isEqualTo("https://img.example/yuuri.jpg");
+            assertThat(c.getStartDate()).isEqualTo(TODAY.plusDays(7));
+        });
+    }
+
+    @Test
+    void 다가오는_내한_공연이_없으면_빈_목록() {
+        givenConcert(TODAY.minusDays(30), TODAY.minusDays(29));
+
+        assertThat(concertService.getPastDetail(CONCERT_ID, null).getUpcomingConcerts()).isEmpty();
     }
 
     @Test
