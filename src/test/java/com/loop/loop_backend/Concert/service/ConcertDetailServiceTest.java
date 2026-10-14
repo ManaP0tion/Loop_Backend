@@ -23,6 +23,8 @@ import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleReposit
 import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.TicketAlarm.domain.TicketAlarmType;
+import com.loop.loop_backend.Setlist.dto.SetlistResultResponse;
+import com.loop.loop_backend.Setlist.service.SetlistResultService;
 import com.loop.loop_backend.Setlist.service.SetlistVoteService;
 import com.loop.loop_backend.TicketAlarm.service.TicketAlarmService;
 import com.loop.loop_backend.Venue.domain.Venue;
@@ -52,6 +54,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 // 공연 상세 조회 3종(period / past-detail / upcoming-detail)이 요구사항대로 동작하는지 검증한다.
@@ -82,6 +86,7 @@ class ConcertDetailServiceTest {
     @Mock ConcertGeneralSaleRepository generalSaleRepository;
     @Mock TicketAlarmService ticketAlarmService;
     @Mock SetlistVoteService setlistVoteService;
+    @Mock SetlistResultService setlistResultService;
     @InjectMocks ConcertServiceImpl concertService;
 
     private Concert givenConcert(LocalDate startDate, LocalDate endDate) {
@@ -214,6 +219,16 @@ class ConcertDetailServiceTest {
     }
 
     // ---------- past-detail ----------
+
+    @Test
+    void 지난_공연_상세에는_예상_순위_대신_내_적중률과_실제_셋리스트_결과가_담긴다() {
+        givenConcert(TODAY.minusDays(30), TODAY.minusDays(29));
+        SetlistResultResponse result = SetlistResultResponse.waiting(3);
+        when(setlistResultService.result(CONCERT_ID, USER_ID)).thenReturn(result);
+
+        assertThat(concertService.getPastDetail(CONCERT_ID, USER_ID).getSetlistResult()).isSameAs(result);
+        verify(setlistVoteService, never()).rankingPreview(any(), any());
+    }
 
     @Test
     void 지난_공연_상세는_공연명_아티스트_공연장_날짜_공연_시각을_돌려준다() {

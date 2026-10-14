@@ -18,6 +18,7 @@ import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
 import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
+import com.loop.loop_backend.Setlist.service.SetlistResultService;
 import com.loop.loop_backend.Setlist.service.SetlistVoteService;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.TicketAlarm.service.TicketAlarmService;
@@ -56,6 +57,7 @@ public class ConcertServiceImpl implements ConcertService {
     private final ConcertGeneralSaleRepository generalSaleRepository;
     private final TicketAlarmService ticketAlarmService;
     private final SetlistVoteService setlistVoteService;
+    private final SetlistResultService setlistResultService;
 
     @Override
     @Transactional
@@ -138,7 +140,7 @@ public class ConcertServiceImpl implements ConcertService {
             throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
         }
         return ConcertPastDetailDto.from(concert, isScrapped(userId, id),
-                setlistVoteService.rankingPreview(id, userId), upcomingDomesticTourPreview());
+                setlistResultService.result(id, userId), upcomingDomesticTourPreview());
     }
 
     // 지난 공연 상세 하단의 "다가오는 J-POP 내한 공연". 누르면 상세로 가야 하므로 비공개(오픈 예정) 공연은 뺀다.
