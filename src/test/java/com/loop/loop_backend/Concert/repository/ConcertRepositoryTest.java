@@ -14,8 +14,10 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -200,6 +202,59 @@ class ConcertRepositoryTest {
 
         assertThat(result).extracting(Concert::getTitle)
                 .containsExactly("가까운_공연", "먼_공연", "날짜_미정");
+    }
+
+    // ===== findPublishedUpcomingOrUndatedByCategories (지난 공연 상세의 다가오는 공연 미리보기) =====
+    // 규칙: 예정 목록과 같은 조건·순서에서 공개 공연만, 요청한 개수까지.
+
+    private Concert persistPublishedConcert(String title, LocalDate startDate, ConcertCategory category) {
+        Concert concert = persistConcert(title, startDate, startDate, category);
+        concert.changePublished(true, LocalDateTime.now());
+        return concert;
+    }
+
+    @Test
+    void 다가오는_공연_미리보기는_비공개_공연을_제외한다() {
+        LocalDate today = LocalDate.now();
+        persistPublishedConcert("공개", today.plusDays(2), ConcertCategory.J_POP_ARTIST);
+        persistConcert("오픈_예정", today.plusDays(1), today.plusDays(1), ConcertCategory.J_POP_ARTIST);
+        entityManager.flush();
+
+        List<Concert> result = concertRepository.findPublishedUpcomingOrUndatedByCategories(
+                List.of(ConcertCategory.J_POP_ARTIST), today, PageRequest.of(0, 4));
+
+        assertThat(result).extracting(Concert::getTitle).containsExactly("공개");
+    }
+
+    @Test
+    void 다가오는_공연_미리보기는_요청한_카테고리의_예정_공연만_포함한다() {
+        LocalDate today = LocalDate.now();
+        persistPublishedConcert("내한", today.plusDays(2), ConcertCategory.J_POP_ARTIST);
+        persistPublishedConcert("페스티벌", today.plusDays(1), ConcertCategory.JAPAN_FESTIVAL);
+        persistPublishedConcert("지난_내한", today.minusDays(1), ConcertCategory.J_POP_ARTIST);
+        entityManager.flush();
+
+        List<Concert> result = concertRepository.findPublishedUpcomingOrUndatedByCategories(
+                List.of(ConcertCategory.J_POP_ARTIST), today, PageRequest.of(0, 4));
+
+        assertThat(result).extracting(Concert::getTitle).containsExactly("내한");
+    }
+
+    @Test
+    void 다가오는_공연_미리보기는_가까운_순으로_요청한_개수까지만_날짜_미정은_뒤로_간다() {
+        LocalDate today = LocalDate.now();
+        persistPublishedConcert("날짜_미정", null, ConcertCategory.J_POP_ARTIST);
+        persistPublishedConcert("D+5", today.plusDays(5), ConcertCategory.J_POP_ARTIST);
+        persistPublishedConcert("D+1", today.plusDays(1), ConcertCategory.J_POP_ARTIST);
+        persistPublishedConcert("D+3", today.plusDays(3), ConcertCategory.J_POP_ARTIST);
+        entityManager.flush();
+
+        assertThat(concertRepository.findPublishedUpcomingOrUndatedByCategories(
+                List.of(ConcertCategory.J_POP_ARTIST), today, PageRequest.of(0, 4)))
+                .extracting(Concert::getTitle).containsExactly("D+1", "D+3", "D+5", "날짜_미정");
+        assertThat(concertRepository.findPublishedUpcomingOrUndatedByCategories(
+                List.of(ConcertCategory.J_POP_ARTIST), today, PageRequest.of(0, 2)))
+                .extracting(Concert::getTitle).containsExactly("D+1", "D+3");
     }
 
     // ===== findPastByCategories (section 지난 공연 조회) =====

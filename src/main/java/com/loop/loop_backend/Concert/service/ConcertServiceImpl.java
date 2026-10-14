@@ -25,6 +25,7 @@ import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.common.time.ExpiryCutoff;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -40,6 +41,8 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ConcertServiceImpl implements ConcertService {
+
+    private static final int UPCOMING_PREVIEW_SIZE = 4;
 
     private final ConcertRepository concertRepository;
     private final ArtistRepository artistRepository;
@@ -135,7 +138,16 @@ public class ConcertServiceImpl implements ConcertService {
             throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
         }
         return ConcertPastDetailDto.from(concert, isScrapped(userId, id),
-                setlistVoteService.rankingPreview(id, userId));
+                setlistVoteService.rankingPreview(id, userId), upcomingDomesticTourPreview());
+    }
+
+    // 지난 공연 상세 하단의 "다가오는 J-POP 내한 공연". 누르면 상세로 가야 하므로 비공개(오픈 예정) 공연은 뺀다.
+    private List<ConcertSummaryDto> upcomingDomesticTourPreview() {
+        return concertRepository.findPublishedUpcomingOrUndatedByCategories(
+                        ConcertSection.DOMESTIC_TOUR.getCategories(), ExpiryCutoff.cutoffDate(),
+                        PageRequest.of(0, UPCOMING_PREVIEW_SIZE)).stream()
+                .map(ConcertSummaryDto::from)
+                .toList();
     }
 
     // 상세는 비로그인도 조회 가능하다(GET /api/concerts/** permitAll) - 비로그인이면 스크랩 여부는 항상 false.
