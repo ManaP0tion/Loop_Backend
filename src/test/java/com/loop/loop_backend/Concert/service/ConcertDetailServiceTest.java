@@ -249,6 +249,17 @@ class ConcertDetailServiceTest {
     }
 
     @Test
+    void 지난_공연_상세는_포스터를_돌려주고_없으면_null() {
+        Concert concert = givenConcert(TODAY.minusDays(30), TODAY.minusDays(29));
+        assertThat(concertService.getPastDetail(CONCERT_ID, null).getPosterUrl()).isNull();
+
+        ReflectionTestUtils.setField(concert, "posterUrl", "https://img.example/vaundy.jpg");
+
+        assertThat(concertService.getPastDetail(CONCERT_ID, null).getPosterUrl())
+                .isEqualTo("https://img.example/vaundy.jpg");
+    }
+
+    @Test
     void 지난_공연_상세는_다가오는_J_POP_내한_공연_4건을_목록_형식으로_돌려준다() {
         givenConcert(TODAY.minusDays(30), TODAY.minusDays(29));
         Concert upcoming = Concert.builder().title("YUURI LIVE").category(ConcertCategory.J_POP_ARTIST)
