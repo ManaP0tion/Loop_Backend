@@ -52,9 +52,9 @@ public class SetlistService {
     @Transactional
     public List<SetlistResponse> save(Long concertId, SetlistType type, SetlistSaveRequest req) {
         Concert concert = findConcert(concertId);
-        if (type == SetlistType.ACTUAL && concert.getExpectedSongCount() == null) {
-            // 전체 적중률(득표 상위 n곡)의 기준이 없다
-            throw new IllegalArgumentException("예상 곡 수가 없는 공연은 실제 셋리스트를 저장할 수 없다");
+        if (type == SetlistType.ACTUAL && !SetlistRules.isSetlistConcert(concert)) {
+            // 페스티벌은 투표가 없어 적중률 기준(득표 상위 n곡)이 없다
+            throw new IllegalArgumentException("셋리스트를 운영하지 않는 공연은 실제 셋리스트를 저장할 수 없다");
         }
         List<Song> songs = SetlistRules.resolveSongs(songRepository, concert, req.songIds());
         Setlist setlist = setlistRepository.findByConcertIdAndType(concertId, type)

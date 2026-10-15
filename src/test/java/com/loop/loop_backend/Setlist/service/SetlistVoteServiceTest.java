@@ -111,13 +111,14 @@ class SetlistVoteServiceTest {
     }
 
     @Test
-    void 셋리스트를_운영하지_않는_공연은_빈_후보다() {
+    void 예상_곡_수가_없으면_기본값_20곡이고_페스티벌은_빈_후보다() {
         Concert noCount = saveConcert(ConcertCategory.J_POP_ARTIST, yuuri, null, true);
         Concert festival = saveConcert(ConcertCategory.JAPAN_FESTIVAL, null, null, true);
 
-        assertThat(service.candidates(noCount.getId(), BEFORE_DEADLINE).songs()).isEmpty();
-        assertThat(service.candidates(noCount.getId(), BEFORE_DEADLINE).maxSelect()).isNull();
+        assertThat(service.candidates(noCount.getId(), BEFORE_DEADLINE).songs()).isNotEmpty();
+        assertThat(service.candidates(noCount.getId(), BEFORE_DEADLINE).maxSelect()).isEqualTo(20);
         assertThat(service.candidates(festival.getId(), BEFORE_DEADLINE).songs()).isEmpty();
+        assertThat(service.candidates(festival.getId(), BEFORE_DEADLINE).maxSelect()).isNull();
     }
 
     @Test
@@ -195,10 +196,12 @@ class SetlistVoteServiceTest {
 
     @Test
     void 셋리스트를_운영하지_않는_공연에는_투표할_수_없다() {
+        Concert festival = saveConcert(ConcertCategory.JAPAN_FESTIVAL, null, null, true);
         Concert noCount = saveConcert(ConcertCategory.J_POP_ARTIST, yuuri, null, true);
 
-        assertThatThrownBy(() -> service.saveVote(noCount.getId(), me.getId(), List.of(s1.getId()), BEFORE_DEADLINE))
+        assertThatThrownBy(() -> service.saveVote(festival.getId(), me.getId(), List.of(s1.getId()), BEFORE_DEADLINE))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThat(service.saveVote(noCount.getId(), me.getId(), List.of(s1.getId()), BEFORE_DEADLINE)).isNotNull();
     }
 
     // ---------- 순위 ----------
@@ -255,12 +258,12 @@ class SetlistVoteServiceTest {
     }
 
     @Test
-    void 투표_0건이면_빈_순위고_운영하지_않는_공연은_n이_null이다() {
+    void 투표_0건이면_빈_순위고_예상_곡_수가_없으면_n은_기본값이다() {
         assertThat(service.ranking(concert.getId(), me.getId(), BEFORE_DEADLINE).songs()).isEmpty();
         assertThat(service.ranking(concert.getId(), me.getId(), BEFORE_DEADLINE).participantCount()).isZero();
 
         Concert noCount = saveConcert(ConcertCategory.J_POP_ARTIST, yuuri, null, true);
-        assertThat(service.ranking(noCount.getId(), me.getId(), BEFORE_DEADLINE).highlightCount()).isNull();
+        assertThat(service.ranking(noCount.getId(), me.getId(), BEFORE_DEADLINE).highlightCount()).isEqualTo(20);
     }
 
     @Test

@@ -176,13 +176,12 @@ class SetlistServiceTest {
     }
 
     @Test
-    void 예상_곡_수가_없는_공연은_실제_셋리스트를_저장할_수_없지만_지난_셋리스트는_된다() {
+    void 예상_곡_수가_없는_공연도_기본값으로_실제_셋리스트를_저장할_수_있다() {
         Concert noCount = concertRepository.save(Concert.builder()
                 .title("미정").category(ConcertCategory.J_POP_ARTIST).artist(yuuri).build());
 
-        assertThatThrownBy(() -> service.save(noCount.getId(), SetlistType.ACTUAL, actual(s1.getId())))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThat(service.save(noCount.getId(), SetlistType.RECENT, past(s1.getId()))).hasSize(1);
+        assertThat(service.save(noCount.getId(), SetlistType.ACTUAL, actual(s1.getId()))).hasSize(1);
+        assertThat(service.save(noCount.getId(), SetlistType.RECENT, past(s1.getId()))).hasSize(2);
     }
 
     @Test

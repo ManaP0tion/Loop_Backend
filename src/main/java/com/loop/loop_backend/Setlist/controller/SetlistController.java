@@ -97,7 +97,7 @@ public class SetlistController {
             description = "공연 아티스트의 곡 전체를 정렬 순번대로 준다. 순위·득표 수는 없다(상위권 쏠림 방지).\n\n" +
                     "- 50곡 → 20곡씩 더보기, 원제·로마자·한글 검색은 프론트가 이 목록으로 한다(로마자는 화면 미노출)\n" +
                     "- maxSelect = 최대 선택 곡 수 n, votingClosed = 마감(공연 시작일 00:00 KST) 여부\n" +
-                    "- 셋리스트를 운영하지 않는 공연(페스티벌·예상 곡 수 없음)이면 maxSelect null, songs 빈 목록\n\n" +
+                    "- 셋리스트를 운영하지 않는 공연(페스티벌·아티스트 미지정)이면 maxSelect null, songs 빈 목록\n\n" +
                     "비공개(오픈 예정) 공연이면 403.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),

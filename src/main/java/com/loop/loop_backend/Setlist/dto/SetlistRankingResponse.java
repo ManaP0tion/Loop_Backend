@@ -11,7 +11,7 @@ import java.util.List;
  */
 @Schema(description = "예상 셋리스트 순위. 투표 0건이거나 셋리스트를 운영하지 않는 공연이면 songs가 빈 목록")
 public record SetlistRankingResponse(
-        @Schema(description = "하이라이트 개수 n(예상 곡 수). 셋리스트를 운영하지 않는 공연이면 null", example = "20",
+        @Schema(description = "하이라이트 개수 n(예상 곡 수, 미입력이면 20). 셋리스트를 운영하지 않는 공연이면 null", example = "20",
                 types = {"integer", "null"})
         Integer highlightCount,
 

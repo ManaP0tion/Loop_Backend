@@ -29,7 +29,8 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class SongService {
 
-    static final String[] CSV_HEADER = {"trackId", "원문", "로마자", "한글", "sortOrder"};
+    // id = 곡 PK. 수동 추가 곡은 trackId가 없어 id로만 매칭된다
+    static final String[] CSV_HEADER = {"id", "trackId", "원문", "로마자", "한글", "sortOrder"};
     private static final char BOM = '﻿';
 
     private final SongRepository songRepository;
@@ -145,7 +146,7 @@ public class SongService {
         out.write(BOM);
         try (CSVPrinter printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder().setHeader(CSV_HEADER).build())) {
             for (Song s : songRepository.findAllByArtistIdOrderBySortOrderAsc(artistId)) {
-                printer.printRecord(s.getTrackId(), s.getTitleOriginal(), s.getTitleRomanized(),
+                printer.printRecord(s.getId(), s.getTrackId(), s.getTitleOriginal(), s.getTitleRomanized(),
                         s.getTitleKo(), s.getSortOrder());
             }
         } catch (IOException e) {
@@ -155,25 +156,33 @@ public class SongService {
     }
 
     /**
-     * CSV 업로드: trackId로 매칭해 로마자·한글만 반영. 빈 값은 기존 값 유지, 매칭 안 된 행은 리포트로 반환.
+     * CSV 업로드: id(없으면 trackId)로 매칭해 로마자·한글만 반영. 빈 값은 기존 값 유지, 매칭 안 된 행은 리포트로 반환.
      * 로마자는 US 스토어에 없는 곡·영문 번역 제목 보정용 (재불러오기는 로마자가 비어 있을 때만 채움)
+     * deleteMissing이면 CSV에 없는 곡을 소프트 삭제한다 - 받은 CSV에서 instrumental·live 같은 행을 지우고 올리는 용도.
+     * 소프트 삭제라 iTunes 재불러오기에서도 다시 생기지 않는다. 한 곡도 매칭되지 않으면(다른 아티스트 파일 등) 아무것도 지우지 않고 400.
      */
     @Transactional
-    public CsvImportResult importCsv(Long artistId, InputStream in) {
+    public CsvImportResult importCsv(Long artistId, InputStream in, boolean deleteMissing) {
         findArtistOrThrow(artistId);
-        Map<Long, Song> songs = activeSongsByTrackId(artistId);
+        List<Song> active = songRepository.findAllByArtistIdOrderBySortOrderAsc(artistId);
+        Map<Long, Song> byId = active.stream().collect(Collectors.toMap(Song::getId, Function.identity()));
+        Map<Long, Song> byTrackId = active.stream().filter(s -> s.getTrackId() != null)
+                .collect(Collectors.toMap(Song::getTrackId, Function.identity()));
         int updated = 0, unchanged = 0;
         List<Long> unmatched = new ArrayList<>();
+        Set<Long> matchedIds = new HashSet<>();
 
         CSVFormat format = CSVFormat.DEFAULT.builder()
                 .setHeader().setSkipHeaderRecord(true).setTrim(true).build();
         try (Reader reader = skipBom(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             for (CSVRecord r : format.parse(reader)) {
-                Song song = songs.get(parseLong(r.isMapped("trackId") ? r.get("trackId") : null));
+                Long id = parseLong(column(r, "id"));
+                Song song = id != null ? byId.get(id) : byTrackId.get(parseLong(column(r, "trackId")));
                 if (song == null) {
                     unmatched.add(r.getRecordNumber());
                     continue;
                 }
+                matchedIds.add(song.getId());
                 String romanized = column(r, "로마자");
                 String ko = column(r, "한글");
                 if (romanized.isBlank() && ko.isBlank()) {
@@ -187,7 +196,15 @@ public class SongService {
             // 깨진 CSV(따옴표 짝 안 맞음, 헤더 중복 등)
             throw new BusinessException(ErrorCode.INVALID_REQUEST_FORMAT);
         }
-        return new CsvImportResult(updated, unchanged, unmatched);
+
+        int deleted = 0;
+        if (deleteMissing) {
+            if (matchedIds.isEmpty()) throw new BusinessException(ErrorCode.SONG_CSV_NO_MATCH);
+            List<Song> missing = active.stream().filter(s -> !matchedIds.contains(s.getId())).toList();
+            songRepository.deleteAll(missing);
+            deleted = missing.size();
+        }
+        return new CsvImportResult(updated, unchanged, deleted, unmatched);
     }
 
     static String toAlbumArt200(String url) {
@@ -212,12 +229,6 @@ public class SongService {
         int c = r.read();
         if (c != BOM && c != -1) r.unread(c);
         return r;
-    }
-
-    private Map<Long, Song> activeSongsByTrackId(Long artistId) {
-        return songRepository.findAllByArtistIdOrderBySortOrderAsc(artistId).stream()
-                .filter(s -> s.getTrackId() != null)
-                .collect(Collectors.toMap(Song::getTrackId, Function.identity()));
     }
 
     private Artist findArtistOrThrow(Long artistId) {

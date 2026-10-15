@@ -144,7 +144,7 @@ public class SongAdminController {
     }
 
     @GetMapping("/artists/{artistId}/songs/csv")
-    @Operation(summary = "곡 CSV 다운로드", description = "UTF-8 BOM. 컬럼: trackId, 원문, 로마자, 한글, sortOrder")
+    @Operation(summary = "곡 CSV 다운로드", description = "UTF-8 BOM. 컬럼: id, trackId, 원문, 로마자, 한글, sortOrder")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "다운로드 성공"),
             @ApiResponse(responseCode = "404", description = "아티스트 없음")
@@ -158,16 +158,18 @@ public class SongAdminController {
     }
 
     @PostMapping(value = "/artists/{artistId}/songs/csv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "곡 CSV 업로드", description = "trackId로 매칭해 한글 곡명만 반영. 빈 값은 유지, 매칭 안 된 행은 리포트")
+    @Operation(summary = "곡 CSV 업로드", description = "id(없으면 trackId)로 매칭해 로마자·한글 곡명 반영. 빈 값은 유지, 매칭 안 된 행은 리포트. "
+            + "deleteMissing=true면 CSV에 없는 곡을 삭제(소프트 삭제, 재불러오기에도 다시 생기지 않음)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "업로드 성공 (결과 리포트)"),
-            @ApiResponse(responseCode = "400", description = "빈 파일 / CSV 형식 오류"),
+            @ApiResponse(responseCode = "400", description = "빈 파일 / CSV 형식 오류 / deleteMissing인데 매칭된 곡 없음"),
             @ApiResponse(responseCode = "404", description = "아티스트 없음")
     })
     public ResponseEntity<CommonResponse<CsvImportResult>> importCsv(
             @Parameter(description = "아티스트 PK") @PathVariable Long artistId,
+            @Parameter(description = "true면 CSV에 없는 곡 삭제") @RequestParam(defaultValue = "false") boolean deleteMissing,
             @RequestPart("file") MultipartFile file) throws IOException {
         if (file.isEmpty()) throw new BusinessException(ErrorCode.EMPTY_FILE);
-        return ResponseEntity.ok(CommonResponse.success(songService.importCsv(artistId, file.getInputStream())));
+        return ResponseEntity.ok(CommonResponse.success(songService.importCsv(artistId, file.getInputStream(), deleteMissing)));
     }
 }
