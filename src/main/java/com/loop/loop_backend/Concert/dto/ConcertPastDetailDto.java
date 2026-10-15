@@ -9,7 +9,7 @@ import lombok.Getter;
 import java.time.LocalDate;
 import java.util.List;
 
-// 지난 공연 상세. 예매 정보·예매 알림은 이제 와서 의미가 없어 제외 — 공연명/아티스트(공식 링크 포함)/공연장/날짜/공연 시각/공식 사이트/관련 상품
+// 지난 공연 상세. 예매 정보·예매 알림은 이제 와서 의미가 없어 제외 — 공연명/포스터/아티스트(공식 링크 포함)/공연장/날짜/공연 시각/공식 사이트/관련 상품
 // + 다음에 볼 만한 다가오는 내한 공연.
 // 공연장·공연 시각은 예정 공연 상세와 같은 형태와 규칙이다(ConcertVenueDto, ConcertShowtimeDto).
 @Getter
@@ -21,6 +21,9 @@ public class ConcertPastDetailDto {
 
     @Schema(description = "공연명", requiredMode = Schema.RequiredMode.REQUIRED)
     private final String title;
+
+    @Schema(description = "포스터 이미지 URL", types = {"string", "null"})
+    private final String posterUrl;
 
     @Schema(description = "아티스트명. 아티스트가 없는 공연(페스티벌 등)은 null. artists와 같은 값 - 기존 화면 호환용으로 남겨 둔다",
             types = {"string", "null"})
@@ -66,6 +69,7 @@ public class ConcertPastDetailDto {
         return ConcertPastDetailDto.builder()
                 .concertId(concert.getId())
                 .title(concert.getTitle())
+                .posterUrl(concert.getPosterUrl())
                 .artistName(concert.getArtist() != null ? concert.getArtist().getName() : null)
                 .artists(ConcertArtistDto.listOf(concert))
                 .venue(ConcertVenueDto.of(concert))

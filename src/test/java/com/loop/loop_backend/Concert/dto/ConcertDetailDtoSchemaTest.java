@@ -82,7 +82,7 @@ class ConcertDetailDtoSchemaTest {
             assertThat(requiredOf(schema)).as("required 목록에 %s가 있어야 함", field).contains(field);
             assertThat(typesOf(schema, field)).as("%s의 type에 null이 없어야 함", field).doesNotContain("null");
         }
-        for (String field : new String[]{"artistName", "venue", "endDate", "officialSiteUrl"}) {
+        for (String field : new String[]{"posterUrl", "artistName", "venue", "endDate", "officialSiteUrl"}) {
             assertThat(typesOf(schema, field)).as("%s의 type에 null이 포함돼야 함", field).contains("null");
         }
     }
