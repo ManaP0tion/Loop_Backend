@@ -50,7 +50,22 @@ public class S3StorageService {
 
     // 공개 버킷에 업로드 후 바로 접근 가능한 public URL을 반환 (프로필/콘서트 이미지)
     public String uploadPublic(String prefix, Long ownerId, MultipartFile file) {
-        String key = upload(publicBucket, prefix, ownerId, file);
+        return publicUrl(upload(publicBucket, prefix, ownerId, file));
+    }
+
+    // 서버가 직접 받은 이미지(외부 URL 복사)를 공개 버킷에 올린다. 형식·크기 검증은 호출한 쪽에서 끝낸 상태여야 한다.
+    public String uploadPublicBytes(String prefix, Long ownerId, byte[] bytes, String contentType, String extension) {
+        String key = "%s/%d/%s.%s".formatted(prefix, ownerId, UUID.randomUUID(), extension);
+        put(publicBucket, key, bytes, contentType);
+        return publicUrl(key);
+    }
+
+    // 이미 우리 공개 버킷에 있는 이미지인지
+    public boolean isPublicUrl(String url) {
+        return url != null && url.startsWith(publicUrl(""));
+    }
+
+    private String publicUrl(String key) {
         return "https://%s.s3.%s.amazonaws.com/%s".formatted(publicBucket, region, key);
     }
 
@@ -103,6 +118,11 @@ public class S3StorageService {
         validateFormat(contentType, extension);
 
         String key = "%s/%d/%s.%s".formatted(prefix, ownerId, UUID.randomUUID(), extension);
+        put(bucket, key, bytes, contentType);
+        return key;
+    }
+
+    private void put(String bucket, String key, byte[] bytes, String contentType) {
         try {
             s3Client.putObject(
                     PutObjectRequest.builder()
@@ -114,8 +134,6 @@ public class S3StorageService {
         } catch (S3Exception e) {
             throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED);
         }
-
-        return key;
     }
 
     private boolean isHeic(MultipartFile file) {

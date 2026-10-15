@@ -1015,8 +1015,9 @@ sections.artists = async () => {
         <div class="page-header">
             <div><div class="page-title">아티스트 관리</div><div class="page-sub">삭제 시 관련 콘서트 함께 삭제 (cascade)</div></div>
             <div class="spacer" style="flex:1"></div>
-            <button class="btn" id="csvDown">공식 링크 CSV 다운로드</button>
-            <button class="btn" id="csv">공식 링크 CSV 업로드</button>
+            <button class="btn" id="csvDown">CSV 다운로드</button>
+            <button class="btn" id="csv">CSV 업로드</button>
+            <button class="btn" id="copyImg">외부 이미지 S3로 옮기기</button>
             <button class="btn primary" id="new">+ 아티스트 등록</button>
         </div>
         <input id="csvFile" type="file" accept=".csv,text/csv" hidden />
@@ -1070,7 +1071,7 @@ sections.artists = async () => {
         root.querySelector('#slot').replaceChildren(t);
     }
     root.querySelector('#new').onclick = () => artistForm(null, load);
-    // 헤더: id, name, instagramUrl, xUrl, homepageUrl (id가 비면 name으로 매칭, 빈 칸은 기존 값 유지)
+    // 헤더: id, name, baseName, nameKo, nameAlias, imageUrl, category, instagramUrl, xUrl, homepageUrl (id가 비면 name으로 매칭, 빈 칸은 기존 값 유지)
     const csvInput = root.querySelector('#csvFile');
     root.querySelector('#csv').onclick = () => csvInput.click();
     root.querySelector('#csvDown').onclick = async () => {
@@ -1079,10 +1080,34 @@ sections.artists = async () => {
             if (!res.ok) throw { status: res.status, payload: await res.json().catch(() => null) };
             const link = document.createElement('a');
             link.href = URL.createObjectURL(await res.blob());
-            link.download = 'artist-links.csv';
+            link.download = 'artists.csv';
             link.click();
             URL.revokeObjectURL(link.href);
         } catch (e) { handleErr(e); }
+    };
+    // 백그라운드 실행이라 끝날 때까지 상태를 2초마다 확인하고, 실패한 아티스트를 모달로 보여준다
+    root.querySelector('#copyImg').onclick = async () => {
+        if (!confirm('S3가 아닌 이미지 URL을 모두 내려받아 S3로 옮깁니다. 몇 분 걸릴 수 있습니다.')) return;
+        const btn = root.querySelector('#copyImg');
+        try {
+            await api.post('/api/admin/artists/images/copy-to-s3');
+            btn.disabled = true; btn.textContent = '이미지 옮기는 중…';
+            let st;
+            do {
+                await new Promise(r => setTimeout(r, 2000));
+                st = await api.get('/api/admin/artists/images/copy-to-s3');
+            } while (st.running);
+            const r = st.result;
+            toast(`복사 ${r.copied} · 건너뜀 ${r.skipped} · 실패 ${r.failures.length}`);
+            if (r.failures.length) {
+                const body = el(`<div><table class="data"><thead><tr><th>ID</th><th>이름</th><th>URL</th><th>사유</th></tr></thead><tbody>${
+                    r.failures.map(f => `<tr><td>${f.artistId}</td><td>${esc(f.name)}</td><td style="word-break:break-all;">${esc(f.imageUrl)}</td><td>${esc(f.reason)}</td></tr>`).join('')
+                }</tbody></table></div>`);
+                modal.open({ title: '이미지 복사 실패 목록', body, footer: el('<div></div>') });
+            }
+            load();
+        } catch (e) { handleErr(e); }
+        finally { btn.disabled = false; btn.textContent = '외부 이미지 S3로 옮기기'; }
     };
     csvInput.onchange = async () => {
         const file = csvInput.files[0];

@@ -50,6 +50,19 @@ public class AsyncConfig {
         return executor;
     }
 
+    // 아티스트 외부 이미지 → S3 복사 전용. KOPIS 싱크와 같은 이유로 스레드 1개, 대기열 없음.
+    @Bean(name = "imageCopyExecutor")
+    public Executor imageCopyExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(0);
+        executor.setThreadNamePrefix("image-copy-");
+        executor.setTaskDecorator(mdcTaskDecorator());
+        executor.initialize();
+        return executor;
+    }
+
     // MDC는 스레드 로컬이라 @Async로 넘어가면 기본적으로 유실됨.
     // 요청 스레드의 MDC(userId 등)를 작업 실행 시점의 워커 스레드로 복사해서 로그에 이어지게 한다.
     private TaskDecorator mdcTaskDecorator() {
