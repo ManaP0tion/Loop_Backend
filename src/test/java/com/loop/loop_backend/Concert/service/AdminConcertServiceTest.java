@@ -4,7 +4,6 @@ import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
-import com.loop.loop_backend.Concert.dto.ConcertProductDto;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertCreateRequest;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertDetailResponse;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertUpdateRequest;
@@ -107,7 +106,6 @@ class AdminConcertServiceTest {
                 ConcertCategory.J_POP_ARTIST, "YUURI LIVE", List.of("유우리"),
                 LocalDate.of(2026, 12, 5), LocalDate.of(2026, 12, 6), Arrays.asList(LocalTime.of(18, 0), null),
                 venue.getId(), List.of(yuuri.getId()), 20, false, null, "https://yuuri-live.example.com",
-                List.of(new ConcertProductDto("ベテルギウス", "CD", PRODUCT_LINK, PRODUCT_IMAGE)),
                 List.of(sale(null, "공식 안내")), List.of(sale(OCT_25, "NOL"))));
 
         assertThat(created.published()).isFalse();
@@ -119,40 +117,7 @@ class AdminConcertServiceTest {
         assertThat(created.venue().id()).isEqualTo(venue.getId());
         assertThat(created.artists()).extracting(AdminConcertDetailResponse.ArtistSummary::name).containsExactly("Yuuri");
         assertThat(created.titleAliases()).containsExactly("유우리");
-        assertThat(created.products()).containsExactly(new ConcertProductDto("ベテルギウス", "CD", PRODUCT_LINK, PRODUCT_IMAGE));
         assertThat(created.officialSiteUrl()).isEqualTo("https://yuuri-live.example.com");
-    }
-
-    // ---------- 관련 상품 ----------
-
-    private static final String PRODUCT_LINK = "https://www.cdjapan.co.jp/aff/click.cgi/e86NDzbdSLQ/7784/A103176/product%2FPCXP-51237";
-    private static final String PRODUCT_IMAGE = "https://www.cdjapan.co.jp/image.html?id=PCXP-51237";
-
-    @Test
-    void 관련_상품은_보내면_통째로_교체되고_null이면_유지된다() {
-        Concert concert = approvedConcert();
-        service.update(concert.getId(), patch().products(List.of(
-                new ConcertProductDto("기존", "CD", PRODUCT_LINK, PRODUCT_IMAGE))).build());
-
-        AdminConcertDetailResponse kept = service.update(concert.getId(), patch().title("YUURI LIVE 2026").build());
-        assertThat(kept.products()).extracting(ConcertProductDto::title).containsExactly("기존");
-
-        AdminConcertDetailResponse replaced = service.update(concert.getId(), patch().products(List.of(
-                new ConcertProductDto("새 Blu-ray", "Blu-ray", PRODUCT_LINK, PRODUCT_IMAGE),
-                new ConcertProductDto(null, null, PRODUCT_LINK, PRODUCT_IMAGE))).build());
-        assertThat(replaced.products()).extracting(ConcertProductDto::title).containsExactly("새 Blu-ray", null);
-
-        AdminConcertDetailResponse cleared = service.update(concert.getId(), patch().products(List.of()).build());
-        assertThat(cleared.products()).isEmpty();
-    }
-
-    @Test
-    void 관련_상품의_링크나_이미지가_없으면_400() {
-        Concert concert = approvedConcert();
-
-        assertThatThrownBy(() -> service.update(concert.getId(), patch().products(List.of(
-                new ConcertProductDto("상품", "CD", PRODUCT_LINK, null))).build()))
-                .isInstanceOf(IllegalArgumentException.class);
     }
 
     // ---------- 특설 공식 사이트 ----------

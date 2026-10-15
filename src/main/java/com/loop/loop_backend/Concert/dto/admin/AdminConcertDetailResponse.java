@@ -6,7 +6,6 @@ import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.domain.ConcertShowtime;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertGeneralSale;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertPresale;
-import com.loop.loop_backend.Concert.dto.ConcertProductDto;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDate;
@@ -73,9 +72,6 @@ public record AdminConcertDetailResponse(
         @Schema(description = "특설 공식 사이트 URL", types = {"string", "null"})
         String officialSiteUrl,
 
-        @Schema(description = "관련 상품. 입력한 순서대로, 없으면 빈 목록", requiredMode = Schema.RequiredMode.REQUIRED)
-        List<ConcertProductDto> products,
-
         @Schema(description = "선예매 목록. 예매 일시 순, 일시가 없는 건은 뒤", requiredMode = Schema.RequiredMode.REQUIRED)
         List<TicketSaleResponse> presales,
 
@@ -109,7 +105,7 @@ public record AdminConcertDetailResponse(
                         c.getLinkedVenue().getId(), c.getLinkedVenue().getName(), c.getLinkedVenue().getAddress()),
                 c.getArtist() == null ? List.of() : List.of(new ArtistSummary(c.getArtist().getId(), c.getArtist().getName())),
                 c.isPublished(), c.getPublishedAt(), c.getExpectedSongCount(),
-                c.isLodgingVisible(), c.getLodgingUrl(), c.getOfficialSiteUrl(), ConcertProductDto.listOf(c),
+                c.isLodgingVisible(), c.getLodgingUrl(), c.getOfficialSiteUrl(),
                 TicketSaleResponse.fromPresales(presales), TicketSaleResponse.fromGeneralSales(generalSales));
     }
 

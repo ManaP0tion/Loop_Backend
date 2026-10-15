@@ -19,8 +19,6 @@ import static org.assertj.core.groups.Tuple.tuple;
 // - 시작일은 종료일보다 늦을 수 없다. 기간을 바꾸면 새 기간 밖 날짜의 공연 시각은 지운다.
 // - 공연 시각은 DAY 순서대로 받고 개수는 공연 일수와 같아야 한다. 기간이 없으면 받을 수 없다.
 // - 예상 곡 수는 1 이상. 별칭은 공백·빈 값·중복을 정리한다. 숙소 노출을 켜려면 딥링크가 있어야 한다.
-// - 관련 상품은 입력한 순서대로 둔다. 링크·이미지 주소는 필수이고 http/https만, 상품명·종류는 선택(자유 문자열).
-//   잘못된 상품이 하나라도 있으면 목록 전체를 반영하지 않는다.
 // - 비공개는 빈 칸이 있어도 저장된다. 공개 상태면 필수값(유형·공연명·포스터·기간·공연장, 내한이면 아티스트)이 있어야 한다.
 // - 비공개 → 공개로 바뀌는 순간을 기록한다(이미 공개인 공연을 다시 공개로 저장해도 바뀌지 않는다).
 class ConcertAdminRulesTest {
@@ -136,76 +134,6 @@ class ConcertAdminRulesTest {
         concert.replaceTitleAliases(Arrays.asList(" 유우리 ", "", "유우리", null, "Yuuri"));
 
         assertThat(concert.getTitleAliases()).containsExactly("유우리", "Yuuri");
-    }
-
-    // ---------- 관련 상품 ----------
-
-    private static final String LINK = "https://www.cdjapan.co.jp/aff/click.cgi/e86NDzbdSLQ/7784/A103176/product%2FPCXP-51237";
-    private static final String IMAGE = "https://www.cdjapan.co.jp/image.html?id=PCXP-51237";
-
-    @Test
-    void 상품은_입력한_순서대로_저장되고_상품명_종류는_공백을_정리한다() {
-        Concert concert = jpopConcert();
-
-        concert.replaceProducts(List.of(
-                new ConcertProduct(" ベテルギウス ", " CD ", " " + LINK + " ", IMAGE),
-                new ConcertProduct(null, "Blu-ray", "https://www.cdjapan.co.jp/aff/2", "https://www.cdjapan.co.jp/image.html?id=2")));
-
-        assertThat(concert.getProducts())
-                .extracting(ConcertProduct::getTitle, ConcertProduct::getType, ConcertProduct::getLinkUrl, ConcertProduct::getImageUrl)
-                .containsExactly(
-                        tuple("ベテルギウス", "CD", LINK, IMAGE),
-                        tuple(null, "Blu-ray", "https://www.cdjapan.co.jp/aff/2", "https://www.cdjapan.co.jp/image.html?id=2"));
-    }
-
-    @Test
-    void 상품명과_종류는_비워도_된다() {
-        Concert concert = jpopConcert();
-
-        concert.replaceProducts(List.of(new ConcertProduct("  ", "", LINK, IMAGE)));
-
-        assertThat(concert.getProducts()).singleElement().satisfies(p -> {
-            assertThat(p.getTitle()).isNull();
-            assertThat(p.getType()).isNull();
-        });
-    }
-
-    @Test
-    void 상품_링크와_이미지_주소는_필수다() {
-        Concert concert = jpopConcert();
-
-        assertRejected(() -> concert.replaceProducts(List.of(new ConcertProduct("상품", "CD", null, IMAGE))));
-        assertRejected(() -> concert.replaceProducts(List.of(new ConcertProduct("상품", "CD", LINK, " "))));
-    }
-
-    @Test
-    void 상품_링크와_이미지는_http_https_주소만_받는다() {
-        Concert concert = jpopConcert();
-
-        assertRejected(() -> concert.replaceProducts(List.of(new ConcertProduct("상품", "CD", "javascript:alert(1)", IMAGE))));
-        assertRejected(() -> concert.replaceProducts(List.of(new ConcertProduct("상품", "CD", LINK, "cdjapan.co.jp/image.html?id=1"))));
-    }
-
-    @Test
-    void 잘못된_상품이_하나라도_있으면_기존_상품은_그대로다() {
-        Concert concert = jpopConcert();
-        concert.replaceProducts(List.of(new ConcertProduct("기존", "CD", LINK, IMAGE)));
-
-        assertRejected(() -> concert.replaceProducts(List.of(
-                new ConcertProduct("새 상품", "CD", LINK, IMAGE),
-                new ConcertProduct("잘못된 상품", "CD", null, IMAGE))));
-
-        assertThat(concert.getProducts()).extracting(ConcertProduct::getTitle).containsExactly("기존");
-    }
-
-    @Test
-    void 빈_목록을_보내면_상품을_모두_비운다() {
-        Concert concert = jpopConcert();
-        concert.replaceProducts(List.of(new ConcertProduct("기존", "CD", LINK, IMAGE)));
-
-        concert.replaceProducts(List.of());
-
-        assertThat(concert.getProducts()).isEmpty();
     }
 
     // ---------- 숙소 ----------
