@@ -5,6 +5,7 @@ import com.loop.loop_backend.Admin.repository.AdminAccessLogRepository;
 import com.loop.loop_backend.Admin.service.AdminAccessLogService;
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
+import com.loop.loop_backend.Artist.service.ArtistImageCopyService;
 import com.loop.loop_backend.Chat.domain.Message;
 import com.loop.loop_backend.Chat.repository.ChatRoomRepository;
 import com.loop.loop_backend.Chat.repository.MessageRepository;
@@ -74,6 +75,7 @@ import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -106,6 +108,7 @@ public class AdminController {
     private final AdminAccessLogService accessLog;
     private final S3StorageService s3StorageService;
     private final KopisSyncService kopisSyncService;
+    private final ArtistImageCopyService artistImageCopyService;
     private final ConcertImportRepository concertImportRepository;
     private final ConcertImportService concertImportService;
 
@@ -399,29 +402,57 @@ public class AdminController {
         return ResponseEntity.ok(CommonResponse.success(Map.of("imageUrl", url)));
     }
 
-    // 업로드와 같은 헤더라 받은 파일을 고쳐 그대로 다시 올리면 된다. UTF-8 BOM(엑셀 한글 깨짐 방지).
+    // 외부 imageUrl(CSV·수기 입력)을 S3로 복사. 몇 분 걸릴 수 있어 백그라운드로 시작만 하고 바로 응답한다.
+    @PostMapping("/artists/images/copy-to-s3")
+    @Operation(summary = "아티스트 외부 이미지 S3로 옮기기",
+            description = "S3가 아닌 imageUrl을 내려받아 S3에 올리고 주소를 교체. 실행 중이면 409. 결과는 GET 같은 경로로 확인")
+    public ResponseEntity<CommonResponse<String>> copyArtistImagesToS3(
+            @AuthenticationPrincipal Long adminId, HttpServletRequest req) {
+        if (artistImageCopyService.isRunning()) {
+            throw new BusinessException(ErrorCode.IMAGE_COPY_ALREADY_RUNNING);
+        }
+        artistImageCopyService.copyAllAsync();
+        accessLog.log(adminId, req, "COPY_ARTIST_IMAGES", "ARTIST", null, "아티스트 외부 이미지 S3 복사 시작");
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(CommonResponse.success("이미지 복사를 시작했습니다."));
+    }
+
+    @GetMapping("/artists/images/copy-to-s3")
+    @Operation(summary = "아티스트 이미지 S3 복사 상태", description = "running=true면 진행 중. result는 마지막 실행 결과(서버 재시작 시 사라짐, 없으면 null)")
+    public ResponseEntity<CommonResponse<Map<String, Object>>> artistImageCopyStatus() {
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("running", artistImageCopyService.isRunning());
+        body.put("result", artistImageCopyService.getLastResult());
+        return ResponseEntity.ok(CommonResponse.success(body));
+    }
+
+    // 수정 폼의 전체 항목. 업로드와 같은 헤더라 받은 파일을 고쳐 그대로 다시 올리면 된다. UTF-8 BOM(엑셀 한글 깨짐 방지).
     @GetMapping("/artists/links/csv")
-    @Operation(summary = "아티스트 공식 링크 CSV 다운로드", description = "헤더: id, name, instagramUrl, xUrl, homepageUrl")
+    @Operation(summary = "아티스트 CSV 다운로드",
+            description = "헤더: id, name, baseName, nameKo, nameAlias, imageUrl, category, instagramUrl, xUrl, homepageUrl")
     public ResponseEntity<byte[]> exportArtistLinksCsv() throws IOException {
         StringWriter out = new StringWriter();
         out.write('\uFEFF');
-        try (CSVPrinter printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder().setHeader(ARTIST_LINK_CSV_HEADER).build())) {
+        try (CSVPrinter printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder().setHeader(ARTIST_CSV_HEADER).build())) {
             for (Artist a : artistRepository.findAll(Sort.by("id"))) {
-                printer.printRecord(a.getId(), a.getName(), a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
+                printer.printRecord(a.getId(), a.getName(), a.getBaseName(), a.getNameKo(), a.getNameAlias(),
+                        a.getImageUrl(), a.getCategory(), a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
             }
         }
         return ResponseEntity.ok()
                 .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"artist-links.csv\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"artists.csv\"")
                 .body(out.toString().getBytes(StandardCharsets.UTF_8));
     }
 
-    private static final String[] ARTIST_LINK_CSV_HEADER = {"id", "name", "instagramUrl", "xUrl", "homepageUrl"};
+    private static final String[] ARTIST_CSV_HEADER = {"id", "name", "baseName", "nameKo", "nameAlias",
+            "imageUrl", "category", "instagramUrl", "xUrl", "homepageUrl"};
 
-    // 공식 링크 일괄 입력. id(없으면 name)로 매칭, 빈 칸은 기존 값 유지. 못 찾은 행·잘못된 링크 행은 건너뛰고 행 번호로 알려준다.
+    // 아티스트 일괄 수정. id(없으면 name)로 매칭, 빈 칸은 기존 값 유지(CSV로 값을 지우지는 못함). 없는 열도 유지.
+    // name은 id로 매칭한 행에서만 바뀐다. 못 찾은 행·잘못된 값(URL·카테고리·길이) 행은 건너뛰고 행 번호로 알려준다.
     @PostMapping(value = "/artists/links/csv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "아티스트 공식 링크 CSV 업로드",
-            description = "UTF-8(BOM 허용). 헤더: id, name, instagramUrl, xUrl, homepageUrl. id가 비면 name으로 매칭. 빈 칸은 기존 값 유지")
+    @Operation(summary = "아티스트 CSV 업로드",
+            description = "UTF-8(BOM 허용). 헤더: id, name, baseName, nameKo, nameAlias, imageUrl, category, instagramUrl, xUrl, homepageUrl. "
+                    + "id가 비면 name으로 매칭. 빈 칸은 기존 값 유지. imageUrl·링크는 http/https만")
     @Transactional
     public ResponseEntity<CommonResponse<ArtistLinkCsvResult>> importArtistLinksCsv(
             @RequestPart("file") MultipartFile file) throws IOException {
@@ -433,23 +464,35 @@ public class AdminController {
         try (Reader reader = new InputStreamReader(
                 BOMInputStream.builder().setInputStream(file.getInputStream()).get(), StandardCharsets.UTF_8)) {
             for (CSVRecord r : format.parse(reader)) {
-                Artist a = findArtistForCsv(csvColumn(r, "id"), csvColumn(r, "name"));
-                String ig = csvColumn(r, "instagramUrl"), x = csvColumn(r, "xUrl"), home = csvColumn(r, "homepageUrl");
+                String id = csvColumn(r, "id"), name = csvColumn(r, "name");
+                Artist a = findArtistForCsv(id, name);
                 if (a == null) {
                     failedRows.add(r.getRecordNumber());
-                } else if (ig.isEmpty() && x.isEmpty() && home.isEmpty()) {
-                    unchanged++;
-                } else {
-                    try {
-                        // 먼저 셋 다 검증해 한 칸만 잘못돼도 행 전체를 건너뛴다(일부만 반영되지 않게)
-                        String nIg = ig.isEmpty() ? a.getInstagramUrl() : WebUrls.normalize(ig);
-                        String nX = x.isEmpty() ? a.getXUrl() : WebUrls.normalize(x);
-                        String nHome = home.isEmpty() ? a.getHomepageUrl() : WebUrls.normalize(home);
+                    continue;
+                }
+                try {
+                    // 먼저 전부 검증해 한 칸만 잘못돼도 행 전체를 건너뛴다(일부만 반영되지 않게)
+                    String nName = id.isEmpty() ? a.getName() : csvText(name, a.getName(), 100);
+                    String nBase = csvText(csvColumn(r, "baseName"), a.getBaseName(), 100);
+                    String nKo = csvText(csvColumn(r, "nameKo"), a.getNameKo(), 200);
+                    String nAlias = csvText(csvColumn(r, "nameAlias"), a.getNameAlias(), 200);
+                    String nImage = csvUrl(csvColumn(r, "imageUrl"), a.getImageUrl());
+                    String cat = csvColumn(r, "category");
+                    ConcertCategory nCat = cat.isEmpty() ? a.getCategory() : ConcertCategory.valueOf(cat);
+                    String nIg = csvUrl(csvColumn(r, "instagramUrl"), a.getInstagramUrl());
+                    String nX = csvUrl(csvColumn(r, "xUrl"), a.getXUrl());
+                    String nHome = csvUrl(csvColumn(r, "homepageUrl"), a.getHomepageUrl());
+                    List<Object> before = Arrays.asList(a.getName(), a.getBaseName(), a.getNameKo(), a.getNameAlias(),
+                            a.getImageUrl(), a.getCategory(), a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
+                    if (before.equals(Arrays.asList(nName, nBase, nKo, nAlias, nImage, nCat, nIg, nX, nHome))) {
+                        unchanged++;
+                    } else {
+                        a.update(nName, nBase, nKo, nAlias, nImage, nCat);
                         a.changeLinks(nIg, nX, nHome);
                         updated++;
-                    } catch (IllegalArgumentException e) {
-                        failedRows.add(r.getRecordNumber());
                     }
+                } catch (IllegalArgumentException e) {
+                    failedRows.add(r.getRecordNumber());
                 }
             }
         } catch (IllegalArgumentException | IllegalStateException | UncheckedIOException e) {
@@ -457,6 +500,17 @@ public class AdminController {
             throw new BusinessException(ErrorCode.INVALID_REQUEST_FORMAT);
         }
         return ResponseEntity.ok(CommonResponse.success(new ArtistLinkCsvResult(updated, unchanged, failedRows)));
+    }
+
+    // 빈 칸이면 기존 값. 컬럼 길이를 넘으면 DB 오류(업로드 전체 롤백) 대신 그 행만 실패
+    private static String csvText(String value, String current, int maxLength) {
+        if (value.isEmpty()) return current;
+        if (value.length() > maxLength) throw new IllegalArgumentException("too long");
+        return value;
+    }
+
+    private static String csvUrl(String value, String current) {
+        return value.isEmpty() ? current : WebUrls.normalize(value);
     }
 
     private Artist findArtistForCsv(String id, String name) {
@@ -741,7 +795,7 @@ public class AdminController {
                     a.getArtistViewUrl(), a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
         }
     }
-    /** updated = 링크 반영, unchanged = 링크 칸이 모두 비어 유지, failedRows = 아티스트를 못 찾았거나 링크가 잘못된 행 번호(헤더 제외 1부터) */
+    /** updated = 반영, unchanged = 바뀐 값 없음, failedRows = 아티스트를 못 찾았거나 값이 잘못된 행 번호(헤더 제외 1부터) */
     public record ArtistLinkCsvResult(int updated, int unchanged, List<Long> failedRows) {}
 
     // PUT이라 공식 링크(instagramUrl·xUrl·homepageUrl)도 통째로 교체된다 - 보내지 않으면 비워진다. http/https 주소만(아니면 400).

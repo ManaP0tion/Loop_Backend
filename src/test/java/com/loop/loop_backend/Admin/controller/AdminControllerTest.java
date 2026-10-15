@@ -278,7 +278,33 @@ class AdminControllerTest {
 
         String csv = new String(adminController.exportArtistLinksCsv().getBody(), java.nio.charset.StandardCharsets.UTF_8);
 
-        assertThat(csv).isEqualTo("\uFEFFid,name,instagramUrl,xUrl,homepageUrl\r\n"
-                + "5,\"Yuuri, Jr\",https://www.instagram.com/yuuri_official,,https://yuuri.jp\r\n");
+        assertThat(csv).isEqualTo("\uFEFFid,name,baseName,nameKo,nameAlias,imageUrl,category,instagramUrl,xUrl,homepageUrl\r\n"
+                + "5,\"Yuuri, Jr\",,,,,J_POP_ARTIST,https://www.instagram.com/yuuri_official,,https://yuuri.jp\r\n");
+    }
+
+    @Test
+    void 아티스트_CSV는_수정_폼_전체_항목을_반영하고_잘못된_값_행은_건너뛴다() throws Exception {
+        Artist artist = givenArtist();
+        artist.update("Yuuri", null, "유우리", null, "https://old.com/a.jpg", ConcertCategory.J_POP_ARTIST);
+        String csv = "id,name,baseName,nameKo,nameAlias,imageUrl,category,instagramUrl,xUrl,homepageUrl\n"
+                + "5,Yuuri2,,,ゆうり,https://img.com/y.jpg,DOMESTIC_ARTIST,,,\n"   // 1: id 매칭이라 이름도 변경
+                + "5,,,,,,NOPE,,,\n"                                             // 2: 없는 카테고리
+                + "5,,,,,ftp://img.com/y.jpg,,,,\n"                              // 3: http/https 아닌 이미지
+                + "5,," + "a".repeat(101) + ",,,,,,,\n"                          // 4: baseName 길이 초과
+                + "5,Yuuri2,,,,,,,,\n";                                          // 5: 같은 값이면 유지
+        MockMultipartFile file = new MockMultipartFile("file", "artists.csv", "text/csv",
+                csv.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        AdminController.ArtistLinkCsvResult r = adminController.importArtistLinksCsv(file).getBody().getData();
+
+        assertThat(r.updated()).isEqualTo(1);
+        assertThat(r.unchanged()).isEqualTo(1);
+        assertThat(r.failedRows()).containsExactly(2L, 3L, 4L);
+        assertThat(artist.getName()).isEqualTo("Yuuri2");
+        assertThat(artist.getNameKo()).isEqualTo("유우리");
+        assertThat(artist.getNameAlias()).isEqualTo("ゆうり");
+        assertThat(artist.getImageUrl()).isEqualTo("https://img.com/y.jpg");
+        assertThat(artist.getCategory()).isEqualTo(ConcertCategory.DOMESTIC_ARTIST);
+        assertThat(artist.getBaseName()).isNull();
     }
 }
