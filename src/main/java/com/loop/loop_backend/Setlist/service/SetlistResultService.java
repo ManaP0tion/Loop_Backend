@@ -66,7 +66,7 @@ public class SetlistResultService {
         List<SongVoteCount> counts = voteRepository.countVotesBySong(concertId);
         Map<Long, Long> votesBySong = counts.stream()
                 .collect(Collectors.toMap(SongVoteCount::songId, SongVoteCount::votes));
-        Set<Long> fanTop = counts.stream().limit(concert.getExpectedSongCount())
+        Set<Long> fanTop = counts.stream().limit(SetlistRules.expectedSongCount(concert))
                 .map(SongVoteCount::songId).collect(Collectors.toSet());
 
         Map<Long, Set<Long>> songsByVote = voteRepository.findVoteSongs(concertId).stream()

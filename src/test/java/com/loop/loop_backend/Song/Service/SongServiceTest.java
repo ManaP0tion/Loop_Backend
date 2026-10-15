@@ -61,8 +61,8 @@ class SongServiceTest {
         String csv = "﻿trackId,원문,로마자,한글,sortOrder\n"
                 + "1,夜に駆ける,,밤을 달리다,1\n2,群青,,,2\n3,アイドル,Idol,,3\n999,없음,,무시,4\n";
         CsvImportResult imported = songService.importCsv(artist.getId(),
-                new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));
-        assertThat(imported).isEqualTo(new CsvImportResult(2, 1, List.of(4L)));
+                new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), false);
+        assertThat(imported).isEqualTo(new CsvImportResult(2, 1, 0, List.of(4L)));
         List<SongResponse> afterCsv = songService.getSongs(artist.getId());
         assertThat(afterCsv.get(0).titleRomanized()).isEqualTo("Yoru ni Kakeru"); // 빈 칸 → 유지
         assertThat(afterCsv.get(1).titleKo()).isNull();
@@ -85,7 +85,7 @@ class SongServiceTest {
 
         // CSV 다운로드는 BOM으로 시작
         assertThat(new String(songService.exportCsv(artist.getId()), StandardCharsets.UTF_8))
-                .startsWith("﻿trackId,원문,로마자,한글,sortOrder");
+                .startsWith("﻿id,trackId,원문,로마자,한글,sortOrder");
 
         // 수동 추가: sortOrder = max + 1 (아이돌 = 3)
         assertThat(songService.createSong(artist.getId(),
@@ -95,5 +95,35 @@ class SongServiceTest {
 
     private ItunesTrack track(Long id, String name, String art) {
         return new ItunesTrack("track", id, name, null, art);
+    }
+
+    @Test
+    void CSV_deleteMissing이면_CSV에_없는_곡을_삭제하고_수동곡은_id로_매칭한다() {
+        Artist artist = artistRepository.save(Artist.builder().name("Omoinotake").build());
+        Long keepManual = songService.createSong(artist.getId(),
+                new com.loop.loop_backend.Song.DTO.SongCreateRequest("幾億光年", null, null, null)).id();
+        songService.createSong(artist.getId(), new com.loop.loop_backend.Song.DTO.SongCreateRequest("幾億光年 (Instrumental)", null, null, null));
+        songService.createSong(artist.getId(), new com.loop.loop_backend.Song.DTO.SongCreateRequest("幾億光年 (Live)", null, null, null));
+
+        String csv = "id,trackId,원문,로마자,한글,sortOrder\n" + keepManual + ",,幾億光年,,수억 광년,1\n";
+        CsvImportResult r = songService.importCsv(artist.getId(),
+                new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), true);
+
+        assertThat(r).isEqualTo(new CsvImportResult(1, 0, 2, List.of()));
+        em.flush();
+        em.clear();
+        assertThat(songService.getSongs(artist.getId())).extracting(SongResponse::titleKo).containsExactly("수억 광년");
+    }
+
+    @Test
+    void CSV_deleteMissing인데_한_곡도_매칭되지_않으면_아무것도_지우지_않는다() {
+        Artist artist = artistRepository.save(Artist.builder().name("Omoinotake").build());
+        songService.createSong(artist.getId(), new com.loop.loop_backend.Song.DTO.SongCreateRequest("幾億光年", null, null, null));
+
+        String otherArtistCsv = "id,trackId,원문,로마자,한글,sortOrder\n99999,,남의 곡,,,1\n";
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> songService.importCsv(artist.getId(),
+                        new ByteArrayInputStream(otherArtistCsv.getBytes(StandardCharsets.UTF_8)), true))
+                .isInstanceOf(com.loop.loop_backend.common.exception.BusinessException.class);
+        assertThat(songService.getSongs(artist.getId())).hasSize(1);
     }
 }

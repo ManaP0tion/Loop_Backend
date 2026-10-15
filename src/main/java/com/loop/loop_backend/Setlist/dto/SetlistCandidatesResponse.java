@@ -8,9 +8,9 @@ import java.util.List;
  * 곡 선택 화면(NO.57·64). 순위·득표 수는 넣지 않는다(상위권 쏠림 방지).
  * 후보 전체를 정렬 순번대로 한 번에 내려준다 - 50곡·20곡 단위 더보기와 세 표기 검색은 프론트가 이 목록으로 한다.
  */
-@Schema(description = "예상 셋리스트 후보. 셋리스트를 운영하지 않는 공연(페스티벌·예상 곡 수 없음)이면 songs가 빈 목록")
+@Schema(description = "예상 셋리스트 후보. 셋리스트를 운영하지 않는 공연(페스티벌·아티스트 미지정)이면 songs가 빈 목록")
 public record SetlistCandidatesResponse(
-        @Schema(description = "최대 선택 곡 수 n(예상 곡 수). 셋리스트를 운영하지 않는 공연이면 null", example = "20",
+        @Schema(description = "최대 선택 곡 수 n(예상 곡 수, 미입력이면 20). 셋리스트를 운영하지 않는 공연이면 null", example = "20",
                 types = {"integer", "null"})
         Integer maxSelect,
 

@@ -21,9 +21,18 @@ final class SetlistRules {
     private SetlistRules() {
     }
 
-    /** 셋리스트 기능을 쓰는 공연: 단독 공연 + 아티스트 지정 + 예상 곡 수(n) 입력. 페스티벌은 n이 늘 null이다. */
+    /** 관리자가 예상 곡 수를 넣지 않은 공연(셋리스트 기능 전에 만든 공연 등)에 쓰는 n */
+    static final int DEFAULT_EXPECTED_SONG_COUNT = 20;
+
+    /** 셋리스트 기능을 쓰는 공연: 단독 공연 + 아티스트 지정. 페스티벌은 n이 늘 null이다. */
     static boolean isSetlistConcert(Concert concert) {
-        return !concert.isFestival() && concert.getArtist() != null && concert.getExpectedSongCount() != null;
+        return !concert.isFestival() && concert.getArtist() != null;
+    }
+
+    /** 예상 곡 수 n(최대 선택 수·팬 예상 상위 n곡). 미입력이면 기본값. */
+    static int expectedSongCount(Concert concert) {
+        Integer n = concert.getExpectedSongCount();
+        return n != null ? n : DEFAULT_EXPECTED_SONG_COUNT;
     }
 
     /** 투표 마감 = 공연 시작일 00:00 KST(NO.65). 시작일 미정이면 마감 없음. */

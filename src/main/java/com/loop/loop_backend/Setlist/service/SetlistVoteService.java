@@ -58,7 +58,7 @@ public class SetlistVoteService {
                 .findAllByArtistIdOrderBySortOrderAsc(concert.getArtist().getId()).stream()
                 .map(SongCandidateResponse::from)
                 .toList();
-        return new SetlistCandidatesResponse(concert.getExpectedSongCount(),
+        return new SetlistCandidatesResponse(SetlistRules.expectedSongCount(concert),
                 SetlistRules.isVotingClosed(concert, nowKst), songs);
     }
 
@@ -80,7 +80,7 @@ public class SetlistVoteService {
         if (!SetlistRules.isSetlistConcert(concert)) {
             return new SetlistRankingResponse(null, 0, false, List.of());
         }
-        int n = concert.getExpectedSongCount();
+        int n = SetlistRules.expectedSongCount(concert);
         Set<Long> mine = userId == null ? Set.of() : voteRepository.findByConcertIdAndUserId(concertId, userId)
                 .map(v -> v.getSongs().stream().map(Song::getId).collect(Collectors.toSet()))
                 .orElse(Set.of());
@@ -122,8 +122,8 @@ public class SetlistVoteService {
             throw new BusinessException(ErrorCode.SETLIST_VOTE_CLOSED);
         }
         List<Long> distinct = List.copyOf(new LinkedHashSet<>(songIds));
-        if (distinct.isEmpty() || distinct.size() > concert.getExpectedSongCount()) {
-            throw new IllegalArgumentException("곡은 1~" + concert.getExpectedSongCount() + "곡: " + distinct.size());
+        if (distinct.isEmpty() || distinct.size() > SetlistRules.expectedSongCount(concert)) {
+            throw new IllegalArgumentException("곡은 1~" + SetlistRules.expectedSongCount(concert) + "곡: " + distinct.size());
         }
         LinkedHashSet<Song> songs = new LinkedHashSet<>(SetlistRules.resolveSongs(songRepository, concert, distinct));
 
