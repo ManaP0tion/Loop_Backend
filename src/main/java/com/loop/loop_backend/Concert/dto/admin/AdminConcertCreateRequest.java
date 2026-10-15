@@ -1,7 +1,6 @@
 package com.loop.loop_backend.Concert.dto.admin;
 
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
-import com.loop.loop_backend.Concert.dto.ConcertProductDto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -65,9 +64,6 @@ public record AdminConcertCreateRequest(
         @Schema(description = "특설 공식 사이트 URL. http/https 주소만(아니면 400)", example = "https://yuuri-live.example.com",
                 types = {"string", "null"})
         String officialSiteUrl,
-
-        @Schema(description = "관련 상품. 보낸 순서대로 노출. 상품마다 링크·이미지 주소 필수", types = {"array", "null"})
-        List<@Valid ConcertProductDto> products,
 
         @Schema(description = "선예매 목록. 블록마다 예매 일시(미정이면 null) + 예매처 목록", types = {"array", "null"})
         List<@Valid TicketSaleRequest> presales,

@@ -4,6 +4,8 @@ import com.loop.loop_backend.Admin.domain.AdminAccessLog;
 import com.loop.loop_backend.Admin.repository.AdminAccessLogRepository;
 import com.loop.loop_backend.Admin.service.AdminAccessLogService;
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.dto.ArtistProductDto;
+import com.loop.loop_backend.Artist.dto.ArtistProductRequest;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Artist.service.ArtistImageCopyService;
 import com.loop.loop_backend.Chat.domain.Message;
@@ -380,6 +382,41 @@ public class AdminController {
         a.update(body.name(), body.baseName(), body.nameKo(), body.nameAlias(), body.imageUrl(), body.category());
         a.changeLinks(body.instagramUrl(), body.xUrl(), body.homepageUrl());
         return ResponseEntity.ok(CommonResponse.success(ArtistRow.of(a)));
+    }
+
+    // 관련 상품은 아티스트 수정(PUT)과 분리 - PUT은 통째로 교체라 상품 없이 보내면 상품이 지워지고, 목록 API에 붙이면 아티스트 수만큼 쿼리가 늘어난다.
+    @GetMapping("/artists/{id}/products")
+    @Operation(summary = "아티스트 관련 상품 조회", description = "입력한 순서대로. 이 아티스트의 공연 상세에 같은 목록이 나간다")
+    @Transactional(readOnly = true)
+    public ResponseEntity<CommonResponse<List<ArtistProductDto>>> getArtistProducts(@PathVariable Long id) {
+        Artist a = artistRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
+        return ResponseEntity.ok(CommonResponse.success(ArtistProductDto.listOf(a)));
+    }
+
+    @PostMapping("/artists/{id}/products")
+    @Operation(summary = "아티스트 관련 상품 추가(HTML)",
+            description = "CDJapan 어필리에이트 HTML 전문을 보내면 링크·이미지·상품명을 꺼내 **맨 뒤에** 추가한다. 응답은 전체 목록.\n\n" +
+                    "HTML에 링크·이미지가 없거나, 링크·이미지가 http/https 주소가 아니면 400")
+    @Transactional
+    public ResponseEntity<CommonResponse<List<ArtistProductDto>>> addArtistProduct(
+            @PathVariable Long id, @RequestBody ArtistProductRequest body) {
+        Artist a = artistRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
+        a.addProduct(body.toDomain());
+        return ResponseEntity.ok(CommonResponse.success(ArtistProductDto.listOf(a)));
+    }
+
+    @PutMapping("/artists/{id}/products")
+    @Operation(summary = "아티스트 관련 상품 목록 저장(수정·삭제·순서 변경)",
+            description = "조회로 받은 목록을 고쳐 통째로 보낸다 - 보낸 목록으로 교체하고 보낸 순서대로 노출한다. 빠진 상품은 삭제, []는 모두 비움.\n\n" +
+                    "상품마다 `{ title, linkUrl, imageUrl }`. 링크·이미지는 필수(http/https만), 상품명은 선택. " +
+                    "새 상품 추가는 POST(HTML)로 한다.\n\n" +
+                    "하나라도 잘못되면 400이고 아무것도 바뀌지 않는다")
+    @Transactional
+    public ResponseEntity<CommonResponse<List<ArtistProductDto>>> replaceArtistProducts(
+            @PathVariable Long id, @RequestBody List<ArtistProductDto> body) {
+        Artist a = artistRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
+        a.replaceProducts(ArtistProductDto.toDomain(body));
+        return ResponseEntity.ok(CommonResponse.success(ArtistProductDto.listOf(a)));
     }
 
     @DeleteMapping("/artists/{id}")

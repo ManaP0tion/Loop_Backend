@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Concert.dto;
 
+import com.loop.loop_backend.Artist.dto.ArtistProductDto;
 import io.swagger.v3.core.converter.AnnotatedType;
 import io.swagger.v3.core.converter.ModelConverterContextImpl;
 import io.swagger.v3.core.jackson.ModelResolver;
@@ -90,14 +91,13 @@ class ConcertDetailDtoSchemaTest {
     // ---------- 관련 상품 ----------
 
     @Test
-    void 상품은_링크와_이미지만_항상_있고_상품명과_종류는_null일_수_있다() {
-        Schema<?> schema = resolve(ConcertProductDto.class);
+    void 상품은_링크와_이미지만_항상_있고_상품명은_null일_수_있다() {
+        Schema<?> schema = resolve(ArtistProductDto.class);
 
         assertThat(requiredOf(schema)).contains("linkUrl", "imageUrl");
-        for (String field : new String[]{"title", "type"}) {
-            assertThat(requiredOf(schema)).as("required 목록에 %s가 없어야 함", field).doesNotContain(field);
-            assertThat(typesOf(schema, field)).as("%s의 type에 null이 포함돼야 함", field).contains("null");
-        }
+        assertThat(requiredOf(schema)).doesNotContain("title");
+        assertThat(typesOf(schema, "title")).contains("null");
+        assertThat(schema.getProperties()).doesNotContainKey("type");
     }
 
     // ---------- 공연 아티스트 ----------

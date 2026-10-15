@@ -1,19 +1,19 @@
 package com.loop.loop_backend.Concert.service;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.ArtistProduct;
+import com.loop.loop_backend.Artist.dto.ArtistProductDto;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
 import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
-import com.loop.loop_backend.Concert.domain.ConcertProduct;
 import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertGeneralSale;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertPresale;
 import com.loop.loop_backend.Concert.dto.ConcertPastDetailDto;
 import com.loop.loop_backend.Concert.dto.ConcertPeriod;
-import com.loop.loop_backend.Concert.dto.ConcertProductDto;
 import com.loop.loop_backend.Concert.dto.ConcertShowtimeDto;
 import com.loop.loop_backend.Concert.dto.ConcertTicketSaleDto;
 import com.loop.loop_backend.Concert.dto.ConcertUpcomingDetailDto;
@@ -489,33 +489,41 @@ class ConcertDetailServiceTest {
                 .isEqualTo("https://trip.example/deeplink");
     }
 
-    private static final ConcertProduct CD = new ConcertProduct("ベテルギウス", "CD",
+    // 관련 상품은 아티스트에 등록하고, 공연 상세는 그 공연 아티스트의 상품을 내려준다.
+    private static final ArtistProduct CD = new ArtistProduct("ベテルギウス",
             "https://www.cdjapan.co.jp/aff/click.cgi/e86NDzbdSLQ/7784/A103176/product%2FPCXP-51237",
             "https://www.cdjapan.co.jp/image.html?id=PCXP-51237");
-    private static final ConcertProduct BLU_RAY = new ConcertProduct(null, "Blu-ray",
+    private static final ArtistProduct BLU_RAY = new ArtistProduct(null,
             "https://www.cdjapan.co.jp/aff/2", "https://www.cdjapan.co.jp/image.html?id=2");
 
     @Test
-    void 예정_공연_상세에_관련_상품이_입력한_순서대로_나가고_없으면_빈_목록이다() {
+    void 예정_공연_상세에_공연_아티스트의_관련_상품이_입력한_순서대로_나가고_없으면_빈_목록이다() {
         Concert concert = givenConcert(TODAY.plusDays(10), TODAY.plusDays(11));
         assertThat(concertService.getUpcomingDetail(CONCERT_ID, null).getProducts()).isEmpty();
 
-        concert.replaceProducts(List.of(CD, BLU_RAY));
+        concert.getArtist().replaceProducts(List.of(CD, BLU_RAY));
 
         assertThat(concertService.getUpcomingDetail(CONCERT_ID, null).getProducts()).containsExactly(
-                new ConcertProductDto("ベテルギウス", "CD", CD.getLinkUrl(), CD.getImageUrl()),
-                new ConcertProductDto(null, "Blu-ray", BLU_RAY.getLinkUrl(), BLU_RAY.getImageUrl()));
+                new ArtistProductDto("ベテルギウス", CD.getLinkUrl(), CD.getImageUrl()),
+                new ArtistProductDto(null, BLU_RAY.getLinkUrl(), BLU_RAY.getImageUrl()));
     }
 
     @Test
-    void 지난_공연_상세에도_관련_상품이_나간다() {
+    void 지난_공연_상세에도_공연_아티스트의_관련_상품이_나간다() {
         Concert concert = givenConcert(TODAY.minusDays(30), TODAY.minusDays(29));
         assertThat(concertService.getPastDetail(CONCERT_ID, null).getProducts()).isEmpty();
 
-        concert.replaceProducts(List.of(CD));
+        concert.getArtist().replaceProducts(List.of(CD));
 
         assertThat(concertService.getPastDetail(CONCERT_ID, null).getProducts()).containsExactly(
-                new ConcertProductDto("ベテルギウス", "CD", CD.getLinkUrl(), CD.getImageUrl()));
+                new ArtistProductDto("ベテルギウス", CD.getLinkUrl(), CD.getImageUrl()));
+    }
+
+    @Test
+    void 아티스트가_없는_공연은_관련_상품이_빈_목록이다() {
+        givenConcert(TODAY.plusDays(10), TODAY.plusDays(11), null);
+
+        assertThat(concertService.getUpcomingDetail(CONCERT_ID, null).getProducts()).isEmpty();
     }
 
     // ---------- 스크랩 여부 ----------

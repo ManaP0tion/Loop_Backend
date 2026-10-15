@@ -150,17 +150,6 @@ public class Concert {
     @Builder.Default
     private List<String> titleAliases = new ArrayList<>();
 
-    /**
-     * 관련 상품(CDJapan 어필리에이트 링크·이미지 등). 입력한 순서대로 보인다. 0개면 상품 섹션을 그리지 않는다.
-     * 예전 상품 코드 목록(concert_product_codes)은 옮기지 않고 관리자가 새로 입력한다 - 그 테이블은 더 이상 읽지 않는다.
-     */
-    @ElementCollection
-    @CollectionTable(name = "concert_products", joinColumns = @JoinColumn(name = "concert_id"))
-    @OnDelete(action = OnDeleteAction.CASCADE)
-    @OrderColumn(name = "display_order")
-    @Builder.Default
-    private List<ConcertProduct> products = new ArrayList<>();
-
     /** DAY별 공연 시각. 날짜 순. 하루 공연은 DAY 구분 없이 한 건. */
     @ElementCollection
     @CollectionTable(name = "concert_showtimes", joinColumns = @JoinColumn(name = "concert_id"))
@@ -292,24 +281,6 @@ public class Concert {
         this.titleAliases.addAll(cleanDistinct(aliases));
     }
 
-    /**
-     * 상품 목록 통째로 교체(입력 순서 유지). 링크·이미지 주소는 필수, http/https 주소만(아니면 400).
-     * 상품명·종류는 앞뒤 공백을 지우고 빈 값이면 비운다.
-     */
-    public void replaceProducts(List<ConcertProduct> products) {
-        List<ConcertProduct> cleaned = new ArrayList<>();
-        for (ConcertProduct p : products == null ? List.<ConcertProduct>of() : products) {
-            String linkUrl = WebUrls.normalize(p.getLinkUrl());
-            String imageUrl = WebUrls.normalize(p.getImageUrl());
-            if (linkUrl == null || imageUrl == null) {
-                throw new IllegalArgumentException("상품 링크와 이미지 주소는 비울 수 없다");
-            }
-            cleaned.add(new ConcertProduct(blankToNull(p.getTitle()), blankToNull(p.getType()), linkUrl, imageUrl));
-        }
-        this.products.clear();
-        this.products.addAll(cleaned);
-    }
-
     /** 공개 여부 변경. 비공개 → 공개로 바뀌는 순간을 기록한다(새 공연 알림 기준). */
     public void changePublished(boolean published, LocalDateTime now) {
         if (published && !this.published) {
@@ -345,10 +316,6 @@ public class Concert {
 
     private boolean isWithinPeriod(LocalDate date) {
         return startDate != null && endDate != null && !date.isBefore(startDate) && !date.isAfter(endDate);
-    }
-
-    private static String blankToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s.trim();
     }
 
     /** 앞뒤 공백 제거, 빈 값 제외, 중복 제거(처음 나온 순서 유지). */

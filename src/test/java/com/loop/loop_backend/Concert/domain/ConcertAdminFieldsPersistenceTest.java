@@ -22,7 +22,7 @@ import static org.assertj.core.groups.Tuple.tuple;
 
 // 공연 관리자 입력 항목(AD-01) 저장 요구사항:
 // - 새로 만드는 공연은 비공개, 숙소 노출 Off로 시작한다. 이 항목들이 생기기 전부터 있던 공연은 공개로 남는다.
-// - 공연명 별칭·관련 상품은 여러 개 저장한다. 관련 상품은 입력한 순서 그대로 다시 읽힌다.
+// - 공연명 별칭은 여러 개 저장한다.
 // - DAY별 공연 시각은 날짜마다 저장하고 시각은 비워 둘 수 있다.
 // - 선예매·일반예매는 각각 여러 건 등록할 수 있고, 한 건 = 예매 일시 1개 + 예매처(이름 + URL) 여러 개. 예매 일시는 비워도 저장된다.
 // - 공연이 지워지면(공연 삭제, 아티스트 삭제 연쇄) 이 항목들도 함께 지워진다.
@@ -64,7 +64,6 @@ class ConcertAdminFieldsPersistenceTest {
         assertThat(found.isPublished()).isFalse();
         assertThat(found.isLodgingVisible()).isFalse();
         assertThat(found.getTitleAliases()).isEmpty();
-        assertThat(found.getProducts()).isEmpty();
         assertThat(found.getShowtimes()).isEmpty();
     }
 
@@ -83,26 +82,16 @@ class ConcertAdminFieldsPersistenceTest {
     // ---------- 여러 개 값 ----------
 
     @Test
-    void 별칭과_관련_상품은_여러_개_저장되고_상품은_입력한_순서대로_읽힌다() {
+    void 별칭은_여러_개_저장된다() {
         Concert concert = concertRepository.save(Concert.builder()
                 .title("Official髭男dism Arena Tour")
                 .category(ConcertCategory.J_POP_ARTIST)
                 .titleAliases(List.of("히게단", "오피셜히게단디즘"))
                 .build());
-        concert.replaceProducts(List.of(
-                new ConcertProduct("Rejoice", "CD", "https://www.cdjapan.co.jp/aff/b", "https://www.cdjapan.co.jp/image.html?id=b"),
-                new ConcertProduct("Live Blu-ray", "Blu-ray", "https://www.cdjapan.co.jp/aff/a", "https://www.cdjapan.co.jp/image.html?id=a"),
-                new ConcertProduct(null, null, "https://www.cdjapan.co.jp/aff/c", "https://www.cdjapan.co.jp/image.html?id=c")));
         flushAndClear();
 
         Concert found = concertRepository.findById(concert.getId()).orElseThrow();
         assertThat(found.getTitleAliases()).containsExactlyInAnyOrder("히게단", "오피셜히게단디즘");
-        assertThat(found.getProducts())
-                .extracting(ConcertProduct::getTitle, ConcertProduct::getType, ConcertProduct::getLinkUrl)
-                .containsExactly(
-                        tuple("Rejoice", "CD", "https://www.cdjapan.co.jp/aff/b"),
-                        tuple("Live Blu-ray", "Blu-ray", "https://www.cdjapan.co.jp/aff/a"),
-                        tuple(null, null, "https://www.cdjapan.co.jp/aff/c"));
     }
 
     @Test
@@ -168,8 +157,6 @@ class ConcertAdminFieldsPersistenceTest {
                 .titleAliases(List.of("유우리"))
                 .showtimes(List.of(new ConcertShowtime(LocalDate.of(2026, 12, 5), LocalTime.of(18, 0))))
                 .build());
-        concert.replaceProducts(List.of(
-                new ConcertProduct("상품", "CD", "https://www.cdjapan.co.jp/aff/1", "https://www.cdjapan.co.jp/image.html?id=1")));
         presaleRepository.save(ConcertPresale.builder().concert(concert).build());
         generalSaleRepository.save(ConcertGeneralSale.builder().concert(concert).build());
         flushAndClear();
@@ -178,14 +165,13 @@ class ConcertAdminFieldsPersistenceTest {
 
     private void assertNoChildRows(Long concertId) {
         assertThat(countRows("concert_title_aliases", concertId)).isZero();
-        assertThat(countRows("concert_products", concertId)).isZero();
         assertThat(countRows("concert_showtimes", concertId)).isZero();
         assertThat(countRows("concert_presales", concertId)).isZero();
         assertThat(countRows("concert_general_sales", concertId)).isZero();
     }
 
     @Test
-    void 공연을_삭제하면_별칭_상품_코드_공연_시각_예매_정보가_함께_지워진다() {
+    void 공연을_삭제하면_별칭_공연_시각_예매_정보가_함께_지워진다() {
         Concert concert = concertWithEverything(null);
 
         concertRepository.deleteById(concert.getId());

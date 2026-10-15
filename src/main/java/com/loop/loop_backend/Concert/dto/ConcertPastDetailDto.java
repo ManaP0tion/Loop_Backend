@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Concert.dto;
 
+import com.loop.loop_backend.Artist.dto.ArtistProductDto;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Setlist.dto.SetlistResultResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -49,8 +50,9 @@ public class ConcertPastDetailDto {
     @Schema(description = "특설 공식 사이트 URL. 없으면 null(버튼 숨김)", types = {"string", "null"})
     private final String officialSiteUrl;
 
-    @Schema(description = "관련 상품. 관리자가 입력한 순서대로, 없으면 빈 목록(섹션 숨김)", requiredMode = Schema.RequiredMode.REQUIRED)
-    private final List<ConcertProductDto> products;
+    @Schema(description = "관련 상품(공연 아티스트에 등록된 상품). 관리자가 입력한 순서대로, 아티스트가 없거나 상품이 없으면 빈 목록(섹션 숨김)",
+            requiredMode = Schema.RequiredMode.REQUIRED)
+    private final List<ArtistProductDto> products;
 
     @Schema(description = "내가 스크랩한 공연인지. 비로그인 조회면 항상 false", requiredMode = Schema.RequiredMode.REQUIRED)
     private final boolean scrapped;
@@ -77,7 +79,7 @@ public class ConcertPastDetailDto {
                 .endDate(concert.getEndDate())
                 .showtimes(ConcertShowtimeDto.byDay(concert))
                 .officialSiteUrl(concert.getOfficialSiteUrl())
-                .products(ConcertProductDto.listOf(concert))
+                .products(ArtistProductDto.listOf(concert.getArtist()))
                 .scrapped(scrapped)
                 .setlistResult(setlistResult)
                 .upcomingConcerts(upcomingConcerts)

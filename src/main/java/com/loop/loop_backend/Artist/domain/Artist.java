@@ -4,8 +4,12 @@ import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.common.util.WebUrls;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "artists")
@@ -14,6 +18,8 @@ import java.time.LocalDateTime;
 @Builder
 @AllArgsConstructor
 public class Artist {
+
+    private static final int PRODUCT_TITLE_MAX_LENGTH = 255; // artist_products.title 길이
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -59,6 +65,14 @@ public class Artist {
     @Column(name = "homepage_url", length = 500)
     private String homepageUrl;
 
+    /** 관련 상품(CDJapan 어필리에이트 등). 입력한 순서대로 이 아티스트의 공연 상세에 보인다. 0개면 상품 섹션을 그리지 않는다. */
+    @ElementCollection
+    @CollectionTable(name = "artist_products", joinColumns = @JoinColumn(name = "artist_id"))
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    @OrderColumn(name = "display_order")
+    @Builder.Default
+    private List<ArtistProduct> products = new ArrayList<>();
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -87,6 +101,37 @@ public class Artist {
         this.instagramUrl = WebUrls.normalize(instagramUrl);
         this.xUrl = WebUrls.normalize(xUrl);
         this.homepageUrl = WebUrls.normalize(homepageUrl);
+    }
+
+    /**
+     * 상품 목록 통째로 교체(입력 순서 유지). 링크·이미지 주소는 필수, http/https 주소만(아니면 400).
+     * 상품명은 앞뒤 공백을 지우고 빈 값이면 비운다. 하나라도 잘못되면 기존 목록을 그대로 둔다.
+     */
+    public void replaceProducts(List<ArtistProduct> products) {
+        List<ArtistProduct> cleaned = new ArrayList<>();
+        for (ArtistProduct p : products == null ? List.<ArtistProduct>of() : products) {
+            cleaned.add(cleanProduct(p));
+        }
+        this.products.clear();
+        this.products.addAll(cleaned);
+    }
+
+    /** 상품 하나를 맨 뒤에 추가한다. 규칙은 replaceProducts와 같다. */
+    public void addProduct(ArtistProduct product) {
+        this.products.add(cleanProduct(product));
+    }
+
+    private static ArtistProduct cleanProduct(ArtistProduct p) {
+        String linkUrl = WebUrls.normalize(p.getLinkUrl());
+        String imageUrl = WebUrls.normalize(p.getImageUrl());
+        if (linkUrl == null || imageUrl == null) {
+            throw new IllegalArgumentException("상품 링크와 이미지 주소는 비울 수 없다");
+        }
+        String title = (p.getTitle() == null || p.getTitle().isBlank()) ? null : p.getTitle().trim();
+        if (title != null && title.length() > PRODUCT_TITLE_MAX_LENGTH) {
+            throw new IllegalArgumentException("상품명은 " + PRODUCT_TITLE_MAX_LENGTH + "자까지 입력할 수 있다");
+        }
+        return new ArtistProduct(title, linkUrl, imageUrl);
     }
 
     public void linkItunes(Long itunesArtistId, String artistViewUrl) {
