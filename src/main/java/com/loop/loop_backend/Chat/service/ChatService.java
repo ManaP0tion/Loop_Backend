@@ -25,6 +25,8 @@ public interface ChatService {
 
     ChatMessageDto saveMessage(Long roomId, Long senderId, String rawContent);
 
+    ChatMessageDto saveImageMessage(Long roomId, Long senderId, org.springframework.web.multipart.MultipartFile image);
+
     void markAsRead(Long roomId, Long userId);
 
     void hideDirectRoomForUser(Long actorUserId, Long otherUserId);

@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Chat.controller;
 
+import com.loop.loop_backend.Chat.dto.ChatMessageDto;
 import com.loop.loop_backend.Chat.dto.ChatMessagesResponseDto;
 import com.loop.loop_backend.Chat.dto.ChatRoomResponseDto;
 import com.loop.loop_backend.Chat.dto.CreateChatRoomRequestDto;
@@ -73,6 +74,16 @@ public class ChatRoomController {
             @PathVariable Long roomId) {
         chatService.leaveRoom(roomId, userId);
         return ResponseEntity.ok(CommonResponse.success(null));
+    }
+
+    @PostMapping(value = "/rooms/{roomId}/images", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "채팅 이미지 전송",
+            description = "이미지를 비공개 버킷에 업로드하고 IMAGE 메시지로 저장한 뒤, 해당 방 구독자에게 실시간 브로드캐스트합니다. 참여자만 조회 가능한 presigned URL로 응답.")
+    public ResponseEntity<CommonResponse<ChatMessageDto>> sendImage(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long roomId,
+            @RequestPart("image") org.springframework.web.multipart.MultipartFile image) {
+        return ResponseEntity.ok(CommonResponse.success(chatService.saveImageMessage(roomId, userId, image)));
     }
 
     @GetMapping("/rooms/{roomId}/messages")

@@ -119,7 +119,10 @@ public class ChatRoomResponseDto {
         }
 
         if (lastMessage != null) {
-            builder.lastMessageContent(lastMessage.getContent())
+            // 이미지 메시지는 content가 S3 URL이라 목록 미리보기엔 "사진"으로 노출
+            String preview = lastMessage.getType() == com.loop.loop_backend.Chat.domain.MessageType.IMAGE
+                    ? "사진" : lastMessage.getContent();
+            builder.lastMessageContent(preview)
                     .lastMessageAt(lastMessage.getCreatedAt());
         }
 
