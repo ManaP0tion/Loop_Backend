@@ -1,8 +1,9 @@
 package com.loop.loop_backend.Venue.dto;
 
+import com.loop.loop_backend.Venue.domain.VenueCapacity;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -25,9 +26,13 @@ public record VenueRequestDto(
                 requiredMode = Schema.RequiredMode.REQUIRED)
         String address,
 
-        @PositiveOrZero
-        @Schema(description = "수용 인원(공연장 기준 평균치). 모르면 null", example = "14483", types = {"integer", "null"})
-        Integer capacity,
+        // 형태(숫자 또는 숫자~숫자)는 여기서, 최솟값 > 최댓값은 VenueCapacity가 막는다 - 둘 다 400
+        @Pattern(regexp = VenueCapacity.INPUT_PATTERN)
+        @Size(max = 50)
+        @Schema(description = "수용 인원. 숫자(\"6830\") 또는 범위(\"200~400\"), 쉼표·공백 허용(\"1,050 ~ 2,040\"). " +
+                "최솟값과 최댓값이 같으면 단일 값으로 저장. 그 외 형태나 최솟값 > 최댓값이면 400. 모르면 null",
+                example = "1050~2040", types = {"string", "null"})
+        String capacity,
 
         @Size(max = 500)
         @Schema(description = "좌석 시야(자리어때) 링크. 비우면 화면에서 해당 행 미노출", types = {"string", "null"})

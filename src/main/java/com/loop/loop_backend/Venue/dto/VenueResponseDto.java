@@ -15,8 +15,9 @@ public record VenueResponseDto(
         @Schema(description = "주소(시·구 단위)", requiredMode = Schema.RequiredMode.REQUIRED)
         String address,
 
-        @Schema(description = "수용 인원", types = {"integer", "null"})
-        Integer capacity,
+        @Schema(description = "수용 인원 텍스트. 단일 값 \"6,830\", 범위 \"1,050~2,040\". 수정 요청에 그대로 다시 보내도 된다",
+                example = "1,050~2,040", types = {"string", "null"})
+        String capacity,
 
         @Schema(description = "좌석 시야(자리어때) 링크", types = {"string", "null"})
         String seatViewUrl,
@@ -46,7 +47,7 @@ public record VenueResponseDto(
 ) {
 
     public static VenueResponseDto from(Venue venue, long concertCount) {
-        return new VenueResponseDto(venue.getId(), venue.getName(), venue.getAddress(), venue.getCapacity(),
+        return new VenueResponseDto(venue.getId(), venue.getName(), venue.getAddress(), venue.getCapacity().toText(),
                 venue.getSeatViewUrl(), venue.getKakaoMapUrl(), venue.getNaverMapUrl(),
                 venue.getLatitude(), venue.getLongitude(),
                 venue.getKopisFacilityId(), venue.getKopisHallId(), concertCount);

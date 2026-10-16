@@ -38,9 +38,13 @@ public class Venue {
     @Column(name = "address", nullable = false, length = 255)
     private String address;
 
-    // 공연장 기준 평균 수용 인원. 모르면 비운다.
+    // 수용 인원(VenueCapacity). 범위면 최솟값·최댓값, 단일 값이면 최댓값만 있다. 모르면 둘 다 비운다.
+    // 범위가 생기기 전 컬럼(capacity)을 최댓값으로 그대로 쓴다 - 기존 값은 단일 값으로 읽힌다.
+    @Column(name = "capacity_min")
+    private Integer capacityMin;
+
     @Column(name = "capacity")
-    private Integer capacity;
+    private Integer capacityMax;
 
     // 좌석 시야(자리어때) 외부 링크. 비우면 화면에서 해당 행을 숨긴다.
     @Column(name = "seat_view_url", length = 500)
@@ -78,12 +82,12 @@ public class Venue {
     private LocalDateTime updatedAt;
 
     @Builder
-    private Venue(String name, String address, Integer capacity, String seatViewUrl,
+    private Venue(String name, String address, VenueCapacity capacity, String seatViewUrl,
                   String kakaoMapUrl, String naverMapUrl, Double latitude, Double longitude,
                   String kopisFacilityId, String kopisHallId) {
         this.name = name;
         this.address = address;
-        this.capacity = capacity;
+        changeCapacity(capacity);
         this.seatViewUrl = seatViewUrl;
         this.kakaoMapUrl = kakaoMapUrl;
         this.naverMapUrl = naverMapUrl;
@@ -97,13 +101,23 @@ public class Venue {
      * 관리자 화면에서 고치는 정보만 바꾼다. 좌표와 KOPIS 시설·홀 ID는 KOPIS 자동 생성 때만 채워지는 값이라
      * 여기서 바꾸지 않는다 - 화면에 없는 값이 수정 때 지워지거나 바뀌지 않게 하려는 것.
      */
-    public void updateInfo(String name, String address, Integer capacity,
+    public void updateInfo(String name, String address, VenueCapacity capacity,
                            String seatViewUrl, String kakaoMapUrl, String naverMapUrl) {
         this.name = name;
         this.address = address;
-        this.capacity = capacity;
+        changeCapacity(capacity);
         this.seatViewUrl = seatViewUrl;
         this.kakaoMapUrl = kakaoMapUrl;
         this.naverMapUrl = naverMapUrl;
+    }
+
+    public VenueCapacity getCapacity() {
+        return new VenueCapacity(capacityMin, capacityMax);
+    }
+
+    private void changeCapacity(VenueCapacity capacity) {
+        VenueCapacity value = capacity == null ? VenueCapacity.EMPTY : capacity;
+        this.capacityMin = value.min();
+        this.capacityMax = value.max();
     }
 }

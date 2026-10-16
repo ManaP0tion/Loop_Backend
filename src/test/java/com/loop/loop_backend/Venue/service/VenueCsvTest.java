@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Venue.service;
 
 import com.loop.loop_backend.Venue.domain.Venue;
+import com.loop.loop_backend.Venue.domain.VenueCapacity;
 import com.loop.loop_backend.Venue.dto.VenueCsvImportResult;
 import com.loop.loop_backend.Venue.repository.VenueRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -47,7 +48,7 @@ class VenueCsvTest {
 
     private Venue inspire() {
         return venueRepository.save(Venue.builder()
-                .name("인스파이어 엔터테인먼트 리조트 (아레나)").address("인천광역시 중구").capacity(14483)
+                .name("인스파이어 엔터테인먼트 리조트 (아레나)").address("인천광역시 중구").capacity(VenueCapacity.of(14483))
                 .kakaoMapUrl("https://kko.to/old")
                 .kopisFacilityId("FC003670").kopisHallId("FC003670-01")
                 .build());
@@ -55,7 +56,7 @@ class VenueCsvTest {
 
     private Venue kspo() {
         return venueRepository.save(Venue.builder()
-                .name("올림픽공원 (KSPO DOME)").address("서울특별시 송파구").capacity(15000)
+                .name("올림픽공원 (KSPO DOME)").address("서울특별시 송파구").capacity(VenueCapacity.of(15000))
                 .kopisFacilityId("FC000017").kopisHallId("FC000017-02")
                 .build());
     }
@@ -95,8 +96,21 @@ class VenueCsvTest {
         String[] lines = csv.substring(1).split("\r\n");
         assertThat(lines).hasSize(3);
         assertThat(lines[1]).isEqualTo(first.getId()
-                + ",인스파이어 엔터테인먼트 리조트 (아레나),인천광역시 중구,14483,,https://kko.to/old,,FC003670,FC003670-01");
+                + ",인스파이어 엔터테인먼트 리조트 (아레나),인천광역시 중구,\"14,483\",,https://kko.to/old,,FC003670,FC003670-01");
         assertThat(lines[2]).startsWith(second.getId() + ",올림픽공원 (KSPO DOME),");
+    }
+
+    @Test
+    void 다운로드의_수용_인원은_화면과_같은_텍스트이고_그대로_다시_올려도_범위가_유지된다() {
+        Venue venue = venueRepository.save(Venue.builder().name("YES24 라이브홀").address("서울특별시 광진구")
+                .capacity(new VenueCapacity(1050, 2040)).build());
+
+        String csv = new String(venueService.exportCsv(), StandardCharsets.UTF_8);
+        VenueCsvImportResult result = upload(csv);
+
+        assertThat(csv).contains(",YES24 라이브홀,서울특별시 광진구,\"1,050~2,040\",");
+        assertThat(result.unchanged()).isEqualTo(1);
+        assertThat(reload(venue).getCapacity()).isEqualTo(new VenueCapacity(1050, 2040));
     }
 
     @Test
@@ -125,7 +139,7 @@ class VenueCsvTest {
         Venue updated = reload(venue);
         assertThat(updated.getName()).isEqualTo("인스파이어 아레나");
         assertThat(updated.getAddress()).isEqualTo("인천 중구");
-        assertThat(updated.getCapacity()).isEqualTo(15000);
+        assertThat(updated.getCapacity()).isEqualTo(VenueCapacity.of(15000));
         assertThat(updated.getSeatViewUrl()).isEqualTo("https://seat.example/inspire");
         assertThat(updated.getKakaoMapUrl()).isEqualTo("https://kko.to/new");
         assertThat(updated.getNaverMapUrl()).isEqualTo("https://naver.me/new");
@@ -141,7 +155,7 @@ class VenueCsvTest {
         assertThat(updated.getSeatViewUrl()).isEqualTo("https://seat.example/inspire");
         assertThat(updated.getName()).isEqualTo("인스파이어 엔터테인먼트 리조트 (아레나)");
         assertThat(updated.getAddress()).isEqualTo("인천광역시 중구");
-        assertThat(updated.getCapacity()).isEqualTo(14483);
+        assertThat(updated.getCapacity()).isEqualTo(VenueCapacity.of(14483));
         assertThat(updated.getKakaoMapUrl()).isEqualTo("https://kko.to/old");
         assertThat(updated.getNaverMapUrl()).isNull();
     }
@@ -220,16 +234,26 @@ class VenueCsvTest {
     }
 
     @Test
-    void 수용_인원은_0_이상_정수만_받는다() {
+    void 수용_인원은_숫자나_최솟값_최댓값_범위만_받는다() {
         Venue venue = inspire();
 
         VenueCsvImportResult result = upload(HEADER + "\n"
                 + venue.getId() + ",,,-1,,,,,\n"
-                + venue.getId() + ",,,\"15,000\",,,,,\n"
-                + venue.getId() + ",,,만오천,,,,,");
+                + venue.getId() + ",,,만오천,,,,,\n"
+                + venue.getId() + ",,,400~200,,,,,\n"
+                + venue.getId() + ",,,200~300~400,,,,,");
 
-        assertThat(result.failedRows()).containsExactly(1L, 2L, 3L);
-        assertThat(reload(venue).getCapacity()).isEqualTo(14483);
+        assertThat(result.failedRows()).containsExactly(1L, 2L, 3L, 4L);
+        assertThat(reload(venue).getCapacity()).isEqualTo(VenueCapacity.of(14483));
+    }
+
+    @Test
+    void 수용_인원은_PM_목록처럼_범위와_쉼표로_입력할_수_있다() {
+        Venue venue = inspire();
+
+        upload(HEADER + "\n" + venue.getId() + ",,,\"1,050~2,040\",,,,,");
+
+        assertThat(reload(venue).getCapacity()).isEqualTo(new VenueCapacity(1050, 2040));
     }
 
     @Test

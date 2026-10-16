@@ -82,9 +82,11 @@ class AdminVenueControllerTest {
             "{\"name\": \"  \", \"address\": \"서울특별시 송파구\"}",                 // 공연장명 공백
             "{\"name\": \"KSPO DOME\"}",                                          // 주소 없음
             "{\"name\": \"KSPO DOME\", \"address\": \"\"}",                       // 주소 빈 값
-            "{\"name\": \"KSPO DOME\", \"address\": \"서울특별시 송파구\", \"capacity\": -1}", // 수용 인원 음수
+            "{\"name\": \"KSPO DOME\", \"address\": \"서울특별시 송파구\", \"capacity\": \"-1\"}",        // 수용 인원 음수
+            "{\"name\": \"KSPO DOME\", \"address\": \"서울특별시 송파구\", \"capacity\": \"약 300\"}",     // 숫자가 아님
+            "{\"name\": \"KSPO DOME\", \"address\": \"서울특별시 송파구\", \"capacity\": \"200~300~400\"}", // 범위 형태가 아님
     })
-    void 등록할_때_필수값이_없거나_수용_인원이_음수면_400이고_서비스를_부르지_않는다(String body) throws Exception {
+    void 등록할_때_필수값이_없거나_수용_인원이_숫자나_범위가_아니면_400이고_서비스를_부르지_않는다(String body) throws Exception {
         mockMvc.perform(post("/api/admin/venues").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400));
@@ -111,9 +113,11 @@ class AdminVenueControllerTest {
             "{\"name\": \"  \"}",        // 필수값을 공백으로 비움
             "{\"address\": \"\"}",
             "{\"address\": \"  \"}",
-            "{\"capacity\": -1}",        // 수용 인원 음수
+            "{\"capacity\": \"-1\"}",    // 수용 인원 음수
+            "{\"capacity\": \"300명\"}", // 숫자가 아님
+            "{\"capacity\": \"~400\"}",  // 최솟값 없는 범위
     })
-    void 수정할_때_필수값을_빈_값으로_보내거나_수용_인원이_음수면_400이고_서비스를_부르지_않는다(String body) throws Exception {
+    void 수정할_때_필수값을_빈_값으로_보내거나_수용_인원이_숫자나_범위가_아니면_400이고_서비스를_부르지_않는다(String body) throws Exception {
         mockMvc.perform(patch("/api/admin/venues/{id}", 1L).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400));
@@ -127,6 +131,8 @@ class AdminVenueControllerTest {
             "{\"name\": null, \"address\": null}",           // 필수값을 null로 보냄 = 변경 없음
             "{\"seatViewUrl\": \"\", \"naverMapUrl\": \"\"}", // 링크를 빈 문자열로 비움
             "{\"capacity\": null}",                          // 수용 인원 null = 변경 없음
+            "{\"capacity\": \"\"}",                          // 수용 인원 빈 문자열 = 비움
+            "{\"capacity\": \"1,050 ~ 2,040\"}",             // 범위(쉼표·공백 허용)
     })
     void 필수값을_null로_보내거나_보내지_않거나_링크를_빈_값으로_보내는_것은_허용된다(String body) throws Exception {
         when(venueService.update(eq(1L), any())).thenReturn(SAVED);

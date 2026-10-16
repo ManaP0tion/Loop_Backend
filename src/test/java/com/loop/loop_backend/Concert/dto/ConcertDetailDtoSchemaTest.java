@@ -125,6 +125,13 @@ class ConcertDetailDtoSchemaTest {
         }
     }
 
+    @Test
+    void 공연장_수용_인원은_범위를_담는_텍스트다() {
+        Schema<?> schema = resolve(ConcertVenueDto.class);
+
+        assertThat(typesOf(schema, "capacity")).containsExactlyInAnyOrder("string", "null");
+    }
+
     private static Set<String> requiredOf(Schema<?> schema) {
         return schema.getRequired() == null ? Set.of() : Set.copyOf(schema.getRequired());
     }

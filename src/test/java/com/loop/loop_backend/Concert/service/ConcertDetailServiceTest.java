@@ -28,6 +28,7 @@ import com.loop.loop_backend.Setlist.service.SetlistResultService;
 import com.loop.loop_backend.Setlist.service.SetlistVoteService;
 import com.loop.loop_backend.TicketAlarm.service.TicketAlarmService;
 import com.loop.loop_backend.Venue.domain.Venue;
+import com.loop.loop_backend.Venue.domain.VenueCapacity;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import org.junit.jupiter.api.Test;
@@ -134,7 +135,7 @@ class ConcertDetailServiceTest {
     }
 
     private static Venue linkedVenue() {
-        return Venue.builder().name("인스파이어 아레나").address("인천광역시 중구").capacity(15000)
+        return Venue.builder().name("인스파이어 아레나").address("인천광역시 중구").capacity(VenueCapacity.of(15000))
                 .seatViewUrl("https://seat.example/inspire").kakaoMapUrl("https://kko.to/abc")
                 .naverMapUrl("https://naver.me/xyz").latitude(37.46).longitude(126.38).build();
     }
@@ -382,7 +383,7 @@ class ConcertDetailServiceTest {
         concert.changeVenue(linkedVenue());
 
         assertThat(concertService.getUpcomingDetail(CONCERT_ID, null).getVenue()).isEqualTo(new ConcertVenueDto(
-                "인스파이어 아레나", "인천광역시 중구", 15000, "https://seat.example/inspire",
+                "인스파이어 아레나", "인천광역시 중구", "15,000", "https://seat.example/inspire",
                 "https://kko.to/abc", "https://naver.me/xyz", 37.46, 126.38));
     }
 
@@ -392,7 +393,7 @@ class ConcertDetailServiceTest {
         setLegacyVenueColumns(concert);
 
         assertThat(concertService.getUpcomingDetail(CONCERT_ID, null).getVenue()).isEqualTo(new ConcertVenueDto(
-                "인스파이어 엔터테인먼트 리조트", "인천광역시 중구 공항문화로 127 (운서동)", 14483,
+                "인스파이어 엔터테인먼트 리조트", "인천광역시 중구 공항문화로 127 (운서동)", "14,483",
                 null, null, null, 37.4655301, 126.3891177));
     }
 
