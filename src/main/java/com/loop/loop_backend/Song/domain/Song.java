@@ -71,6 +71,10 @@ public class Song {
         this.sortOrder = sortOrder;
     }
 
+    public void updateSortOrder(Integer sortOrder) {
+        this.sortOrder = sortOrder;
+    }
+
     // CSV 업로드: 빈 값은 기존 값 유지
     public void updateFromCsv(String titleRomanized, String titleKo) {
         if (titleRomanized != null && !titleRomanized.isBlank()) this.titleRomanized = titleRomanized;

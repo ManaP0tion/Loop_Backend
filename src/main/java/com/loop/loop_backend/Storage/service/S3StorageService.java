@@ -112,6 +112,7 @@ public class S3StorageService {
                 extension = extractExtension(file.getOriginalFilename());
             }
         } catch (IOException e) {
+            log.error("업로드 파일 읽기/변환 실패 (prefix={}, ownerId={}, file={})", prefix, ownerId, file.getOriginalFilename(), e);
             throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED);
         }
 
@@ -132,6 +133,8 @@ public class S3StorageService {
                             .build(),
                     RequestBody.fromBytes(bytes));
         } catch (S3Exception e) {
+            // AccessDenied(IAM/버킷 정책), NoSuchBucket 등 원인이 응답에선 가려지므로 로그로 남긴다
+            log.error("S3 putObject 실패 (bucket={}, key={}, status={})", bucket, key, e.statusCode(), e);
             throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED);
         }
     }
