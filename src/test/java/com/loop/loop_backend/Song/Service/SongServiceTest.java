@@ -98,6 +98,28 @@ class SongServiceTest {
     }
 
     @Test
+    void 재불러오기시_수동추가곡과_sortOrder가_겹치지_않는다() {
+        Artist artist = artistRepository.save(Artist.builder().name("YOASOBI").build());
+        artist.linkItunes(100L, "https://music.apple.com/jp/artist/100");
+        given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.COUNTRY_JP))).willReturn(List.of(
+                track(1L, "夜に駆ける", null), track(2L, "群青", null)));
+        songService.fetchSongs(artist.getId());
+        // 수동 추가 → max + 1 = 3
+        songService.createSong(artist.getId(), new com.loop.loop_backend.Song.DTO.SongCreateRequest("新曲", null, null, null));
+
+        // iTunes에 신곡이 생겨 3번째로 내려옴 → 예전엔 이 곡도 sortOrder 3을 받아 수동곡과 중복
+        given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.COUNTRY_JP))).willReturn(List.of(
+                track(1L, "夜に駆ける", null), track(2L, "群青", null), track(5L, "アイドル", null)));
+        songService.fetchSongs(artist.getId());
+        em.flush();
+        em.clear();
+
+        List<SongResponse> songs = songService.getSongs(artist.getId());
+        assertThat(songs).extracting(SongResponse::sortOrder).containsExactly(1, 2, 3, 4);
+        assertThat(songs).extracting(SongResponse::titleOriginal).containsExactly("夜に駆ける", "群青", "アイドル", "新曲");
+    }
+
+    @Test
     void CSV_deleteMissing이면_CSV에_없는_곡을_삭제하고_수동곡은_id로_매칭한다() {
         Artist artist = artistRepository.save(Artist.builder().name("Omoinotake").build());
         Long keepManual = songService.createSong(artist.getId(),

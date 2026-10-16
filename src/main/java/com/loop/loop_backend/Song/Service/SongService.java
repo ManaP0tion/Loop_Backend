@@ -104,6 +104,7 @@ public class SongService {
 
         int created = 0, updated = 0, skipped = 0, duplicated = 0, order = 0;
         Set<String> seenTitles = new HashSet<>();
+        Set<Long> renumbered = new HashSet<>();
         for (ItunesTrack t : jaTracks) {
             if (t.trackId() == null || t.trackName() == null) continue;
             if (!seenTitles.add(t.trackName())) { // 같은 제목의 다른 버전
@@ -123,6 +124,7 @@ public class SongService {
             Song song = existing.getOrDefault(t.trackId(), existingByTitle.get(t.trackName()));
             if (song != null) {
                 song.updateFromItunes(t.trackName(), rom, art, order);
+                renumbered.add(song.getId());
                 updated++;
             } else {
                 songRepository.save(Song.builder()
@@ -135,6 +137,11 @@ public class SongService {
                         .build());
                 created++;
             }
+        }
+        // 수동 추가 곡·iTunes 목록에서 빠진 곡은 위에서 번호를 새로 받지 않아 1..order와 겹칠 수 있다.
+        // 기존 상대 순서(sortOrder 오름차순)를 유지한 채 iTunes 곡들 뒤에 이어 붙인다.
+        for (Song s : activeSongs) {
+            if (!renumbered.contains(s.getId())) s.updateSortOrder(++order);
         }
         return new SongFetchResult(created, updated, skipped, duplicated);
     }
