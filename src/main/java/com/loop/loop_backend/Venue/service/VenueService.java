@@ -3,6 +3,7 @@ package com.loop.loop_backend.Venue.service;
 import com.loop.loop_backend.ConcertImport.kopis.KopisClient.KopisFacility;
 import com.loop.loop_backend.Venue.domain.CityDistrict;
 import com.loop.loop_backend.Venue.domain.Venue;
+import com.loop.loop_backend.Venue.domain.VenueCapacity;
 import com.loop.loop_backend.Venue.dto.VenueCsvImportResult;
 import com.loop.loop_backend.Venue.dto.VenueRequestDto;
 import com.loop.loop_backend.Venue.dto.VenueResponseDto;
@@ -74,7 +75,7 @@ public class VenueService {
         Venue venue = venueRepository.save(Venue.builder()
                 .name(req.name().trim())
                 .address(req.address().trim())
-                .capacity(req.capacity())
+                .capacity(VenueCapacity.parse(req.capacity()))
                 .seatViewUrl(blankToNull(req.seatViewUrl()))
                 .kakaoMapUrl(blankToNull(req.kakaoMapUrl()))
                 .naverMapUrl(blankToNull(req.naverMapUrl()))
@@ -83,8 +84,8 @@ public class VenueService {
     }
 
     /**
-     * 부분 수정 - 다른 PATCH API와 같은 규칙으로 null은 변경 없음. 링크는 빈 문자열("")로 보내면 비운다.
-     * 필수값(이름·주소)을 빈 값으로 보낸 경우는 요청 검증에서 이미 400으로 막힌다. 수용 인원은 비울 수 없다.
+     * 부분 수정 - 다른 PATCH API와 같은 규칙으로 null은 변경 없음. 링크·수용 인원은 빈 문자열("")로 보내면 비운다.
+     * 필수값(이름·주소)을 빈 값으로 보낸 경우는 요청 검증에서 이미 400으로 막힌다.
      */
     @Transactional
     public VenueResponseDto update(Long id, VenueUpdateRequestDto req) {
@@ -92,7 +93,7 @@ public class VenueService {
         venue.updateInfo(
                 req.name() != null ? req.name().trim() : venue.getName(),
                 req.address() != null ? req.address().trim() : venue.getAddress(),
-                req.capacity() != null ? req.capacity() : venue.getCapacity(),
+                req.capacity() != null ? VenueCapacity.parse(req.capacity()) : venue.getCapacity(),
                 patchLink(req.seatViewUrl(), venue.getSeatViewUrl()),
                 patchLink(req.kakaoMapUrl(), venue.getKakaoMapUrl()),
                 patchLink(req.naverMapUrl(), venue.getNaverMapUrl()));
@@ -106,7 +107,7 @@ public class VenueService {
         out.write(BOM);
         try (CSVPrinter printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder().setHeader(CSV_HEADER).build())) {
             for (Venue v : venueRepository.findAll(Sort.by("id"))) {
-                printer.printRecord(v.getId(), v.getName(), v.getAddress(), v.getCapacity(),
+                printer.printRecord(v.getId(), v.getName(), v.getAddress(), v.getCapacity().toText(),
                         v.getSeatViewUrl(), v.getKakaoMapUrl(), v.getNaverMapUrl(),
                         v.getKopisFacilityId(), v.getKopisHallId());
             }
@@ -139,7 +140,7 @@ public class VenueService {
                 continue;
             }
             String name, address, seatViewUrl, kakaoMapUrl, naverMapUrl;
-            Integer capacity;
+            VenueCapacity capacity;
             try {
                 // 먼저 모든 칸을 검증해 한 칸만 잘못돼도 행 전체를 건너뛴다
                 name = csvText(r, "name", venue.getName());
@@ -204,7 +205,7 @@ public class VenueService {
         return venueRepository.save(Venue.builder()
                 .name(name)
                 .address(address)
-                .capacity(facility.capacity())
+                .capacity(VenueCapacity.of(facility.capacity()))
                 .latitude(facility.latitude())
                 .longitude(facility.longitude())
                 .kopisFacilityId(facilityId)
@@ -253,13 +254,10 @@ public class VenueService {
         return value;
     }
 
-    /** 수용 인원: 빈 칸이면 기존 값, 0 이상 정수만(숫자가 아니면 NumberFormatException - IllegalArgumentException의 하위 타입). */
-    private static Integer csvCapacity(CSVRecord r, Integer current) {
+    /** 수용 인원: 빈 칸이면 기존 값, 숫자 또는 범위(VenueCapacity.parse - 형식 오류는 IllegalArgumentException). */
+    private static VenueCapacity csvCapacity(CSVRecord r, VenueCapacity current) {
         String value = csvColumn(r, "capacity");
-        if (value.isEmpty()) return current;
-        int capacity = Integer.parseInt(value);
-        if (capacity < 0) throw new IllegalArgumentException("수용 인원은 0 이상이다: " + capacity);
-        return capacity;
+        return value.isEmpty() ? current : VenueCapacity.parse(value);
     }
 
     /** 링크: 빈 칸이면 기존 값, http/https 주소만(WebUrls). */

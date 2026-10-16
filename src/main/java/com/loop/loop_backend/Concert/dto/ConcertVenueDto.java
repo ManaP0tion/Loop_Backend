@@ -2,6 +2,7 @@ package com.loop.loop_backend.Concert.dto;
 
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Venue.domain.Venue;
+import com.loop.loop_backend.Venue.domain.VenueCapacity;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
@@ -19,8 +20,9 @@ public record ConcertVenueDto(
         @Schema(description = "주소. 공연장 관리 공연장은 시·구까지, 이전 공연은 KOPIS 전체 주소", types = {"string", "null"})
         String address,
 
-        @Schema(description = "수용 인원", types = {"integer", "null"})
-        Integer capacity,
+        @Schema(description = "수용 인원 텍스트(천 단위 쉼표). 단일 값 \"6,830\", 범위 \"1,050~2,040\"",
+                example = "1,050~2,040", types = {"string", "null"})
+        String capacity,
 
         @Schema(description = "좌석 시야(자리어때) 링크", types = {"string", "null"})
         String seatViewUrl,
@@ -42,14 +44,16 @@ public record ConcertVenueDto(
     public static ConcertVenueDto of(Concert concert) {
         Venue venue = concert.getLinkedVenue();
         if (venue != null) {
-            return new ConcertVenueDto(venue.getName(), venue.getAddress(), venue.getCapacity(),
+            return new ConcertVenueDto(venue.getName(), venue.getAddress(), venue.getCapacity().toText(),
                     venue.getSeatViewUrl(), venue.getKakaoMapUrl(), venue.getNaverMapUrl(),
                     venue.getLatitude(), venue.getLongitude());
         }
         if (concert.getVenue() == null) {
             return null;
         }
-        return new ConcertVenueDto(concert.getVenue(), concert.getVenueAddress(), concert.getVenueCapacity(),
+        // 이전 공연은 KOPIS 좌석 수 하나만 있다
+        return new ConcertVenueDto(concert.getVenue(), concert.getVenueAddress(),
+                VenueCapacity.of(concert.getVenueCapacity()).toText(),
                 null, null, null, concert.getVenueLatitude(), concert.getVenueLongitude());
     }
 }

@@ -5,6 +5,7 @@ import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.ConcertImport.kopis.KopisClient.KopisFacility;
 import com.loop.loop_backend.Venue.domain.Venue;
+import com.loop.loop_backend.Venue.domain.VenueCapacity;
 import com.loop.loop_backend.Venue.dto.VenueRequestDto;
 import com.loop.loop_backend.Venue.dto.VenueResponseDto;
 import com.loop.loop_backend.Venue.dto.VenueUpdateRequestDto;
@@ -57,7 +58,7 @@ class VenueServiceTest {
     }
 
     /** 부분 수정 요청: null 인자는 "변경 없음"이다. 링크를 비우려면 ""를 넘긴다. */
-    private static VenueUpdateRequestDto patch(String name, String address, Integer capacity,
+    private static VenueUpdateRequestDto patch(String name, String address, String capacity,
                                                String seatViewUrl, String kakaoMapUrl, String naverMapUrl) {
         return new VenueUpdateRequestDto(name, address, capacity, seatViewUrl, kakaoMapUrl, naverMapUrl);
     }
@@ -73,7 +74,7 @@ class VenueServiceTest {
 
     private Venue kopisVenue() {
         return venueRepository.save(Venue.builder()
-                .name("인스파이어 엔터테인먼트 리조트 (아레나)").address("인천광역시 중구").capacity(14483)
+                .name("인스파이어 엔터테인먼트 리조트 (아레나)").address("인천광역시 중구").capacity(VenueCapacity.of(14483))
                 .seatViewUrl("https://seat").kakaoMapUrl("https://kakao").naverMapUrl("https://naver")
                 .latitude(37.4655301).longitude(126.3891177)
                 .kopisFacilityId("FC003670").kopisHallId("FC003670-01")
@@ -108,7 +109,7 @@ class VenueServiceTest {
     @Test
     void 입력값의_앞뒤_공백은_지우고_빈_문자열인_선택_필드는_비운다() {
         VenueResponseDto created = venueService.create(new VenueRequestDto(
-                "  KSPO DOME ", " 서울특별시 송파구 ", 15000, "  ", "", "https://naver.me/x "));
+                "  KSPO DOME ", " 서울특별시 송파구 ", "15000", "  ", "", "https://naver.me/x "));
 
         assertThat(created.name()).isEqualTo("KSPO DOME");
         assertThat(created.address()).isEqualTo("서울특별시 송파구");
@@ -163,7 +164,7 @@ class VenueServiceTest {
         assertThat(found.name()).isEqualTo("인스파이어 아레나");
         assertThat(found.seatViewUrl()).isEqualTo("https://seat2");
         assertThat(found.address()).isEqualTo("인천광역시 중구");
-        assertThat(found.capacity()).isEqualTo(14483);
+        assertThat(found.capacity()).isEqualTo("14,483");
         assertThat(found.kakaoMapUrl()).isEqualTo("https://kakao");
         assertThat(found.naverMapUrl()).isEqualTo("https://naver");
     }
@@ -186,16 +187,55 @@ class VenueServiceTest {
 
         venueService.update(venue.getId(), patch(null, null, null, null, null, null));
 
-        assertThat(venueService.get(venue.getId()).capacity()).isEqualTo(14483);
+        assertThat(venueService.get(venue.getId()).capacity()).isEqualTo("14,483");
     }
 
     @Test
     void 수용_인원은_다른_값으로_바꿀_수_있다() {
         Venue venue = kopisVenue();
 
-        venueService.update(venue.getId(), patch(null, null, 15000, null, null, null));
+        venueService.update(venue.getId(), patch(null, null, "15000", null, null, null));
 
-        assertThat(venueService.get(venue.getId()).capacity()).isEqualTo(15000);
+        assertThat(venueService.get(venue.getId()).capacity()).isEqualTo("15,000");
+    }
+
+    @Test
+    void 수용_인원을_범위로_바꾸고_다시_숫자_하나를_보내면_단일_값이_된다() {
+        Venue venue = kopisVenue();
+
+        venueService.update(venue.getId(), patch(null, null, "1,050 ~ 2,040", null, null, null));
+        assertThat(venueService.get(venue.getId()).capacity()).isEqualTo("1,050~2,040");
+
+        venueService.update(venue.getId(), patch(null, null, "2000", null, null, null));
+        assertThat(venueService.get(venue.getId()).capacity()).isEqualTo("2,000");
+    }
+
+    @Test
+    void 수용_인원은_빈_문자열로_보내면_비워진다() {
+        Venue venue = kopisVenue();
+
+        venueService.update(venue.getId(), patch(null, null, "", null, null, null));
+
+        assertThat(venueService.get(venue.getId()).capacity()).isNull();
+    }
+
+    @Test
+    void 수용_인원이_숫자나_범위가_아니면_400이고_바뀌지_않는다() {
+        Venue venue = kopisVenue();
+
+        for (String invalid : new String[]{"약 300", "400~200", "200~300~400", "-100"}) {
+            assertThatThrownBy(() -> venueService.update(venue.getId(), patch(null, null, invalid, null, null, null)))
+                    .as(invalid).isInstanceOf(IllegalArgumentException.class);
+        }
+        assertThat(venueService.get(venue.getId()).capacity()).isEqualTo("14,483");
+    }
+
+    @Test
+    void 등록할_때_수용_인원을_범위로_넣을_수_있다() {
+        VenueResponseDto created = venueService.create(
+                new VenueRequestDto("롤링홀", "서울특별시 마포구", "200~400", null, null, null));
+
+        assertThat(venueService.get(created.id()).capacity()).isEqualTo("200~400");
     }
 
     @Test
@@ -203,7 +243,7 @@ class VenueServiceTest {
         Venue venue = kopisVenue();
 
         // 관리자 화면이 보이는 필드를 모두 보내는 경우
-        venueService.update(venue.getId(), patch("인스파이어 아레나", "인천광역시 중구", 15000, "", "", ""));
+        venueService.update(venue.getId(), patch("인스파이어 아레나", "인천광역시 중구", "15000", "", "", ""));
 
         VenueResponseDto found = venueService.get(venue.getId());
         assertThat(found.latitude()).isEqualTo(37.4655301);
@@ -219,7 +259,7 @@ class VenueServiceTest {
         VenueResponseDto updated = venueService.update(venue.getId(), NOTHING_SENT);
 
         assertThat(updated.name()).isEqualTo("인스파이어 엔터테인먼트 리조트 (아레나)");
-        assertThat(updated.capacity()).isEqualTo(14483);
+        assertThat(updated.capacity()).isEqualTo("14,483");
         assertThat(updated.seatViewUrl()).isEqualTo("https://seat");
     }
 
@@ -363,7 +403,7 @@ class VenueServiceTest {
         assertThat(venue.getId()).isNotNull();
         assertThat(venue.getName()).isEqualTo("인스파이어 엔터테인먼트 리조트 (아레나)");
         assertThat(venue.getAddress()).isEqualTo("인천광역시 중구");
-        assertThat(venue.getCapacity()).isEqualTo(14483);
+        assertThat(venue.getCapacity()).isEqualTo(VenueCapacity.of(14483));
         assertThat(venue.getLatitude()).isEqualTo(37.4655301);   // 지도 링크를 넣기 전에도 좌표로 지도가 열린다
         assertThat(venue.getLongitude()).isEqualTo(126.3891177);
         assertThat(venue.getKopisFacilityId()).isEqualTo("FC003670");

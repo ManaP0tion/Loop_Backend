@@ -94,7 +94,8 @@ public class AdminVenueController {
                     "- 빈 칸은 기존 값 유지 (CSV로는 링크를 비울 수 없다 - 비우기는 공연장 수정 화면에서)\n" +
                     "- 이름으로 찾지 않는다 - 이름은 고칠 값이고 같은 이름의 공연장도 있을 수 있다\n" +
                     "- 새 공연장은 만들지 않는다. id가 비었거나 없는 공연장인 행은 failedRows\n" +
-                    "- 링크는 http/https 주소만, 수용 인원은 0 이상 정수, 이름·주소는 255자까지. 한 칸이라도 잘못되면 그 행 전체를 건너뛴다(failedRows)\n" +
+                    "- 링크는 http/https 주소만, 이름·주소는 255자까지. 한 칸이라도 잘못되면 그 행 전체를 건너뛴다(failedRows)\n" +
+                    "- 수용 인원은 숫자(6830) 또는 범위(200~400). 쉼표 허용(\"1,050~2,040\"), 최솟값 > 최댓값이면 그 행 실패\n" +
                     "- kopisFacilityId, kopisHallId 칸은 무시\n\n" +
                     "UTF-8(BOM 허용)만 받는다. 다른 인코딩(엑셀의 'CSV (쉼표로 분리)' 저장 등)으로 한글이 깨진 파일은 " +
                     "깨진 이름이 저장되지 않도록 전체를 거절한다(400, 아무것도 반영 안 됨).")
@@ -128,11 +129,12 @@ public class AdminVenueController {
     @Operation(summary = "공연장 직접 등록",
             description = "KOPIS에 없는 공연장용 - KOPIS 공연을 승인하면 공연장은 자동으로 만들어진다.\n\n" +
                     "**필수값**: name(공연장명), address(주소, 시·구 단위). 나머지는 생략하거나 null로 보내면 비어 있는 채로 등록된다.\n\n" +
+                    "**수용 인원**은 문자열: 숫자(\"6830\") 또는 범위(\"200~400\"), 쉼표·공백 허용. 응답은 쉼표를 넣은 텍스트(\"1,050~2,040\").\n\n" +
                     "같은 이름의 공연장도 등록할 수 있다. 좌표와 KOPIS 시설·홀 ID는 받지 않는다(KOPIS 자동 생성 때만 채워짐).")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "등록 성공 (concertCount는 0)"),
             @ApiResponse(responseCode = "400",
-                    description = "필수값(name, address) 누락·빈 값, 수용 인원 음수, 길이 초과 - 필드 구분 없이 하나로 응답",
+                    description = "필수값(name, address) 누락·빈 값, 수용 인원 형식 오류(숫자·범위가 아님, 최솟값 > 최댓값), 길이 초과 - 필드 구분 없이 하나로 응답",
                     content = @Content(examples = @ExampleObject(value = INVALID_INPUT_EXAMPLE)))
     })
     public ResponseEntity<CommonResponse<VenueResponseDto>> create(
@@ -151,16 +153,16 @@ public class AdminVenueController {
                     "|---|---|\n" +
                     "| 필드를 보내지 않음, 또는 `null` | 기존 값 유지 |\n" +
                     "| 값을 보냄 | 그 값으로 변경 |\n" +
-                    "| 링크(seatViewUrl, kakaoMapUrl, naverMapUrl)에 `\"\"`(빈 문자열) | 비움 |\n\n" +
-                    "**링크를 비우려면 null이 아니라 빈 문자열(\"\")로 보내야 한다** - null은 '유지'로 처리된다.\n\n" +
+                    "| 링크(seatViewUrl, kakaoMapUrl, naverMapUrl)·수용 인원(capacity)에 `\"\"`(빈 문자열) | 비움 |\n\n" +
+                    "**링크·수용 인원을 비우려면 null이 아니라 빈 문자열(\"\")로 보내야 한다** - null은 '유지'로 처리된다.\n\n" +
                     "**필수값**: name, address는 비울 수 없다. null이면 유지되고, 빈 값·공백으로 보내면 400이다.\n\n" +
-                    "**수용 인원**은 비울 수 없다. 다른 값으로 바꾸는 것만 된다.\n\n" +
+                    "**수용 인원**은 숫자(\"6830\") 또는 범위(\"200~400\") 문자열. 범위였던 공연장에 숫자 하나를 보내면 단일 값이 된다.\n\n" +
                     "좌표와 KOPIS 시설·홀 ID는 수정할 수 없다(KOPIS 자동 생성 때만 채워짐).\n\n" +
                     "예) 좌석 시야 링크만 넣고 네이버지도 링크는 지우기: `{\"seatViewUrl\": \"https://...\", \"naverMapUrl\": \"\"}`")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수정 성공"),
             @ApiResponse(responseCode = "400",
-                    description = "필수값(name, address)을 빈 값·공백으로 보냄, 수용 인원 음수, 길이 초과 - 필드 구분 없이 하나로 응답",
+                    description = "필수값(name, address)을 빈 값·공백으로 보냄, 수용 인원 형식 오류(숫자·범위가 아님, 최솟값 > 최댓값), 길이 초과 - 필드 구분 없이 하나로 응답",
                     content = @Content(examples = @ExampleObject(value = INVALID_INPUT_EXAMPLE))),
             @ApiResponse(responseCode = "404", description = "공연장 없음",
                     content = @Content(examples = @ExampleObject(value = VENUE_NOT_FOUND_EXAMPLE)))
