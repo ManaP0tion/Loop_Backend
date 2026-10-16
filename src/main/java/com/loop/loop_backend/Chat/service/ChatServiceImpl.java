@@ -58,6 +58,7 @@ public class ChatServiceImpl implements ChatService {
     private final UserRepository userRepository;
     private final CompanionPostRepository companionPostRepository;
     private final MailService mailService;
+    private final com.loop.loop_backend.Storage.service.S3StorageService s3StorageService;
     private final EntityManager em;
     private final SimpMessagingTemplate messagingTemplate;
     private final TransactionTemplate transactionTemplate;
@@ -425,6 +426,33 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     @Transactional
+    public ChatMessageDto saveImageMessage(Long roomId, Long senderId, org.springframework.web.multipart.MultipartFile image) {
+        assertActiveParticipant(roomId, senderId);
+        assertNotBlockedInRoom(roomId, senderId);
+        assertOtherParticipantNotWithdrawn(roomId, senderId);
+        assertOtherParticipantActive(roomId, senderId);
+
+        // 1:1 비공개 채팅이라 private 버킷에 올리고 content엔 S3 key만 저장한다.
+        // 조회 시 toDto가 참여자에게만 presigned URL을 발급하므로 제3자는 접근 불가.
+        // S3StorageService가 포맷/용량/HEIC 변환을 모두 검증·처리한다.
+        String key = s3StorageService.uploadPrivate("chat/" + roomId, senderId, image);
+
+        ChatRoom chatRoom = em.getReference(ChatRoom.class, roomId);
+        User sender = em.getReference(User.class, senderId);
+        Message saved = messageRepository.save(Message.builder()
+                .chatRoom(chatRoom)
+                .sender(sender)
+                .type(MessageType.IMAGE)
+                .content(key)
+                .build());
+
+        ChatMessageDto dto = toDto(saved);
+        messagingTemplate.convertAndSend("/sub/chat/room/" + roomId, dto);
+        return dto;
+    }
+
+    @Override
+    @Transactional
     public void hideDirectRoomForUser(Long actorUserId, Long otherUserId) {
         // 중복 방(과거 race로 생긴 dupes)까지 전부 hide
         chatRoomRepository.findDirectRoomsBetweenAnyStatus(actorUserId, otherUserId)
@@ -474,12 +502,18 @@ public class ChatServiceImpl implements ChatService {
         return saved;
     }
 
+    // 이미지 메시지는 content에 private S3 key가 저장돼 있으므로, 조회 시점에 임시 presigned GET URL로 바꿔 내려준다.
+    private static final java.time.Duration CHAT_IMAGE_URL_TTL = java.time.Duration.ofHours(1);
+
     private ChatMessageDto toDto(Message m) {
+        String content = m.getType() == MessageType.IMAGE
+                ? s3StorageService.generatePresignedGetUrl(m.getContent(), CHAT_IMAGE_URL_TTL)
+                : m.getContent();
         return ChatMessageDto.builder()
                 .type(mapType(m.getType()))
                 .roomId(m.getChatRoom().getId())
                 .senderId(m.getSender() != null ? m.getSender().getId() : null)
-                .content(m.getContent())
+                .content(content)
                 .createdAt(m.getCreatedAt())
                 .isRead(m.isRead())
                 .build();
@@ -489,6 +523,7 @@ public class ChatServiceImpl implements ChatService {
         if (type == null) return ChatMessageDto.MessageType.TALK;
         return switch (type) {
             case USER -> ChatMessageDto.MessageType.TALK;
+            case IMAGE -> ChatMessageDto.MessageType.IMAGE;
             case SYSTEM_LEAVE -> ChatMessageDto.MessageType.SYSTEM_LEAVE;
             case SYSTEM_WITHDRAWN -> ChatMessageDto.MessageType.SYSTEM_WITHDRAWN;
             case SYSTEM_REJOIN -> ChatMessageDto.MessageType.SYSTEM_REJOIN;
