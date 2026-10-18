@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Venue.domain;
 
+import com.loop.loop_backend.common.util.WebUrls;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -27,6 +28,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Venue {
 
+    public static final int LODGING_URL_MAX_LENGTH = 1000;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -46,7 +49,7 @@ public class Venue {
     @Column(name = "capacity")
     private Integer capacityMax;
 
-    // 좌석 시야(자리어때) 외부 링크. 비우면 화면에서 해당 행을 숨긴다.
+    // 좌석 시야(오프메이트) 외부 링크. 비우면 화면에서 해당 행을 숨긴다.
     @Column(name = "seat_view_url", length = 500)
     private String seatViewUrl;
 
@@ -55,6 +58,16 @@ public class Venue {
 
     @Column(name = "naver_map_url", length = 500)
     private String naverMapUrl;
+
+    // 숙소 섹션 노출 여부와 딥링크. 같은 공연장의 공연은 숙소도 같아서 공연이 아닌 공연장에 둔다 -
+    // 공연 수정 화면에서 바꿔도 이 공연장의 값이 바뀌어 같은 공연장의 다른 공연에도 반영된다.
+    // 켜려면 딥링크가 있어야 한다. 기존 공연장은 Off.
+    @Column(name = "lodging_visible", nullable = false, columnDefinition = "boolean default false")
+    private boolean lodgingVisible;
+
+    // 완성된 딥링크를 그대로 저장한다(자동 생성 없음). 제휴 딥링크는 길어서 다른 링크(500자)보다 길게 둔다.
+    @Column(name = "lodging_url", length = LODGING_URL_MAX_LENGTH)
+    private String lodgingUrl;
 
     // 좌표. KOPIS 공연 승인으로 자동 생성될 때 KOPIS 시설 좌표가 들어간다.
     // 지도 링크(카카오/네이버)를 관리자가 넣기 전에는 프론트가 이 좌표로 링크를 만든다.
@@ -109,6 +122,43 @@ public class Venue {
         this.seatViewUrl = seatViewUrl;
         this.kakaoMapUrl = kakaoMapUrl;
         this.naverMapUrl = naverMapUrl;
+    }
+
+    /**
+     * 숙소 노출 여부와 딥링크를 함께 바꾼다(하나만 바꿀 때는 다른 하나에 현재 값을 넘긴다).
+     * 딥링크는 빈 값이면 비우고, http/https 주소만 받는다. 노출을 켰는데 딥링크가 없으면 400 -
+     * 둘을 한 번에 검사해야 "링크를 넣으면서 켜기", "끄면서 링크 지우기"가 순서와 상관없이 된다.
+     */
+    public void changeLodging(boolean visible, String url) {
+        String normalized = checkLodging(visible, url);
+        this.lodgingVisible = visible;
+        this.lodgingUrl = normalized;
+    }
+
+    /**
+     * 숙소 부분 수정(PATCH 규칙) - null은 변경 없음, 딥링크 ""는 비움. 둘 다 null이면 아무것도 하지 않는다.
+     * 공연장 수정 화면과 공연 수정 화면이 같이 쓴다.
+     */
+    public void patchLodging(Boolean visible, String url) {
+        if (visible == null && url == null) return;
+        changeLodging(visible != null ? visible : lodgingVisible, url != null ? url : lodgingUrl);
+    }
+
+    /**
+     * 숙소 값을 바꾸지 않고 검사만 한다 - 정리된 딥링크(빈 값이면 null)를 돌려주고, 규칙 위반은 IllegalArgumentException.
+     * CSV처럼 행의 모든 칸을 먼저 검사한 뒤 반영해야 하는 곳에서 쓴다.
+     */
+    public static String checkLodging(boolean visible, String url) {
+        String normalized = WebUrls.normalize(url, LODGING_URL_MAX_LENGTH);
+        if (visible && normalized == null) {
+            throw new IllegalArgumentException("숙소 노출을 켜려면 딥링크가 있어야 한다");
+        }
+        return normalized;
+    }
+
+    /** 사용자 화면에 나갈 숙소 딥링크. 노출이 꺼져 있으면 null(섹션을 그리지 않는다). */
+    public String visibleLodgingUrl() {
+        return lodgingVisible ? lodgingUrl : null;
     }
 
     public VenueCapacity getCapacity() {

@@ -8,6 +8,7 @@ import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -31,7 +32,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class VenueCsvTest {
 
     private static final String HEADER =
-            "id,name,address,capacity,seatViewUrl,kakaoMapUrl,naverMapUrl,kopisFacilityId,kopisHallId";
+            "id,name,address,capacity,seatViewUrl,kakaoMapUrl,naverMapUrl,lodgingUrl,lodgingVisible,kopisFacilityId,kopisHallId";
 
     @Autowired
     private VenueRepository venueRepository;
@@ -96,7 +97,7 @@ class VenueCsvTest {
         String[] lines = csv.substring(1).split("\r\n");
         assertThat(lines).hasSize(3);
         assertThat(lines[1]).isEqualTo(first.getId()
-                + ",인스파이어 엔터테인먼트 리조트 (아레나),인천광역시 중구,\"14,483\",,https://kko.to/old,,FC003670,FC003670-01");
+                + ",인스파이어 엔터테인먼트 리조트 (아레나),인천광역시 중구,\"14,483\",,https://kko.to/old,,,X,FC003670,FC003670-01");
         assertThat(lines[2]).startsWith(second.getId() + ",올림픽공원 (KSPO DOME),");
     }
 
@@ -174,7 +175,7 @@ class VenueCsvTest {
     void KOPIS_ID_칸을_고쳐도_반영되지_않는다() {
         Venue venue = inspire();
 
-        upload(HEADER + "\n" + venue.getId() + ",인스파이어 아레나,,,,,,FC999999,FC999999-09");
+        upload(HEADER + "\n" + venue.getId() + ",인스파이어 아레나,,,,,,,,FC999999,FC999999-09");
 
         Venue updated = reload(venue);
         assertThat(updated.getName()).isEqualTo("인스파이어 아레나");
@@ -298,5 +299,95 @@ class VenueCsvTest {
         Venue venue = inspire();
 
         assertInvalidFormat(() -> upload(HEADER + "\n" + venue.getId() + ",\"따옴표가 안 닫힘,,,,,,,"));
+    }
+
+    // ---------- 숙소 (공연장 단위) ----------
+    // 숙소 노출은 PM 시트처럼 O/X로 적는다. 빈 칸은 기존 값 유지, 숙소 칸이 없는 예전 파일도 받는다.
+
+    private static final String DEEPLINK = "https://trip.example/deeplink?trip_sub=PF297519";
+
+    @Test
+    @DisplayName("CSV에서 숙소 딥링크와 노출 O를 넣으면 공연장 숙소가 켜진다")
+    void importCsv_WithLodgingUrlAndO_TurnsOnLodging() {
+        // given
+        Venue venue = inspire();
+
+        // when
+        VenueCsvImportResult result = upload(HEADER + "\n" + venue.getId() + ",,,,,,," + DEEPLINK + ",O,,");
+
+        // then
+        assertThat(result.updated()).isEqualTo(1);
+        assertThat(reload(venue).visibleLodgingUrl()).isEqualTo(DEEPLINK);
+    }
+
+    @Test
+    @DisplayName("CSV에서 노출을 X로 바꾸면 숙소가 꺼지고 저장된 딥링크는 유지된다")
+    void importCsv_WithX_TurnsOffLodgingAndKeepsUrl() {
+        // given
+        Venue venue = inspire();
+        upload(HEADER + "\n" + venue.getId() + ",,,,,,," + DEEPLINK + ",o,,"); // 소문자 o도 켬
+
+        // when
+        upload(HEADER + "\n" + venue.getId() + ",,,,,,,,x,,");
+
+        // then
+        Venue updated = reload(venue);
+        assertThat(updated.isLodgingVisible()).isFalse();
+        assertThat(updated.getLodgingUrl()).isEqualTo(DEEPLINK);
+    }
+
+    @Test
+    @DisplayName("딥링크 없이 노출 O이거나 O/X가 아닌 값이면 그 행만 실패하고 나머지 행은 반영된다")
+    void importCsv_WithInvalidLodging_FailsOnlyThatRow() {
+        // given
+        Venue first = inspire();
+        Venue second = kspo();
+
+        // when
+        VenueCsvImportResult result = upload(HEADER + "\n"
+                + first.getId() + ",인스파이어 아레나,,,,,,,O,,\n"     // 딥링크 없이 켬
+                + first.getId() + ",인스파이어 아레나,,,,,,,예,,\n"    // O/X가 아님
+                + second.getId() + ",,,,,,," + DEEPLINK + ",O,,");
+
+        // then
+        assertThat(result.failedRows()).containsExactly(1L, 2L);
+        assertThat(reload(first).getName()).isEqualTo("인스파이어 엔터테인먼트 리조트 (아레나)"); // 행 전체를 건너뛴다
+        assertThat(reload(first).isLodgingVisible()).isFalse();
+        assertThat(reload(second).visibleLodgingUrl()).isEqualTo(DEEPLINK);
+    }
+
+    @Test
+    @DisplayName("숙소 칸이 없는 예전 CSV를 올려도 다른 칸은 반영되고 숙소는 유지된다")
+    void importCsv_LegacyFileWithoutLodgingColumns_KeepsLodging() {
+        // given
+        Venue venue = inspire();
+        upload(HEADER + "\n" + venue.getId() + ",,,,,,," + DEEPLINK + ",O,,");
+        String legacyHeader = "id,name,address,capacity,seatViewUrl,kakaoMapUrl,naverMapUrl,kopisFacilityId,kopisHallId";
+
+        // when
+        VenueCsvImportResult result = upload(legacyHeader + "\n" + venue.getId() + ",인스파이어 아레나,,,,,,FC003670,FC003670-01");
+
+        // then
+        assertThat(result.failedRows()).isEmpty();
+        Venue updated = reload(venue);
+        assertThat(updated.getName()).isEqualTo("인스파이어 아레나");
+        assertThat(updated.visibleLodgingUrl()).isEqualTo(DEEPLINK);
+    }
+
+    @Test
+    @DisplayName("숙소가 켜진 공연장을 다운로드해 그대로 다시 올리면 변경 없음이다")
+    void exportCsv_ThenReimport_WithLodging_IsUnchanged() {
+        // given
+        Venue venue = inspire();
+        upload(HEADER + "\n" + venue.getId() + ",,,,,,," + DEEPLINK + ",O,,");
+        String csv = new String(venueService.exportCsv(), StandardCharsets.UTF_8);
+
+        // when
+        VenueCsvImportResult result = upload(csv);
+
+        // then
+        assertThat(csv).contains("," + DEEPLINK + ",O,");
+        assertThat(result.unchanged()).isEqualTo(1);
+        assertThat(result.updated()).isZero();
     }
 }

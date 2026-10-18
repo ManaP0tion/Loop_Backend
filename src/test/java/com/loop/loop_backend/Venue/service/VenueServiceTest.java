@@ -16,6 +16,7 @@ import jakarta.persistence.EntityManager;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -54,13 +55,13 @@ class VenueServiceTest {
     }
 
     private static VenueRequestDto request(String name, String address) {
-        return new VenueRequestDto(name, address, null, null, null, null);
+        return new VenueRequestDto(name, address, null, null, null, null, null, null);
     }
 
     /** 부분 수정 요청: null 인자는 "변경 없음"이다. 링크를 비우려면 ""를 넘긴다. */
     private static VenueUpdateRequestDto patch(String name, String address, String capacity,
                                                String seatViewUrl, String kakaoMapUrl, String naverMapUrl) {
-        return new VenueUpdateRequestDto(name, address, capacity, seatViewUrl, kakaoMapUrl, naverMapUrl);
+        return new VenueUpdateRequestDto(name, address, capacity, seatViewUrl, kakaoMapUrl, naverMapUrl, null, null);
     }
 
     private static final VenueUpdateRequestDto NOTHING_SENT = patch(null, null, null, null, null, null);
@@ -109,7 +110,7 @@ class VenueServiceTest {
     @Test
     void 입력값의_앞뒤_공백은_지우고_빈_문자열인_선택_필드는_비운다() {
         VenueResponseDto created = venueService.create(new VenueRequestDto(
-                "  KSPO DOME ", " 서울특별시 송파구 ", "15000", "  ", "", "https://naver.me/x "));
+                "  KSPO DOME ", " 서울특별시 송파구 ", "15000", "  ", "", "https://naver.me/x ", null, null));
 
         assertThat(created.name()).isEqualTo("KSPO DOME");
         assertThat(created.address()).isEqualTo("서울특별시 송파구");
@@ -233,7 +234,7 @@ class VenueServiceTest {
     @Test
     void 등록할_때_수용_인원을_범위로_넣을_수_있다() {
         VenueResponseDto created = venueService.create(
-                new VenueRequestDto("롤링홀", "서울특별시 마포구", "200~400", null, null, null));
+                new VenueRequestDto("롤링홀", "서울특별시 마포구", "200~400", null, null, null, null, null));
 
         assertThat(venueService.get(created.id()).capacity()).isEqualTo("200~400");
     }
@@ -460,5 +461,92 @@ class VenueServiceTest {
     void KOPIS_시설_ID가_없으면_공연장을_정하지_않는다() {
         assertThat(venueService.findOrCreateFromKopis(null, null, INSPIRE)).isNull();
         assertThat(venueRepository.findAll()).isEmpty();
+    }
+
+    // ---------- 숙소 (공연장 단위) ----------
+
+    private static final String DEEPLINK = "https://trip.example/deeplink?trip_sub=PF297519";
+
+    private static VenueUpdateRequestDto lodgingPatch(Boolean visible, String url) {
+        return new VenueUpdateRequestDto(null, null, null, null, null, null, visible, url);
+    }
+
+    @Test
+    @DisplayName("공연장을 등록할 때 숙소 노출과 딥링크를 함께 넣을 수 있다")
+    void create_WithLodging_SavesLodging() {
+        // when
+        VenueResponseDto created = venueService.create(new VenueRequestDto(
+                "KSPO DOME", "서울특별시 송파구", null, null, null, null, true, DEEPLINK));
+
+        // then
+        VenueResponseDto found = venueService.get(created.id());
+        assertThat(found.lodgingVisible()).isTrue();
+        assertThat(found.lodgingUrl()).isEqualTo(DEEPLINK);
+    }
+
+    @Test
+    @DisplayName("숙소 값 없이 등록한 공연장은 숙소 노출이 꺼져 있다")
+    void create_WithoutLodging_IsLodgingOff() {
+        // when
+        VenueResponseDto created = venueService.create(request("KSPO DOME", "서울특별시 송파구"));
+
+        // then
+        assertThat(created.lodgingVisible()).isFalse();
+        assertThat(created.lodgingUrl()).isNull();
+    }
+
+    @Test
+    @DisplayName("딥링크 없이 숙소 노출을 켜고 등록하면 400(IllegalArgumentException)이다")
+    void create_VisibleWithoutUrl_ThrowsException() {
+        // when & then
+        assertThatThrownBy(() -> venueService.create(new VenueRequestDto(
+                "KSPO DOME", "서울특별시 송파구", null, null, null, null, true, null)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("공연장 수정에서 딥링크를 넣고 나중에 노출만 켤 수 있다")
+    void update_UrlThenVisible_TurnsOnLodging() {
+        // given
+        Venue venue = kopisVenue();
+        venueService.update(venue.getId(), lodgingPatch(null, DEEPLINK));
+
+        // when
+        VenueResponseDto updated = venueService.update(venue.getId(), lodgingPatch(true, null));
+
+        // then
+        assertThat(updated.lodgingVisible()).isTrue();
+        assertThat(updated.lodgingUrl()).isEqualTo(DEEPLINK);
+    }
+
+    @Test
+    @DisplayName("다른 항목만 수정하면 숙소 값은 그대로다")
+    void update_WithoutLodgingFields_KeepsLodging() {
+        // given
+        Venue venue = kopisVenue();
+        venueService.update(venue.getId(), lodgingPatch(true, DEEPLINK));
+
+        // when
+        VenueResponseDto updated = venueService.update(venue.getId(), patch("인스파이어 아레나", null, null, null, null, null));
+
+        // then
+        assertThat(updated.lodgingVisible()).isTrue();
+        assertThat(updated.lodgingUrl()).isEqualTo(DEEPLINK);
+    }
+
+    @Test
+    @DisplayName("숙소 노출이 켜진 공연장에서 딥링크만 비우면 400이고, 함께 끄면 비워진다")
+    void update_ClearUrl_RequiresTurningOff() {
+        // given
+        Venue venue = kopisVenue();
+        venueService.update(venue.getId(), lodgingPatch(true, DEEPLINK));
+
+        // when & then
+        assertThatThrownBy(() -> venueService.update(venue.getId(), lodgingPatch(null, "")))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        VenueResponseDto cleared = venueService.update(venue.getId(), lodgingPatch(false, ""));
+        assertThat(cleared.lodgingVisible()).isFalse();
+        assertThat(cleared.lodgingUrl()).isNull();
     }
 }

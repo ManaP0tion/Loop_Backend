@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
 
 // 공연 관리자 입력 항목(AD-01) 저장 요구사항:
-// - 새로 만드는 공연은 비공개, 숙소 노출 Off로 시작한다. 이 항목들이 생기기 전부터 있던 공연은 공개로 남는다.
+// - 새로 만드는 공연은 비공개로 시작한다. 이 항목이 생기기 전부터 있던 공연은 공개로 남는다. (숙소는 공연장 단위 - VenueLodgingPersistenceTest)
 // - 공연명 별칭은 여러 개 저장한다.
 // - DAY별 공연 시각은 날짜마다 저장하고 시각은 비워 둘 수 있다.
 // - 선예매·일반예매는 각각 여러 건 등록할 수 있고, 한 건 = 예매 일시 1개 + 예매처(이름 + URL) 여러 개. 예매 일시는 비워도 저장된다.
@@ -56,13 +56,12 @@ class ConcertAdminFieldsPersistenceTest {
     // ---------- 기본값 ----------
 
     @Test
-    void 새로_만드는_공연은_비공개이고_숙소_노출은_꺼져_있다() {
+    void 새로_만드는_공연은_비공개로_시작한다() {
         Concert saved = saveConcert(null);
         flushAndClear();
 
         Concert found = concertRepository.findById(saved.getId()).orElseThrow();
         assertThat(found.isPublished()).isFalse();
-        assertThat(found.isLodgingVisible()).isFalse();
         assertThat(found.getTitleAliases()).isEmpty();
         assertThat(found.getShowtimes()).isEmpty();
     }
@@ -73,10 +72,8 @@ class ConcertAdminFieldsPersistenceTest {
         em.createNativeQuery("INSERT INTO concerts (title, category) VALUES ('기존 공연', 'J_POP_ARTIST')").executeUpdate();
 
         Object published = em.createNativeQuery("SELECT published FROM concerts WHERE title = '기존 공연'").getSingleResult();
-        Object lodgingVisible = em.createNativeQuery("SELECT lodging_visible FROM concerts WHERE title = '기존 공연'").getSingleResult();
 
         assertThat(published).isEqualTo(true);
-        assertThat(lodgingVisible).isEqualTo(false);
     }
 
     // ---------- 여러 개 값 ----------

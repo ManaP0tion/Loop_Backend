@@ -155,7 +155,7 @@ public class ConcertController {
                     "- 공연장: 공연장 관리의 공연장. 연결 전에 승인된 공연은 KOPIS 장소 정보로 채워지고 링크(좌석 시야·지도)는 null\n" +
                     "- 공연 시각: 기간의 모든 DAY가 순서대로, 미정인 DAY는 startTime null. 시각이 입력되지 않은 이전 공연은 KOPIS 공연 시간 안내로 채움\n" +
                     "- 예매: 예매 일시가 정해진 블록만 일시 순으로 내려간다\n" +
-                    "- 숙소: 숙소 섹션을 노출하지 않는 공연은 lodgingUrl null\n\n" +
+                    "- 숙소: 공연장 단위로 관리한다. 공연장의 숙소 노출이 꺼져 있거나 공연장이 연결되지 않은 공연은 lodgingUrl null\n\n" +
                     "비공개(오픈 예정) 공연이면 403, id가 가리키는 공연이 실제로 예정 공연이 아니면(이미 지난 공연) 404.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
