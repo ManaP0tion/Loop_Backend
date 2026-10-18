@@ -35,7 +35,7 @@ public record VenueRequestDto(
         String capacity,
 
         @Size(max = 500)
-        @Schema(description = "좌석 시야(자리어때) 링크. 비우면 화면에서 해당 행 미노출", types = {"string", "null"})
+        @Schema(description = "좌석 시야(오프메이트) 링크. 비우면 화면에서 해당 행 미노출", types = {"string", "null"})
         String seatViewUrl,
 
         @Size(max = 500)
@@ -44,6 +44,15 @@ public record VenueRequestDto(
 
         @Size(max = 500)
         @Schema(description = "네이버지도 바로가기 링크", types = {"string", "null"})
-        String naverMapUrl
+        String naverMapUrl,
+
+        @Schema(description = "숙소 섹션 노출 여부. 켜려면 lodgingUrl이 있어야 한다(없으면 400). 기본 false",
+                example = "false", types = {"boolean", "null"})
+        Boolean lodgingVisible,
+
+        @Size(max = 1000)
+        @Schema(description = "숙소 딥링크(완성된 URL). http/https 주소만", example = "https://trip.example/deeplink?trip_sub=PF297519",
+                types = {"string", "null"})
+        String lodgingUrl
 ) {
 }

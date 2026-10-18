@@ -89,8 +89,7 @@ public class AdminConcertService {
         if (req.venueId() != null) concert.changeVenue(findVenue(req.venueId()));
         if (req.artistIds() != null) concert.changeArtist(findSingleArtist(req.artistIds()));
         if (req.expectedSongCount() != null) concert.changeExpectedSongCount(req.expectedSongCount());
-        concert.changeLodgingUrl(req.lodgingUrl());
-        if (req.lodgingVisible() != null) concert.changeLodgingVisible(req.lodgingVisible());
+        applyLodgingToVenue(concert, req.lodgingVisible(), req.lodgingUrl());
         concert.changeOfficialSiteUrl(req.officialSiteUrl());
         concert.validateState();
         concertRepository.save(concert);
@@ -124,8 +123,8 @@ public class AdminConcertService {
         if (req.venueId() != null) concert.changeVenue(findVenue(req.venueId()));
         if (req.artistIds() != null) concert.changeArtist(findSingleArtist(req.artistIds()));
         if (req.expectedSongCount() != null) concert.changeExpectedSongCount(req.expectedSongCount());
-        if (req.lodgingUrl() != null) concert.changeLodgingUrl(req.lodgingUrl());
-        if (req.lodgingVisible() != null) concert.changeLodgingVisible(req.lodgingVisible());
+        // 공연장 변경(venueId) 다음에 둔다 - 같은 요청에서 공연장을 바꾸면 새 공연장에 저장되게
+        applyLodgingToVenue(concert, req.lodgingVisible(), req.lodgingUrl());
         if (req.officialSiteUrl() != null) concert.changeOfficialSiteUrl(req.officialSiteUrl());
         if (req.published() != null) concert.changePublished(req.published(), LocalDateTime.now());
         // 예매 정보도 같은 저장 버튼으로 함께 온다 - 실패하면 위 수정과 함께 롤백된다
@@ -186,6 +185,22 @@ public class AdminConcertService {
     private Venue findVenue(Long id) {
         return venueRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.VENUE_NOT_FOUND));
+    }
+
+    /**
+     * 공연 화면에서 받은 숙소 값은 연결된 공연장에 저장한다(같은 공연장의 다른 공연에도 반영 - 숙소는 공연장 단위).
+     * 공연장이 없는 공연은 저장할 곳이 없어, 노출을 켜거나 딥링크를 넣으면 400.
+     * 바꾸는 게 없는 값(false, "")은 무시한다 - 화면이 기본값을 늘 보내도 공연장 없는 공연을 저장할 수 있게.
+     */
+    private static void applyLodgingToVenue(Concert concert, Boolean visible, String url) {
+        Venue venue = concert.getLinkedVenue();
+        if (venue != null) {
+            venue.patchLodging(visible, url);
+            return;
+        }
+        if (Boolean.TRUE.equals(visible) || (url != null && !url.isBlank())) {
+            throw new IllegalArgumentException("공연장이 없는 공연에는 숙소를 저장할 수 없다 - 공연장을 먼저 연결해야 한다");
+        }
     }
 
     /** 아티스트는 지금 1명까지(@Size(max = 1)로 이미 검사). 빈 목록이면 비운다. */

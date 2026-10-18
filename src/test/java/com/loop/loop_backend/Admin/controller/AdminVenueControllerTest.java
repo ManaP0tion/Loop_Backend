@@ -37,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AdminVenueControllerTest {
 
     private static final VenueResponseDto SAVED =
-            new VenueResponseDto(1L, "KSPO DOME", "서울특별시 송파구", null, null, null, null, null, null, null, null, 0L);
+            new VenueResponseDto(1L, "KSPO DOME", "서울특별시 송파구", null, null, null, null, false, null, null, null, null, null, 0L);
 
     private MockMvc mockMvc;
     private VenueService venueService;

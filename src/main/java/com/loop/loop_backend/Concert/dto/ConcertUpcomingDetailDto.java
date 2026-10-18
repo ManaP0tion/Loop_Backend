@@ -67,7 +67,8 @@ public class ConcertUpcomingDetailDto {
     @Schema(description = "일반예매 목록. 예매 일시가 정해진 것만 일시 순으로, 없으면 빈 목록", requiredMode = Schema.RequiredMode.REQUIRED)
     private final List<ConcertTicketSaleDto> generalSales;
 
-    @Schema(description = "숙소 딥링크. 숙소 섹션을 노출하지 않는 공연은 null(섹션 숨김)", types = {"string", "null"})
+    @Schema(description = "숙소 딥링크(공연장 단위). 공연장의 숙소 노출이 꺼져 있거나 공연장이 없으면 null(섹션 숨김)",
+            types = {"string", "null"})
     private final String lodgingUrl;
 
     @Schema(description = "특설 공식 사이트 URL. 없으면 null(버튼 숨김)", types = {"string", "null"})
@@ -118,7 +119,7 @@ public class ConcertUpcomingDetailDto {
                 .showtimes(ConcertShowtimeDto.byDay(concert))
                 .presales(ConcertTicketSaleDto.fromPresales(presales))
                 .generalSales(ConcertTicketSaleDto.fromGeneralSales(generalSales))
-                .lodgingUrl(concert.isLodgingVisible() ? concert.getLodgingUrl() : null)
+                .lodgingUrl(concert.getLinkedVenue() == null ? null : concert.getLinkedVenue().visibleLodgingUrl())
                 .officialSiteUrl(concert.getOfficialSiteUrl())
                 .products(ArtistProductDto.listOf(concert.getArtist()))
                 .scrapped(scrapped)

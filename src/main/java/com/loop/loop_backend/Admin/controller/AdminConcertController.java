@@ -87,7 +87,9 @@ public class AdminConcertController {
             description = "KOPIS에 없는 공연용. **항상 비공개로 생성**된다. 포스터는 생성 후 POST /{id}/image로 올리고, " +
                     "필수값을 채운 뒤 수정 API에서 published=true로 공개한다.\n\n" +
                     "**필수**: category, title. 공연 시각(showtimes)은 DAY 순서대로 시각만 보내며 개수는 공연 일수와 같아야 한다. " +
-                    "예매 정보(presales, generalSales)도 함께 보낼 수 있다(블록마다 예매 일시 + 예매처, 예매처 이름 필수).")
+                    "예매 정보(presales, generalSales)도 함께 보낼 수 있다(블록마다 예매 일시 + 예매처, 예매처 이름 필수).\n\n" +
+                    "**숙소(lodgingVisible, lodgingUrl)**는 venueId의 공연장에 저장된다 - 같은 공연장의 다른 공연에도 반영. " +
+                    "venueId 없이 노출을 켜거나 링크를 넣으면 400(false·\"\"는 무시).")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "등록 성공 (비공개)"),
             @ApiResponse(responseCode = "400",
@@ -113,6 +115,10 @@ public class AdminConcertController {
                     "| 목록 (titleAliases, showtimes, artistIds, presales, generalSales) | 통째로 교체, `[]`는 비움 | 유지 |\n" +
                     "| lodgingUrl, officialSiteUrl | `\"\"`이면 비움 | 유지 |\n\n" +
                     "**관련 상품**은 공연이 아니라 아티스트에 등록한다(PUT /api/admin/artists/{id}/products).\n\n" +
+                    "**숙소(lodgingVisible, lodgingUrl)**는 공연이 아니라 **연결된 공연장에 저장**된다 - " +
+                    "같은 공연장의 다른 공연에도 함께 반영된다. 같은 요청에서 venueId도 바꾸면 새 공연장에 저장. " +
+                    "공연장이 없는 공연에서 노출을 켜거나 링크를 넣으면 400(false·\"\"는 무시). 켜려면 딥링크가 있어야 한다. " +
+                    "온오프만 바꿀 때는 `{\"lodgingVisible\": true}`처럼 노출 여부만 보내면 딥링크는 유지된다.\n\n" +
                     "**공개 전환**: 수정 화면의 토글 값을 published로 보낸다. **저장 결과가 공개 상태면** 필수값" +
                     "(유형·공연명·포스터·기간·공연장, 내한 공연이면 아티스트 1명)을 검사하고, 빠지면 400. 비공개는 빈 칸이 있어도 저장된다.\n\n" +
                     "**공연 시각**: DAY 순서대로 시각만 보낸다(개수 = 공연 일수). 기간만 바꾸고 시각을 안 보내면 같은 날짜의 시각은 유지, " +
