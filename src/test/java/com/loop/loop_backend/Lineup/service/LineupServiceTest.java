@@ -9,11 +9,19 @@ import com.loop.loop_backend.Lineup.dto.LineupItemResponse;
 import com.loop.loop_backend.Lineup.dto.LineupAddRequest;
 import com.loop.loop_backend.Lineup.dto.LineupPatchRequests.Direction;
 import com.loop.loop_backend.Lineup.dto.LineupResponse;
-import com.loop.loop_backend.Lineup.repository.LineupRepository;
+import com.loop.loop_backend.Performance.domain.Performance;
+import com.loop.loop_backend.Performance.repository.PerformanceRepository;
+import com.loop.loop_backend.Setlist.repository.SetlistRepository;
+import com.loop.loop_backend.Setlist.repository.SetlistVoteRepository;
+import com.loop.loop_backend.Setlist.service.SetlistDataGuard;
+import com.loop.loop_backend.Setlist.domain.Setlist;
+import com.loop.loop_backend.Setlist.domain.SetlistType;
+import com.loop.loop_backend.Song.domain.Song;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -35,7 +43,9 @@ import static org.assertj.core.groups.Tuple.tuple;
 @DataJpaTest
 class LineupServiceTest {
 
-    @Autowired private LineupRepository lineupRepository;
+    @Autowired private PerformanceRepository performanceRepository;
+    @Autowired private SetlistRepository setlistRepository;
+    @Autowired private SetlistVoteRepository setlistVoteRepository;
     @Autowired private ConcertRepository concertRepository;
     @Autowired private ArtistRepository artistRepository;
     @Autowired private EntityManager em;
@@ -48,7 +58,8 @@ class LineupServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new LineupService(lineupRepository, concertRepository, artistRepository);
+        service = new LineupService(performanceRepository, concertRepository, artistRepository,
+                new SetlistDataGuard(setlistRepository, setlistVoteRepository));
         festival = saveFestival();
         yoasobi = artistRepository.save(Artist.builder().name("YOASOBI").build());
         yuuri = artistRepository.save(Artist.builder().name("Yuuri").build());
@@ -281,5 +292,68 @@ class LineupServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.validateStages(festival.getId(), 1, List.of(day1, 9999L)))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // ---------- 헤드라이너 예상 셋리스트 ----------
+
+    /** 라인업 항목에 실제 셋리스트를 붙인다. */
+    private void attachSetlist(Long lineupId) {
+        Performance performance = em.find(Performance.class, lineupId);
+        Song song = Song.builder().artist(performance.getArtist()).titleOriginal("曲").sortOrder(1).build();
+        em.persist(song);
+        em.persist(Setlist.builder().performance(performance).type(SetlistType.ACTUAL).songs(List.of(song)).build());
+        em.flush();
+    }
+
+    @Test
+    @DisplayName("헤드라이너 예상 곡 수를 정하면 라인업 응답에 담긴다")
+    void changeExpectedSongCount_WhenHeadliner_UpdatesCount() {
+        // given
+        Long id = idOf(select(1, yuuri), "Yuuri");
+        service.changeHeadliner(festival.getId(), id, true);
+
+        // when
+        List<LineupItemResponse> list = service.changeExpectedSongCount(festival.getId(), id, 12);
+
+        // then
+        assertThat(list).singleElement().satisfies(r -> assertThat(r.expectedSongCount()).isEqualTo(12));
+    }
+
+    @Test
+    @DisplayName("헤드라이너가 아닌 항목에 예상 곡 수를 정하면 400")
+    void changeExpectedSongCount_WhenNotHeadliner_ThrowsInvalidInput() {
+        // given
+        Long id = idOf(select(1, yuuri), "Yuuri");
+
+        // when & then
+        assertThatThrownBy(() -> service.changeExpectedSongCount(festival.getId(), id, 12))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("셋리스트가 있는 헤드라이너는 해제할 수 없고, 지정은 그대로 된다")
+    void changeHeadliner_WhenUnsettingWithSetlistData_ThrowsConflict() {
+        // given
+        Long id = idOf(select(1, yuuri), "Yuuri");
+        service.changeHeadliner(festival.getId(), id, true);
+        attachSetlist(id);
+
+        // when & then
+        assertErrorCode(() -> service.changeHeadliner(festival.getId(), id, false), ErrorCode.PERFORMANCE_HAS_SETLIST_DATA);
+        assertThat(service.changeHeadliner(festival.getId(), id, true)).singleElement()
+                .satisfies(r -> assertThat(r.headliner()).isTrue());
+    }
+
+    @Test
+    @DisplayName("셋리스트가 있는 라인업 항목은 삭제할 수 없다")
+    void delete_WhenSetlistDataExists_ThrowsConflict() {
+        // given
+        Long id = idOf(select(1, yuuri), "Yuuri");
+        service.changeHeadliner(festival.getId(), id, true);
+        attachSetlist(id);
+
+        // when & then
+        assertErrorCode(() -> service.delete(festival.getId(), id), ErrorCode.PERFORMANCE_HAS_SETLIST_DATA);
+        assertThat(service.list(festival.getId())).hasSize(1);
     }
 }

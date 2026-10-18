@@ -39,7 +39,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 // - 저장·삭제는 관리자 접근 기록을 남긴다.
 class AdminSetlistControllerTest {
 
-    private static final String BASE = "/api/admin/concerts/{concertId}/setlists";
+    private static final String BASE = "/api/admin/concerts/{concertId}/performances/{performanceId}/setlists";
+    private static final Long PERFORMANCE_ID = 5L;
     private static final List<SetlistResponse> LIST = List.of(new SetlistResponse(
             5L, SetlistType.RECENT, "Arena Tour", LocalDate.of(2026, 5, 1), "Zepp Haneda", 2,
             List.of(new SetlistSongResponse(1, 12L, "ドライフラワー", "드라이플라워", "https://img/a.jpg"),
@@ -64,9 +65,9 @@ class AdminSetlistControllerTest {
 
     @Test
     void 목록은_헤더와_곡_필드를_모두_준다() throws Exception {
-        when(service.list(1L)).thenReturn(LIST);
+        when(service.list(1L, PERFORMANCE_ID)).thenReturn(LIST);
 
-        mockMvc.perform(get(BASE, 1L))
+        mockMvc.perform(get(BASE, 1L, PERFORMANCE_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].setlistId").value(5))
                 .andExpect(jsonPath("$.data[0].type").value("RECENT"))
@@ -83,15 +84,15 @@ class AdminSetlistControllerTest {
 
     @Test
     void 저장은_요청을_그대로_넘기고_기록을_남긴다() throws Exception {
-        when(service.save(eq(1L), eq(SetlistType.RECENT), any())).thenReturn(LIST);
+        when(service.save(eq(1L), eq(PERFORMANCE_ID), eq(SetlistType.RECENT), any())).thenReturn(LIST);
 
-        mockMvc.perform(put(BASE + "/RECENT", 1L).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(put(BASE + "/RECENT", 1L, PERFORMANCE_ID).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"tourName\":\"Arena Tour\",\"performedOn\":\"2026-05-01\",\"venueName\":\"Zepp\",\"songIds\":[12,7,12]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].setlistId").value(5));
 
         ArgumentCaptor<SetlistSaveRequest> captor = ArgumentCaptor.forClass(SetlistSaveRequest.class);
-        verify(service).save(eq(1L), eq(SetlistType.RECENT), captor.capture());
+        verify(service).save(eq(1L), eq(PERFORMANCE_ID), eq(SetlistType.RECENT), captor.capture());
         assertThat(captor.getValue().songIds()).containsExactly(12L, 7L, 12L);
         assertThat(captor.getValue().performedOn()).isEqualTo(LocalDate.of(2026, 5, 1));
         verify(accessLog).log(any(), any(), eq("SAVE_SETLIST"), eq("CONCERT"), eq(1L), anyString());
@@ -99,11 +100,11 @@ class AdminSetlistControllerTest {
 
     @Test
     void songIds가_없거나_비었으면_400이고_서비스는_호출되지_않는다() throws Exception {
-        mockMvc.perform(put(BASE + "/ACTUAL", 1L).contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mockMvc.perform(put(BASE + "/ACTUAL", 1L, PERFORMANCE_ID).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(put(BASE + "/ACTUAL", 1L).contentType(MediaType.APPLICATION_JSON).content("{\"songIds\":[]}"))
+        mockMvc.perform(put(BASE + "/ACTUAL", 1L, PERFORMANCE_ID).contentType(MediaType.APPLICATION_JSON).content("{\"songIds\":[]}"))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(put(BASE + "/ACTUAL", 1L).contentType(MediaType.APPLICATION_JSON).content("{\"songIds\":[null]}"))
+        mockMvc.perform(put(BASE + "/ACTUAL", 1L, PERFORMANCE_ID).contentType(MediaType.APPLICATION_JSON).content("{\"songIds\":[null]}"))
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(service);
@@ -111,9 +112,9 @@ class AdminSetlistControllerTest {
 
     @Test
     void 잘못된_type은_400이고_서비스는_호출되지_않는다() throws Exception {
-        mockMvc.perform(put(BASE + "/UNKNOWN", 1L).contentType(MediaType.APPLICATION_JSON).content("{\"songIds\":[1]}"))
+        mockMvc.perform(put(BASE + "/UNKNOWN", 1L, PERFORMANCE_ID).contentType(MediaType.APPLICATION_JSON).content("{\"songIds\":[1]}"))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(delete(BASE + "/actual", 1L))
+        mockMvc.perform(delete(BASE + "/actual", 1L, PERFORMANCE_ID))
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(service);
@@ -121,10 +122,10 @@ class AdminSetlistControllerTest {
 
     @Test
     void 도메인_규칙_위반은_400() throws Exception {
-        when(service.save(eq(1L), eq(SetlistType.ACTUAL), any()))
+        when(service.save(eq(1L), eq(PERFORMANCE_ID), eq(SetlistType.ACTUAL), any()))
                 .thenThrow(new IllegalArgumentException("공연 아티스트의 곡이 아니다"));
 
-        mockMvc.perform(put(BASE + "/ACTUAL", 1L).contentType(MediaType.APPLICATION_JSON).content("{\"songIds\":[1]}"))
+        mockMvc.perform(put(BASE + "/ACTUAL", 1L, PERFORMANCE_ID).contentType(MediaType.APPLICATION_JSON).content("{\"songIds\":[1]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400));
         verifyNoInteractions(accessLog);
@@ -132,18 +133,18 @@ class AdminSetlistControllerTest {
 
     @Test
     void 삭제는_기록을_남기고_없으면_404() throws Exception {
-        when(service.delete(1L, SetlistType.RECENT)).thenReturn(List.of());
-        when(service.delete(1L, SetlistType.PREVIOUS_VISIT)).thenThrow(new BusinessException(ErrorCode.SETLIST_NOT_FOUND));
-        when(service.delete(1L, SetlistType.ACTUAL)).thenThrow(new IllegalArgumentException("실제 셋리스트는 삭제할 수 없다"));
+        when(service.delete(1L, PERFORMANCE_ID, SetlistType.RECENT)).thenReturn(List.of());
+        when(service.delete(1L, PERFORMANCE_ID, SetlistType.PREVIOUS_VISIT)).thenThrow(new BusinessException(ErrorCode.SETLIST_NOT_FOUND));
+        when(service.delete(1L, PERFORMANCE_ID, SetlistType.ACTUAL)).thenThrow(new IllegalArgumentException("실제 셋리스트는 삭제할 수 없다"));
 
-        mockMvc.perform(delete(BASE + "/RECENT", 1L))
+        mockMvc.perform(delete(BASE + "/RECENT", 1L, PERFORMANCE_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isEmpty());
         verify(accessLog).log(any(), any(), eq("DELETE_SETLIST"), eq("CONCERT"), eq(1L), anyString());
 
-        mockMvc.perform(delete(BASE + "/PREVIOUS_VISIT", 1L))
+        mockMvc.perform(delete(BASE + "/PREVIOUS_VISIT", 1L, PERFORMANCE_ID))
                 .andExpect(status().isNotFound());
-        mockMvc.perform(delete(BASE + "/ACTUAL", 1L))
+        mockMvc.perform(delete(BASE + "/ACTUAL", 1L, PERFORMANCE_ID))
                 .andExpect(status().isBadRequest());
     }
 }

@@ -56,27 +56,19 @@ class ConcertAdminRulesTest {
     }
 
     @Test
-    void 페스티벌로_바꾸면_아티스트와_예상_곡_수가_비워진다() {
+    void 페스티벌로_바꾸면_아티스트가_비워진다() {
         Concert concert = publishableJpopConcert();
-        concert.changeExpectedSongCount(20);
 
         concert.changeCategory(ConcertCategory.JAPAN_FESTIVAL);
 
         assertThat(concert.getArtist()).isNull();
-        assertThat(concert.getExpectedSongCount()).isNull();
     }
 
     @Test
-    void 페스티벌에는_아티스트도_예상_곡_수도_둘_수_없다() {
+    void 페스티벌에는_아티스트를_둘_수_없다() {
         Concert festival = Concert.builder().title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL).build();
 
         assertRejected(() -> festival.changeArtist(Artist.builder().name("Yuuri").build()));
-        assertRejected(() -> festival.changeExpectedSongCount(20));
-    }
-
-    @Test
-    void 예상_곡_수는_1_이상이다() {
-        assertRejected(() -> jpopConcert().changeExpectedSongCount(0));
     }
 
     // ---------- 기간과 공연 시각 ----------

@@ -124,10 +124,6 @@ public class Concert {
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
 
-    /** 예상 곡 수(n). 단독 공연의 셋리스트 운영 기준(최대 선택 곡 수, 하이라이트 개수, 적중률 상위 n곡). */
-    @Column(name = "expected_song_count")
-    private Integer expectedSongCount;
-
     /** 숙소 섹션 노출 여부. Off면 섹션 자체를 그리지 않는다. 기존 공연은 Off. */
     @Column(name = "lodging_visible", nullable = false, columnDefinition = "boolean default false")
     private boolean lodgingVisible;
@@ -194,7 +190,7 @@ public class Concert {
     private static final Set<ConcertCategory> SELECTABLE_CATEGORIES =
             Set.of(ConcertCategory.J_POP_ARTIST, ConcertCategory.JAPAN_FESTIVAL);
 
-    /** 유형 변경. 페스티벌로 바꾸면 페스티벌 화면에 없는 아티스트·예상 곡 수를 비운다(PATCH의 null은 '변경 없음'이라 프론트가 비울 수 없다). */
+    /** 유형 변경. 페스티벌로 바꾸면 페스티벌 화면에 없는 아티스트를 비운다(PATCH의 null은 '변경 없음'이라 프론트가 비울 수 없다). */
     public void changeCategory(ConcertCategory category) {
         if (!SELECTABLE_CATEGORIES.contains(category)) {
             throw new IllegalArgumentException("선택할 수 없는 공연 유형: " + category);
@@ -202,7 +198,6 @@ public class Concert {
         this.category = category;
         if (isFestival()) {
             this.artist = null;
-            this.expectedSongCount = null;
         }
     }
 
@@ -249,17 +244,6 @@ public class Concert {
             throw new IllegalArgumentException("페스티벌에는 아티스트를 지정하지 않는다");
         }
         this.artist = artist;
-    }
-
-    /** 예상 곡 수는 단독(내한) 공연만, 1 이상. */
-    public void changeExpectedSongCount(Integer expectedSongCount) {
-        if (expectedSongCount != null && isFestival()) {
-            throw new IllegalArgumentException("페스티벌에는 예상 곡 수를 두지 않는다");
-        }
-        if (expectedSongCount != null && expectedSongCount < 1) {
-            throw new IllegalArgumentException("예상 곡 수는 1 이상");
-        }
-        this.expectedSongCount = expectedSongCount;
     }
 
     public void changeLodgingVisible(boolean lodgingVisible) {

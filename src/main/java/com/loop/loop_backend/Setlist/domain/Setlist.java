@@ -1,6 +1,6 @@
 package com.loop.loop_backend.Setlist.domain;
 
-import com.loop.loop_backend.Concert.domain.Concert;
+import com.loop.loop_backend.Performance.domain.Performance;
 import com.loop.loop_backend.Song.domain.Song;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -16,15 +16,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 공연의 셋리스트(AD-07). 지난 셋리스트(RECENT·PREVIOUS_VISIT)와 실제 셋리스트(ACTUAL)를 같은 모양으로 저장한다 - 입력 방식이 같아서.
- * (공연, 구분) 유니크라 지난 셋리스트는 최대 2건, 실제는 1건이 DB에서 보장된다.
+ * 출연 정보(Performance)의 셋리스트(AD-07). 지난 셋리스트(RECENT·PREVIOUS_VISIT)와 실제 셋리스트(ACTUAL)를 같은 모양으로 저장한다 - 입력 방식이 같아서.
+ * (출연 정보, 구분) 유니크라 지난 셋리스트는 최대 2건, 실제는 1건이 DB에서 보장된다.
+ * 대상은 단독 공연의 출연 정보와 페스티벌 헤드라이너뿐이다.
  * 곡은 Song을 참조만 한다(표기를 복사하지 않음). 같은 곡 중복(앵코르 재연주)도 그대로 담는다.
  */
 @Entity
 @Table(name = "setlists",
         uniqueConstraints = @UniqueConstraint(
-                name = "uq_setlist_concert_type",
-                columnNames = {"concert_id", "type"}))
+                name = "uq_setlist_performance_type",
+                columnNames = {"performance_id", "type"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Setlist {
@@ -34,9 +35,9 @@ public class Setlist {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "concert_id")
+    @JoinColumn(name = "performance_id")
     @OnDelete(action = OnDeleteAction.CASCADE)
-    private Concert concert;
+    private Performance performance;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "type", length = 20, nullable = false)
@@ -66,12 +67,12 @@ public class Setlist {
 
     // 규칙 위반은 IllegalArgumentException → 400(INVALID_INPUT), Lineup과 동일
     @Builder
-    private Setlist(Concert concert, SetlistType type, String tourName, LocalDate performedOn,
+    private Setlist(Performance performance, SetlistType type, String tourName, LocalDate performedOn,
                     String venueName, List<Song> songs) {
-        if (concert.isFestival()) {
-            throw new IllegalArgumentException("셋리스트는 단독 공연에만 등록할 수 있다");
+        if (!performance.isSetlistTarget()) {
+            throw new IllegalArgumentException("셋리스트는 단독 공연과 페스티벌 헤드라이너에만 등록할 수 있다");
         }
-        this.concert = concert;
+        this.performance = performance;
         this.type = type;
         changeHeader(tourName, performedOn, venueName);
         replaceSongs(songs);

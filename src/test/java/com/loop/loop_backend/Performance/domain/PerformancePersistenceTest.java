@@ -1,11 +1,11 @@
-package com.loop.loop_backend.Lineup.domain;
+package com.loop.loop_backend.Performance.domain;
 
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
-import com.loop.loop_backend.Lineup.repository.LineupRepository;
+import com.loop.loop_backend.Performance.repository.PerformanceRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,9 +24,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 // - 목록은 노출 순서대로, 기간 축소·유형 변경 정리용 삭제가 동작한다.
 // - 공연이나 아티스트가 지워지면 라인업도 지워진다.
 @DataJpaTest
-class LineupPersistenceTest {
+class PerformancePersistenceTest {
 
-    @Autowired private LineupRepository lineupRepository;
+    @Autowired private PerformanceRepository performanceRepository;
     @Autowired private ConcertRepository concertRepository;
     @Autowired private ArtistRepository artistRepository;
     @Autowired private EntityManager em;
@@ -47,10 +47,10 @@ class LineupPersistenceTest {
         yuuri = artistRepository.save(Artist.builder().name("Yuuri").build());
     }
 
-    private Lineup add(Artist artist, int day) {
-        return lineupRepository.save(Lineup.builder()
+    private Performance add(Artist artist, int day) {
+        return performanceRepository.save(Performance.builder()
                 .concert(festival).artist(artist).day(day)
-                .displayOrder(lineupRepository.findMaxDisplayOrder(festival.getId()) + 1)
+                .displayOrder(performanceRepository.findMaxDisplayOrder(festival.getId()) + 1)
                 .build());
     }
 
@@ -66,7 +66,7 @@ class LineupPersistenceTest {
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 20))
                 .build());
 
-        assertThatThrownBy(() -> Lineup.builder().concert(solo).artist(yuuri).day(1).displayOrder(1).build())
+        assertThatThrownBy(() -> Performance.builder().concert(solo).artist(yuuri).day(1).displayOrder(1).build())
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -82,7 +82,7 @@ class LineupPersistenceTest {
         Concert undated = concertRepository.save(Concert.builder()
                 .title("미정 페스티벌").category(ConcertCategory.JAPAN_FESTIVAL).build());
 
-        assertThatThrownBy(() -> Lineup.builder().concert(undated).artist(yuuri).day(1).displayOrder(1).build())
+        assertThatThrownBy(() -> Performance.builder().concert(undated).artist(yuuri).day(1).displayOrder(1).build())
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -92,7 +92,7 @@ class LineupPersistenceTest {
         add(yuuri, 2);
         flushAndClear();
 
-        assertThat(lineupRepository.existsByConcertIdAndArtistIdAndDay(festival.getId(), yuuri.getId(), 1)).isTrue();
+        assertThat(performanceRepository.existsByConcertIdAndArtistIdAndDay(festival.getId(), yuuri.getId(), 1)).isTrue();
         assertThatThrownBy(() -> {
             add(yuuri, 1);
             em.flush();
@@ -101,14 +101,14 @@ class LineupPersistenceTest {
 
     @Test
     void 목록은_노출_순서대로_나오고_새_항목은_맨_뒤다() {
-        Lineup first = add(yoasobi, 2);
-        Lineup second = add(yuuri, 1);
+        Performance first = add(yoasobi, 2);
+        Performance second = add(yuuri, 1);
         first.swapOrderWith(second);
         flushAndClear();
 
-        List<Lineup> list = lineupRepository.findByConcertIdOrderByDisplayOrderAsc(festival.getId());
+        List<Performance> list = performanceRepository.findByConcertIdOrderByDisplayOrderAsc(festival.getId());
         assertThat(list).extracting(l -> l.getArtist().getName()).containsExactly("Yuuri", "YOASOBI");
-        assertThat(lineupRepository.findMaxDisplayOrder(festival.getId())).isEqualTo(2);
+        assertThat(performanceRepository.findMaxDisplayOrder(festival.getId())).isEqualTo(2);
     }
 
     @Test
@@ -116,10 +116,10 @@ class LineupPersistenceTest {
         add(yoasobi, 1);
         add(yuuri, 3);
 
-        lineupRepository.deleteByConcertIdAndDayGreaterThan(festival.getId(), 2);
+        performanceRepository.deleteByConcertIdAndDayGreaterThan(festival.getId(), 2);
 
-        assertThat(lineupRepository.findByConcertIdOrderByDisplayOrderAsc(festival.getId()))
-                .extracting(Lineup::getDay).containsExactly(1);
+        assertThat(performanceRepository.findByConcertIdOrderByDisplayOrderAsc(festival.getId()))
+                .extracting(Performance::getDay).containsExactly(1);
     }
 
     @Test
@@ -129,9 +129,9 @@ class LineupPersistenceTest {
         flushAndClear();
 
         em.createNativeQuery("DELETE FROM artists WHERE id = :id").setParameter("id", yuuri.getId()).executeUpdate();
-        assertThat(lineupRepository.findByConcertIdOrderByDisplayOrderAsc(festival.getId())).hasSize(1);
+        assertThat(performanceRepository.findByConcertIdOrderByDisplayOrderAsc(festival.getId())).hasSize(1);
 
         em.createNativeQuery("DELETE FROM concerts WHERE id = :id").setParameter("id", festival.getId()).executeUpdate();
-        assertThat(lineupRepository.count()).isZero();
+        assertThat(performanceRepository.count()).isZero();
     }
 }

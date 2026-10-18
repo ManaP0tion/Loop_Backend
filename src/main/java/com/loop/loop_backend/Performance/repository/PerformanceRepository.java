@@ -1,6 +1,6 @@
-package com.loop.loop_backend.Lineup.repository;
+package com.loop.loop_backend.Performance.repository;
 
-import com.loop.loop_backend.Lineup.domain.Lineup;
+import com.loop.loop_backend.Performance.domain.Performance;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -9,14 +9,22 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
-public interface LineupRepository extends JpaRepository<Lineup, Long> {
+public interface PerformanceRepository extends JpaRepository<Performance, Long> {
 
-    // 관리자·유저 목록 공용. 이름·이미지를 바로 쓰므로 아티스트를 함께 가져온다.
+    // 관리자·유저 라인업 목록 공용. 이름·이미지를 바로 쓰므로 아티스트를 함께 가져온다.
     @EntityGraph(attributePaths = "artist")
-    List<Lineup> findByConcertIdOrderByDisplayOrderAsc(Long concertId);
+    List<Performance> findByConcertIdOrderByDisplayOrderAsc(Long concertId);
 
-    @Query("select coalesce(max(l.displayOrder), 0) from Lineup l where l.concert.id = :concertId")
+    // 셋리스트 API: 경로의 공연 소속 출연 정보만. 후보 곡을 아티스트로 찾으므로 함께 가져온다.
+    @EntityGraph(attributePaths = {"concert", "artist"})
+    Optional<Performance> findByIdAndConcertId(Long id, Long concertId);
+
+    // 단독 공연은 출연 정보가 최대 1건
+    Optional<Performance> findFirstByConcertId(Long concertId);
+
+    @Query("select coalesce(max(p.displayOrder), 0) from Performance p where p.concert.id = :concertId")
     int findMaxDisplayOrder(@Param("concertId") Long concertId);
 
     boolean existsByConcertIdAndArtistIdAndDay(Long concertId, Long artistId, int day);
@@ -27,11 +35,6 @@ public interface LineupRepository extends JpaRepository<Lineup, Long> {
     // 공연 수정(AdminConcertService.update) 중에 불린다 - 수정 중인 Concert가 떨어져 나가지 않게 영속성 컨텍스트를 비우지 않는다.
     // 공연 기간이 줄었을 때: 새 일수를 넘는 DAY 삭제
     @Modifying(flushAutomatically = true)
-    @Query("delete from Lineup l where l.concert.id = :concertId and l.day > :dayCount")
+    @Query("delete from Performance p where p.concert.id = :concertId and p.day > :dayCount")
     int deleteByConcertIdAndDayGreaterThan(@Param("concertId") Long concertId, @Param("dayCount") int dayCount);
-
-    // 페스티벌이 아닌 유형으로 바뀌었을 때: 전부 삭제
-    @Modifying(flushAutomatically = true)
-    @Query("delete from Lineup l where l.concert.id = :concertId")
-    int deleteByConcertId(@Param("concertId") Long concertId);
 }

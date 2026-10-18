@@ -26,10 +26,11 @@ public class SetlistResultMailListener {
     @Async("mailExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handle(SetlistResultSavedEvent event) {
-        List<SetlistResultRecipient> recipients = voteRepository.findResultMailRecipients(event.concertId());
+        List<SetlistResultRecipient> recipients = voteRepository.findResultMailRecipients(event.performanceId());
         for (SetlistResultRecipient r : recipients) {
             mailService.sendSetlistResultNotification(r.email(), r.nickname(), event.concertId(), event.concertTitle());
         }
-        log.info("셋리스트 결과 메일 발송 완료 (concertId={}, recipients={})", event.concertId(), recipients.size());
+        log.info("셋리스트 결과 메일 발송 완료 (concertId={}, performanceId={}, recipients={})",
+                event.concertId(), event.performanceId(), recipients.size());
     }
 }

@@ -23,6 +23,9 @@ import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleReposit
 import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.TicketAlarm.domain.TicketAlarmType;
+import com.loop.loop_backend.Performance.domain.Performance;
+import com.loop.loop_backend.Performance.repository.PerformanceRepository;
+import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistResultResponse;
 import com.loop.loop_backend.Setlist.service.SetlistResultService;
 import com.loop.loop_backend.Setlist.service.SetlistVoteService;
@@ -31,6 +34,7 @@ import com.loop.loop_backend.Venue.domain.Venue;
 import com.loop.loop_backend.Venue.domain.VenueCapacity;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -55,8 +59,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 // 공연 상세 조회 3종(period / past-detail / upcoming-detail)이 요구사항대로 동작하는지 검증한다.
@@ -75,6 +81,7 @@ import static org.mockito.Mockito.when;
 class ConcertDetailServiceTest {
 
     private static final long CONCERT_ID = 1L;
+    private static final long PERFORMANCE_ID = 5L;
     private static final LocalDate TODAY = LocalDate.now(ZoneId.of("Asia/Seoul"));
 
     @Mock ConcertRepository concertRepository;
@@ -88,6 +95,7 @@ class ConcertDetailServiceTest {
     @Mock TicketAlarmService ticketAlarmService;
     @Mock SetlistVoteService setlistVoteService;
     @Mock SetlistResultService setlistResultService;
+    @Mock PerformanceRepository performanceRepository;
     @InjectMocks ConcertServiceImpl concertService;
 
     private Concert givenConcert(LocalDate startDate, LocalDate endDate) {
@@ -108,6 +116,12 @@ class ConcertDetailServiceTest {
         ReflectionTestUtils.setField(concert, "id", CONCERT_ID);
         when(concertRepository.findById(CONCERT_ID)).thenReturn(Optional.of(concert));
         return concert;
+    }
+
+    private void givenSoloPerformance() {
+        Performance performance = mock(Performance.class);
+        when(performance.getId()).thenReturn(PERFORMANCE_ID);
+        when(performanceRepository.findFirstByConcertId(CONCERT_ID)).thenReturn(Optional.of(performance));
     }
 
     private Concert givenPrivateConcert(LocalDate startDate, LocalDate endDate) {
@@ -222,13 +236,69 @@ class ConcertDetailServiceTest {
     // ---------- past-detail ----------
 
     @Test
-    void 지난_공연_상세에는_예상_순위_대신_내_적중률과_실제_셋리스트_결과가_담긴다() {
+    @DisplayName("단독 공연의 지난 공연 상세에는 출연 정보 PK와 그 출연 정보의 셋리스트 결과가 담긴다")
+    void getPastDetail_WhenSoloConcert_ReturnsPerformanceIdAndSetlistResult() {
+        // given
         givenConcert(TODAY.minusDays(30), TODAY.minusDays(29));
+        givenSoloPerformance();
         SetlistResultResponse result = SetlistResultResponse.waiting(3);
-        when(setlistResultService.result(CONCERT_ID, USER_ID)).thenReturn(result);
+        when(setlistResultService.result(CONCERT_ID, PERFORMANCE_ID, USER_ID)).thenReturn(result);
 
-        assertThat(concertService.getPastDetail(CONCERT_ID, USER_ID).getSetlistResult()).isSameAs(result);
-        verify(setlistVoteService, never()).rankingPreview(any(), any());
+        // when
+        ConcertPastDetailDto dto = concertService.getPastDetail(CONCERT_ID, USER_ID);
+
+        // then
+        assertThat(dto.getPerformanceId()).isEqualTo(PERFORMANCE_ID);
+        assertThat(dto.getSetlistResult()).isSameAs(result);
+        verify(setlistVoteService, never()).rankingPreview(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("출연 정보가 없는 공연의 지난 공연 상세는 performanceId 없이 대기 상태 결과를 준다")
+    void getPastDetail_WhenNoPerformance_ReturnsWaitingWithoutPerformanceId() {
+        // given
+        givenConcert(TODAY.minusDays(30), TODAY.minusDays(29));
+
+        // when
+        ConcertPastDetailDto dto = concertService.getPastDetail(CONCERT_ID, USER_ID);
+
+        // then
+        assertThat(dto.getPerformanceId()).isNull();
+        assertThat(dto.getSetlistResult().ready()).isFalse();
+        verifyNoInteractions(setlistResultService);
+    }
+
+    @Test
+    @DisplayName("단독 공연의 예정 공연 상세에는 출연 정보 PK와 순위 미리보기가 담긴다")
+    void getUpcomingDetail_WhenSoloConcert_ReturnsPerformanceIdAndPreview() {
+        // given
+        givenConcert(TODAY.plusDays(10), TODAY.plusDays(10));
+        givenSoloPerformance();
+        SetlistRankingResponse preview = new SetlistRankingResponse(20, 3, false, List.of());
+        when(setlistVoteService.rankingPreview(CONCERT_ID, PERFORMANCE_ID, USER_ID)).thenReturn(preview);
+
+        // when
+        ConcertUpcomingDetailDto dto = concertService.getUpcomingDetail(CONCERT_ID, USER_ID);
+
+        // then
+        assertThat(dto.getPerformanceId()).isEqualTo(PERFORMANCE_ID);
+        assertThat(dto.getSetlistPreview()).isSameAs(preview);
+    }
+
+    @Test
+    @DisplayName("페스티벌의 예정 공연 상세는 performanceId 없이 셋리스트 미운영 미리보기를 준다")
+    void getUpcomingDetail_WhenFestival_ReturnsNonePreview() {
+        // given
+        Concert festival = givenConcert(TODAY.plusDays(10), TODAY.plusDays(11), null);
+        festival.changeCategory(ConcertCategory.JAPAN_FESTIVAL);
+
+        // when
+        ConcertUpcomingDetailDto dto = concertService.getUpcomingDetail(CONCERT_ID, USER_ID);
+
+        // then
+        assertThat(dto.getPerformanceId()).isNull();
+        assertThat(dto.getSetlistPreview().highlightCount()).isNull();
+        verifyNoInteractions(setlistVoteService, performanceRepository);
     }
 
     @Test

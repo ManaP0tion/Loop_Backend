@@ -30,6 +30,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Tag(name = "Admin Lineup", description = "페스티벌 라인업 관리 (ADMIN 전용). " +
         "모든 변경은 즉시 저장되고, 응답은 항상 그 공연의 라인업 전체(노출 순서대로)다. " +
+        "헤드라이너는 예상 셋리스트를 운영하고, lineupId가 셋리스트 API의 performanceId다. " +
         "노출 순서가 페스티벌 페이지 라인업 전체 탭에 그대로 반영된다.")
 public class AdminLineupController {
 
@@ -39,6 +40,8 @@ public class AdminLineupController {
             "{\"success\":false,\"message\":\"라인업 항목을 찾을 수 없습니다.\",\"code\":404}";
     private static final String DUPLICATE_EXAMPLE =
             "{\"success\":false,\"message\":\"이미 같은 DAY 라인업에 있는 아티스트입니다.\",\"code\":409}";
+    private static final String SETLIST_DATA_EXAMPLE =
+            "{\"success\":false,\"message\":\"셋리스트나 투표가 있는 출연 정보는 지우거나 헤드라이너를 해제할 수 없습니다.\",\"code\":409}";
 
     private final LineupService lineupService;
     private final AdminAccessLogService accessLog;
@@ -103,11 +106,14 @@ public class AdminLineupController {
     }
 
     @DeleteMapping("/{lineupId}")
-    @Operation(summary = "라인업 항목 삭제", description = "완전히 지운다. 아티스트는 아티스트 DB에 남는다.")
+    @Operation(summary = "라인업 항목 삭제",
+            description = "완전히 지운다. 아티스트는 아티스트 DB에 남는다. 셋리스트나 투표가 있는 헤드라이너는 지울 수 없다(409).")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "삭제 성공"),
             @ApiResponse(responseCode = "404", description = "공연 또는 라인업 항목 없음",
-                    content = @Content(examples = @ExampleObject(value = NOT_FOUND_EXAMPLE)))
+                    content = @Content(examples = @ExampleObject(value = NOT_FOUND_EXAMPLE))),
+            @ApiResponse(responseCode = "409", description = "셋리스트·투표가 있는 항목 - PERFORMANCE_HAS_SETLIST_DATA",
+                    content = @Content(examples = @ExampleObject(value = SETLIST_DATA_EXAMPLE)))
     })
     public ResponseEntity<CommonResponse<List<LineupItemResponse>>> delete(
             @AuthenticationPrincipal Long adminId, HttpServletRequest req,
@@ -134,12 +140,35 @@ public class AdminLineupController {
         return ResponseEntity.ok(CommonResponse.success(lineupService.move(concertId, lineupId, body.direction())));
     }
 
+    @PatchMapping("/{lineupId}/expected-song-count")
+    @Operation(summary = "헤드라이너 예상 곡 수",
+            description = "헤드라이너 예상 셋리스트의 n(최대 선택 곡 수·하이라이트 개수·적중률 상위 n곡). " +
+                    "null이면 비움 - 셋리스트에서 20곡으로 처리. 헤드라이너가 아니면 400.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "변경 성공"),
+            @ApiResponse(responseCode = "400", description = "헤드라이너 아님, 1 미만",
+                    content = @Content(examples = @ExampleObject(value = INVALID_INPUT_EXAMPLE))),
+            @ApiResponse(responseCode = "404", description = "공연 또는 라인업 항목 없음",
+                    content = @Content(examples = @ExampleObject(value = NOT_FOUND_EXAMPLE)))
+    })
+    public ResponseEntity<CommonResponse<List<LineupItemResponse>>> changeExpectedSongCount(
+            @Parameter(description = "공연 PK") @PathVariable Long concertId,
+            @Parameter(description = "라인업 항목 PK") @PathVariable Long lineupId,
+            @Valid @RequestBody LineupPatchRequests.ExpectedSongCount body) {
+        return ResponseEntity.ok(CommonResponse.success(
+                lineupService.changeExpectedSongCount(concertId, lineupId, body.expectedSongCount())));
+    }
+
     @PatchMapping("/{lineupId}/headliner")
-    @Operation(summary = "헤드라이너 지정/해제", description = "DAY당 개수 제한 없음.")
+    @Operation(summary = "헤드라이너 지정/해제",
+            description = "DAY당 개수 제한 없음. 헤드라이너만 예상 셋리스트를 운영한다 - " +
+                    "셋리스트나 투표가 있는 헤드라이너는 해제할 수 없다(409).")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "변경 성공"),
             @ApiResponse(responseCode = "404", description = "공연 또는 라인업 항목 없음",
-                    content = @Content(examples = @ExampleObject(value = NOT_FOUND_EXAMPLE)))
+                    content = @Content(examples = @ExampleObject(value = NOT_FOUND_EXAMPLE))),
+            @ApiResponse(responseCode = "409", description = "셋리스트·투표가 있는 헤드라이너 해제 - PERFORMANCE_HAS_SETLIST_DATA",
+                    content = @Content(examples = @ExampleObject(value = SETLIST_DATA_EXAMPLE)))
     })
     public ResponseEntity<CommonResponse<List<LineupItemResponse>>> changeHeadliner(
             @Parameter(description = "공연 PK") @PathVariable Long concertId,

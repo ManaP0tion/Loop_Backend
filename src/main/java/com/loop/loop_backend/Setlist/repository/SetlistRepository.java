@@ -9,8 +9,13 @@ import java.util.Optional;
 
 public interface SetlistRepository extends JpaRepository<Setlist, Long> {
 
-    Optional<Setlist> findByConcertIdAndType(Long concertId, SetlistType type);
+    Optional<Setlist> findByPerformanceIdAndType(Long performanceId, SetlistType type);
 
     // 정렬은 서비스에서 enum 순서로 한다(문자열 컬럼이라 DB 정렬은 알파벳순)
-    List<Setlist> findByConcertId(Long concertId);
+    List<Setlist> findByPerformanceId(Long performanceId);
+
+    // 출연 정보 삭제·헤드라이너 해제 가드(SetlistDataGuard)
+    boolean existsByPerformanceId(Long performanceId);
+
+    boolean existsByPerformanceConcertIdAndPerformanceDayGreaterThan(Long concertId, int day);
 }

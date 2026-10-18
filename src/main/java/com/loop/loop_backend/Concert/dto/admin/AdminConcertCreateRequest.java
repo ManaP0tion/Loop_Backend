@@ -49,7 +49,7 @@ public record AdminConcertCreateRequest(
                 example = "[12]", types = {"array", "null"})
         List<Long> artistIds,
 
-        @Schema(description = "예상 곡 수. 내한 공연만, 1 이상. 비워 두면 셋리스트에서 20곡으로 처리", example = "20", types = {"integer", "null"})
+        @Schema(description = "예상 곡 수. 내한 공연만, 1 이상(0이면 400). 아티스트가 없거나 페스티벌이면 400(페스티벌은 라인업에서 헤드라이너별로). 비워 두면 셋리스트에서 20곡으로 처리", example = "20", types = {"integer", "null"})
         Integer expectedSongCount,
 
         @Schema(description = "숙소 섹션 노출 여부. 켜려면 lodgingUrl이 있어야 한다. 기본 false", example = "false", types = {"boolean", "null"})

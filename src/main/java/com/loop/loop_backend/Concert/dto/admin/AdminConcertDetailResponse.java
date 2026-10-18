@@ -6,6 +6,7 @@ import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.domain.ConcertShowtime;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertGeneralSale;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertPresale;
+import com.loop.loop_backend.Performance.domain.Performance;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDate;
@@ -60,8 +61,12 @@ public record AdminConcertDetailResponse(
         @Schema(description = "마지막으로 공개로 바뀐 시각", types = {"string", "null"})
         LocalDateTime publishedAt,
 
-        @Schema(description = "예상 곡 수", types = {"integer", "null"})
+        @Schema(description = "예상 곡 수(단독 공연의 출연 정보 값). 페스티벌은 헤드라이너별로 라인업에서 정하므로 null", types = {"integer", "null"})
         Integer expectedSongCount,
+
+        @Schema(description = "단독 공연의 출연 정보 PK - 셋리스트 관리 API 경로에 쓴다. 페스티벌·아티스트 미지정이면 null",
+                types = {"integer", "null"})
+        Long performanceId,
 
         @Schema(description = "숙소 섹션 노출 여부", requiredMode = Schema.RequiredMode.REQUIRED)
         boolean lodgingVisible,
@@ -95,7 +100,8 @@ public record AdminConcertDetailResponse(
     public record ArtistSummary(Long id, String name) {
     }
 
-    public static AdminConcertDetailResponse from(Concert c, List<ConcertPresale> presales,
+    /** solo = 단독 공연의 출연 정보(없으면 null). */
+    public static AdminConcertDetailResponse from(Concert c, Performance solo, List<ConcertPresale> presales,
                                                   List<ConcertGeneralSale> generalSales) {
         return new AdminConcertDetailResponse(
                 c.getId(), c.getKopisId(), c.getCategory(), c.getTitle(),
@@ -104,7 +110,8 @@ public record AdminConcertDetailResponse(
                 c.getLinkedVenue() == null ? null : new VenueSummary(
                         c.getLinkedVenue().getId(), c.getLinkedVenue().getName(), c.getLinkedVenue().getAddress()),
                 c.getArtist() == null ? List.of() : List.of(new ArtistSummary(c.getArtist().getId(), c.getArtist().getName())),
-                c.isPublished(), c.getPublishedAt(), c.getExpectedSongCount(),
+                c.isPublished(), c.getPublishedAt(),
+                solo == null ? null : solo.getExpectedSongCount(), solo == null ? null : solo.getId(),
                 c.isLodgingVisible(), c.getLodgingUrl(), c.getOfficialSiteUrl(),
                 TicketSaleResponse.fromPresales(presales), TicketSaleResponse.fromGeneralSales(generalSales));
     }

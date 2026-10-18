@@ -4,6 +4,7 @@ import com.loop.loop_backend.Mail.service.MailService;
 import com.loop.loop_backend.Setlist.event.SetlistResultSavedEvent;
 import com.loop.loop_backend.Setlist.repository.SetlistResultRecipient;
 import com.loop.loop_backend.Setlist.repository.SetlistVoteRepository;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -21,22 +22,30 @@ class SetlistResultMailListenerTest {
     private final SetlistResultMailListener listener = new SetlistResultMailListener(voteRepository, mailService);
 
     @Test
-    void 대상_전원에게_공연_정보를_담아_보낸다() {
-        when(voteRepository.findResultMailRecipients(1L)).thenReturn(List.of(
+    @DisplayName("출연 정보의 메일 대상 전원에게 공연 정보를 담아 결과 메일을 보낸다")
+    void handle_WhenRecipientsExist_SendsMailToAllWithConcertInfo() {
+        // given
+        when(voteRepository.findResultMailRecipients(5L)).thenReturn(List.of(
                 new SetlistResultRecipient("a@loop.com", "에이"), new SetlistResultRecipient("b@loop.com", "비")));
 
-        listener.handle(new SetlistResultSavedEvent(1L, "YUURI LIVE"));
+        // when
+        listener.handle(new SetlistResultSavedEvent(1L, 5L, "YUURI LIVE"));
 
+        // then
         verify(mailService).sendSetlistResultNotification("a@loop.com", "에이", 1L, "YUURI LIVE");
         verify(mailService).sendSetlistResultNotification("b@loop.com", "비", 1L, "YUURI LIVE");
     }
 
     @Test
-    void 대상이_없으면_보내지_않는다() {
-        when(voteRepository.findResultMailRecipients(1L)).thenReturn(List.of());
+    @DisplayName("메일 대상이 없으면 결과 메일을 보내지 않는다")
+    void handle_WhenNoRecipients_SendsNothing() {
+        // given
+        when(voteRepository.findResultMailRecipients(5L)).thenReturn(List.of());
 
-        listener.handle(new SetlistResultSavedEvent(1L, "YUURI LIVE"));
+        // when
+        listener.handle(new SetlistResultSavedEvent(1L, 5L, "YUURI LIVE"));
 
+        // then
         verify(mailService, never()).sendSetlistResultNotification(anyString(), any(), anyLong(), any());
     }
 }

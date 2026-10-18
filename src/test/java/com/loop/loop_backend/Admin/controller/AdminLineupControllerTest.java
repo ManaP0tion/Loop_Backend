@@ -10,6 +10,7 @@ import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.common.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -41,8 +42,8 @@ class AdminLineupControllerTest {
 
     private static final String BASE = "/api/admin/concerts/{concertId}/lineup";
     private static final List<LineupItemResponse> LIST = List.of(
-            new LineupItemResponse(10L, 3L, "YOASOBI", "요아소비", "https://img/yoasobi.png", ConcertCategory.J_POP_ARTIST, 1, true, 1),
-            new LineupItemResponse(11L, 4L, "Yuuri", null, null, ConcertCategory.J_POP_ARTIST, 2, false, 2));
+            new LineupItemResponse(10L, 3L, "YOASOBI", "요아소비", "https://img/yoasobi.png", ConcertCategory.J_POP_ARTIST, 1, true, 1, 12),
+            new LineupItemResponse(11L, 4L, "Yuuri", null, null, ConcertCategory.J_POP_ARTIST, 2, false, 2, null));
 
     private MockMvc mockMvc;
     private LineupService service;
@@ -78,6 +79,7 @@ class AdminLineupControllerTest {
                 .andExpect(jsonPath("$.data[0].day").value(1))
                 .andExpect(jsonPath("$.data[0].headliner").value(true))
                 .andExpect(jsonPath("$.data[0].displayOrder").value(1))
+                .andExpect(jsonPath("$.data[0].expectedSongCount").value(12))
                 .andExpect(jsonPath("$.data[1].name").value("Yuuri"));
     }
 
@@ -242,5 +244,43 @@ class AdminLineupControllerTest {
 
         verify(service, times(1)).changeHeadliner(anyLong(), anyLong(), anyBoolean());
         verify(service).changeHeadliner(1L, 10L, true);
+    }
+
+    // ---------- 헤드라이너 예상 셋리스트 ----------
+
+    @Test
+    @DisplayName("헤드라이너 예상 곡 수 변경 요청은 서비스로 전달되고 라인업 전체를 반환한다")
+    void changeExpectedSongCount_WithValidCount_DelegatesToService() throws Exception {
+        // given
+        when(service.changeExpectedSongCount(1L, 10L, 12)).thenReturn(LIST);
+
+        // when & then
+        mockMvc.perform(patch(BASE + "/{lineupId}/expected-song-count", 1L, 10L).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedSongCount\": 12}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].expectedSongCount").value(12));
+        verify(service).changeExpectedSongCount(1L, 10L, 12);
+    }
+
+    @Test
+    @DisplayName("예상 곡 수가 1 미만이면 400이고 서비스를 호출하지 않는다")
+    void changeExpectedSongCount_WithZero_Returns400() throws Exception {
+        // when & then
+        mockMvc.perform(patch(BASE + "/{lineupId}/expected-song-count", 1L, 10L).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedSongCount\": 0}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    @DisplayName("셋리스트나 투표가 있는 헤드라이너를 삭제하면 409이고 기록을 남기지 않는다")
+    void delete_WhenSetlistDataExists_Returns409() throws Exception {
+        // given
+        when(service.delete(1L, 10L)).thenThrow(new BusinessException(ErrorCode.PERFORMANCE_HAS_SETLIST_DATA));
+
+        // when & then
+        mockMvc.perform(delete(BASE + "/{lineupId}", 1L, 10L))
+                .andExpect(status().isConflict());
+        verifyNoInteractions(accessLog);
     }
 }

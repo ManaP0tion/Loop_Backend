@@ -50,8 +50,8 @@ class LineupControllerTest {
         when(service.publicLineup(1L)).thenReturn(new LineupResponse(
                 List.of(new LineupResponse.Day(1, LocalDate.of(2026, 11, 20)),
                         new LineupResponse.Day(2, LocalDate.of(2026, 11, 21))),
-                List.of(new LineupItemResponse(10L, 3L, "YOASOBI", "요아소비", "https://img/y.png", ConcertCategory.J_POP_ARTIST, 2, true, 1),
-                        new LineupItemResponse(11L, 4L, "Yuuri", null, null, ConcertCategory.J_POP_ARTIST, 1, false, 2))));
+                List.of(new LineupItemResponse(10L, 3L, "YOASOBI", "요아소비", "https://img/y.png", ConcertCategory.J_POP_ARTIST, 2, true, 1, null),
+                        new LineupItemResponse(11L, 4L, "Yuuri", null, null, ConcertCategory.J_POP_ARTIST, 1, false, 2, null))));
 
         mockMvc.perform(get(URL, 1L))
                 .andExpect(status().isOk())

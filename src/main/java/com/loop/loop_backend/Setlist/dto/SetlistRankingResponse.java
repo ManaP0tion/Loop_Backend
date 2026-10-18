@@ -26,6 +26,11 @@ public record SetlistRankingResponse(
         List<RankedSong> songs
 ) {
 
+    /** 셋리스트를 운영하지 않는 공연·출연 정보(페스티벌 비헤드라이너 등). */
+    public static SetlistRankingResponse none() {
+        return new SetlistRankingResponse(null, 0, false, List.of());
+    }
+
     /** 앞 limit곡만 남긴다(상세 화면 미리보기). 나머지 값은 그대로. */
     public SetlistRankingResponse top(int limit) {
         return new SetlistRankingResponse(highlightCount, participantCount, votingClosed,

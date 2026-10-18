@@ -23,11 +23,15 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/** 예상 셋리스트 조회(3-3·3-4). 비로그인 열람 - GET /api/concerts/** 는 SecurityConfig에서 permitAll. */
+/**
+ * 예상 셋리스트 조회(3-3·3-4). 출연 정보(단독 공연·페스티벌 헤드라이너) 단위.
+ * 비로그인 열람 - GET /api/concerts/** 는 SecurityConfig에서 permitAll.
+ */
 @RestController
-@RequestMapping("/api/concerts/{concertId}/setlist")
+@RequestMapping("/api/concerts/{concertId}/performances/{performanceId}/setlist")
 @RequiredArgsConstructor
-@Tag(name = "Setlist", description = "예상 셋리스트 조회 (비로그인 가능). 투표는 /api/users/me/setlist-votes")
+@Tag(name = "Setlist", description = "예상 셋리스트 조회 (비로그인 가능). 출연 정보 단위 - 단독 공연은 공연 상세의 performanceId, " +
+        "페스티벌은 라인업에서 headliner=true인 항목의 lineupId. 투표는 /api/users/me/setlist-votes")
 public class SetlistController {
 
     private final SetlistVoteService voteService;
@@ -48,12 +52,13 @@ public class SetlistController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "403", description = "오픈 예정(비공개) 공연 - CONCERT_NOT_OPEN"),
-            @ApiResponse(responseCode = "404", description = "콘서트 없음")
+            @ApiResponse(responseCode = "404", description = "출연 정보 없음(공연 없음, 다른 공연의 출연 정보) - PERFORMANCE_NOT_FOUND")
     })
     public ResponseEntity<CommonResponse<SetlistResultResponse>> result(
             @AuthenticationPrincipal Long userId,
-            @Parameter(description = "콘서트 PK") @PathVariable Long concertId) {
-        return ResponseEntity.ok(CommonResponse.success(resultService.result(concertId, userId)));
+            @Parameter(description = "콘서트 PK") @PathVariable Long concertId,
+            @Parameter(description = "출연 정보 PK - 단독 공연은 공연 상세의 performanceId, 페스티벌은 라인업의 lineupId(헤드라이너)") @PathVariable Long performanceId) {
+        return ResponseEntity.ok(CommonResponse.success(resultService.result(concertId, performanceId, userId)));
     }
 
     @GetMapping("/ranking")
@@ -62,18 +67,19 @@ public class SetlistController {
                     "- 미리보기 = 앞 5곡, 전체 순위 = 20곡 단위 더보기(프론트)\n" +
                     "- highlighted = 상위 n곡(n = highlightCount)\n" +
                     "- 로그인 상태면 내가 고른 곡에 mine=true(투표 후 상태 화면)\n" +
-                    "- votingClosed = 마감 여부. 마감 후에도 순위는 그대로 열람\n" +
-                    "- 투표 0건이면 songs 빈 목록, 셋리스트를 운영하지 않는 공연이면 highlightCount null\n\n" +
+                    "- votingClosed = 마감 여부(페스티벌도 시작일 00:00 KST). 마감 후에도 순위는 그대로 열람\n" +
+                    "- 투표 0건이면 songs 빈 목록, 셋리스트를 운영하지 않는 출연 정보(페스티벌 비헤드라이너)면 highlightCount null\n\n" +
                     "비공개(오픈 예정) 공연이면 403.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "403", description = "오픈 예정(비공개) 공연 - CONCERT_NOT_OPEN"),
-            @ApiResponse(responseCode = "404", description = "콘서트 없음")
+            @ApiResponse(responseCode = "404", description = "출연 정보 없음(공연 없음, 다른 공연의 출연 정보) - PERFORMANCE_NOT_FOUND")
     })
     public ResponseEntity<CommonResponse<SetlistRankingResponse>> ranking(
             @AuthenticationPrincipal Long userId,
-            @Parameter(description = "콘서트 PK") @PathVariable Long concertId) {
-        return ResponseEntity.ok(CommonResponse.success(voteService.ranking(concertId, userId)));
+            @Parameter(description = "콘서트 PK") @PathVariable Long concertId,
+            @Parameter(description = "출연 정보 PK - 단독 공연은 공연 상세의 performanceId, 페스티벌은 라인업의 lineupId(헤드라이너)") @PathVariable Long performanceId) {
+        return ResponseEntity.ok(CommonResponse.success(voteService.ranking(concertId, performanceId, userId)));
     }
 
     @GetMapping("/past")
@@ -85,27 +91,29 @@ public class SetlistController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "403", description = "오픈 예정(비공개) 공연 - CONCERT_NOT_OPEN"),
-            @ApiResponse(responseCode = "404", description = "콘서트 없음")
+            @ApiResponse(responseCode = "404", description = "출연 정보 없음(공연 없음, 다른 공연의 출연 정보) - PERFORMANCE_NOT_FOUND")
     })
     public ResponseEntity<CommonResponse<List<SetlistResponse>>> past(
-            @Parameter(description = "콘서트 PK") @PathVariable Long concertId) {
-        return ResponseEntity.ok(CommonResponse.success(setlistService.pastSetlists(concertId)));
+            @Parameter(description = "콘서트 PK") @PathVariable Long concertId,
+            @Parameter(description = "출연 정보 PK - 단독 공연은 공연 상세의 performanceId, 페스티벌은 라인업의 lineupId(헤드라이너)") @PathVariable Long performanceId) {
+        return ResponseEntity.ok(CommonResponse.success(setlistService.pastSetlists(concertId, performanceId)));
     }
 
     @GetMapping("/candidates")
     @Operation(summary = "예상 셋리스트 후보(곡 선택 화면)",
-            description = "공연 아티스트의 곡 전체를 정렬 순번대로 준다. 순위·득표 수는 없다(상위권 쏠림 방지).\n\n" +
+            description = "출연 아티스트의 곡 전체를 정렬 순번대로 준다. 순위·득표 수는 없다(상위권 쏠림 방지).\n\n" +
                     "- 50곡 → 20곡씩 더보기, 원제·로마자·한글 검색은 프론트가 이 목록으로 한다(로마자는 화면 미노출)\n" +
                     "- maxSelect = 최대 선택 곡 수 n, votingClosed = 마감(공연 시작일 00:00 KST) 여부\n" +
-                    "- 셋리스트를 운영하지 않는 공연(페스티벌·아티스트 미지정)이면 maxSelect null, songs 빈 목록\n\n" +
+                    "- 셋리스트를 운영하지 않는 출연 정보(페스티벌 비헤드라이너)면 maxSelect null, songs 빈 목록\n\n" +
                     "비공개(오픈 예정) 공연이면 403.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "403", description = "오픈 예정(비공개) 공연 - CONCERT_NOT_OPEN"),
-            @ApiResponse(responseCode = "404", description = "콘서트 없음")
+            @ApiResponse(responseCode = "404", description = "출연 정보 없음(공연 없음, 다른 공연의 출연 정보) - PERFORMANCE_NOT_FOUND")
     })
     public ResponseEntity<CommonResponse<SetlistCandidatesResponse>> candidates(
-            @Parameter(description = "콘서트 PK") @PathVariable Long concertId) {
-        return ResponseEntity.ok(CommonResponse.success(voteService.candidates(concertId)));
+            @Parameter(description = "콘서트 PK") @PathVariable Long concertId,
+            @Parameter(description = "출연 정보 PK - 단독 공연은 공연 상세의 performanceId, 페스티벌은 라인업의 lineupId(헤드라이너)") @PathVariable Long performanceId) {
+        return ResponseEntity.ok(CommonResponse.success(voteService.candidates(concertId, performanceId)));
     }
 }
