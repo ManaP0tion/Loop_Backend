@@ -16,6 +16,7 @@ import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleReposit
 import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
 import com.loop.loop_backend.Performance.domain.Performance;
 import com.loop.loop_backend.Performance.repository.PerformanceRepository;
+import com.loop.loop_backend.Performance.service.PerformanceSync;
 import com.loop.loop_backend.Setlist.repository.SetlistRepository;
 import com.loop.loop_backend.Setlist.repository.SetlistVoteRepository;
 import com.loop.loop_backend.Setlist.service.SetlistDataGuard;
@@ -74,7 +75,7 @@ class AdminConcertServiceTest {
     void setUp() {
         service = new AdminConcertService(concertRepository, adminConcertRepository, artistRepository, venueRepository,
                 presaleRepository, generalSaleRepository, performanceRepository,
-                new SetlistDataGuard(setlistRepository, setlistVoteRepository));
+                new PerformanceSync(performanceRepository, new SetlistDataGuard(setlistRepository, setlistVoteRepository)));
         venue = venueRepository.save(Venue.builder().name("인스파이어 아레나").address("인천광역시 중구").build());
         yuuri = artistRepository.save(Artist.builder().name("Yuuri")
                 .autoFetchConcerts(true).category(ConcertCategory.J_POP_ARTIST).build());
@@ -375,8 +376,10 @@ class AdminConcertServiceTest {
                 .title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 22))
                 .build());
+        // DAY마다 다른 아티스트 1팀(공연당 아티스트 1항목)
         for (int day = 1; day <= 3; day++) {
-            performanceRepository.save(Performance.builder().concert(festival).artist(yuuri).day(day).displayOrder(day).build());
+            Artist artist = artistRepository.save(Artist.builder().name("DAY" + day + " 아티스트").build());
+            performanceRepository.save(Performance.builder().concert(festival).artist(artist).day(day).displayOrder(day).build());
         }
         flushAndClear();
         return festival;
@@ -384,7 +387,7 @@ class AdminConcertServiceTest {
 
     private List<Integer> lineupDays(Concert concert) {
         return performanceRepository.findByConcertIdOrderByDisplayOrderAsc(concert.getId()).stream()
-                .map(Performance::getDay).toList();
+                .flatMap(p -> p.getDays().stream()).toList();
     }
 
     @Test
@@ -550,5 +553,28 @@ class AdminConcertServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.update(noArtist.getId(), patch().expectedSongCount(12).build()))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("여러 DAY에 나오는 출연 정보는 기간이 줄면 범위 밖 DAY만 빠지고 출연 정보는 남는다")
+    void update_WhenPeriodShrinks_DropsOnlyOutOfRangeDaysOfMultiDayPerformance() {
+        // given - DAY2·DAY3에 나오는 헤드라이너
+        Concert festival = concertRepository.save(Concert.builder()
+                .title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL)
+                .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 22))
+                .build());
+        Performance headliner = Performance.builder().concert(festival).artist(yuuri).day(2).displayOrder(1).build();
+        headliner.addDay(3);
+        headliner.changeHeadliner(true);
+        performanceRepository.save(headliner);
+        flushAndClear();
+        attachSetlist(performanceRepository.findById(headliner.getId()).orElseThrow());
+
+        // when - DAY3이 기간 밖으로 밀린다. 출연 정보는 지워지지 않으므로 셋리스트가 있어도 409가 아니다
+        service.update(festival.getId(), patch().endDate(LocalDate.of(2026, 11, 21)).build());
+        flushAndClear();
+
+        // then
+        assertThat(performanceRepository.findById(headliner.getId()).orElseThrow().getDays()).containsExactly(2);
     }
 }

@@ -4,6 +4,7 @@ import com.loop.loop_backend.Setlist.domain.Setlist;
 import com.loop.loop_backend.Setlist.domain.SetlistType;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,5 +18,5 @@ public interface SetlistRepository extends JpaRepository<Setlist, Long> {
     // 출연 정보 삭제·헤드라이너 해제 가드(SetlistDataGuard)
     boolean existsByPerformanceId(Long performanceId);
 
-    boolean existsByPerformanceConcertIdAndPerformanceDayGreaterThan(Long concertId, int day);
+    boolean existsByPerformanceIdIn(Collection<Long> performanceIds);
 }

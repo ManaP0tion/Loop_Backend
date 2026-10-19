@@ -297,7 +297,7 @@ class SetlistPersistenceTest {
     }
 
     @Test
-    @DisplayName("셋리스트·투표 존재 여부는 출연 정보 단위와 공연의 DAY 범위 단위로 조회된다")
+    @DisplayName("셋리스트·투표 존재 여부는 출연 정보 하나 또는 여러 개 단위로 조회된다")
     void existsByPerformance_WhenSetlistOrVoteExists_ReturnsTrue() {
         // given
         Performance empty = festivalLineup(true);
@@ -311,8 +311,9 @@ class SetlistPersistenceTest {
         assertThat(voteRepository.existsByPerformanceId(withVote.getId())).isTrue();
         assertThat(setlistRepository.existsByPerformanceId(empty.getId())).isFalse();
         assertThat(voteRepository.existsByPerformanceId(empty.getId())).isFalse();
-        assertThat(setlistRepository.existsByPerformanceConcertIdAndPerformanceDayGreaterThan(concert.getId(), 0)).isTrue();
-        assertThat(setlistRepository.existsByPerformanceConcertIdAndPerformanceDayGreaterThan(concert.getId(), 1)).isFalse();
+        assertThat(setlistRepository.existsByPerformanceIdIn(List.of(empty.getId(), performance.getId()))).isTrue();
+        assertThat(voteRepository.existsByPerformanceIdIn(List.of(empty.getId(), withVote.getId()))).isTrue();
+        assertThat(setlistRepository.existsByPerformanceIdIn(List.of(empty.getId()))).isFalse();
     }
 
     @Test

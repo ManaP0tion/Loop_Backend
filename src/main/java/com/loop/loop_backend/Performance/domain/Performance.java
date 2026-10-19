@@ -9,22 +9,26 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
+import org.hibernate.annotations.SortNatural;
 
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * 공연의 아티스트별 출연 정보. 셋리스트·투표가 여기에 붙는다.
- * - 페스티벌: 라인업 한 줄(AD-04). 페스티벌 페이지 라인업과 동행 '꼭 보고 싶은 무대'의 원본. 헤드라이너만 셋리스트 대상.
- * - 단독 공연: 공연 아티스트로 1건(DAY 1, 헤드라이너). 관리자가 따로 만들지 않고 공연 수정 서비스가 Concert.artist에 맞춘다.
- * 이름·이미지는 Artist 값을 그대로 쓴다. 같은 아티스트가 여러 DAY에 나올 수 있어 (공연, 아티스트, DAY)로 유니크.
- * DAY는 날짜가 아니라 1부터 세는 번호 - 동행 WatchDay(ordinal + 1)와 그대로 비교하려고.
- * 공연 기간이 줄어 범위를 벗어난 DAY는 공연 수정 서비스가 지운다.
+ * - 페스티벌: 라인업 한 항목(AD-04). 페스티벌 페이지 라인업과 동행 '꼭 보고 싶은 무대'의 원본. 헤드라이너만 셋리스트 대상.
+ * - 단독 공연: 공연 아티스트로 1건(DAY 1, 헤드라이너). 관리자가 따로 만들지 않고 PerformanceSync가 Concert.artist에 맞춘다.
+ * 이름·이미지는 Artist 값을 그대로 쓴다. 공연당 아티스트 1건 - 여러 DAY에 나와도 셋리스트·투표는 아티스트당 하나다(PM 확정).
+ * 출연 DAY는 days(performance_days)에 둔다. DAY는 날짜가 아니라 1부터 세는 번호 - 동행 WatchDay(ordinal + 1)와 그대로 비교하려고.
+ * 공연 기간이 줄어 범위를 벗어난 DAY는 PerformanceSync가 지운다.
  */
 @Entity
 @Table(name = "performances",
         uniqueConstraints = @UniqueConstraint(
-                name = "uq_lineup_concert_artist_day",
-                columnNames = {"concert_id", "artist_id", "day_no"}))
+                name = "uq_performance_concert_artist",
+                columnNames = {"concert_id", "artist_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Performance {
@@ -44,8 +48,13 @@ public class Performance {
     @OnDelete(action = OnDeleteAction.CASCADE)
     private Artist artist;
 
+    /** 출연 DAY. 비어 있을 수 없다(마지막 DAY가 빠지면 출연 정보를 지운다). 헤드라이너는 출연한 모든 DAY에서 헤드라이너다. */
+    @ElementCollection
+    @CollectionTable(name = "performance_days", joinColumns = @JoinColumn(name = "performance_id"))
+    @OnDelete(action = OnDeleteAction.CASCADE)
     @Column(name = "day_no", nullable = false)
-    private int day;
+    @SortNatural
+    private SortedSet<Integer> days = new TreeSet<>();
 
     // DAY당 개수 제한 없음
     @Column(name = "headliner", nullable = false)
@@ -67,7 +76,7 @@ public class Performance {
         }
         this.concert = concert;
         this.artist = artist;
-        this.day = validDay(concert, day);
+        this.days.add(validDay(concert, day));
         this.displayOrder = displayOrder;
     }
 
@@ -79,7 +88,7 @@ public class Performance {
         Performance p = new Performance();
         p.concert = concert;
         p.artist = artist;
-        p.day = 1;
+        p.days.add(1);
         p.headliner = true;
         p.displayOrder = 1;
         return p;
@@ -90,8 +99,33 @@ public class Performance {
         return !concert.isFestival() || headliner;
     }
 
-    public void changeDay(int day) {
-        this.day = validDay(concert, day);
+    public boolean hasDay(int day) {
+        return days.contains(day);
+    }
+
+    /** 출연 DAY 추가(라인업에 같은 아티스트를 다른 DAY로 추가할 때). 이미 있는 DAY인지는 호출한 쪽이 먼저 본다(409). */
+    public void addDay(int day) {
+        days.add(validDay(concert, day));
+    }
+
+    /** 출연 DAY 목록을 통째로 바꾼다. 빈 목록은 400 - 출연을 없애려면 출연 정보를 지운다. */
+    public void replaceDays(Collection<Integer> newDays) {
+        if (newDays == null || newDays.isEmpty()) {
+            throw new IllegalArgumentException("출연 DAY는 1개 이상이어야 한다");
+        }
+        SortedSet<Integer> valid = new TreeSet<>();
+        for (Integer day : newDays) {
+            if (day == null) throw new IllegalArgumentException("DAY는 비울 수 없다");
+            valid.add(validDay(concert, day));
+        }
+        days.clear();
+        days.addAll(valid);
+    }
+
+    /** 공연 기간이 줄었을 때: dayCount를 넘는 DAY를 뺀다. 남은 DAY가 없으면 true - 호출한 쪽이 출연 정보를 지운다. */
+    public boolean dropDaysAfter(int dayCount) {
+        days.removeIf(day -> day > dayCount);
+        return days.isEmpty();
     }
 
     public void changeHeadliner(boolean headliner) {

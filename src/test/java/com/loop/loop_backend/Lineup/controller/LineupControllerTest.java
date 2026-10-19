@@ -50,8 +50,8 @@ class LineupControllerTest {
         when(service.publicLineup(1L)).thenReturn(new LineupResponse(
                 List.of(new LineupResponse.Day(1, LocalDate.of(2026, 11, 20)),
                         new LineupResponse.Day(2, LocalDate.of(2026, 11, 21))),
-                List.of(new LineupItemResponse(10L, 3L, "YOASOBI", "요아소비", "https://img/y.png", ConcertCategory.J_POP_ARTIST, 2, true, 1, null),
-                        new LineupItemResponse(11L, 4L, "Yuuri", null, null, ConcertCategory.J_POP_ARTIST, 1, false, 2, null))));
+                List.of(new LineupItemResponse(10L, 3L, "YOASOBI", "요아소비", "https://img/y.png", ConcertCategory.J_POP_ARTIST, List.of(2), true, 1, null),
+                        new LineupItemResponse(11L, 4L, "Yuuri", null, null, ConcertCategory.J_POP_ARTIST, List.of(1, 3), false, 2, null))));
 
         mockMvc.perform(get(URL, 1L))
                 .andExpect(status().isOk())
@@ -59,7 +59,8 @@ class LineupControllerTest {
                 .andExpect(jsonPath("$.data.days[0].day").value(1))
                 .andExpect(jsonPath("$.data.days[0].date").value("2026-11-20"))
                 .andExpect(jsonPath("$.data.artists[0].name").value("YOASOBI"))
-                .andExpect(jsonPath("$.data.artists[0].day").value(2))
+                .andExpect(jsonPath("$.data.artists[0].days[0]").value(2))
+                .andExpect(jsonPath("$.data.artists[1].days[1]").value(3))
                 .andExpect(jsonPath("$.data.artists[0].headliner").value(true))
                 .andExpect(jsonPath("$.data.artists[1].name").value("Yuuri"))
                 .andExpect(jsonPath("$.data.artists[1].nameKo").doesNotExist());

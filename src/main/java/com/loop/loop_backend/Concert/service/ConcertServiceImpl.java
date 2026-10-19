@@ -20,6 +20,7 @@ import com.loop.loop_backend.CompanionPost.service.CompanionService;
 import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
 import com.loop.loop_backend.Performance.domain.Performance;
 import com.loop.loop_backend.Performance.repository.PerformanceRepository;
+import com.loop.loop_backend.Performance.service.PerformanceSync;
 import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistResultResponse;
 import com.loop.loop_backend.Setlist.service.SetlistResultService;
@@ -63,6 +64,7 @@ public class ConcertServiceImpl implements ConcertService {
     private final SetlistVoteService setlistVoteService;
     private final SetlistResultService setlistResultService;
     private final PerformanceRepository performanceRepository;
+    private final PerformanceSync performanceSync;
 
     @Override
     @Transactional
@@ -81,6 +83,7 @@ public class ConcertServiceImpl implements ConcertService {
                 .build();
         // IDENTITY 전략이라 save() 시점에 즉시 ID가 확정됨 -> 그 ID를 S3 키로 써서 바로 업로드 가능
         concertRepository.save(concert);
+        performanceSync.sync(concert, false, null);
 
         String posterUrl = resolvePosterUrl(concert.getId(), image, null);
         if (posterUrl != null) {
@@ -96,10 +99,12 @@ public class ConcertServiceImpl implements ConcertService {
         Artist artist = resolveArtist(requestDto.getArtistId());
         // 새 이미지가 없으면 기존 posterUrl을 그대로 유지 (수정 시 이미지 없이 다른 필드만 바꾸는 경우 대비)
         String posterUrl = resolvePosterUrl(id, image, concert.getPosterUrl());
+        ConcertCategory before = concert.getCategory();
         concert.update(artist, requestDto.getTitle(), posterUrl,
                 requestDto.getVenue(), requestDto.getStartDate(), requestDto.getEndDate(),
                 requestDto.getCategory(), requestDto.getPrice(), requestDto.getTicketUrl(),
                 requestDto.getShowtime());
+        performanceSync.sync(concert, concert.getCategory() != before, null);
         return ConcertResponseDto.from(concert, companionPostRepository.countByConcert_Id(concert.getId()));
     }
 

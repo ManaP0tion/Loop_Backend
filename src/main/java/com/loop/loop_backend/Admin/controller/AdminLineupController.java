@@ -47,7 +47,7 @@ public class AdminLineupController {
     private final AdminAccessLogService accessLog;
 
     @GetMapping
-    @Operation(summary = "라인업 목록", description = "노출 순서대로 전체. DAY 탭은 day 값으로 프론트에서 나눈다.")
+    @Operation(summary = "라인업 목록", description = "노출 순서대로 전체. DAY 탭은 각 항목의 days로 프론트에서 거른다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공 (라인업이 없으면 빈 목록)"),
             @ApiResponse(responseCode = "404", description = "공연 없음")
@@ -64,7 +64,8 @@ public class AdminLineupController {
                     "|---|---|\n" +
                     "| DB 선택 | `{\"day\": 1, \"artistIds\": [3, 7]}` |\n" +
                     "| 직접 입력 | `{\"day\": 1, \"name\": \"Vaundy\", \"imageUrl\": \"https://...\", \"category\": \"DOMESTIC_ARTIST\"}` - 아티스트 DB에도 저장된다. category 생략 시 J_POP_ARTIST |\n\n" +
-                    "같은 아티스트를 다른 DAY에 또 추가할 수 있다. 같은 DAY에 이미 있으면 409이고 아무것도 추가되지 않는다.")
+                    "이미 라인업에 있는 아티스트를 다른 DAY로 추가하면 새 항목이 생기지 않고 그 항목의 `days`에 DAY가 더해진다" +
+                    "(셋리스트·투표는 아티스트당 하나). 같은 DAY에 이미 있으면 409이고 아무것도 추가되지 않는다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "추가 성공"),
             @ApiResponse(responseCode = "400",
@@ -83,25 +84,25 @@ public class AdminLineupController {
         return ResponseEntity.ok(CommonResponse.success(result));
     }
 
-    @PatchMapping("/{lineupId}")
-    @Operation(summary = "DAY 변경",
-            description = "아티스트 이름·이미지 수정은 아티스트 관리 화면에서 한다(라인업은 아티스트 값을 그대로 쓴다).")
+    @PutMapping("/{lineupId}/days")
+    @Operation(summary = "출연 DAY 변경",
+            description = "출연 DAY 목록을 통째로 바꾼다. 같은 아티스트는 공연당 항목 하나이고, 셋리스트·투표도 그 항목에 하나다(DAY를 바꿔도 그대로).\n\n" +
+                    "빈 목록이나 공연 기간 밖 DAY는 400. 출연을 없애려면 항목을 삭제한다. " +
+                    "아티스트 이름·이미지 수정은 아티스트 관리 화면에서 한다(라인업은 아티스트 값을 그대로 쓴다).")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "변경 성공"),
-            @ApiResponse(responseCode = "400", description = "DAY 범위 밖",
+            @ApiResponse(responseCode = "400", description = "빈 목록, DAY 범위 밖",
                     content = @Content(examples = @ExampleObject(value = INVALID_INPUT_EXAMPLE))),
             @ApiResponse(responseCode = "404", description = "공연 또는 라인업 항목 없음",
-                    content = @Content(examples = @ExampleObject(value = NOT_FOUND_EXAMPLE))),
-            @ApiResponse(responseCode = "409", description = "옮길 DAY에 같은 아티스트가 이미 있음",
-                    content = @Content(examples = @ExampleObject(value = DUPLICATE_EXAMPLE)))
+                    content = @Content(examples = @ExampleObject(value = NOT_FOUND_EXAMPLE)))
     })
-    public ResponseEntity<CommonResponse<List<LineupItemResponse>>> changeDay(
+    public ResponseEntity<CommonResponse<List<LineupItemResponse>>> replaceDays(
             @AuthenticationPrincipal Long adminId, HttpServletRequest req,
             @Parameter(description = "공연 PK") @PathVariable Long concertId,
             @Parameter(description = "라인업 항목 PK") @PathVariable Long lineupId,
-            @Valid @RequestBody LineupPatchRequests.Day body) {
-        List<LineupItemResponse> result = lineupService.changeDay(concertId, lineupId, body.day());
-        accessLog.log(adminId, req, "UPDATE_LINEUP", "CONCERT", concertId, "라인업 DAY 변경: " + lineupId);
+            @Valid @RequestBody LineupPatchRequests.Days body) {
+        List<LineupItemResponse> result = lineupService.replaceDays(concertId, lineupId, body.days());
+        accessLog.log(adminId, req, "UPDATE_LINEUP", "CONCERT", concertId, "라인업 출연 DAY 변경: " + lineupId);
         return ResponseEntity.ok(CommonResponse.success(result));
     }
 

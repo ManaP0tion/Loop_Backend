@@ -13,9 +13,11 @@ import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
 import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
+import com.loop.loop_backend.Performance.service.PerformanceSync;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -53,6 +55,7 @@ class ConcertServiceImplTest {
     @Mock CompanionService companionService;
     @Mock S3StorageService s3StorageService;
     @Mock ConcertScrapRepository concertScrapRepository;
+    @Mock PerformanceSync performanceSync;
     @InjectMocks ConcertServiceImpl concertService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -126,6 +129,49 @@ class ConcertServiceImplTest {
         ConcertResponseDto result = concertService.updateConcert(10L, requestDto("이미지 교체"), newImage);
 
         assertThat(result.getPosterUrl()).isEqualTo("https://cdn/new.png");
+    }
+
+    @Test
+    @DisplayName("예전 API로 공연을 등록하면 출연 정보 동기화를 유형 변경 없이 호출한다")
+    void createConcert_SyncsPerformanceAfterSave() throws Exception {
+        // given
+        stubSaveAssignsId(3L);
+
+        // when
+        concertService.createConcert(requestDto("동기화 콘서트"), null);
+
+        // then
+        verify(performanceSync).sync(any(Concert.class), eq(false), eq(null));
+    }
+
+    @Test
+    @DisplayName("예전 API로 공연 유형을 바꾸면 유형 변경으로 출연 정보 동기화를 호출한다")
+    void updateConcert_WhenCategoryChanged_SyncsWithCategoryChanged() throws Exception {
+        // given - 요청 유형은 DOMESTIC_ARTIST
+        Concert existing = Concert.builder().title("페스티벌").category(ConcertCategory.JAPAN_FESTIVAL).build();
+        ReflectionTestUtils.setField(existing, "id", 10L);
+        when(concertRepository.findById(10L)).thenReturn(Optional.of(existing));
+
+        // when
+        concertService.updateConcert(10L, requestDto("단독으로 변경"), null);
+
+        // then
+        verify(performanceSync).sync(existing, true, null);
+    }
+
+    @Test
+    @DisplayName("예전 API로 유형을 그대로 두고 수정하면 유형 변경 없이 출연 정보 동기화를 호출한다")
+    void updateConcert_WhenCategoryUnchanged_SyncsWithoutCategoryChanged() throws Exception {
+        // given
+        Concert existing = Concert.builder().title("기존").category(ConcertCategory.DOMESTIC_ARTIST).build();
+        ReflectionTestUtils.setField(existing, "id", 10L);
+        when(concertRepository.findById(10L)).thenReturn(Optional.of(existing));
+
+        // when
+        concertService.updateConcert(10L, requestDto("제목 수정"), null);
+
+        // then
+        verify(performanceSync).sync(existing, false, null);
     }
 
     // companionCount가 ConcertSummaryDto로 옮겨가며 빠졌다 - 콘서트 단건 조회는 이제

@@ -8,6 +8,7 @@ import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Performance.repository.PerformanceRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -19,10 +20,11 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-// 라인업(AD-04) 저장 규칙:
-// - 페스티벌에만, DAY는 1~공연 일수. 같은 아티스트는 DAY가 다르면 여러 번 등록된다.
-// - 목록은 노출 순서대로, 기간 축소·유형 변경 정리용 삭제가 동작한다.
-// - 공연이나 아티스트가 지워지면 라인업도 지워진다.
+// 출연 정보(라인업, AD-04) 저장 규칙:
+// - 페스티벌 라인업은 페스티벌에만, DAY는 1~공연 일수.
+// - 공연당 아티스트 1건. 여러 DAY 출연은 출연 DAY 목록(performance_days)으로 둔다.
+// - 목록은 노출 순서대로, 출연 DAY도 함께 읽힌다.
+// - 공연이나 아티스트가 지워지면 출연 정보와 출연 DAY도 지워진다.
 @DataJpaTest
 class PerformancePersistenceTest {
 
@@ -60,78 +62,154 @@ class PerformancePersistenceTest {
     }
 
     @Test
-    void 페스티벌이_아니면_등록할_수_없다() {
+    @DisplayName("페스티벌이 아니면 라인업 항목을 만들 수 없다")
+    void build_WhenNotFestival_ThrowsInvalidInput() {
+        // given
         Concert solo = concertRepository.save(Concert.builder()
                 .title("YUURI LIVE").category(ConcertCategory.J_POP_ARTIST)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 20))
                 .build());
 
+        // when & then
         assertThatThrownBy(() -> Performance.builder().concert(solo).artist(yuuri).day(1).displayOrder(1).build())
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    void DAY는_1부터_공연_일수까지다() {
+    @DisplayName("DAY는 1부터 공연 일수까지다")
+    void build_WithDayOutOfRange_ThrowsInvalidInput() {
+        // when & then
         assertThatThrownBy(() -> add(yuuri, 0)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> add(yuuri, 4)).isInstanceOf(IllegalArgumentException.class);
-        assertThat(add(yuuri, 3).getDay()).isEqualTo(3);
+        assertThat(add(yuuri, 3).getDays()).containsExactly(3);
     }
 
     @Test
-    void 기간이_미정이면_DAY를_정할_수_없다() {
+    @DisplayName("공연 기간이 미정이면 DAY를 정할 수 없다")
+    void build_WhenPeriodUndecided_ThrowsInvalidInput() {
+        // given
         Concert undated = concertRepository.save(Concert.builder()
                 .title("미정 페스티벌").category(ConcertCategory.JAPAN_FESTIVAL).build());
 
+        // when & then
         assertThatThrownBy(() -> Performance.builder().concert(undated).artist(yuuri).day(1).displayOrder(1).build())
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    void 같은_아티스트는_다른_DAY에_또_등록되지만_같은_DAY는_중복될_수_없다() {
+    @DisplayName("같은 공연에 같은 아티스트는 한 건만 저장된다")
+    void save_WhenSameConcertAndArtist_ViolatesUniqueConstraint() {
+        // given
         add(yuuri, 1);
-        add(yuuri, 2);
         flushAndClear();
 
-        assertThat(performanceRepository.existsByConcertIdAndArtistIdAndDay(festival.getId(), yuuri.getId(), 1)).isTrue();
+        // when & then
         assertThatThrownBy(() -> {
-            add(yuuri, 1);
+            add(yuuri, 2);
             em.flush();
         }).isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
-    void 목록은_노출_순서대로_나오고_새_항목은_맨_뒤다() {
+    @DisplayName("여러 DAY 출연은 출연 DAY 목록에 오름차순으로 저장된다")
+    void addDay_StoresDaysSortedAndReadsBack() {
+        // given
+        Performance performance = add(yuuri, 3);
+
+        // when
+        performance.addDay(1);
+        flushAndClear();
+
+        // then
+        Performance loaded = performanceRepository.findByConcertIdAndArtistId(festival.getId(), yuuri.getId()).orElseThrow();
+        assertThat(loaded.getDays()).containsExactly(1, 3);
+        assertThat(loaded.hasDay(3)).isTrue();
+        assertThat(loaded.hasDay(2)).isFalse();
+    }
+
+    @Test
+    @DisplayName("출연 DAY 목록을 통째로 바꾸고, 빈 목록이나 범위 밖 DAY는 거절한다")
+    void replaceDays_ReplacesWholeListAndRejectsInvalid() {
+        // given
+        Performance performance = add(yuuri, 1);
+
+        // when
+        performance.replaceDays(List.of(3, 2));
+        flushAndClear();
+
+        // then
+        assertThat(performanceRepository.findById(performance.getId()).orElseThrow().getDays()).containsExactly(2, 3);
+        Performance loaded = performanceRepository.findById(performance.getId()).orElseThrow();
+        assertThatThrownBy(() -> loaded.replaceDays(List.of())).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> loaded.replaceDays(List.of(1, 4))).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("기간 축소 정리는 범위를 넘는 DAY만 빼고 DAY가 다 빠졌는지 알려준다")
+    void dropDaysAfter_RemovesOutOfRangeDaysAndReportsEmpty() {
+        // given
+        Performance both = add(yuuri, 1);
+        both.addDay(3);
+        Performance lastOnly = add(yoasobi, 3);
+
+        // when & then
+        assertThat(both.dropDaysAfter(2)).isFalse();
+        assertThat(both.getDays()).containsExactly(1);
+        assertThat(lastOnly.dropDaysAfter(2)).isTrue();
+    }
+
+    @Test
+    @DisplayName("목록은 노출 순서대로 출연 DAY와 함께 나오고 새 항목은 맨 뒤다")
+    void findByConcertIdOrderByDisplayOrderAsc_ReturnsInDisplayOrderWithDays() {
+        // given
         Performance first = add(yoasobi, 2);
         Performance second = add(yuuri, 1);
+        second.addDay(3);
         first.swapOrderWith(second);
         flushAndClear();
 
+        // when
         List<Performance> list = performanceRepository.findByConcertIdOrderByDisplayOrderAsc(festival.getId());
+
+        // then
         assertThat(list).extracting(l -> l.getArtist().getName()).containsExactly("Yuuri", "YOASOBI");
+        assertThat(list.get(0).getDays()).containsExactly(1, 3);
         assertThat(performanceRepository.findMaxDisplayOrder(festival.getId())).isEqualTo(2);
     }
 
     @Test
-    void 기간_축소_정리는_범위를_넘는_DAY만_지운다() {
-        add(yoasobi, 1);
-        add(yuuri, 3);
+    @DisplayName("동행 무대 검증 쿼리는 이 공연 소속이면서 그 DAY에 출연하는 항목만 센다")
+    void countByIdInAndConcertIdAndDay_CountsOnlyPerformancesOnThatDay() {
+        // given
+        Performance yuuriDays = add(yuuri, 1);
+        yuuriDays.addDay(2);
+        Performance yoasobiDay3 = add(yoasobi, 3);
+        flushAndClear();
 
-        performanceRepository.deleteByConcertIdAndDayGreaterThan(festival.getId(), 2);
-
-        assertThat(performanceRepository.findByConcertIdOrderByDisplayOrderAsc(festival.getId()))
-                .extracting(Performance::getDay).containsExactly(1);
+        // when & then
+        List<Long> ids = List.of(yuuriDays.getId(), yoasobiDay3.getId());
+        assertThat(performanceRepository.countByIdInAndConcertIdAndDay(ids, festival.getId(), 2)).isEqualTo(1);
+        assertThat(performanceRepository.countByIdInAndConcertIdAndDay(ids, festival.getId(), 3)).isEqualTo(1);
+        assertThat(performanceRepository.countByIdInAndConcertIdAndDay(List.of(yuuriDays.getId()), festival.getId(), 1))
+                .isEqualTo(1);
     }
 
     @Test
-    void 공연이나_아티스트가_지워지면_라인업도_지워진다() {
+    @DisplayName("공연이나 아티스트가 지워지면 출연 정보와 출연 DAY도 지워진다")
+    void deleteConcertOrArtist_CascadesToPerformancesAndDays() {
+        // given
         add(yoasobi, 1);
-        add(yuuri, 1);
+        add(yuuri, 1).addDay(2);
         flushAndClear();
 
+        // when
         em.createNativeQuery("DELETE FROM artists WHERE id = :id").setParameter("id", yuuri.getId()).executeUpdate();
-        assertThat(performanceRepository.findByConcertIdOrderByDisplayOrderAsc(festival.getId())).hasSize(1);
 
+        // then
+        assertThat(performanceRepository.findByConcertIdOrderByDisplayOrderAsc(festival.getId())).hasSize(1);
         em.createNativeQuery("DELETE FROM concerts WHERE id = :id").setParameter("id", festival.getId()).executeUpdate();
         assertThat(performanceRepository.count()).isZero();
+        //noinspection SqlResolve
+        assertThat(em.createNativeQuery("SELECT COUNT(*) FROM performance_days").getSingleResult()).isEqualTo(0L);
     }
 }

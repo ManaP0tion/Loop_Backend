@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.stream.IntStream;
 import java.util.Map;
@@ -65,35 +66,46 @@ public class LineupService {
         return currentList(concertId);
     }
 
-    /** DB 선택(artistIds) 또는 직접 입력(name) 중 하나. 요청 순서대로 맨 뒤에 붙는다. */
+    /**
+     * DB 선택(artistIds) 또는 직접 입력(name) 중 하나. 공연에 이미 있는 아티스트면 출연 DAY만 늘리고(셋리스트·투표는 아티스트당 하나),
+     * 새 아티스트는 요청 순서대로 맨 뒤에 붙는다.
+     */
     @Transactional
     public List<LineupItemResponse> add(Long concertId, LineupAddRequest req) {
         Concert concert = findConcert(concertId);
         List<Artist> artists = artistsToAdd(req);
-
-        // 하나라도 중복이면 아무것도 넣지 않는다
+        Map<Long, Performance> existing = new HashMap<>();
         for (Artist artist : artists) {
-            if (performanceRepository.existsByConcertIdAndArtistIdAndDay(concertId, artist.getId(), req.day())) {
+            performanceRepository.findByConcertIdAndArtistId(concertId, artist.getId())
+                    .ifPresent(p -> existing.put(artist.getId(), p));
+        }
+
+        // 하나라도 그 DAY에 이미 있으면 아무것도 넣지 않는다
+        for (Performance performance : existing.values()) {
+            if (performance.hasDay(req.day())) {
                 throw new BusinessException(ErrorCode.DUPLICATE_LINEUP);
             }
         }
         int order = performanceRepository.findMaxDisplayOrder(concertId);
         for (Artist artist : artists) {
-            performanceRepository.save(Performance.builder()
-                    .concert(concert).artist(artist).day(req.day()).displayOrder(++order)
-                    .build());
+            Performance performance = existing.get(artist.getId());
+            if (performance != null) {
+                performance.addDay(req.day());
+            } else {
+                performanceRepository.save(Performance.builder()
+                        .concert(concert).artist(artist).day(req.day()).displayOrder(++order)
+                        .build());
+            }
         }
+        performanceRepository.flush();
         return currentList(concertId);
     }
 
+    /** 출연 DAY 목록 통째 교체. 빈 목록·범위 밖 DAY는 400(Performance가 검사). 셋리스트·투표는 그대로 남는다. */
     @Transactional
-    public List<LineupItemResponse> changeDay(Long concertId, Long lineupId, int day) {
-        Performance lineup = findLineup(concertId, lineupId);
-        if (lineup.getDay() != day
-                && performanceRepository.existsByConcertIdAndArtistIdAndDay(concertId, lineup.getArtist().getId(), day)) {
-            throw new BusinessException(ErrorCode.DUPLICATE_LINEUP);
-        }
-        lineup.changeDay(day);
+    public List<LineupItemResponse> replaceDays(Long concertId, Long lineupId, List<Integer> days) {
+        findLineup(concertId, lineupId).replaceDays(days);
+        performanceRepository.flush();
         return currentList(concertId);
     }
 
@@ -141,7 +153,7 @@ public class LineupService {
     }
 
     /**
-     * 동행 프로필 '꼭 보고 싶은 무대' 검증(NO.27). 고른 라인업 항목이 모두 이 공연·DAY 소속이어야 한다.
+     * 동행 프로필 '꼭 보고 싶은 무대' 검증(NO.27). 고른 라인업 항목이 모두 이 공연 소속이고 그 DAY에 출연해야 한다.
      * 아무것도 안 골랐으면 통과(미선택 허용). 다른 DAY·다른 공연·없는 항목이 섞이면 400.
      */
     @Transactional(readOnly = true)

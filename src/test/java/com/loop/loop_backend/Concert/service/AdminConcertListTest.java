@@ -13,6 +13,7 @@ import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
 import com.loop.loop_backend.Performance.repository.PerformanceRepository;
+import com.loop.loop_backend.Performance.service.PerformanceSync;
 import com.loop.loop_backend.Setlist.repository.SetlistRepository;
 import com.loop.loop_backend.Setlist.repository.SetlistVoteRepository;
 import com.loop.loop_backend.Setlist.service.SetlistDataGuard;
@@ -65,7 +66,7 @@ class AdminConcertListTest {
     void setUp() {
         service = new AdminConcertService(concertRepository, adminConcertRepository, artistRepository, venueRepository,
                 presaleRepository, generalSaleRepository, performanceRepository,
-                new SetlistDataGuard(setlistRepository, setlistVoteRepository));
+                new PerformanceSync(performanceRepository, new SetlistDataGuard(setlistRepository, setlistVoteRepository)));
     }
 
     private Concert concert(String title, ConcertCategory category, boolean published) {

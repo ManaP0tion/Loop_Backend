@@ -6,7 +6,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * 페스티벌 라인업(NO.41·42). 한 번에 전부 내려주고 DAY 탭은 프론트가 day 값으로 나눈다.
+ * 페스티벌 라인업(NO.41·42). 한 번에 전부 내려주고 DAY 탭은 프론트가 각 항목의 days로 거른다(아티스트당 한 항목).
  * 헤드라이너 미리보기는 artists에서 headliner=true를 순서대로 고른다(3팀 미만이면 숨김, 초과면 앞 3팀).
  */
 @Schema(description = "페스티벌 라인업. 라인업이 아직 없거나 페스티벌이 아니면 artists가 빈 목록")

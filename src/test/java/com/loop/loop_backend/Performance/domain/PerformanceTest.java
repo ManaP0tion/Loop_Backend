@@ -35,7 +35,7 @@ class PerformanceTest {
         Performance performance = Performance.solo(solo(), YUURI);
 
         // then
-        assertThat(performance.getDay()).isEqualTo(1);
+        assertThat(performance.getDays()).containsExactly(1);
         assertThat(performance.isHeadliner()).isTrue();
         assertThat(performance.isSetlistTarget()).isTrue();
     }

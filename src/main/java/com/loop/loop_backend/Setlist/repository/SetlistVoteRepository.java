@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,7 +19,7 @@ public interface SetlistVoteRepository extends JpaRepository<SetlistVote, Long> 
     // 출연 정보 삭제·헤드라이너 해제 가드(SetlistDataGuard)
     boolean existsByPerformanceId(Long performanceId);
 
-    boolean existsByPerformanceConcertIdAndPerformanceDayGreaterThan(Long concertId, int day);
+    boolean existsByPerformanceIdIn(Collection<Long> performanceIds);
 
     // 회원탈퇴 정리용(UserServiceImpl.withdrawUser) - 탈퇴는 users 행을 지우지 않아 FK cascade가 동작하지 않는다
     void deleteAllByUser(User user);
