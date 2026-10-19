@@ -37,13 +37,40 @@ public interface SetlistVoteRepository extends JpaRepository<SetlistVote, Long> 
             """)
     List<SongVoteCount> countVotesBySong(@Param("performanceId") Long performanceId);
 
-    // 적중률 전체 평균(NO.68): 투표자별로 고른 곡을 한 번에 가져온다
-    @Query("""
-            select new com.loop.loop_backend.Setlist.repository.VoteSongRow(v.id, s.id)
-            from SetlistVote v join v.songs s
-            where v.performance.id = :performanceId
-            """)
-    List<VoteSongRow> findVoteSongs(@Param("performanceId") Long performanceId);
+    /**
+     * 공연 후 결과(NO.60~62, 68)용 곡별 득표 수. countVotesBySong과 같은 정렬이지만 삭제된 곡도 센다 -
+     * 투표한 곡이 공연 뒤 삭제돼도 적중률·팬 예상 상위 n곡이 바뀌지 않게(F-2). Song의 @SQLRestriction을 피하려고 네이티브.
+     */
+    @Query(value = """
+            select vs.song_id, count(*)
+            from setlist_vote_songs vs
+            join setlist_votes v on v.id = vs.vote_id
+            join song s on s.id = vs.song_id
+            where v.performance_id = :performanceId
+            group by vs.song_id, s.sort_order
+            order by count(*) desc, s.sort_order asc, vs.song_id asc
+            """, nativeQuery = true)
+    List<Object[]> countVoteRowsIncludingDeleted(@Param("performanceId") Long performanceId);
+
+    default List<SongVoteCount> countVotesBySongIncludingDeleted(Long performanceId) {
+        return countVoteRowsIncludingDeleted(performanceId).stream()
+                .map(r -> new SongVoteCount(((Number) r[0]).longValue(), ((Number) r[1]).longValue()))
+                .toList();
+    }
+
+    // 적중률 전체 평균(NO.68): 투표자별로 고른 곡을 한 번에 가져온다. 삭제된 곡도 포함(위와 같은 이유)
+    @Query(value = """
+            select vs.vote_id, vs.song_id
+            from setlist_vote_songs vs join setlist_votes v on v.id = vs.vote_id
+            where v.performance_id = :performanceId
+            """, nativeQuery = true)
+    List<Object[]> findVoteSongRowsIncludingDeleted(@Param("performanceId") Long performanceId);
+
+    default List<VoteSongRow> findVoteSongsIncludingDeleted(Long performanceId) {
+        return findVoteSongRowsIncludingDeleted(performanceId).stream()
+                .map(r -> new VoteSongRow(((Number) r[0]).longValue(), ((Number) r[1]).longValue()))
+                .toList();
+    }
 
     /**
      * 결과 메일 대상(NO.69): 투표 + 수신 동의 + 이메일 인증(email 존재) + 설정의 셋리스트 결과 알림 ON.

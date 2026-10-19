@@ -67,7 +67,7 @@ class SetlistResultServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new SetlistResultService(setlistRepository, voteRepository, performanceRepository, songRepository);
+        service = new SetlistResultService(setlistRepository, voteRepository, performanceRepository);
         yuuri = artistRepository.save(Artist.builder().name("Yuuri").build());
         concert = saveSoloConcert(true);
         performance = Performance.solo(concert, yuuri);
@@ -286,6 +286,31 @@ class SetlistResultServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONCERT_NOT_OPEN);
+    }
+
+    @Test
+    @DisplayName("공연 뒤 곡이 삭제돼도 적중률·실제 셋리스트·미출현 곡이 그대로이고 삭제 표시만 붙는다")
+    void result_WhenSongsDeletedAfterConcert_KeepsResultAndMarksDeleted() {
+        // given - 실제 셋리스트에 있던 s2, 투표만 받은 미출현 곡 s3를 공연 뒤 삭제
+        standardScenario();
+        SetlistResultResponse before = result(me.getId());
+        songRepository.delete(songRepository.findById(s2.getId()).orElseThrow());
+        songRepository.delete(songRepository.findById(s3.getId()).orElseThrow());
+        em.flush();
+        em.clear();
+
+        // when
+        SetlistResultResponse after = result(me.getId());
+
+        // then
+        assertThat(after.overall()).isEqualTo(before.overall());
+        assertThat(after.mine()).isEqualTo(before.mine());
+        assertThat(after.averagePercent()).isEqualTo(before.averagePercent());
+        assertThat(after.songs()).extracting(ResultSong::position, ResultSong::songId, ResultSong::deleted)
+                .containsExactly(tuple(1, s1.getId(), false), tuple(2, s4.getId(), false),
+                        tuple(3, s1.getId(), false), tuple(4, s2.getId(), true));
+        assertThat(after.missedSongs()).extracting(MissedSong::titleOriginal, MissedSong::votes, MissedSong::deleted)
+                .containsExactly(tuple("いかないで", 2L, true));
     }
 
     @Test

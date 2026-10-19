@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.loop.loop_backend.Admin.service.AdminAccessLogService;
 import com.loop.loop_backend.Setlist.domain.SetlistType;
+import com.loop.loop_backend.Setlist.dto.PreviousActualSetlistResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistSaveRequest;
 import com.loop.loop_backend.Setlist.dto.SetlistSongResponse;
@@ -13,6 +14,7 @@ import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.common.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.MediaType;
@@ -43,8 +45,8 @@ class AdminSetlistControllerTest {
     private static final Long PERFORMANCE_ID = 5L;
     private static final List<SetlistResponse> LIST = List.of(new SetlistResponse(
             5L, SetlistType.RECENT, "Arena Tour", LocalDate.of(2026, 5, 1), "Zepp Haneda", 2,
-            List.of(new SetlistSongResponse(1, 12L, "ドライフラワー", "드라이플라워", "https://img/a.jpg"),
-                    new SetlistSongResponse(2, 7L, "ベテルギウス", null, null))));
+            List.of(new SetlistSongResponse(1, 12L, "ドライフラワー", "드라이플라워", "https://img/a.jpg", false),
+                    new SetlistSongResponse(2, 7L, "ベテルギウス", null, null, true))));
 
     private MockMvc mockMvc;
     private SetlistService service;
@@ -146,5 +148,48 @@ class AdminSetlistControllerTest {
                 .andExpect(status().isNotFound());
         mockMvc.perform(delete(BASE + "/ACTUAL", 1L, PERFORMANCE_ID))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("목록의 곡에는 삭제 여부가 함께 나간다")
+    void list_IncludesDeletedFlagPerSong() throws Exception {
+        // given
+        when(service.list(1L, PERFORMANCE_ID)).thenReturn(LIST);
+
+        // when & then
+        mockMvc.perform(get(BASE, 1L, PERFORMANCE_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].songs[0].deleted").value(false))
+                .andExpect(jsonPath("$.data[0].songs[1].deleted").value(true));
+    }
+
+    @Test
+    @DisplayName("이전 실제 셋리스트 불러오기는 헤더 제안값과 곡 목록을 준다")
+    void previousActuals_ReturnsSuggestedHeaderAndSongs() throws Exception {
+        // given
+        when(service.previousActuals(1L, PERFORMANCE_ID)).thenReturn(List.of(new PreviousActualSetlistResponse(
+                9L, 3L, "YUURI 2025", LocalDate.of(2025, 6, 1), "Zepp Haneda", 2, LIST.get(0).songs())));
+
+        // when & then
+        mockMvc.perform(get(BASE + "/previous-actuals", 1L, PERFORMANCE_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].setlistId").value(9))
+                .andExpect(jsonPath("$.data[0].concertId").value(3))
+                .andExpect(jsonPath("$.data[0].tourName").value("YUURI 2025"))
+                .andExpect(jsonPath("$.data[0].performedOn").value("2025-06-01"))
+                .andExpect(jsonPath("$.data[0].venueName").value("Zepp Haneda"))
+                .andExpect(jsonPath("$.data[0].songCount").value(2))
+                .andExpect(jsonPath("$.data[0].songs[1].deleted").value(true));
+    }
+
+    @Test
+    @DisplayName("다른 공연의 출연 정보로 불러오면 404")
+    void previousActuals_WhenPerformanceNotFound_Returns404() throws Exception {
+        // given
+        when(service.previousActuals(1L, 99L)).thenThrow(new BusinessException(ErrorCode.PERFORMANCE_NOT_FOUND));
+
+        // when & then
+        mockMvc.perform(get(BASE + "/previous-actuals", 1L, 99L))
+                .andExpect(status().isNotFound());
     }
 }

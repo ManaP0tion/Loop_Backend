@@ -8,8 +8,10 @@ import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Performance.domain.Performance;
 import com.loop.loop_backend.Performance.repository.PerformanceRepository;
 import com.loop.loop_backend.Setlist.domain.SetlistType;
+import com.loop.loop_backend.Setlist.dto.PreviousActualSetlistResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistSaveRequest;
+import com.loop.loop_backend.Setlist.dto.SetlistSongResponse;
 import com.loop.loop_backend.Setlist.event.SetlistResultSavedEvent;
 import com.loop.loop_backend.Setlist.repository.SetlistRepository;
 import com.loop.loop_backend.Song.Repository.SongRepository;
@@ -29,6 +31,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.groups.Tuple.tuple;
 
 // 셋리스트 관리(AD-07) 요구사항 - 출연 정보(Performance) 단위:
 // - 지난 셋리스트(최근 공연·지난 내한)와 실제 셋리스트를 같은 방식으로 저장하고, 다시 저장하면 통째로 교체된다.
@@ -198,8 +201,8 @@ class SetlistServiceTest {
     }
 
     @Test
-    @DisplayName("저장 후 곡이 삭제되면 셋리스트에서 빠지고 순서를 다시 매긴다")
-    void list_WhenSongDeletedAfterSave_SkipsSongAndRenumbers() {
+    @DisplayName("저장 후 곡이 삭제돼도 셋리스트에는 순서대로 남고 삭제 표시가 붙는다")
+    void list_WhenSongDeletedAfterSave_KeepsSongWithDeletedFlag() {
         // given
         save(SetlistType.ACTUAL, actual(s1.getId(), s2.getId(), s3.getId()));
         em.flush();
@@ -212,9 +215,10 @@ class SetlistServiceTest {
         SetlistResponse actual = service.list(concert.getId(), performance.getId()).get(0);
 
         // then
-        assertThat(actual.songCount()).isEqualTo(2);
-        assertThat(actual.songs()).extracting(s -> s.position() + ":" + s.songId())
-                .containsExactly("1:" + s1.getId(), "2:" + s3.getId());
+        assertThat(actual.songCount()).isEqualTo(3);
+        assertThat(actual.songs()).extracting(SetlistSongResponse::position, SetlistSongResponse::songId,
+                        SetlistSongResponse::deleted)
+                .containsExactly(tuple(1, s1.getId(), false), tuple(2, s2.getId(), true), tuple(3, s3.getId(), false));
     }
 
     @Test
@@ -350,5 +354,104 @@ class SetlistServiceTest {
         assertErrorCode(() -> service.list(concert.getId(), 9999L), ErrorCode.PERFORMANCE_NOT_FOUND);
         assertErrorCode(() -> service.save(another.getId(), performance.getId(), SetlistType.ACTUAL, actual(s1.getId())),
                 ErrorCode.PERFORMANCE_NOT_FOUND);
+    }
+
+    // ---------- 이전 실제 셋리스트 불러오기 (F-1) ----------
+
+    private Concert saveSoloConcertOn(String title, LocalDate startDate) {
+        return concertRepository.save(Concert.builder()
+                .title(title).category(ConcertCategory.J_POP_ARTIST).artist(yuuri).venue("Zepp Haneda")
+                .startDate(startDate).endDate(startDate)
+                .build());
+    }
+
+    @Test
+    @DisplayName("이전 실제 셋리스트는 같은 아티스트의 다른 공연 것만 공연일 최신순으로 헤더 제안값과 함께 준다")
+    void previousActuals_ReturnsSameArtistOtherActualsNewestFirst() {
+        // given - 지난 공연 2건의 실제 셋리스트, 지난 셋리스트(RECENT)·자기 자신·다른 아티스트는 빠져야 한다
+        Concert older = saveSoloConcertOn("YUURI 2024", LocalDate.of(2024, 5, 1));
+        Performance olderPerformance = saveSolo(older);
+        Concert newer = saveSoloConcertOn("YUURI 2025", LocalDate.of(2025, 6, 1));
+        Performance newerPerformance = saveSolo(newer);
+        service.save(older.getId(), olderPerformance.getId(), SetlistType.ACTUAL, actual(s1.getId()));
+        service.save(newer.getId(), newerPerformance.getId(), SetlistType.ACTUAL, actual(s2.getId(), s3.getId()));
+        service.save(newer.getId(), newerPerformance.getId(), SetlistType.RECENT, past(s1.getId()));
+        save(SetlistType.ACTUAL, actual(s3.getId()));
+        Artist ado = artistRepository.save(Artist.builder().name("Ado").build());
+        Concert adoConcert = concertRepository.save(Concert.builder().title("ADO").category(ConcertCategory.J_POP_ARTIST)
+                .artist(ado).startDate(LocalDate.of(2025, 12, 1)).endDate(LocalDate.of(2025, 12, 1)).build());
+        Performance adoPerformance = performanceRepository.save(Performance.solo(adoConcert, ado));
+        service.save(adoConcert.getId(), adoPerformance.getId(), SetlistType.ACTUAL, actual(song(ado, "うっせぇわ", 1).getId()));
+        em.flush();
+        em.clear();
+
+        // when
+        List<PreviousActualSetlistResponse> res = service.previousActuals(concert.getId(), performance.getId());
+
+        // then
+        assertThat(res).extracting(PreviousActualSetlistResponse::concertId).containsExactly(newer.getId(), older.getId());
+        PreviousActualSetlistResponse first = res.get(0);
+        assertThat(first.tourName()).isEqualTo("YUURI 2025");
+        assertThat(first.performedOn()).isEqualTo(LocalDate.of(2025, 6, 1));
+        assertThat(first.venueName()).isEqualTo("Zepp Haneda");
+        assertThat(first.songCount()).isEqualTo(2);
+        assertThat(first.songs()).extracting(SetlistSongResponse::songId).containsExactly(s2.getId(), s3.getId());
+    }
+
+    @Test
+    @DisplayName("페스티벌 헤드라이너의 실제 셋리스트도 나오고 날짜는 시작일 + (첫 출연 DAY - 1)이다")
+    void previousActuals_IncludesFestivalHeadlinerWithDayDate() {
+        // given - DAY2·DAY3 헤드라이너
+        Concert festival = concertRepository.save(Concert.builder()
+                .title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL)
+                .startDate(LocalDate.of(2025, 8, 15)).endDate(LocalDate.of(2025, 8, 17))
+                .build());
+        Performance headliner = Performance.builder().concert(festival).artist(yuuri).day(2).displayOrder(1).build();
+        headliner.addDay(3);
+        headliner.changeHeadliner(true);
+        performanceRepository.save(headliner);
+        service.save(festival.getId(), headliner.getId(), SetlistType.ACTUAL, actual(s1.getId()));
+        em.flush();
+        em.clear();
+
+        // when
+        List<PreviousActualSetlistResponse> res = service.previousActuals(concert.getId(), performance.getId());
+
+        // then
+        assertThat(res).singleElement().satisfies(r -> {
+            assertThat(r.tourName()).isEqualTo("SUMMER SONIC");
+            assertThat(r.performedOn()).isEqualTo(LocalDate.of(2025, 8, 16));
+        });
+    }
+
+    @Test
+    @DisplayName("불러온 셋리스트의 삭제된 곡에는 삭제 표시가 붙는다")
+    void previousActuals_MarksDeletedSongs() {
+        // given
+        Concert older = saveSoloConcertOn("YUURI 2024", LocalDate.of(2024, 5, 1));
+        Performance olderPerformance = saveSolo(older);
+        service.save(older.getId(), olderPerformance.getId(), SetlistType.ACTUAL, actual(s1.getId(), s2.getId()));
+        em.flush();
+        em.clear();
+        songRepository.delete(songRepository.findById(s1.getId()).orElseThrow());
+        em.flush();
+        em.clear();
+
+        // when
+        List<PreviousActualSetlistResponse> res = service.previousActuals(concert.getId(), performance.getId());
+
+        // then
+        assertThat(res.get(0).songs()).extracting(SetlistSongResponse::songId, SetlistSongResponse::deleted)
+                .containsExactly(tuple(s1.getId(), true), tuple(s2.getId(), false));
+    }
+
+    @Test
+    @DisplayName("다른 공연의 출연 정보로 불러오면 404")
+    void previousActuals_WhenPerformanceNotInConcert_ThrowsNotFound() {
+        // given
+        Concert another = saveSoloConcert("OTHER", false);
+
+        // when & then
+        assertErrorCode(() -> service.previousActuals(another.getId(), performance.getId()), ErrorCode.PERFORMANCE_NOT_FOUND);
     }
 }

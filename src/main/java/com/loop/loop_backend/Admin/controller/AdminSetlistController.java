@@ -2,6 +2,7 @@ package com.loop.loop_backend.Admin.controller;
 
 import com.loop.loop_backend.Admin.service.AdminAccessLogService;
 import com.loop.loop_backend.Setlist.domain.SetlistType;
+import com.loop.loop_backend.Setlist.dto.PreviousActualSetlistResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistSaveRequest;
 import com.loop.loop_backend.Setlist.service.SetlistService;
@@ -54,6 +55,23 @@ public class AdminSetlistController {
         return ResponseEntity.ok(CommonResponse.success(setlistService.list(concertId, performanceId)));
     }
 
+    @GetMapping("/previous-actuals")
+    @Operation(summary = "이전 실제 셋리스트 불러오기",
+            description = "지난 셋리스트 입력 화면의 '불러오기'용. 같은 아티스트의 **다른** 공연(단독·페스티벌 헤드라이너, 비공개 포함)에 " +
+                    "저장된 실제 셋리스트를 공연일 최신순으로 최대 10건 준다.\n\n" +
+                    "고른 항목의 tourName·performedOn·venueName·songs로 입력 폼을 채우고, 관리자가 확인·수정한 뒤 " +
+                    "`PUT .../setlists/{RECENT|PREVIOUS_VISIT}`로 저장한다(복사 - 원본과 연결되지 않음). " +
+                    "삭제된 곡(deleted=true)은 저장할 수 없으니(400) 폼에서 뺀다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공(없으면 빈 목록)"),
+            @ApiResponse(responseCode = "404", description = "출연 정보 없음 - PERFORMANCE_NOT_FOUND")
+    })
+    public ResponseEntity<CommonResponse<List<PreviousActualSetlistResponse>>> previousActuals(
+            @Parameter(description = "공연 PK") @PathVariable Long concertId,
+            @Parameter(description = "출연 정보 PK") @PathVariable Long performanceId) {
+        return ResponseEntity.ok(CommonResponse.success(setlistService.previousActuals(concertId, performanceId)));
+    }
+
     @PutMapping("/{type}")
     @Operation(summary = "셋리스트 저장",
             description = "없으면 만들고 있으면 통째로 교체한다. songIds 순서가 곧 공연 순서.\n\n" +
@@ -62,7 +80,8 @@ public class AdminSetlistController {
                     "| RECENT / PREVIOUS_VISIT | `{\"tourName\": \"...\", \"performedOn\": \"2026-05-01\", \"venueName\": \"Zepp\", \"songIds\": [12, 7]}` - 날짜·장소 필수, 투어명 선택 |\n" +
                     "| ACTUAL | `{\"songIds\": [12, 7, 12]}` - 헤더는 무시 |\n\n" +
                     "곡은 출연 아티스트의 곡만, 같은 곡 중복(앵코르) 허용. 목록에 없는 곡(커버·미발매)은 " +
-                    "곡 추가 API(`POST /api/admin/artists/{artistId}/songs`)로 먼저 만들고 그 id를 넣는다 - 다음 공연 후보에도 포함된다.")
+                    "곡 추가 API(`POST /api/admin/artists/{artistId}/songs`)로 먼저 만들고 그 id를 넣는다 - 다음 공연 후보에도 포함된다.\n\n" +
+                    "곡 데이터에서 삭제된 곡(목록의 deleted=true)은 저장된 셋리스트에는 남지만 새로 저장할 수는 없다 - 다시 저장할 때는 빼야 한다(400).")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "저장 성공"),
             @ApiResponse(responseCode = "400",

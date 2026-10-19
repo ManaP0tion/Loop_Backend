@@ -5,22 +5,26 @@ import com.loop.loop_backend.Performance.domain.Performance;
 import com.loop.loop_backend.Performance.repository.PerformanceRepository;
 import com.loop.loop_backend.Setlist.domain.Setlist;
 import com.loop.loop_backend.Setlist.domain.SetlistType;
+import com.loop.loop_backend.Setlist.dto.PreviousActualSetlistResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistSaveRequest;
 import com.loop.loop_backend.Setlist.event.SetlistResultSavedEvent;
 import com.loop.loop_backend.Setlist.repository.SetlistRepository;
+import com.loop.loop_backend.Setlist.repository.SetlistSong;
 import com.loop.loop_backend.Song.Repository.SongRepository;
 import com.loop.loop_backend.Song.domain.Song;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 셋리스트 관리(AD-07). 지난 셋리스트와 실제 셋리스트를 같은 방식(후보 곡 체크 + 순서)으로 저장한다.
@@ -29,6 +33,9 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class SetlistService {
+
+    /** 이전 실제 셋리스트 불러오기 최대 건수 */
+    static final int PREVIOUS_ACTUAL_LIMIT = 10;
 
     private final SetlistRepository setlistRepository;
     private final PerformanceRepository performanceRepository;
@@ -89,10 +96,30 @@ public class SetlistService {
         return currentList(performanceId);
     }
 
+    /**
+     * 이전 실제 셋리스트 불러오기(F-1): 같은 아티스트의 다른 공연(단독·페스티벌 헤드라이너)에 저장된 실제 셋리스트,
+     * 공연일 최신순 최대 10건. 관리자가 골라 지난 셋리스트 입력 폼을 채우고 기존 save로 저장한다(복사).
+     */
+    @Transactional(readOnly = true)
+    public List<PreviousActualSetlistResponse> previousActuals(Long concertId, Long performanceId) {
+        Performance performance = SetlistRules.findPerformance(performanceRepository, concertId, performanceId);
+        List<Setlist> setlists = setlistRepository.findActualsByArtist(performance.getArtist().getId(), performanceId,
+                PageRequest.of(0, PREVIOUS_ACTUAL_LIMIT));
+        Map<Long, List<SetlistSong>> songs = setlistRepository.findSongsIncludingDeleted(
+                setlists.stream().map(Setlist::getId).toList());
+        return setlists.stream()
+                .map(s -> PreviousActualSetlistResponse.of(s, songs.getOrDefault(s.getId(), List.of())))
+                .toList();
+    }
+
     private List<SetlistResponse> currentList(Long performanceId) {
-        return setlistRepository.findByPerformanceId(performanceId).stream()
+        List<Setlist> setlists = setlistRepository.findByPerformanceId(performanceId);
+        // 곡은 삭제 여부와 관계없이 읽는다 - 저장된 셋리스트는 곡이 나중에 삭제돼도 그대로 보인다(F-2)
+        Map<Long, List<SetlistSong>> songs = setlistRepository.findSongsIncludingDeleted(
+                setlists.stream().map(Setlist::getId).toList());
+        return setlists.stream()
                 .sorted(Comparator.comparing(Setlist::getType))
-                .map(SetlistResponse::from)
+                .map(s -> SetlistResponse.from(s, songs.getOrDefault(s.getId(), List.of())))
                 .toList();
     }
 }

@@ -120,7 +120,7 @@ class SetlistVoteControllerTest {
     @Test
     void 지난_셋리스트는_헤더와_곡을_준다() throws Exception {
         when(setlistService.pastSetlists(1L, PERFORMANCE_ID)).thenReturn(List.of(new SetlistResponse(5L, SetlistType.RECENT, null,
-                null, "Zepp", 1, List.of(new SetlistSongResponse(1, 12L, "ドライフラワー", null, null)))));
+                null, "Zepp", 1, List.of(new SetlistSongResponse(1, 12L, "ドライフラワー", null, null, false)))));
 
         mockMvc.perform(get("/api/concerts/{concertId}/performances/{performanceId}/setlist/past", 1L, PERFORMANCE_ID))
                 .andExpect(status().isOk())
@@ -135,8 +135,8 @@ class SetlistVoteControllerTest {
         when(resultService.result(1L, PERFORMANCE_ID, USER_ID)).thenReturn(new SetlistResultResponse(true, 31,
                 new SetlistResultResponse.HitRate(1, 3, 33, HitGrade.LOW), 48,
                 new SetlistResultResponse.HitRate(2, 3, 67, HitGrade.MID), 12,
-                List.of(new SetlistResultResponse.ResultSong(1, 12L, "ドライフラワー", "드라이플라워", "https://img/a.jpg", true, true, false)),
-                List.of(new SetlistResultResponse.MissedSong(7L, "いかないで", null, null, 20, true, false))));
+                List.of(new SetlistResultResponse.ResultSong(1, 12L, "ドライフラワー", "드라이플라워", "https://img/a.jpg", true, true, false, false)),
+                List.of(new SetlistResultResponse.MissedSong(7L, "いかないで", null, null, 20, true, false, true))));
 
         mockMvc.perform(get("/api/concerts/{concertId}/performances/{performanceId}/setlist/result", 1L, PERFORMANCE_ID))
                 .andExpect(status().isOk())
@@ -155,7 +155,8 @@ class SetlistVoteControllerTest {
                 .andExpect(jsonPath("$.data.songs[0].unexpected").value(false))
                 .andExpect(jsonPath("$.data.missedSongs[0].songId").value(7))
                 .andExpect(jsonPath("$.data.missedSongs[0].votes").value(20))
-                .andExpect(jsonPath("$.data.missedSongs[0].fanPredicted").value(true));
+                .andExpect(jsonPath("$.data.missedSongs[0].fanPredicted").value(true))
+                .andExpect(jsonPath("$.data.missedSongs[0].deleted").value(true));
     }
 
     @Test
