@@ -19,7 +19,7 @@ public record VenueResponseDto(
                 example = "1,050~2,040", types = {"string", "null"})
         String capacity,
 
-        @Schema(description = "좌석 시야(자리어때) 링크", types = {"string", "null"})
+        @Schema(description = "좌석 시야(오프메이트) 링크", types = {"string", "null"})
         String seatViewUrl,
 
         @Schema(description = "카카오맵 바로가기 링크", types = {"string", "null"})
@@ -27,6 +27,12 @@ public record VenueResponseDto(
 
         @Schema(description = "네이버지도 바로가기 링크", types = {"string", "null"})
         String naverMapUrl,
+
+        @Schema(description = "숙소 섹션 노출 여부. 이 공연장의 모든 공연에 적용된다", requiredMode = Schema.RequiredMode.REQUIRED)
+        boolean lodgingVisible,
+
+        @Schema(description = "숙소 딥링크. 노출이 꺼져 있어도 저장된 값은 내려준다", types = {"string", "null"})
+        String lodgingUrl,
 
         @Schema(description = "위도 (읽기 전용, KOPIS 자동 생성 시 채워짐). 지도 링크가 없을 때 프론트가 좌표로 링크를 만든다",
                 types = {"number", "null"})
@@ -49,6 +55,7 @@ public record VenueResponseDto(
     public static VenueResponseDto from(Venue venue, long concertCount) {
         return new VenueResponseDto(venue.getId(), venue.getName(), venue.getAddress(), venue.getCapacity().toText(),
                 venue.getSeatViewUrl(), venue.getKakaoMapUrl(), venue.getNaverMapUrl(),
+                venue.isLodgingVisible(), venue.getLodgingUrl(),
                 venue.getLatitude(), venue.getLongitude(),
                 venue.getKopisFacilityId(), venue.getKopisHallId(), concertCount);
     }

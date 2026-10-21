@@ -22,13 +22,18 @@ public final class WebUrls {
 
     /** 빈 값이면 null(비움), 앞뒤 공백 제거. http/https 주소가 아니거나 너무 길면 IllegalArgumentException(400). */
     public static String normalize(String url) {
+        return normalize(url, MAX_LENGTH);
+    }
+
+    /** 컬럼 길이가 다른 링크용(숙소 딥링크 1000자). 규칙은 normalize(url)과 같다. */
+    public static String normalize(String url, int maxLength) {
         if (url == null || url.isBlank()) return null;
         String trimmed = url.trim();
         if (!HTTP_URL.matcher(trimmed).matches()) {
             throw new IllegalArgumentException("http 또는 https 주소만 입력할 수 있다: " + trimmed);
         }
-        if (trimmed.length() > MAX_LENGTH) {
-            throw new IllegalArgumentException("링크는 " + MAX_LENGTH + "자까지 입력할 수 있다");
+        if (trimmed.length() > maxLength) {
+            throw new IllegalArgumentException("링크는 " + maxLength + "자까지 입력할 수 있다");
         }
         return trimmed;
     }

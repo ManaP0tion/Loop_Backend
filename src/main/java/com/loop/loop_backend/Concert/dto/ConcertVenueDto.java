@@ -24,7 +24,7 @@ public record ConcertVenueDto(
                 example = "1,050~2,040", types = {"string", "null"})
         String capacity,
 
-        @Schema(description = "좌석 시야(자리어때) 링크", types = {"string", "null"})
+        @Schema(description = "좌석 시야(오프메이트) 링크", types = {"string", "null"})
         String seatViewUrl,
 
         @Schema(description = "카카오맵 링크", types = {"string", "null"})

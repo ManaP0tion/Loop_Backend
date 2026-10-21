@@ -549,15 +549,48 @@ class ConcertDetailServiceTest {
     // ---------- upcoming-detail: 숙소·관련 상품 ----------
 
     @Test
-    void 숙소_노출이_켜진_공연만_딥링크가_나간다() {
+    @DisplayName("공연장의 숙소 노출이 켜져 있으면 예정 공연 상세에 공연장의 숙소 딥링크가 나간다")
+    void getUpcomingDetail_WhenVenueLodgingVisible_ReturnsVenueLodgingUrl() {
+        // given
         Concert concert = givenConcert(TODAY.plusDays(10), TODAY.plusDays(11));
-        concert.changeLodgingUrl("https://trip.example/deeplink");
+        Venue venue = linkedVenue();
+        venue.changeLodging(true, "https://trip.example/deeplink");
+        concert.changeVenue(venue);
 
-        assertThat(concertService.getUpcomingDetail(CONCERT_ID, null).getLodgingUrl()).isNull();
+        // when
+        String lodgingUrl = concertService.getUpcomingDetail(CONCERT_ID, null).getLodgingUrl();
 
-        concert.changeLodgingVisible(true);
-        assertThat(concertService.getUpcomingDetail(CONCERT_ID, null).getLodgingUrl())
-                .isEqualTo("https://trip.example/deeplink");
+        // then
+        assertThat(lodgingUrl).isEqualTo("https://trip.example/deeplink");
+    }
+
+    @Test
+    @DisplayName("공연장에 숙소 딥링크가 있어도 노출이 꺼져 있으면 숙소 딥링크는 null이다")
+    void getUpcomingDetail_WhenVenueLodgingHidden_ReturnsNullLodgingUrl() {
+        // given
+        Concert concert = givenConcert(TODAY.plusDays(10), TODAY.plusDays(11));
+        Venue venue = linkedVenue();
+        venue.changeLodging(false, "https://trip.example/deeplink");
+        concert.changeVenue(venue);
+
+        // when
+        String lodgingUrl = concertService.getUpcomingDetail(CONCERT_ID, null).getLodgingUrl();
+
+        // then
+        assertThat(lodgingUrl).isNull();
+    }
+
+    @Test
+    @DisplayName("공연장이 연결되지 않은 공연은 숙소 딥링크가 null이다")
+    void getUpcomingDetail_WhenNoLinkedVenue_ReturnsNullLodgingUrl() {
+        // given
+        givenConcert(TODAY.plusDays(10), TODAY.plusDays(11));
+
+        // when
+        String lodgingUrl = concertService.getUpcomingDetail(CONCERT_ID, null).getLodgingUrl();
+
+        // then
+        assertThat(lodgingUrl).isNull();
     }
 
     // 관련 상품은 아티스트에 등록하고, 공연 상세는 그 공연 아티스트의 상품을 내려준다.

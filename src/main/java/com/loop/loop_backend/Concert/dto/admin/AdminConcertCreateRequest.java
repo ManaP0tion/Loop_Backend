@@ -52,12 +52,15 @@ public record AdminConcertCreateRequest(
         @Schema(description = "예상 곡 수. 내한 공연만, 1 이상(0이면 400). 아티스트가 없거나 페스티벌이면 400(페스티벌은 라인업에서 헤드라이너별로). 비워 두면 셋리스트에서 20곡으로 처리", example = "20", types = {"integer", "null"})
         Integer expectedSongCount,
 
-        @Schema(description = "숙소 섹션 노출 여부. 켜려면 lodgingUrl이 있어야 한다. 기본 false", example = "false", types = {"boolean", "null"})
+        @Schema(description = "숙소 섹션 노출 여부. **공연장(venueId)에 저장된다** - 같은 공연장의 다른 공연에도 반영. " +
+                "켜려면 딥링크가 있어야 하고, 공연장 없이 켜면 400. null이면 공연장의 현재 값 유지",
+                example = "false", types = {"boolean", "null"})
         Boolean lodgingVisible,
 
         @Size(max = 1000)
-        @Schema(description = "숙소 딥링크(완성된 URL)", example = "https://trip.example/deeplink?trip_sub=PF297519",
-                types = {"string", "null"})
+        @Schema(description = "숙소 딥링크(완성된 URL, http/https). **공연장(venueId)에 저장된다**. " +
+                "공연장 없이 보내면 400. null이면 공연장의 현재 값 유지, 빈 문자열(\"\")이면 비움",
+                example = "https://trip.example/deeplink?trip_sub=PF297519", types = {"string", "null"})
         String lodgingUrl,
 
         @Size(max = 500)

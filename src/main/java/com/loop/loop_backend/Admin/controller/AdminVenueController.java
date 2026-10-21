@@ -76,7 +76,8 @@ public class AdminVenueController {
     @GetMapping("/csv")
     @Operation(summary = "공연장 CSV 다운로드",
             description = "전체 공연장을 id 순으로 내려준다. UTF-8 BOM.\n\n" +
-                    "헤더: id, name, address, capacity, seatViewUrl, kakaoMapUrl, naverMapUrl, kopisFacilityId, kopisHallId " +
+                    "헤더: id, name, address, capacity, seatViewUrl, kakaoMapUrl, naverMapUrl, lodgingUrl, lodgingVisible(O/X), " +
+                    "kopisFacilityId, kopisHallId " +
                     "(KOPIS ID는 어느 공연장인지 알아보는 참고용 - 업로드 때 무시)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "다운로드 성공")
@@ -90,12 +91,14 @@ public class AdminVenueController {
 
     @PostMapping(value = "/csv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "공연장 CSV 일괄 수정",
-            description = "다운로드한 CSV를 고쳐 올리면 **id로 공연장을 찾아** 이름·주소·수용 인원·링크 3개를 바꾼다. 연결된 공연에 바로 반영된다.\n\n" +
+            description = "다운로드한 CSV를 고쳐 올리면 **id로 공연장을 찾아** 이름·주소·수용 인원·링크 3개·숙소를 바꾼다. 연결된 공연에 바로 반영된다.\n\n" +
                     "- 빈 칸은 기존 값 유지 (CSV로는 링크를 비울 수 없다 - 비우기는 공연장 수정 화면에서)\n" +
                     "- 이름으로 찾지 않는다 - 이름은 고칠 값이고 같은 이름의 공연장도 있을 수 있다\n" +
                     "- 새 공연장은 만들지 않는다. id가 비었거나 없는 공연장인 행은 failedRows\n" +
                     "- 링크는 http/https 주소만, 이름·주소는 255자까지. 한 칸이라도 잘못되면 그 행 전체를 건너뛴다(failedRows)\n" +
                     "- 수용 인원은 숫자(6830) 또는 범위(200~400). 쉼표 허용(\"1,050~2,040\"), 최솟값 > 최댓값이면 그 행 실패\n" +
+                    "- 숙소: lodgingUrl(딥링크), lodgingVisible(노출 O/X). 노출 O인데 딥링크가 없으면 그 행 실패. " +
+                    "숙소 칸이 없는 예전 파일도 받는다(기존 값 유지)\n" +
                     "- kopisFacilityId, kopisHallId 칸은 무시\n\n" +
                     "UTF-8(BOM 허용)만 받는다. 다른 인코딩(엑셀의 'CSV (쉼표로 분리)' 저장 등)으로 한글이 깨진 파일은 " +
                     "깨진 이름이 저장되지 않도록 전체를 거절한다(400, 아무것도 반영 안 됨).")
@@ -157,6 +160,10 @@ public class AdminVenueController {
                     "**링크·수용 인원을 비우려면 null이 아니라 빈 문자열(\"\")로 보내야 한다** - null은 '유지'로 처리된다.\n\n" +
                     "**필수값**: name, address는 비울 수 없다. null이면 유지되고, 빈 값·공백으로 보내면 400이다.\n\n" +
                     "**수용 인원**은 숫자(\"6830\") 또는 범위(\"200~400\") 문자열. 범위였던 공연장에 숫자 하나를 보내면 단일 값이 된다.\n\n" +
+                    "**숙소(lodgingVisible, lodgingUrl)**는 이 공연장의 모든 공연에 적용된다. 켜려면 딥링크가 있어야 하고, " +
+                    "켜진 상태에서 딥링크만 비우면 400(함께 끄면 된다).\n\n" +
+                    "예) 숙소 온오프만 바꾸기(딥링크 등 나머지는 유지): `{\"lodgingVisible\": true}`\n\n" +
+                    "예) 숙소 끄면서 딥링크 비우기: `{\"lodgingVisible\": false, \"lodgingUrl\": \"\"}`\n\n" +
                     "좌표와 KOPIS 시설·홀 ID는 수정할 수 없다(KOPIS 자동 생성 때만 채워짐).\n\n" +
                     "예) 좌석 시야 링크만 넣고 네이버지도 링크는 지우기: `{\"seatViewUrl\": \"https://...\", \"naverMapUrl\": \"\"}`")
     @ApiResponses({

@@ -68,10 +68,10 @@ public record AdminConcertDetailResponse(
                 types = {"integer", "null"})
         Long performanceId,
 
-        @Schema(description = "숙소 섹션 노출 여부", requiredMode = Schema.RequiredMode.REQUIRED)
+        @Schema(description = "숙소 섹션 노출 여부 - 연결된 공연장의 값. 공연장이 없으면 false", requiredMode = Schema.RequiredMode.REQUIRED)
         boolean lodgingVisible,
 
-        @Schema(description = "숙소 딥링크", types = {"string", "null"})
+        @Schema(description = "숙소 딥링크 - 연결된 공연장의 값. 공연장이 없으면 null", types = {"string", "null"})
         String lodgingUrl,
 
         @Schema(description = "특설 공식 사이트 URL", types = {"string", "null"})
@@ -112,7 +112,9 @@ public record AdminConcertDetailResponse(
                 c.getArtist() == null ? List.of() : List.of(new ArtistSummary(c.getArtist().getId(), c.getArtist().getName())),
                 c.isPublished(), c.getPublishedAt(),
                 solo == null ? null : solo.getExpectedSongCount(), solo == null ? null : solo.getId(),
-                c.isLodgingVisible(), c.getLodgingUrl(), c.getOfficialSiteUrl(),
+                c.getLinkedVenue() != null && c.getLinkedVenue().isLodgingVisible(),
+                c.getLinkedVenue() == null ? null : c.getLinkedVenue().getLodgingUrl(),
+                c.getOfficialSiteUrl(),
                 TicketSaleResponse.fromPresales(presales), TicketSaleResponse.fromGeneralSales(generalSales));
     }
 

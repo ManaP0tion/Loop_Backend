@@ -18,7 +18,7 @@ import static org.assertj.core.groups.Tuple.tuple;
 // - 새로 고를 수 있는 유형은 내한·페스티벌뿐. 페스티벌로 바꾸면 아티스트·예상 곡 수를 비운다. 페스티벌에는 둘 다 둘 수 없다.
 // - 시작일은 종료일보다 늦을 수 없다. 기간을 바꾸면 새 기간 밖 날짜의 공연 시각은 지운다.
 // - 공연 시각은 DAY 순서대로 받고 개수는 공연 일수와 같아야 한다. 기간이 없으면 받을 수 없다.
-// - 예상 곡 수는 1 이상. 별칭은 공백·빈 값·중복을 정리한다. 숙소 노출을 켜려면 딥링크가 있어야 한다.
+// - 예상 곡 수는 1 이상. 별칭은 공백·빈 값·중복을 정리한다. (숙소 노출 규칙은 공연장 - VenueLodgingRulesTest)
 // - 비공개는 빈 칸이 있어도 저장된다. 공개 상태면 필수값(유형·공연명·포스터·기간·공연장, 내한이면 아티스트)이 있어야 한다.
 // - 비공개 → 공개로 바뀌는 순간을 기록한다(이미 공개인 공연을 다시 공개로 저장해도 바뀌지 않는다).
 class ConcertAdminRulesTest {
@@ -126,19 +126,6 @@ class ConcertAdminRulesTest {
         concert.replaceTitleAliases(Arrays.asList(" 유우리 ", "", "유우리", null, "Yuuri"));
 
         assertThat(concert.getTitleAliases()).containsExactly("유우리", "Yuuri");
-    }
-
-    // ---------- 숙소 ----------
-
-    @Test
-    void 숙소_노출을_켜려면_딥링크가_있어야_한다() {
-        Concert concert = jpopConcert();
-        concert.changeLodgingVisible(true);
-
-        assertRejected(concert::validateState);
-
-        concert.changeLodgingUrl("https://trip.example/deeplink");
-        concert.validateState(); // 딥링크가 있으면 통과
     }
 
     // ---------- 공개 상태 필수값 ----------

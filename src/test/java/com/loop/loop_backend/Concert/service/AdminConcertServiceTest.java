@@ -555,6 +555,77 @@ class AdminConcertServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    // ---------- 숙소 (공연장 단위) ----------
+    // 공연 화면에서 받은 숙소 노출 여부·딥링크는 연결된 공연장에 저장되어, 같은 공연장의 모든 공연에 적용된다.
+
+    private static final String DEEPLINK = "https://trip.example/deeplink?trip_sub=PF297519";
+
+    @Test
+    @DisplayName("공연 수정으로 넣은 숙소는 연결된 공연장에 저장되어 같은 공연장의 다른 공연에도 나온다")
+    void update_WithLodging_SavesToVenueAndAppliesToOtherConcerts() {
+        // given
+        Concert edited = approvedConcert();
+        Concert sameVenue = approvedConcert();
+        service.update(edited.getId(), patch().venueId(venue.getId()).build());
+        service.update(sameVenue.getId(), patch().venueId(venue.getId()).build());
+
+        // when
+        service.update(edited.getId(), patch().lodgingVisible(true).lodgingUrl(DEEPLINK).build());
+        flushAndClear();
+
+        // then
+        AdminConcertDetailResponse other = service.get(sameVenue.getId());
+        assertThat(other.lodgingVisible()).isTrue();
+        assertThat(other.lodgingUrl()).isEqualTo(DEEPLINK);
+        Venue saved = venueRepository.findById(venue.getId()).orElseThrow();
+        assertThat(saved.visibleLodgingUrl()).isEqualTo(DEEPLINK);
+    }
+
+    @Test
+    @DisplayName("같은 요청에서 공연장을 바꾸면 숙소는 새 공연장에 저장되고 이전 공연장은 그대로다")
+    void update_WithVenueChangeAndLodging_SavesToNewVenue() {
+        // given
+        Concert concert = approvedConcert();
+        service.update(concert.getId(), patch().venueId(venue.getId()).build());
+        Venue newVenue = venueRepository.save(Venue.builder().name("KSPO DOME").address("서울특별시 송파구").build());
+
+        // when
+        service.update(concert.getId(), patch().venueId(newVenue.getId()).lodgingVisible(true).lodgingUrl(DEEPLINK).build());
+        flushAndClear();
+
+        // then
+        assertThat(venueRepository.findById(newVenue.getId()).orElseThrow().visibleLodgingUrl()).isEqualTo(DEEPLINK);
+        assertThat(venueRepository.findById(venue.getId()).orElseThrow().getLodgingUrl()).isNull();
+    }
+
+    @Test
+    @DisplayName("직접 등록할 때 보낸 숙소는 선택한 공연장에 저장된다")
+    void create_WithVenueAndLodging_SavesToVenue() {
+        // when
+        AdminConcertDetailResponse created = service.create(new AdminConcertCreateRequest(
+                ConcertCategory.J_POP_ARTIST, "YUURI LIVE", null, null, null, null,
+                venue.getId(), null, null, true, DEEPLINK, null, null, null));
+        flushAndClear();
+
+        // then
+        assertThat(created.lodgingVisible()).isTrue();
+        assertThat(created.lodgingUrl()).isEqualTo(DEEPLINK);
+        assertThat(venueRepository.findById(venue.getId()).orElseThrow().visibleLodgingUrl()).isEqualTo(DEEPLINK);
+    }
+
+    @Test
+    @DisplayName("공연장이 없는 공연에서 숙소 노출을 켜거나 딥링크를 넣으면 400(IllegalArgumentException)이다")
+    void update_WithoutVenue_WithLodging_ThrowsException() {
+        // given
+        Concert concert = approvedConcert();
+
+        // when & then
+        assertThatThrownBy(() -> service.update(concert.getId(), patch().lodgingVisible(true).build()))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.update(concert.getId(), patch().lodgingUrl(DEEPLINK).build()))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     @Test
     @DisplayName("여러 DAY에 나오는 출연 정보는 기간이 줄면 범위 밖 DAY만 빠지고 출연 정보는 남는다")
     void update_WhenPeriodShrinks_DropsOnlyOutOfRangeDaysOfMultiDayPerformance() {
@@ -576,5 +647,34 @@ class AdminConcertServiceTest {
 
         // then
         assertThat(performanceRepository.findById(headliner.getId()).orElseThrow().getDays()).containsExactly(2);
+    }
+
+    @Test
+    @DisplayName("공연장이 없는 공연도 숙소 기본값(노출 끔, 빈 딥링크)을 보내면 저장된다")
+    void update_WithoutVenue_WithDefaultLodgingValues_Succeeds() {
+        // given
+        Concert concert = approvedConcert();
+
+        // when
+        AdminConcertDetailResponse updated = service.update(concert.getId(),
+                patch().title("YUURI LIVE 2026").lodgingVisible(false).lodgingUrl("").build());
+
+        // then
+        assertThat(updated.title()).isEqualTo("YUURI LIVE 2026");
+        assertThat(updated.lodgingVisible()).isFalse();
+        assertThat(updated.lodgingUrl()).isNull();
+    }
+
+    @Test
+    @DisplayName("공연 수정에서 딥링크 없이 숙소 노출을 켜면 400(IllegalArgumentException)이고 공연장은 바뀌지 않는다")
+    void update_VisibleWithoutUrl_ThrowsException() {
+        // given
+        Concert concert = approvedConcert();
+        service.update(concert.getId(), patch().venueId(venue.getId()).build());
+
+        // when & then
+        assertThatThrownBy(() -> service.update(concert.getId(), patch().lodgingVisible(true).build()))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(venue.isLodgingVisible()).isFalse();
     }
 }

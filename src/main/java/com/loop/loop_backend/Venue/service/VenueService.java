@@ -46,7 +46,10 @@ import java.util.stream.Collectors;
 public class VenueService {
 
     static final String[] CSV_HEADER = {"id", "name", "address", "capacity", "seatViewUrl", "kakaoMapUrl", "naverMapUrl",
-            "kopisFacilityId", "kopisHallId"};
+            "lodgingUrl", "lodgingVisible", "kopisFacilityId", "kopisHallId"};
+    // 숙소 노출 칸은 PM 시트와 같은 O/X로 쓴다
+    private static final String CSV_ON = "O";
+    private static final String CSV_OFF = "X";
     private static final char BOM = '﻿';
     private static final int TEXT_MAX_LENGTH = 255; // name, address 컬럼 길이
 
@@ -80,6 +83,7 @@ public class VenueService {
                 .kakaoMapUrl(blankToNull(req.kakaoMapUrl()))
                 .naverMapUrl(blankToNull(req.naverMapUrl()))
                 .build());
+        venue.changeLodging(Boolean.TRUE.equals(req.lodgingVisible()), req.lodgingUrl());
         return VenueResponseDto.from(venue, 0L); // 방금 만든 공연장이라 연결된 공연이 없다
     }
 
@@ -97,6 +101,7 @@ public class VenueService {
                 patchLink(req.seatViewUrl(), venue.getSeatViewUrl()),
                 patchLink(req.kakaoMapUrl(), venue.getKakaoMapUrl()),
                 patchLink(req.naverMapUrl(), venue.getNaverMapUrl()));
+        venue.patchLodging(req.lodgingVisible(), req.lodgingUrl());
         return VenueResponseDto.from(venue, venueRepository.countConcerts(id));
     }
 
@@ -109,6 +114,7 @@ public class VenueService {
             for (Venue v : venueRepository.findAll(Sort.by("id"))) {
                 printer.printRecord(v.getId(), v.getName(), v.getAddress(), v.getCapacity().toText(),
                         v.getSeatViewUrl(), v.getKakaoMapUrl(), v.getNaverMapUrl(),
+                        v.getLodgingUrl(), v.isLodgingVisible() ? CSV_ON : CSV_OFF,
                         v.getKopisFacilityId(), v.getKopisHallId());
             }
         } catch (IOException e) {
@@ -118,7 +124,7 @@ public class VenueService {
     }
 
     /**
-     * CSV 일괄 수정 - id로 찾아 이름·주소·수용 인원·링크 3개를 바꾼다. 빈 칸은 기존 값 유지, KOPIS ID 칸은 무시.
+     * CSV 일괄 수정 - id로 찾아 이름·주소·수용 인원·링크 3개·숙소를 바꾼다. 빈 칸은 기존 값 유지, KOPIS ID 칸은 무시.
      * 이름으로 찾지 않는다: 이름은 고칠 값이고, 같은 이름의 공연장도 있을 수 있다.
      * 찾지 못한 행·잘못된 값이 있는 행은 통째로 건너뛰고(일부 칸만 반영되지 않게) 행 번호로 알려준다.
      */
@@ -139,8 +145,9 @@ public class VenueService {
                 failedRows.add(r.getRecordNumber());
                 continue;
             }
-            String name, address, seatViewUrl, kakaoMapUrl, naverMapUrl;
+            String name, address, seatViewUrl, kakaoMapUrl, naverMapUrl, lodgingUrl;
             VenueCapacity capacity;
+            boolean lodgingVisible;
             try {
                 // 먼저 모든 칸을 검증해 한 칸만 잘못돼도 행 전체를 건너뛴다
                 name = csvText(r, "name", venue.getName());
@@ -149,6 +156,10 @@ public class VenueService {
                 seatViewUrl = csvLink(r, "seatViewUrl", venue.getSeatViewUrl());
                 kakaoMapUrl = csvLink(r, "kakaoMapUrl", venue.getKakaoMapUrl());
                 naverMapUrl = csvLink(r, "naverMapUrl", venue.getNaverMapUrl());
+                lodgingVisible = csvLodgingVisible(r, venue.isLodgingVisible());
+                String lodgingUrlCell = csvColumn(r, "lodgingUrl");
+                lodgingUrl = Venue.checkLodging(lodgingVisible,
+                        lodgingUrlCell.isEmpty() ? venue.getLodgingUrl() : lodgingUrlCell);
             } catch (IllegalArgumentException e) {
                 failedRows.add(r.getRecordNumber());
                 continue;
@@ -158,10 +169,13 @@ public class VenueService {
                     && Objects.equals(capacity, venue.getCapacity())
                     && Objects.equals(seatViewUrl, venue.getSeatViewUrl())
                     && Objects.equals(kakaoMapUrl, venue.getKakaoMapUrl())
-                    && Objects.equals(naverMapUrl, venue.getNaverMapUrl())) {
+                    && Objects.equals(naverMapUrl, venue.getNaverMapUrl())
+                    && lodgingVisible == venue.isLodgingVisible()
+                    && Objects.equals(lodgingUrl, venue.getLodgingUrl())) {
                 unchanged++;
             } else {
                 venue.updateInfo(name, address, capacity, seatViewUrl, kakaoMapUrl, naverMapUrl);
+                venue.changeLodging(lodgingVisible, lodgingUrl);
                 updated++;
             }
         }
@@ -258,6 +272,15 @@ public class VenueService {
     private static VenueCapacity csvCapacity(CSVRecord r, VenueCapacity current) {
         String value = csvColumn(r, "capacity");
         return value.isEmpty() ? current : VenueCapacity.parse(value);
+    }
+
+    /** 숙소 노출: 빈 칸이면 기존 값, O(켬)/X(끔)만(대소문자 무관). 그 외 값은 IllegalArgumentException(행 실패). */
+    private static boolean csvLodgingVisible(CSVRecord r, boolean current) {
+        String value = csvColumn(r, "lodgingVisible");
+        if (value.isEmpty()) return current;
+        if (value.equalsIgnoreCase(CSV_ON)) return true;
+        if (value.equalsIgnoreCase(CSV_OFF)) return false;
+        throw new IllegalArgumentException("숙소 노출은 O 또는 X다: " + value);
     }
 
     /** 링크: 빈 칸이면 기존 값, http/https 주소만(WebUrls). */

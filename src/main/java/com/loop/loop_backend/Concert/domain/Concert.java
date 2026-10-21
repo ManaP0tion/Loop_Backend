@@ -124,13 +124,7 @@ public class Concert {
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
 
-    /** 숙소 섹션 노출 여부. Off면 섹션 자체를 그리지 않는다. 기존 공연은 Off. */
-    @Column(name = "lodging_visible", nullable = false, columnDefinition = "boolean default false")
-    private boolean lodgingVisible;
-
-    /** 숙소 딥링크. 완성된 URL을 그대로 저장한다(자동 생성 없음). */
-    @Column(name = "lodging_url", length = 1000)
-    private String lodgingUrl;
+    // 숙소(노출 여부·딥링크)는 공연장으로 옮겼다(Venue.lodgingVisible/lodgingUrl).
 
     /** 공연 특설 공식 사이트. 있는 공연만 상세에서 연결한다. http/https 주소만. */
     @Column(name = "official_site_url", length = 500)
@@ -246,15 +240,6 @@ public class Concert {
         this.artist = artist;
     }
 
-    public void changeLodgingVisible(boolean lodgingVisible) {
-        this.lodgingVisible = lodgingVisible;
-    }
-
-    /** 빈 문자열이면 비운다. */
-    public void changeLodgingUrl(String lodgingUrl) {
-        this.lodgingUrl = (lodgingUrl == null || lodgingUrl.isBlank()) ? null : lodgingUrl.trim();
-    }
-
     /** 빈 문자열이면 비운다. http/https 주소가 아니면 400. */
     public void changeOfficialSiteUrl(String officialSiteUrl) {
         this.officialSiteUrl = WebUrls.normalize(officialSiteUrl);
@@ -275,14 +260,11 @@ public class Concert {
 
     /**
      * 수정을 모두 반영한 뒤 상태를 검사한다.
-     * - 항상: 숙소 노출 On이면 딥링크가 있어야 한다.
-     * - 공개 상태일 때만: 필수값(유형·공연명·포스터·기간·공연장, 내한이면 아티스트 1명). 비공개는 빈 칸이 있어도 저장된다.
+     * 공개 상태일 때만: 필수값(유형·공연명·포스터·기간·공연장, 내한이면 아티스트 1명). 비공개는 빈 칸이 있어도 저장된다.
      * 이미 공개된 공연을 고칠 때도 검사하므로, 공연장이 아직 연결되지 않은 기존 공연은 수정하면서 공연장을 함께 골라야 한다.
+     * (숙소 노출 규칙은 공연장이 검사한다 - Venue.changeLodging)
      */
     public void validateState() {
-        if (lodgingVisible && lodgingUrl == null) {
-            throw new IllegalArgumentException("숙소 노출을 켜려면 딥링크가 있어야 한다");
-        }
         if (!published) return;
         if (category == null || title == null || posterUrl == null || posterUrl.isBlank()
                 || startDate == null || endDate == null || linkedVenue == null) {
