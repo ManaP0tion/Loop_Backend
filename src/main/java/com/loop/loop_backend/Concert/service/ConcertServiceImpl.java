@@ -18,6 +18,11 @@ import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
 import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
+import com.loop.loop_backend.Performance.domain.Performance;
+import com.loop.loop_backend.Performance.repository.PerformanceRepository;
+import com.loop.loop_backend.Performance.service.PerformanceSync;
+import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse;
+import com.loop.loop_backend.Setlist.dto.SetlistResultResponse;
 import com.loop.loop_backend.Setlist.service.SetlistResultService;
 import com.loop.loop_backend.Setlist.service.SetlistVoteService;
 import com.loop.loop_backend.Storage.service.S3StorageService;
@@ -58,6 +63,8 @@ public class ConcertServiceImpl implements ConcertService {
     private final TicketAlarmService ticketAlarmService;
     private final SetlistVoteService setlistVoteService;
     private final SetlistResultService setlistResultService;
+    private final PerformanceRepository performanceRepository;
+    private final PerformanceSync performanceSync;
 
     @Override
     @Transactional
@@ -76,6 +83,7 @@ public class ConcertServiceImpl implements ConcertService {
                 .build();
         // IDENTITY 전략이라 save() 시점에 즉시 ID가 확정됨 -> 그 ID를 S3 키로 써서 바로 업로드 가능
         concertRepository.save(concert);
+        performanceSync.sync(concert, false, null);
 
         String posterUrl = resolvePosterUrl(concert.getId(), image, null);
         if (posterUrl != null) {
@@ -91,10 +99,12 @@ public class ConcertServiceImpl implements ConcertService {
         Artist artist = resolveArtist(requestDto.getArtistId());
         // 새 이미지가 없으면 기존 posterUrl을 그대로 유지 (수정 시 이미지 없이 다른 필드만 바꾸는 경우 대비)
         String posterUrl = resolvePosterUrl(id, image, concert.getPosterUrl());
+        ConcertCategory before = concert.getCategory();
         concert.update(artist, requestDto.getTitle(), posterUrl,
                 requestDto.getVenue(), requestDto.getStartDate(), requestDto.getEndDate(),
                 requestDto.getCategory(), requestDto.getPrice(), requestDto.getTicketUrl(),
                 requestDto.getShowtime());
+        performanceSync.sync(concert, concert.getCategory() != before, null);
         return ConcertResponseDto.from(concert, companionPostRepository.countByConcert_Id(concert.getId()));
     }
 
@@ -125,11 +135,14 @@ public class ConcertServiceImpl implements ConcertService {
         if (concert.isPast(ExpiryCutoff.cutoffDate())) {
             throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
         }
+        Long performanceId = soloPerformanceId(concert);
+        SetlistRankingResponse preview = performanceId == null ? SetlistRankingResponse.none()
+                : setlistVoteService.rankingPreview(id, performanceId, userId);
         // D-day는 노출 만료 기준(오전 10시 리셋)과 별개로 한국 날짜 기준 남은 일수다.
         return ConcertUpcomingDetailDto.from(concert, LocalDate.now(ZoneId.of("Asia/Seoul")),
                 presaleRepository.findByConcert_Id(id), generalSaleRepository.findByConcert_Id(id),
                 isScrapped(userId, id), ticketAlarmService.typesOf(userId, id),
-                setlistVoteService.rankingPreview(id, userId));
+                performanceId, preview);
     }
 
     @Override
@@ -139,8 +152,17 @@ public class ConcertServiceImpl implements ConcertService {
             // id는 존재하지만 지난 공연이 아님(예정 공연) - 잘못된 엔드포인트 호출을 404로 처리
             throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
         }
-        return ConcertPastDetailDto.from(concert, isScrapped(userId, id),
-                setlistResultService.result(id, userId), upcomingDomesticTourPreview());
+        Long performanceId = soloPerformanceId(concert);
+        SetlistResultResponse result = performanceId == null ? SetlistResultResponse.waiting(0)
+                : setlistResultService.result(id, performanceId, userId);
+        return ConcertPastDetailDto.from(concert, isScrapped(userId, id), performanceId, result,
+                upcomingDomesticTourPreview());
+    }
+
+    /** 단독 공연의 출연 정보 PK. 페스티벌(헤드라이너가 여럿)이나 아티스트 미지정이면 null. */
+    private Long soloPerformanceId(Concert concert) {
+        if (concert.isFestival()) return null;
+        return performanceRepository.findFirstByConcertId(concert.getId()).map(Performance::getId).orElse(null);
     }
 
     // 지난 공연 상세 하단의 "다가오는 J-POP 내한 공연". 누르면 상세로 가야 하므로 비공개(오픈 예정) 공연은 뺀다.

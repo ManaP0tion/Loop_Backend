@@ -57,8 +57,13 @@ public class ConcertPastDetailDto {
     @Schema(description = "내가 스크랩한 공연인지. 비로그인 조회면 항상 false", requiredMode = Schema.RequiredMode.REQUIRED)
     private final boolean scrapped;
 
-    @Schema(description = "셋리스트 결과(내 적중률 mine·실제 셋리스트 songs 등). 형태는 GET /api/concerts/{id}/setlist/result와 같다. " +
-            "실제 셋리스트 저장 전이거나 셋리스트를 운영하지 않는 공연이면 ready=false(대기 문구), 비로그인·미투표면 mine null",
+    @Schema(description = "단독 공연의 출연 정보 PK - 셋리스트·투표 API 경로(/performances/{performanceId})에 쓴다. " +
+            "페스티벌은 null - 라인업의 헤드라이너 lineupId를 쓴다", types = {"integer", "null"})
+    private final Long performanceId;
+
+    @Schema(description = "단독 공연 셋리스트 결과(내 적중률 mine·실제 셋리스트 songs 등). 형태는 GET /api/concerts/{id}/performances/{performanceId}/setlist/result와 같다. " +
+            "실제 셋리스트 저장 전이거나 페스티벌·아티스트 미지정 공연이면 ready=false(대기 문구), 비로그인·미투표면 mine null. " +
+            "페스티벌 헤드라이너는 출연 정보별 API로 조회",
             requiredMode = Schema.RequiredMode.REQUIRED)
     private final SetlistResultResponse setlistResult;
 
@@ -66,8 +71,8 @@ public class ConcertPastDetailDto {
             "공개 공연 최대 4건. 없으면 빈 목록(섹션 숨김)", requiredMode = Schema.RequiredMode.REQUIRED)
     private final List<ConcertSummaryDto> upcomingConcerts;
 
-    public static ConcertPastDetailDto from(Concert concert, boolean scrapped, SetlistResultResponse setlistResult,
-                                            List<ConcertSummaryDto> upcomingConcerts) {
+    public static ConcertPastDetailDto from(Concert concert, boolean scrapped, Long performanceId,
+                                            SetlistResultResponse setlistResult, List<ConcertSummaryDto> upcomingConcerts) {
         return ConcertPastDetailDto.builder()
                 .concertId(concert.getId())
                 .title(concert.getTitle())
@@ -81,6 +86,7 @@ public class ConcertPastDetailDto {
                 .officialSiteUrl(concert.getOfficialSiteUrl())
                 .products(ArtistProductDto.listOf(concert.getArtist()))
                 .scrapped(scrapped)
+                .performanceId(performanceId)
                 .setlistResult(setlistResult)
                 .upcomingConcerts(upcomingConcerts)
                 .build();

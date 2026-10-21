@@ -18,6 +18,7 @@ import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.common.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -43,6 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SetlistVoteControllerTest {
 
     private static final Long USER_ID = 7L;
+    private static final Long PERFORMANCE_ID = 5L;
 
     private MockMvc mockMvc;
     private SetlistVoteService service;
@@ -69,10 +71,10 @@ class SetlistVoteControllerTest {
 
     @Test
     void 후보는_n_마감_여부_곡_필드를_준다() throws Exception {
-        when(service.candidates(1L)).thenReturn(new SetlistCandidatesResponse(20, false,
+        when(service.candidates(1L, PERFORMANCE_ID)).thenReturn(new SetlistCandidatesResponse(20, false,
                 List.of(new SongCandidateResponse(12L, "ドライフラワー", "Dry Flower", "드라이플라워", "https://img/a.jpg", 1))));
 
-        mockMvc.perform(get("/api/concerts/{concertId}/setlist/candidates", 1L))
+        mockMvc.perform(get("/api/concerts/{concertId}/performances/{performanceId}/setlist/candidates", 1L, PERFORMANCE_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.maxSelect").value(20))
                 .andExpect(jsonPath("$.data.votingClosed").value(false))
@@ -86,10 +88,10 @@ class SetlistVoteControllerTest {
 
     @Test
     void 순위는_로그인_유저를_넘기고_순위_필드를_모두_준다() throws Exception {
-        when(service.ranking(1L, USER_ID)).thenReturn(new SetlistRankingResponse(20, 31, true,
+        when(service.ranking(1L, PERFORMANCE_ID, USER_ID)).thenReturn(new SetlistRankingResponse(20, 31, true,
                 List.of(new RankedSong(1, 12L, "ドライフラワー", "드라이플라워", "https://img/a.jpg", 25, true, true))));
 
-        mockMvc.perform(get("/api/concerts/{concertId}/setlist/ranking", 1L))
+        mockMvc.perform(get("/api/concerts/{concertId}/performances/{performanceId}/setlist/ranking", 1L, PERFORMANCE_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.highlightCount").value(20))
                 .andExpect(jsonPath("$.data.participantCount").value(31))
@@ -107,20 +109,20 @@ class SetlistVoteControllerTest {
     @Test
     void 비로그인_순위는_userId_없이_조회한다() throws Exception {
         SecurityContextHolder.clearContext();
-        when(service.ranking(1L, null)).thenReturn(new SetlistRankingResponse(20, 0, false, List.of()));
+        when(service.ranking(1L, PERFORMANCE_ID, null)).thenReturn(new SetlistRankingResponse(20, 0, false, List.of()));
 
-        mockMvc.perform(get("/api/concerts/{concertId}/setlist/ranking", 1L))
+        mockMvc.perform(get("/api/concerts/{concertId}/performances/{performanceId}/setlist/ranking", 1L, PERFORMANCE_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.songs").isEmpty());
-        verify(service).ranking(1L, null);
+        verify(service).ranking(1L, PERFORMANCE_ID, null);
     }
 
     @Test
     void 지난_셋리스트는_헤더와_곡을_준다() throws Exception {
-        when(setlistService.pastSetlists(1L)).thenReturn(List.of(new SetlistResponse(5L, SetlistType.RECENT, null,
-                null, "Zepp", 1, List.of(new SetlistSongResponse(1, 12L, "ドライフラワー", null, null)))));
+        when(setlistService.pastSetlists(1L, PERFORMANCE_ID)).thenReturn(List.of(new SetlistResponse(5L, SetlistType.RECENT, null,
+                null, "Zepp", 1, List.of(new SetlistSongResponse(1, 12L, "ドライフラワー", null, null, false)))));
 
-        mockMvc.perform(get("/api/concerts/{concertId}/setlist/past", 1L))
+        mockMvc.perform(get("/api/concerts/{concertId}/performances/{performanceId}/setlist/past", 1L, PERFORMANCE_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].type").value("RECENT"))
                 .andExpect(jsonPath("$.data[0].venueName").value("Zepp"))
@@ -130,13 +132,13 @@ class SetlistVoteControllerTest {
 
     @Test
     void 결과는_적중률_실제_셋리스트_미출현_곡_필드를_모두_준다() throws Exception {
-        when(resultService.result(1L, USER_ID)).thenReturn(new SetlistResultResponse(true, 31,
+        when(resultService.result(1L, PERFORMANCE_ID, USER_ID)).thenReturn(new SetlistResultResponse(true, 31,
                 new SetlistResultResponse.HitRate(1, 3, 33, HitGrade.LOW), 48,
                 new SetlistResultResponse.HitRate(2, 3, 67, HitGrade.MID), 12,
-                List.of(new SetlistResultResponse.ResultSong(1, 12L, "ドライフラワー", "드라이플라워", "https://img/a.jpg", true, true, false)),
-                List.of(new SetlistResultResponse.MissedSong(7L, "いかないで", null, null, 20, true, false))));
+                List.of(new SetlistResultResponse.ResultSong(1, 12L, "ドライフラワー", "드라이플라워", "https://img/a.jpg", true, true, false, false)),
+                List.of(new SetlistResultResponse.MissedSong(7L, "いかないで", null, null, 20, true, false, true))));
 
-        mockMvc.perform(get("/api/concerts/{concertId}/setlist/result", 1L))
+        mockMvc.perform(get("/api/concerts/{concertId}/performances/{performanceId}/setlist/result", 1L, PERFORMANCE_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.ready").value(true))
                 .andExpect(jsonPath("$.data.participantCount").value(31))
@@ -153,34 +155,35 @@ class SetlistVoteControllerTest {
                 .andExpect(jsonPath("$.data.songs[0].unexpected").value(false))
                 .andExpect(jsonPath("$.data.missedSongs[0].songId").value(7))
                 .andExpect(jsonPath("$.data.missedSongs[0].votes").value(20))
-                .andExpect(jsonPath("$.data.missedSongs[0].fanPredicted").value(true));
+                .andExpect(jsonPath("$.data.missedSongs[0].fanPredicted").value(true))
+                .andExpect(jsonPath("$.data.missedSongs[0].deleted").value(true));
     }
 
     @Test
     void 수신_동의는_로그인_유저_기준이고_투표가_없으면_404() throws Exception {
-        when(service.agreeResultMail(1L, USER_ID)).thenReturn(new MySetlistVoteResponse(true, List.of(12L), true));
-        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}/result-mail-consent", 1L))
+        when(service.agreeResultMail(1L, PERFORMANCE_ID, USER_ID)).thenReturn(new MySetlistVoteResponse(true, List.of(12L), true));
+        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}/performances/{performanceId}/result-mail-consent", 1L, PERFORMANCE_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.resultMailConsent").value(true));
 
-        when(service.agreeResultMail(2L, USER_ID)).thenThrow(new BusinessException(ErrorCode.SETLIST_VOTE_NOT_FOUND));
-        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}/result-mail-consent", 2L))
+        when(service.agreeResultMail(2L, PERFORMANCE_ID, USER_ID)).thenThrow(new BusinessException(ErrorCode.SETLIST_VOTE_NOT_FOUND));
+        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}/performances/{performanceId}/result-mail-consent", 2L, PERFORMANCE_ID))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void 비공개_공연_후보는_403() throws Exception {
-        when(service.candidates(1L)).thenThrow(new BusinessException(ErrorCode.CONCERT_NOT_OPEN));
+        when(service.candidates(1L, PERFORMANCE_ID)).thenThrow(new BusinessException(ErrorCode.CONCERT_NOT_OPEN));
 
-        mockMvc.perform(get("/api/concerts/{concertId}/setlist/candidates", 1L))
+        mockMvc.perform(get("/api/concerts/{concertId}/performances/{performanceId}/setlist/candidates", 1L, PERFORMANCE_ID))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void 내_투표는_로그인_유저_기준으로_조회한다() throws Exception {
-        when(service.myVote(1L, USER_ID)).thenReturn(new MySetlistVoteResponse(true, List.of(12L, 7L), true));
+        when(service.myVote(1L, PERFORMANCE_ID, USER_ID)).thenReturn(new MySetlistVoteResponse(true, List.of(12L, 7L), true));
 
-        mockMvc.perform(get("/api/users/me/setlist-votes/{concertId}", 1L))
+        mockMvc.perform(get("/api/users/me/setlist-votes/{concertId}/performances/{performanceId}", 1L, PERFORMANCE_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.voted").value(true))
                 .andExpect(jsonPath("$.data.songIds[1]").value(7))
@@ -189,9 +192,9 @@ class SetlistVoteControllerTest {
 
     @Test
     void 투표는_로그인_유저와_곡_목록을_넘긴다() throws Exception {
-        when(service.saveVote(1L, USER_ID, List.of(12L, 7L))).thenReturn(new MySetlistVoteResponse(true, List.of(7L, 12L), false));
+        when(service.saveVote(1L, PERFORMANCE_ID, USER_ID, List.of(12L, 7L))).thenReturn(new MySetlistVoteResponse(true, List.of(7L, 12L), false));
 
-        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}", 1L)
+        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}/performances/{performanceId}", 1L, PERFORMANCE_ID)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"songIds\":[12,7]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.songIds[0]").value(7));
@@ -199,10 +202,10 @@ class SetlistVoteControllerTest {
 
     @Test
     void songIds가_없거나_비었으면_400이고_서비스는_호출되지_않는다() throws Exception {
-        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}", 1L)
+        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}/performances/{performanceId}", 1L, PERFORMANCE_ID)
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}", 1L)
+        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}/performances/{performanceId}", 1L, PERFORMANCE_ID)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"songIds\":[]}"))
                 .andExpect(status().isBadRequest());
 
@@ -211,15 +214,26 @@ class SetlistVoteControllerTest {
 
     @Test
     void 마감_이후_투표는_409_곡_수_위반은_400() throws Exception {
-        when(service.saveVote(eq(1L), eq(USER_ID), anyList())).thenThrow(new BusinessException(ErrorCode.SETLIST_VOTE_CLOSED));
-        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}", 1L)
+        when(service.saveVote(eq(1L), eq(PERFORMANCE_ID), eq(USER_ID), anyList())).thenThrow(new BusinessException(ErrorCode.SETLIST_VOTE_CLOSED));
+        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}/performances/{performanceId}", 1L, PERFORMANCE_ID)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"songIds\":[1]}"))
                 .andExpect(status().isConflict());
 
         reset(service);
-        when(service.saveVote(any(), any(), anyList())).thenThrow(new IllegalArgumentException("곡은 1~2곡"));
-        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}", 1L)
+        when(service.saveVote(any(), any(), any(), anyList())).thenThrow(new IllegalArgumentException("곡은 1~2곡"));
+        mockMvc.perform(put("/api/users/me/setlist-votes/{concertId}/performances/{performanceId}", 1L, PERFORMANCE_ID)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"songIds\":[1,2,3]}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("다른 공연의 출연 정보로 순위를 조회하면 404를 반환한다")
+    void ranking_WhenPerformanceNotInConcert_Returns404() throws Exception {
+        // given
+        when(service.ranking(1L, 99L, USER_ID)).thenThrow(new BusinessException(ErrorCode.PERFORMANCE_NOT_FOUND));
+
+        // when & then
+        mockMvc.perform(get("/api/concerts/{concertId}/performances/{performanceId}/setlist/ranking", 1L, 99L))
+                .andExpect(status().isNotFound());
     }
 }

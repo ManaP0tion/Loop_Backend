@@ -16,8 +16,9 @@ import com.loop.loop_backend.Concert.repository.AdminConcertRepository;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
-import com.loop.loop_backend.Lineup.domain.Lineup;
-import com.loop.loop_backend.Lineup.repository.LineupRepository;
+import com.loop.loop_backend.Performance.domain.Performance;
+import com.loop.loop_backend.Performance.repository.PerformanceRepository;
+import com.loop.loop_backend.Performance.service.PerformanceSync;
 import com.loop.loop_backend.Venue.domain.Venue;
 import com.loop.loop_backend.Venue.repository.VenueRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -47,7 +48,8 @@ public class AdminConcertService {
     private final VenueRepository venueRepository;
     private final ConcertPresaleRepository presaleRepository;
     private final ConcertGeneralSaleRepository generalSaleRepository;
-    private final LineupRepository lineupRepository;
+    private final PerformanceRepository performanceRepository;
+    private final PerformanceSync performanceSync;
 
     /**
      * 등록된 공연 목록. 예매 등록 여부는 페이지의 공연들을 한 번에 확인한다 - 공연마다 확인하면 공연 수만큼 쿼리가 늘어난다(N+1).
@@ -88,12 +90,12 @@ public class AdminConcertService {
         if (req.showtimes() != null) concert.replaceShowtimes(req.showtimes());
         if (req.venueId() != null) concert.changeVenue(findVenue(req.venueId()));
         if (req.artistIds() != null) concert.changeArtist(findSingleArtist(req.artistIds()));
-        if (req.expectedSongCount() != null) concert.changeExpectedSongCount(req.expectedSongCount());
         applyLodgingToVenue(concert, req.lodgingVisible(), req.lodgingUrl());
         concert.changeOfficialSiteUrl(req.officialSiteUrl());
         concert.validateState();
         concertRepository.save(concert);
-        // 예매 블록은 공연 id가 있어야 저장할 수 있어 공연을 먼저 저장한다
+        // 출연 정보·예매 블록은 공연 id가 있어야 저장할 수 있어 공연을 먼저 저장한다
+        performanceSync.sync(concert, false, req.expectedSongCount());
         if (req.presales() != null) replacePresales(concert, req.presales());
         if (req.generalSales() != null) replaceGeneralSales(concert, req.generalSales());
         return detail(concert);
@@ -101,7 +103,7 @@ public class AdminConcertService {
 
     /**
      * 부분 수정 - null은 변경 없음. 반영 순서가 의미 있다:
-     * 유형 먼저(페스티벌로 바뀌면 아티스트·예상 곡 수를 비우고, 그 뒤 들어온 값을 페스티벌 규칙으로 검사),
+     * 유형 먼저(페스티벌로 바뀌면 아티스트를 비우고, 그 뒤 들어온 값을 페스티벌 규칙으로 검사),
      * 기간 다음 시각(시각 개수는 바뀐 기간 기준), 공개 여부는 마지막에 반영하고 전체 상태를 검사한다.
      */
     @Transactional
@@ -109,7 +111,8 @@ public class AdminConcertService {
         Concert concert = findConcert(id);
 
         // 수정 화면은 원래 유형을 그대로 보내므로 바뀔 때만 유형 규칙을 적용한다(국내 유형인 기존 공연도 다른 필드는 고칠 수 있게).
-        if (req.category() != null && req.category() != concert.getCategory()) {
+        boolean categoryChanged = req.category() != null && req.category() != concert.getCategory();
+        if (categoryChanged) {
             concert.changeCategory(req.category());
         }
         if (req.title() != null) concert.rename(req.title());
@@ -122,7 +125,6 @@ public class AdminConcertService {
         if (req.showtimes() != null) concert.replaceShowtimes(req.showtimes());
         if (req.venueId() != null) concert.changeVenue(findVenue(req.venueId()));
         if (req.artistIds() != null) concert.changeArtist(findSingleArtist(req.artistIds()));
-        if (req.expectedSongCount() != null) concert.changeExpectedSongCount(req.expectedSongCount());
         // 공연장 변경(venueId) 다음에 둔다 - 같은 요청에서 공연장을 바꾸면 새 공연장에 저장되게
         applyLodgingToVenue(concert, req.lodgingVisible(), req.lodgingUrl());
         if (req.officialSiteUrl() != null) concert.changeOfficialSiteUrl(req.officialSiteUrl());
@@ -132,20 +134,8 @@ public class AdminConcertService {
         if (req.generalSales() != null) replaceGeneralSales(concert, req.generalSales());
 
         concert.validateState();
-        cleanUpLineup(concert);
+        performanceSync.sync(concert, categoryChanged, req.expectedSongCount());
         return detail(concert);
-    }
-
-    /**
-     * 라인업(AD-04) 정리. 엔티티의 changePeriod는 라인업을 모르므로 여기서 한다.
-     * 페스티벌이 아니게 됐으면 전부, 기간이 줄었으면 범위를 벗어난 DAY를 지운다. 바뀐 게 없으면 지워지는 행이 없다.
-     */
-    private void cleanUpLineup(Concert concert) {
-        if (concert.isFestival()) {
-            lineupRepository.deleteByConcertIdAndDayGreaterThan(concert.getId(), Lineup.dayCount(concert));
-        } else {
-            lineupRepository.deleteByConcertId(concert.getId());
-        }
     }
 
     /** 선예매를 통째로 교체한다(기존 블록 삭제 후 새로 저장, 블록 id는 바뀐다). 예매처 규칙은 엔티티가 검사한다. */
@@ -172,7 +162,9 @@ public class AdminConcertService {
     }
 
     private AdminConcertDetailResponse detail(Concert concert) {
-        return AdminConcertDetailResponse.from(concert,
+        Performance solo = concert.isFestival() ? null
+                : performanceRepository.findFirstByConcertId(concert.getId()).orElse(null);
+        return AdminConcertDetailResponse.from(concert, solo,
                 presaleRepository.findByConcert_Id(concert.getId()),
                 generalSaleRepository.findByConcert_Id(concert.getId()));
     }

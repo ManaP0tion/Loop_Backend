@@ -26,7 +26,8 @@ public class LineupController {
 
     @GetMapping
     @Operation(summary = "페스티벌 라인업 조회",
-            description = "DAY 목록과 라인업 전체를 한 번에 내려준다. 전체 탭은 artists 순서 그대로, DAY 탭은 day 값으로 프론트에서 나눈다.\n\n" +
+            description = "DAY 목록과 라인업 전체를 한 번에 내려준다. 전체 탭은 artists 순서 그대로(아티스트당 한 번), " +
+                    "DAY 탭은 각 항목의 days에 그 DAY가 있는 것만 프론트에서 거른다. 헤드라이너는 출연한 모든 DAY에서 헤드라이너다.\n\n" +
                     "- days가 1개(하루 페스티벌)면 DAY 탭 없이 목록만\n" +
                     "- 헤드라이너 미리보기: artists에서 headliner=true를 순서대로 - 3팀 미만이면 숨김, 초과면 앞 3팀\n" +
                     "- 라인업이 아직 없으면 artists 빈 목록(200), 페스티벌이 아니면 days·artists 모두 빈 목록\n" +

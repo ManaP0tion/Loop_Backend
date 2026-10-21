@@ -10,6 +10,7 @@ import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.common.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -24,7 +25,6 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -41,8 +41,8 @@ class AdminLineupControllerTest {
 
     private static final String BASE = "/api/admin/concerts/{concertId}/lineup";
     private static final List<LineupItemResponse> LIST = List.of(
-            new LineupItemResponse(10L, 3L, "YOASOBI", "요아소비", "https://img/yoasobi.png", ConcertCategory.J_POP_ARTIST, 1, true, 1),
-            new LineupItemResponse(11L, 4L, "Yuuri", null, null, ConcertCategory.J_POP_ARTIST, 2, false, 2));
+            new LineupItemResponse(10L, 3L, "YOASOBI", "요아소비", "https://img/yoasobi.png", ConcertCategory.J_POP_ARTIST, List.of(1), true, 1, 12),
+            new LineupItemResponse(11L, 4L, "Yuuri", null, null, ConcertCategory.J_POP_ARTIST, List.of(2, 3), false, 2, null));
 
     private MockMvc mockMvc;
     private LineupService service;
@@ -75,9 +75,11 @@ class AdminLineupControllerTest {
                 .andExpect(jsonPath("$.data[0].name").value("YOASOBI"))
                 .andExpect(jsonPath("$.data[0].nameKo").value("요아소비"))
                 .andExpect(jsonPath("$.data[0].imageUrl").value("https://img/yoasobi.png"))
-                .andExpect(jsonPath("$.data[0].day").value(1))
+                .andExpect(jsonPath("$.data[0].days[0]").value(1))
+                .andExpect(jsonPath("$.data[1].days[1]").value(3))
                 .andExpect(jsonPath("$.data[0].headliner").value(true))
                 .andExpect(jsonPath("$.data[0].displayOrder").value(1))
+                .andExpect(jsonPath("$.data[0].expectedSongCount").value(12))
                 .andExpect(jsonPath("$.data[1].name").value("Yuuri"));
     }
 
@@ -167,23 +169,28 @@ class AdminLineupControllerTest {
     // ---------- DAY 변경 · 삭제 ----------
 
     @Test
-    void DAY_변경은_서비스로_전달되고_기록이_남는다() throws Exception {
-        when(service.changeDay(1L, 10L, 3)).thenReturn(LIST);
+    @DisplayName("출연 DAY 변경 요청은 목록 그대로 서비스로 전달되고 기록이 남는다")
+    void replaceDays_WithDays_DelegatesAndLogs() throws Exception {
+        // given
+        when(service.replaceDays(1L, 10L, List.of(2, 3))).thenReturn(LIST);
 
-        mockMvc.perform(patch(BASE + "/{lineupId}", 1L, 10L).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"day\": 3}"))
+        // when & then
+        mockMvc.perform(put(BASE + "/{lineupId}/days", 1L, 10L).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"days\": [2, 3]}"))
                 .andExpect(status().isOk());
-
-        verify(service).changeDay(1L, 10L, 3);
+        verify(service).replaceDays(1L, 10L, List.of(2, 3));
         verifyLogged("UPDATE_LINEUP");
     }
 
     @Test
-    void DAY_없이_변경하면_400() throws Exception {
-        mockMvc.perform(patch(BASE + "/{lineupId}", 1L, 10L).contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isBadRequest());
-
-        verify(service, never()).changeDay(anyLong(), anyLong(), anyInt());
+    @DisplayName("출연 DAY가 없거나 빈 목록이거나 null이 섞이면 400이고 서비스를 호출하지 않는다")
+    void replaceDays_WithMissingOrEmptyDays_Returns400() throws Exception {
+        // when & then
+        for (String body : List.of("{}", "{\"days\": []}", "{\"days\": [1, null]}")) {
+            mockMvc.perform(put(BASE + "/{lineupId}/days", 1L, 10L).contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(service);
     }
 
     @Test
@@ -242,5 +249,43 @@ class AdminLineupControllerTest {
 
         verify(service, times(1)).changeHeadliner(anyLong(), anyLong(), anyBoolean());
         verify(service).changeHeadliner(1L, 10L, true);
+    }
+
+    // ---------- 헤드라이너 예상 셋리스트 ----------
+
+    @Test
+    @DisplayName("헤드라이너 예상 곡 수 변경 요청은 서비스로 전달되고 라인업 전체를 반환한다")
+    void changeExpectedSongCount_WithValidCount_DelegatesToService() throws Exception {
+        // given
+        when(service.changeExpectedSongCount(1L, 10L, 12)).thenReturn(LIST);
+
+        // when & then
+        mockMvc.perform(patch(BASE + "/{lineupId}/expected-song-count", 1L, 10L).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedSongCount\": 12}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].expectedSongCount").value(12));
+        verify(service).changeExpectedSongCount(1L, 10L, 12);
+    }
+
+    @Test
+    @DisplayName("예상 곡 수가 1 미만이면 400이고 서비스를 호출하지 않는다")
+    void changeExpectedSongCount_WithZero_Returns400() throws Exception {
+        // when & then
+        mockMvc.perform(patch(BASE + "/{lineupId}/expected-song-count", 1L, 10L).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedSongCount\": 0}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    @DisplayName("셋리스트나 투표가 있는 헤드라이너를 삭제하면 409이고 기록을 남기지 않는다")
+    void delete_WhenSetlistDataExists_Returns409() throws Exception {
+        // given
+        when(service.delete(1L, 10L)).thenThrow(new BusinessException(ErrorCode.PERFORMANCE_HAS_SETLIST_DATA));
+
+        // when & then
+        mockMvc.perform(delete(BASE + "/{lineupId}", 1L, 10L))
+                .andExpect(status().isConflict());
+        verifyNoInteractions(accessLog);
     }
 }

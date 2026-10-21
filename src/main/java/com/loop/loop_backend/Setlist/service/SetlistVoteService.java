@@ -1,7 +1,7 @@
 package com.loop.loop_backend.Setlist.service;
 
-import com.loop.loop_backend.Concert.domain.Concert;
-import com.loop.loop_backend.Concert.repository.ConcertRepository;
+import com.loop.loop_backend.Performance.domain.Performance;
+import com.loop.loop_backend.Performance.repository.PerformanceRepository;
 import com.loop.loop_backend.Setlist.domain.SetlistVote;
 import com.loop.loop_backend.Setlist.dto.MySetlistVoteResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistCandidatesResponse;
@@ -30,7 +30,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 예상 셋리스트 후보(NO.64)·투표(NO.65).
+ * 예상 셋리스트 후보(NO.64)·투표(NO.65). 출연 정보(단독 공연·페스티벌 헤드라이너) 단위다.
  * 시각이 필요한 메서드는 now를 받는 오버로드가 있다 - 마감 경계를 테스트에서 고정하려고.
  */
 @Service
@@ -38,53 +38,53 @@ import java.util.stream.Collectors;
 public class SetlistVoteService {
 
     private final SetlistVoteRepository voteRepository;
-    private final ConcertRepository concertRepository;
+    private final PerformanceRepository performanceRepository;
     private final SongRepository songRepository;
     private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
-    public SetlistCandidatesResponse candidates(Long concertId) {
-        return candidates(concertId, LocalDateTime.now(SetlistRules.ZONE_KST));
+    public SetlistCandidatesResponse candidates(Long concertId, Long performanceId) {
+        return candidates(concertId, performanceId, LocalDateTime.now(SetlistRules.ZONE_KST));
     }
 
     @Transactional(readOnly = true)
-    SetlistCandidatesResponse candidates(Long concertId, LocalDateTime nowKst) {
-        Concert concert = findPublishedConcert(concertId);
-        if (!SetlistRules.isSetlistConcert(concert)) {
+    SetlistCandidatesResponse candidates(Long concertId, Long performanceId, LocalDateTime nowKst) {
+        Performance performance = findPublishedPerformance(concertId, performanceId);
+        if (!performance.isSetlistTarget()) {
             return new SetlistCandidatesResponse(null, false, List.of());
         }
         // ponytail: 아티스트 곡 전체를 한 번에 - iTunes 불러오기가 수백 곡 수준이라 충분. 수천 곡이 되면 서버 페이징·검색으로
         List<SongCandidateResponse> songs = songRepository
-                .findAllByArtistIdOrderBySortOrderAsc(concert.getArtist().getId()).stream()
+                .findAllByArtistIdOrderBySortOrderAsc(performance.getArtist().getId()).stream()
                 .map(SongCandidateResponse::from)
                 .toList();
-        return new SetlistCandidatesResponse(SetlistRules.expectedSongCount(concert),
-                SetlistRules.isVotingClosed(concert, nowKst), songs);
+        return new SetlistCandidatesResponse(SetlistRules.expectedSongCount(performance),
+                SetlistRules.isVotingClosed(performance.getConcert(), nowKst), songs);
     }
 
     @Transactional(readOnly = true)
-    public SetlistRankingResponse ranking(Long concertId, Long userId) {
-        return ranking(concertId, userId, LocalDateTime.now(SetlistRules.ZONE_KST));
+    public SetlistRankingResponse ranking(Long concertId, Long performanceId, Long userId) {
+        return ranking(concertId, performanceId, userId, LocalDateTime.now(SetlistRules.ZONE_KST));
     }
 
     /** 공연 상세 화면용 순위 미리보기(상위 5곡). 전체 순위는 ranking. */
     @Transactional(readOnly = true)
-    public SetlistRankingResponse rankingPreview(Long concertId, Long userId) {
-        return ranking(concertId, userId).top(5);
+    public SetlistRankingResponse rankingPreview(Long concertId, Long performanceId, Long userId) {
+        return ranking(concertId, performanceId, userId).top(5);
     }
 
     /** 순위(NO.66). userId가 있으면(로그인) 내 선택 곡에 mine 표시. */
     @Transactional(readOnly = true)
-    SetlistRankingResponse ranking(Long concertId, Long userId, LocalDateTime nowKst) {
-        Concert concert = findPublishedConcert(concertId);
-        if (!SetlistRules.isSetlistConcert(concert)) {
-            return new SetlistRankingResponse(null, 0, false, List.of());
+    SetlistRankingResponse ranking(Long concertId, Long performanceId, Long userId, LocalDateTime nowKst) {
+        Performance performance = findPublishedPerformance(concertId, performanceId);
+        if (!performance.isSetlistTarget()) {
+            return SetlistRankingResponse.none();
         }
-        int n = SetlistRules.expectedSongCount(concert);
-        Set<Long> mine = userId == null ? Set.of() : voteRepository.findByConcertIdAndUserId(concertId, userId)
+        int n = SetlistRules.expectedSongCount(performance);
+        Set<Long> mine = userId == null ? Set.of() : voteRepository.findByPerformanceIdAndUserId(performanceId, userId)
                 .map(v -> v.getSongs().stream().map(Song::getId).collect(Collectors.toSet()))
                 .orElse(Set.of());
-        List<SongVoteCount> counts = voteRepository.countVotesBySong(concertId);
+        List<SongVoteCount> counts = voteRepository.countVotesBySong(performanceId);
         Map<Long, Song> songs = songRepository.findAllById(counts.stream().map(SongVoteCount::songId).toList()).stream()
                 .collect(Collectors.toMap(Song::getId, Function.identity()));
 
@@ -94,46 +94,48 @@ public class SetlistVoteService {
             ranked.add(RankedSong.of(rank, songs.get(count.songId()), count.votes(), rank <= n,
                     mine.contains(count.songId())));
         }
-        return new SetlistRankingResponse(n, voteRepository.countByConcertId(concertId),
-                SetlistRules.isVotingClosed(concert, nowKst), ranked);
+        return new SetlistRankingResponse(n, voteRepository.countByPerformanceId(performanceId),
+                SetlistRules.isVotingClosed(performance.getConcert(), nowKst), ranked);
     }
 
     @Transactional(readOnly = true)
-    public MySetlistVoteResponse myVote(Long concertId, Long userId) {
-        findConcert(concertId);
-        return voteRepository.findByConcertIdAndUserId(concertId, userId)
+    public MySetlistVoteResponse myVote(Long concertId, Long performanceId, Long userId) {
+        SetlistRules.findPerformance(performanceRepository, concertId, performanceId);
+        return voteRepository.findByPerformanceIdAndUserId(performanceId, userId)
                 .map(SetlistVoteService::toResponse)
                 .orElseGet(MySetlistVoteResponse::none);
     }
 
     @Transactional
-    public MySetlistVoteResponse saveVote(Long concertId, Long userId, List<Long> songIds) {
-        return saveVote(concertId, userId, songIds, LocalDateTime.now(SetlistRules.ZONE_KST));
+    public MySetlistVoteResponse saveVote(Long concertId, Long performanceId, Long userId, List<Long> songIds) {
+        return saveVote(concertId, performanceId, userId, songIds, LocalDateTime.now(SetlistRules.ZONE_KST));
     }
 
-    /** 공연당 유저 1건. 이미 있으면 곡 선택을 통째로 교체한다. 마감 이후는 409, 곡 수·후보 위반은 400. */
+    /** 출연 정보당 유저 1건. 이미 있으면 곡 선택을 통째로 교체한다. 마감 이후는 409, 곡 수·후보 위반은 400. */
     @Transactional
-    MySetlistVoteResponse saveVote(Long concertId, Long userId, List<Long> songIds, LocalDateTime nowKst) {
-        Concert concert = findPublishedConcert(concertId);
-        if (!SetlistRules.isSetlistConcert(concert)) {
-            throw new IllegalArgumentException("예상 셋리스트를 운영하지 않는 공연이다");
+    MySetlistVoteResponse saveVote(Long concertId, Long performanceId, Long userId, List<Long> songIds,
+                                   LocalDateTime nowKst) {
+        Performance performance = findPublishedPerformance(concertId, performanceId);
+        if (!performance.isSetlistTarget()) {
+            throw new IllegalArgumentException("예상 셋리스트를 운영하지 않는 출연 정보다(페스티벌은 헤드라이너만)");
         }
-        if (SetlistRules.isVotingClosed(concert, nowKst)) {
+        if (SetlistRules.isVotingClosed(performance.getConcert(), nowKst)) {
             throw new BusinessException(ErrorCode.SETLIST_VOTE_CLOSED);
         }
+        int n = SetlistRules.expectedSongCount(performance);
         List<Long> distinct = List.copyOf(new LinkedHashSet<>(songIds));
-        if (distinct.isEmpty() || distinct.size() > SetlistRules.expectedSongCount(concert)) {
-            throw new IllegalArgumentException("곡은 1~" + SetlistRules.expectedSongCount(concert) + "곡: " + distinct.size());
+        if (distinct.isEmpty() || distinct.size() > n) {
+            throw new IllegalArgumentException("곡은 1~" + n + "곡: " + distinct.size());
         }
-        LinkedHashSet<Song> songs = new LinkedHashSet<>(SetlistRules.resolveSongs(songRepository, concert, distinct));
+        LinkedHashSet<Song> songs = new LinkedHashSet<>(SetlistRules.resolveSongs(songRepository, performance, distinct));
 
-        SetlistVote vote = voteRepository.findByConcertIdAndUserId(concertId, userId)
+        SetlistVote vote = voteRepository.findByPerformanceIdAndUserId(performanceId, userId)
                 .map(existing -> {
                     existing.replaceSongs(songs);
                     return existing;
                 })
                 .orElseGet(() -> voteRepository.save(SetlistVote.builder()
-                        .concert(concert)
+                        .performance(performance)
                         .user(userRepository.findById(userId)
                                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND)))
                         .songs(songs)
@@ -144,8 +146,9 @@ public class SetlistVoteService {
 
     /** 결과 메일 수신 동의(MD03 1단계). 투표한 유저만 - 아니면 404. 이미 동의했어도 200. */
     @Transactional
-    public MySetlistVoteResponse agreeResultMail(Long concertId, Long userId) {
-        SetlistVote vote = voteRepository.findByConcertIdAndUserId(concertId, userId)
+    public MySetlistVoteResponse agreeResultMail(Long concertId, Long performanceId, Long userId) {
+        SetlistRules.findPerformance(performanceRepository, concertId, performanceId);
+        SetlistVote vote = voteRepository.findByPerformanceIdAndUserId(performanceId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SETLIST_VOTE_NOT_FOUND));
         vote.agreeResultMail();
         return toResponse(vote);
@@ -159,14 +162,9 @@ public class SetlistVoteService {
         return new MySetlistVoteResponse(true, songIds, vote.isResultMailConsent());
     }
 
-    private Concert findPublishedConcert(Long concertId) {
-        Concert concert = findConcert(concertId);
-        SetlistRules.requirePublished(concert);
-        return concert;
-    }
-
-    private Concert findConcert(Long concertId) {
-        return concertRepository.findById(concertId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
+    private Performance findPublishedPerformance(Long concertId, Long performanceId) {
+        Performance performance = SetlistRules.findPerformance(performanceRepository, concertId, performanceId);
+        SetlistRules.requirePublished(performance.getConcert());
+        return performance;
     }
 }

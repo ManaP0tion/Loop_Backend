@@ -11,9 +11,11 @@ import com.loop.loop_backend.ConcertImport.domain.ConcertImport;
 import com.loop.loop_backend.ConcertImport.domain.ImportStatus;
 import com.loop.loop_backend.ConcertImport.kopis.KopisClient;
 import com.loop.loop_backend.ConcertImport.repository.ConcertImportRepository;
+import com.loop.loop_backend.Performance.service.PerformanceSync;
 import com.loop.loop_backend.Venue.domain.Venue;
 import com.loop.loop_backend.Venue.service.VenueService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -46,6 +48,7 @@ class ConcertImportServiceTest {
     @Mock ConcertGeneralSaleRepository generalSaleRepository;
     @Mock KopisClient kopisClient;
     @Mock VenueService venueService;
+    @Mock PerformanceSync performanceSync;
     @InjectMocks ConcertImportService service;
 
     private ConcertImport pendingImport;
@@ -85,6 +88,21 @@ class ConcertImportServiceTest {
         ArgumentCaptor<Concert> saved = ArgumentCaptor.forClass(Concert.class);
         verify(concertRepository).save(saved.capture());
         return saved.getValue();
+    }
+
+    // ---------- 출연 정보 ----------
+
+    @Test
+    @DisplayName("승인하면 저장한 공연으로 출연 정보 동기화를 호출한다")
+    void approve_SyncsPerformanceForSavedConcert() {
+        // given
+        givenKopisFailed();
+
+        // when
+        Concert concert = approveAndGetSavedConcert();
+
+        // then
+        verify(performanceSync).sync(concert, false, null);
     }
 
     // ---------- KOPIS 상세·공연장 ----------

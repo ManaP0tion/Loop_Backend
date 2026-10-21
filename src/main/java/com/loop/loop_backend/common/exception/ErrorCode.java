@@ -75,6 +75,8 @@ public enum ErrorCode {
     // Lineup 도메인
     LINEUP_NOT_FOUND(404, "라인업 항목을 찾을 수 없습니다."),
     DUPLICATE_LINEUP(409, "이미 같은 DAY 라인업에 있는 아티스트입니다."),
+    PERFORMANCE_NOT_FOUND(404, "출연 정보를 찾을 수 없습니다."),
+    PERFORMANCE_HAS_SETLIST_DATA(409, "셋리스트나 투표가 있는 출연 정보는 지우거나 헤드라이너를 해제할 수 없습니다."),
 
     // Setlist 도메인
     SETLIST_NOT_FOUND(404, "셋리스트를 찾을 수 없습니다."),

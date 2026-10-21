@@ -14,8 +14,15 @@ import com.loop.loop_backend.Concert.repository.AdminConcertRepository;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
-import com.loop.loop_backend.Lineup.domain.Lineup;
-import com.loop.loop_backend.Lineup.repository.LineupRepository;
+import com.loop.loop_backend.Performance.domain.Performance;
+import com.loop.loop_backend.Performance.repository.PerformanceRepository;
+import com.loop.loop_backend.Performance.service.PerformanceSync;
+import com.loop.loop_backend.Setlist.repository.SetlistRepository;
+import com.loop.loop_backend.Setlist.repository.SetlistVoteRepository;
+import com.loop.loop_backend.Setlist.service.SetlistDataGuard;
+import com.loop.loop_backend.Setlist.domain.Setlist;
+import com.loop.loop_backend.Setlist.domain.SetlistType;
+import com.loop.loop_backend.Song.domain.Song;
 import com.loop.loop_backend.Venue.domain.Venue;
 import com.loop.loop_backend.Venue.repository.VenueRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -52,7 +59,9 @@ class AdminConcertServiceTest {
     @Autowired private ConcertRepository concertRepository;
     @Autowired private AdminConcertRepository adminConcertRepository;
     @Autowired private ArtistRepository artistRepository;
-    @Autowired private LineupRepository lineupRepository;
+    @Autowired private PerformanceRepository performanceRepository;
+    @Autowired private SetlistRepository setlistRepository;
+    @Autowired private SetlistVoteRepository setlistVoteRepository;
     @Autowired private VenueRepository venueRepository;
     @Autowired private ConcertPresaleRepository presaleRepository;
     @Autowired private ConcertGeneralSaleRepository generalSaleRepository;
@@ -65,7 +74,8 @@ class AdminConcertServiceTest {
     @BeforeEach
     void setUp() {
         service = new AdminConcertService(concertRepository, adminConcertRepository, artistRepository, venueRepository,
-                presaleRepository, generalSaleRepository, lineupRepository);
+                presaleRepository, generalSaleRepository, performanceRepository,
+                new PerformanceSync(performanceRepository, new SetlistDataGuard(setlistRepository, setlistVoteRepository)));
         venue = venueRepository.save(Venue.builder().name("인스파이어 아레나").address("인천광역시 중구").build());
         yuuri = artistRepository.save(Artist.builder().name("Yuuri")
                 .autoFetchConcerts(true).category(ConcertCategory.J_POP_ARTIST).build());
@@ -366,16 +376,18 @@ class AdminConcertServiceTest {
                 .title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 22))
                 .build());
+        // DAY마다 다른 아티스트 1팀(공연당 아티스트 1항목)
         for (int day = 1; day <= 3; day++) {
-            lineupRepository.save(Lineup.builder().concert(festival).artist(yuuri).day(day).displayOrder(day).build());
+            Artist artist = artistRepository.save(Artist.builder().name("DAY" + day + " 아티스트").build());
+            performanceRepository.save(Performance.builder().concert(festival).artist(artist).day(day).displayOrder(day).build());
         }
         flushAndClear();
         return festival;
     }
 
     private List<Integer> lineupDays(Concert concert) {
-        return lineupRepository.findByConcertIdOrderByDisplayOrderAsc(concert.getId()).stream()
-                .map(Lineup::getDay).toList();
+        return performanceRepository.findByConcertIdOrderByDisplayOrderAsc(concert.getId()).stream()
+                .flatMap(p -> p.getDays().stream()).toList();
     }
 
     @Test
@@ -418,6 +430,129 @@ class AdminConcertServiceTest {
         em.clear();
 
         assertThat(lineupDays(festival)).containsExactly(1, 2, 3);
+    }
+
+    // ---------- 출연 정보 동기화 ----------
+
+    /** 출연 정보에 실제 셋리스트를 붙인다(셋리스트 데이터가 있는 상태). */
+    private void attachSetlist(Performance performance) {
+        Song song = Song.builder().artist(performance.getArtist()).titleOriginal("曲").sortOrder(1).build();
+        em.persist(song);
+        em.persist(Setlist.builder().performance(performance).type(SetlistType.ACTUAL).songs(List.of(song)).build());
+        flushAndClear();
+    }
+
+    private Performance soloPerformanceOf(Concert concert) {
+        return performanceRepository.findFirstByConcertId(concert.getId()).orElseThrow();
+    }
+
+    @Test
+    @DisplayName("아티스트를 지정해 내한 공연을 만들면 출연 정보가 생기고 예상 곡 수가 저장된다")
+    void create_WithArtistAndExpectedCount_CreatesSoloPerformance() {
+        // when
+        AdminConcertDetailResponse created = service.create(new AdminConcertCreateRequest(
+                ConcertCategory.J_POP_ARTIST, "YUURI LIVE", null,
+                LocalDate.of(2026, 12, 5), LocalDate.of(2026, 12, 5), null,
+                null, List.of(yuuri.getId()), 18, false, null, null, null, null));
+        flushAndClear();
+
+        // then
+        Performance solo = performanceRepository.findFirstByConcertId(created.id()).orElseThrow();
+        assertThat(solo.getArtist().getId()).isEqualTo(yuuri.getId());
+        assertThat(solo.getExpectedSongCount()).isEqualTo(18);
+        assertThat(created.performanceId()).isEqualTo(solo.getId());
+        assertThat(created.expectedSongCount()).isEqualTo(18);
+    }
+
+    @Test
+    @DisplayName("내한 공연의 아티스트를 바꾸면 출연 정보는 유지되고 아티스트만 바뀐다")
+    void update_WhenArtistChanged_KeepsPerformanceAndChangesArtist() {
+        // given
+        Concert concert = approvedConcert();
+        service.update(concert.getId(), patch().artistIds(List.of(yuuri.getId())).build());
+        flushAndClear();
+        Long performanceId = soloPerformanceOf(concert).getId();
+        Artist ado = artistRepository.save(Artist.builder().name("Ado").category(ConcertCategory.J_POP_ARTIST).build());
+
+        // when
+        service.update(concert.getId(), patch().artistIds(List.of(ado.getId())).build());
+        flushAndClear();
+
+        // then
+        Performance solo = soloPerformanceOf(concert);
+        assertThat(solo.getId()).isEqualTo(performanceId);
+        assertThat(solo.getArtist().getId()).isEqualTo(ado.getId());
+    }
+
+    @Test
+    @DisplayName("내한 공연의 아티스트를 비우면 출연 정보가 지워지고, 셋리스트가 있으면 409로 막는다")
+    void update_WhenArtistCleared_DeletesPerformanceUnlessSetlistExists() {
+        // given
+        Concert empty = approvedConcert();
+        service.update(empty.getId(), patch().artistIds(List.of(yuuri.getId())).build());
+        // approvedConcert는 KOPIS ID가 같아 (KOPIS ID, 아티스트) 유니크를 피하려고 다른 아티스트를 쓴다
+        Artist ado = artistRepository.save(Artist.builder().name("Ado").category(ConcertCategory.J_POP_ARTIST).build());
+        Concert withSetlist = approvedConcert();
+        service.update(withSetlist.getId(), patch().artistIds(List.of(ado.getId())).build());
+        flushAndClear();
+        attachSetlist(soloPerformanceOf(withSetlist));
+
+        // when
+        service.update(empty.getId(), patch().artistIds(List.of()).build());
+        flushAndClear();
+
+        // then
+        assertThat(performanceRepository.findFirstByConcertId(empty.getId())).isEmpty();
+        assertErrorCode(() -> service.update(withSetlist.getId(), patch().artistIds(List.of()).build()),
+                ErrorCode.PERFORMANCE_HAS_SETLIST_DATA);
+    }
+
+    @Test
+    @DisplayName("셋리스트가 있는 내한 공연을 페스티벌로 바꾸면 409이고 출연 정보는 지워지지 않는다")
+    void update_WhenSoloWithSetlistChangedToFestival_ThrowsConflict() {
+        // given
+        Concert concert = approvedConcert();
+        service.update(concert.getId(), patch().artistIds(List.of(yuuri.getId())).build());
+        flushAndClear();
+        Performance solo = soloPerformanceOf(concert);
+        attachSetlist(solo);
+
+        // when & then - 공연 유형 롤백은 요청 트랜잭션이 맡는다(@DataJpaTest는 테스트 전체가 한 트랜잭션이라 여기서 확인하지 않음)
+        assertErrorCode(() -> service.update(concert.getId(), patch().category(ConcertCategory.JAPAN_FESTIVAL).build()),
+                ErrorCode.PERFORMANCE_HAS_SETLIST_DATA);
+        em.clear();
+        assertThat(performanceRepository.findById(solo.getId())).isPresent();
+    }
+
+    @Test
+    @DisplayName("셋리스트가 있는 헤드라이너의 DAY가 기간 밖으로 밀리면 409이고 라인업은 그대로다")
+    void update_WhenPeriodShrinkRemovesHeadlinerWithSetlist_ThrowsConflict() {
+        // given
+        Concert festival = festivalWithLineupOnEveryDay();
+        Performance day3 = performanceRepository.findByConcertIdOrderByDisplayOrderAsc(festival.getId()).get(2);
+        day3.changeHeadliner(true);
+        em.flush();
+        attachSetlist(day3);
+
+        // when & then
+        assertErrorCode(() -> service.update(festival.getId(), patch().endDate(LocalDate.of(2026, 11, 21)).build()),
+                ErrorCode.PERFORMANCE_HAS_SETLIST_DATA);
+        em.clear();
+        assertThat(lineupDays(festival)).containsExactly(1, 2, 3);
+    }
+
+    @Test
+    @DisplayName("예상 곡 수는 페스티벌이나 아티스트 없는 내한 공연에는 정할 수 없다")
+    void update_WithExpectedCountOnFestivalOrNoArtist_ThrowsInvalidInput() {
+        // given
+        Concert festival = festivalWithLineupOnEveryDay();
+        Concert noArtist = approvedConcert();
+
+        // when & then
+        assertThatThrownBy(() -> service.update(festival.getId(), patch().expectedSongCount(12).build()))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.update(noArtist.getId(), patch().expectedSongCount(12).build()))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     // ---------- 숙소 (공연장 단위) ----------
@@ -489,6 +624,29 @@ class AdminConcertServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.update(concert.getId(), patch().lodgingUrl(DEEPLINK).build()))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("여러 DAY에 나오는 출연 정보는 기간이 줄면 범위 밖 DAY만 빠지고 출연 정보는 남는다")
+    void update_WhenPeriodShrinks_DropsOnlyOutOfRangeDaysOfMultiDayPerformance() {
+        // given - DAY2·DAY3에 나오는 헤드라이너
+        Concert festival = concertRepository.save(Concert.builder()
+                .title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL)
+                .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 22))
+                .build());
+        Performance headliner = Performance.builder().concert(festival).artist(yuuri).day(2).displayOrder(1).build();
+        headliner.addDay(3);
+        headliner.changeHeadliner(true);
+        performanceRepository.save(headliner);
+        flushAndClear();
+        attachSetlist(performanceRepository.findById(headliner.getId()).orElseThrow());
+
+        // when - DAY3이 기간 밖으로 밀린다. 출연 정보는 지워지지 않으므로 셋리스트가 있어도 409가 아니다
+        service.update(festival.getId(), patch().endDate(LocalDate.of(2026, 11, 21)).build());
+        flushAndClear();
+
+        // then
+        assertThat(performanceRepository.findById(headliner.getId()).orElseThrow().getDays()).containsExactly(2);
     }
 
     @Test

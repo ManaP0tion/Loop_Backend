@@ -2,7 +2,7 @@ package com.loop.loop_backend.Setlist.dto;
 
 import com.loop.loop_backend.Setlist.domain.Setlist;
 import com.loop.loop_backend.Setlist.domain.SetlistType;
-import com.loop.loop_backend.Song.domain.Song;
+import com.loop.loop_backend.Setlist.repository.SetlistSong;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDate;
@@ -20,11 +20,11 @@ public record SetlistResponse(
         @Schema(description = "곡 수(자동 계산)", requiredMode = Schema.RequiredMode.REQUIRED) int songCount,
         @Schema(description = "곡 목록(공연 순서대로)", requiredMode = Schema.RequiredMode.REQUIRED) List<SetlistSongResponse> songs
 ) {
-    public static SetlistResponse from(Setlist setlist) {
+    /** songs: 공연 순서대로, 삭제된 곡 포함(SetlistRepository.findSongsIncludingDeleted). */
+    public static SetlistResponse from(Setlist setlist, List<SetlistSong> songList) {
         List<SetlistSongResponse> songs = new ArrayList<>();
-        for (Song song : setlist.getSongs()) {
-            // 소프트 삭제된 곡은 @SQLRestriction으로 null 자리가 된다 - 건너뛰고 순서를 다시 매긴다
-            if (song != null) songs.add(SetlistSongResponse.of(songs.size() + 1, song));
+        for (SetlistSong song : songList) {
+            songs.add(SetlistSongResponse.of(songs.size() + 1, song));
         }
         return new SetlistResponse(setlist.getId(), setlist.getType(), setlist.getTourName(),
                 setlist.getPerformedOn(), setlist.getVenueName(), songs.size(), songs);

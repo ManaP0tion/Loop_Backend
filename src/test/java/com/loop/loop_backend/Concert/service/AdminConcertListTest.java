@@ -12,7 +12,11 @@ import com.loop.loop_backend.Concert.repository.AdminConcertRepository;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleRepository;
 import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
-import com.loop.loop_backend.Lineup.repository.LineupRepository;
+import com.loop.loop_backend.Performance.repository.PerformanceRepository;
+import com.loop.loop_backend.Performance.service.PerformanceSync;
+import com.loop.loop_backend.Setlist.repository.SetlistRepository;
+import com.loop.loop_backend.Setlist.repository.SetlistVoteRepository;
+import com.loop.loop_backend.Setlist.service.SetlistDataGuard;
 import com.loop.loop_backend.Venue.domain.Venue;
 import com.loop.loop_backend.Venue.repository.VenueRepository;
 import jakarta.persistence.EntityManager;
@@ -45,7 +49,9 @@ class AdminConcertListTest {
     @Autowired private ConcertRepository concertRepository;
     @Autowired private AdminConcertRepository adminConcertRepository;
     @Autowired private ArtistRepository artistRepository;
-    @Autowired private LineupRepository lineupRepository;
+    @Autowired private PerformanceRepository performanceRepository;
+    @Autowired private SetlistRepository setlistRepository;
+    @Autowired private SetlistVoteRepository setlistVoteRepository;
     @Autowired private VenueRepository venueRepository;
     @Autowired private ConcertPresaleRepository presaleRepository;
     @Autowired private ConcertGeneralSaleRepository generalSaleRepository;
@@ -59,7 +65,8 @@ class AdminConcertListTest {
     @BeforeEach
     void setUp() {
         service = new AdminConcertService(concertRepository, adminConcertRepository, artistRepository, venueRepository,
-                presaleRepository, generalSaleRepository, lineupRepository);
+                presaleRepository, generalSaleRepository, performanceRepository,
+                new PerformanceSync(performanceRepository, new SetlistDataGuard(setlistRepository, setlistVoteRepository)));
     }
 
     private Concert concert(String title, ConcertCategory category, boolean published) {

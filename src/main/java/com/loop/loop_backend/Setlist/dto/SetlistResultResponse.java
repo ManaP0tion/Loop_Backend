@@ -1,7 +1,7 @@
 package com.loop.loop_backend.Setlist.dto;
 
 import com.loop.loop_backend.Setlist.domain.HitGrade;
-import com.loop.loop_backend.Song.domain.Song;
+import com.loop.loop_backend.Setlist.repository.SetlistSong;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
@@ -68,11 +68,12 @@ public record SetlistResultResponse(
             @Schema(description = "앨범아트 URL", types = {"string", "null"}) String albumArtUrl,
             @Schema(description = "팬 예상 곡(득표 상위 n곡) - 배경 표시", requiredMode = Schema.RequiredMode.REQUIRED) boolean fanPredicted,
             @Schema(description = "내 예상 곡 - 체크 표시(비로그인·미투표면 false)", requiredMode = Schema.RequiredMode.REQUIRED) boolean mine,
-            @Schema(description = "아무도 예상하지 못한 곡(득표 0)", requiredMode = Schema.RequiredMode.REQUIRED) boolean unexpected
+            @Schema(description = "아무도 예상하지 못한 곡(득표 0)", requiredMode = Schema.RequiredMode.REQUIRED) boolean unexpected,
+            @Schema(description = "곡 데이터에서 삭제된 곡(결과에는 그대로 남는다)", requiredMode = Schema.RequiredMode.REQUIRED) boolean deleted
     ) {
-        public static ResultSong of(int position, Song song, boolean fanPredicted, boolean mine, boolean unexpected) {
-            return new ResultSong(position, song.getId(), song.getTitleOriginal(), song.getTitleKo(), song.getAlbumArtUrl(),
-                    fanPredicted, mine, unexpected);
+        public static ResultSong of(int position, SetlistSong song, boolean fanPredicted, boolean mine, boolean unexpected) {
+            return new ResultSong(position, song.songId(), song.titleOriginal(), song.titleKo(), song.albumArtUrl(),
+                    fanPredicted, mine, unexpected, song.deleted());
         }
     }
 
@@ -84,11 +85,12 @@ public record SetlistResultResponse(
             @Schema(description = "앨범아트 URL", types = {"string", "null"}) String albumArtUrl,
             @Schema(description = "득표 수", requiredMode = Schema.RequiredMode.REQUIRED) long votes,
             @Schema(description = "팬 예상 곡(득표 상위 n곡)", requiredMode = Schema.RequiredMode.REQUIRED) boolean fanPredicted,
-            @Schema(description = "내가 고른 곡", requiredMode = Schema.RequiredMode.REQUIRED) boolean mine
+            @Schema(description = "내가 고른 곡", requiredMode = Schema.RequiredMode.REQUIRED) boolean mine,
+            @Schema(description = "곡 데이터에서 삭제된 곡(결과에는 그대로 남는다)", requiredMode = Schema.RequiredMode.REQUIRED) boolean deleted
     ) {
-        public static MissedSong of(Song song, long votes, boolean fanPredicted, boolean mine) {
-            return new MissedSong(song.getId(), song.getTitleOriginal(), song.getTitleKo(), song.getAlbumArtUrl(),
-                    votes, fanPredicted, mine);
+        public static MissedSong of(SetlistSong song, long votes, boolean fanPredicted, boolean mine) {
+            return new MissedSong(song.songId(), song.titleOriginal(), song.titleKo(), song.albumArtUrl(),
+                    votes, fanPredicted, mine, song.deleted());
         }
     }
 }

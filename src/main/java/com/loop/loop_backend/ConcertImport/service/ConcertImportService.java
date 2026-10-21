@@ -11,6 +11,7 @@ import com.loop.loop_backend.ConcertImport.kopis.KopisClient;
 import com.loop.loop_backend.ConcertImport.kopis.KopisShowtimes;
 import com.loop.loop_backend.ConcertImport.kopis.KopisTicketVendors;
 import com.loop.loop_backend.ConcertImport.repository.ConcertImportRepository;
+import com.loop.loop_backend.Performance.service.PerformanceSync;
 import com.loop.loop_backend.Venue.domain.Venue;
 import com.loop.loop_backend.Venue.service.VenueService;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -34,6 +35,7 @@ public class ConcertImportService {
     private final ConcertGeneralSaleRepository generalSaleRepository;
     private final KopisClient kopisClient;
     private final VenueService venueService;
+    private final PerformanceSync performanceSync;
 
     /**
      * 승인: KOPIS 값을 기본값으로 채워 비공개 공연을 만든다(요청 값 없음).
@@ -77,6 +79,8 @@ public class ConcertImportService {
         List<LocalTime> startTimes = KopisShowtimes.startTimesByDay(detail.showtime(), concert.getStartDate(), concert.getEndDate());
         if (!startTimes.isEmpty()) concert.replaceShowtimes(startTimes);
         concertRepository.save(concert);
+        // 매칭된 아티스트가 있는 단독 공연이면 출연 정보 1건을 만든다(셋리스트 대상)
+        performanceSync.sync(concert, false, null);
 
         // 일반예매 기본값: KOPIS 예매처를 한 블록에 모두 넣는다. 예매 일시는 KOPIS에 없어 비워 두고 관리자가 입력한다.
         List<TicketVendorInfo> vendors = KopisTicketVendors.toGeneralSaleVendors(detail.ticketVendors());
