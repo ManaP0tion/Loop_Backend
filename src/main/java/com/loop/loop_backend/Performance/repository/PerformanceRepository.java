@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -37,4 +38,15 @@ public interface PerformanceRepository extends JpaRepository<Performance, Long> 
     @Query("select count(p) from Performance p where p.id in :ids and p.concert.id = :concertId and :day member of p.days")
     long countByIdInAndConcertIdAndDay(@Param("ids") Collection<Long> ids, @Param("concertId") Long concertId,
                                        @Param("day") int day);
+
+    // 실제 셋리스트 등록 리마인드: endDate에 끝난 공개 공연의 셋리스트 대상(단독 공연은 항상 헤드라이너, 페스티벌은 헤드라이너만) 중
+    // 실제 셋리스트가 아직 없는 출연 정보. 공연명·아티스트명을 바로 쓰므로 함께 가져온다.
+    @Query("""
+            select p from Performance p join fetch p.concert c join fetch p.artist
+            where c.endDate = :endDate and c.published = true and p.headliner = true
+              and not exists (select 1 from Setlist s where s.performance = p
+                              and s.type = com.loop.loop_backend.Setlist.domain.SetlistType.ACTUAL)
+            order by c.id, p.displayOrder
+            """)
+    List<Performance> findMissingActualSetlist(@Param("endDate") LocalDate endDate);
 }
