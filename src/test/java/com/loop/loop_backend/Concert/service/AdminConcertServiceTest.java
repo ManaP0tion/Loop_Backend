@@ -116,7 +116,7 @@ class AdminConcertServiceTest {
         AdminConcertDetailResponse created = service.create(new AdminConcertCreateRequest(
                 ConcertCategory.J_POP_ARTIST, "YUURI LIVE", List.of("유우리"),
                 LocalDate.of(2026, 12, 5), LocalDate.of(2026, 12, 6), Arrays.asList(LocalTime.of(18, 0), null),
-                venue.getId(), List.of(yuuri.getId()), 20, false, null, "https://yuuri-live.example.com",
+                venue.getId(), List.of(yuuri.getId()), 20, false, null, "https://yuuri-live.example.com", null, null,
                 List.of(sale(null, "공식 안내")), List.of(sale(OCT_25, "NOL"))));
 
         assertThat(created.published()).isFalse();
@@ -164,6 +164,75 @@ class AdminConcertServiceTest {
         }
         assertThat(service.update(concert.getId(), patch().officialSiteUrl("http://yuuri-live.example.com").build())
                 .officialSiteUrl()).isEqualTo("http://yuuri-live.example.com");
+    }
+
+    // ---------- 공연 공식 채널 ----------
+    // 공연 공식 채널(인스타그램·X)은 페스티벌용이지만 유형과 상관없이 저장한다. 홈페이지는 공식 사이트(officialSiteUrl)를 쓴다.
+    // 공식 사이트와 같은 규칙: http/https 주소만, 수정에서 null은 유지, ""는 비움.
+
+    @Test
+    @DisplayName("직접 등록할 때 보낸 공연 공식 채널이 저장된다")
+    void create_WithOfficialChannels_SavesBoth() {
+        // when
+        AdminConcertDetailResponse created = service.create(new AdminConcertCreateRequest(
+                ConcertCategory.JAPAN_FESTIVAL, "SUMMER SONIC 2026", null, null, null, null,
+                null, null, null, false, null, "https://www.summersonic.com",
+                "https://www.instagram.com/summersonic_official", "https://x.com/summer_sonic", null, null));
+        flushAndClear();
+
+        // then
+        AdminConcertDetailResponse found = service.get(created.id());
+        assertThat(found.officialSiteUrl()).isEqualTo("https://www.summersonic.com");
+        assertThat(found.instagramUrl()).isEqualTo("https://www.instagram.com/summersonic_official");
+        assertThat(found.xUrl()).isEqualTo("https://x.com/summer_sonic");
+    }
+
+    @Test
+    @DisplayName("공연 공식 채널은 수정으로 등록하고, 보내지 않은(null) 채널은 유지된다")
+    void update_OfficialChannels_NullKeepsValue() {
+        // given
+        Concert concert = approvedConcert();
+        service.update(concert.getId(), patch()
+                .instagramUrl("  https://www.instagram.com/yuuri_live  ").xUrl("https://x.com/yuuri_live").build());
+
+        // when - 인스타그램만 바꾼다
+        AdminConcertDetailResponse updated = service.update(concert.getId(),
+                patch().instagramUrl("https://www.instagram.com/yuuri_live2").build());
+
+        // then
+        assertThat(updated.instagramUrl()).isEqualTo("https://www.instagram.com/yuuri_live2");
+        assertThat(updated.xUrl()).isEqualTo("https://x.com/yuuri_live");
+    }
+
+    @Test
+    @DisplayName("공연 공식 채널을 빈 문자열로 보내면 비워진다")
+    void update_OfficialChannelsWithEmptyString_ClearsValue() {
+        // given
+        Concert concert = approvedConcert();
+        service.update(concert.getId(), patch()
+                .instagramUrl("https://www.instagram.com/yuuri_live").xUrl("https://x.com/yuuri_live").build());
+
+        // when
+        AdminConcertDetailResponse cleared = service.update(concert.getId(), patch().instagramUrl("").xUrl("").build());
+
+        // then
+        assertThat(cleared.instagramUrl()).isNull();
+        assertThat(cleared.xUrl()).isNull();
+    }
+
+    @Test
+    @DisplayName("공연 공식 채널은 http/https 주소만 받는다")
+    void update_OfficialChannelsWithNonHttpUrl_ThrowsException() {
+        // given
+        Concert concert = approvedConcert();
+
+        // when & then
+        for (String invalid : List.of("javascript:alert(1)", "instagram.com/yuuri_live", "ftp://x.com/yuuri_live")) {
+            assertThatThrownBy(() -> service.update(concert.getId(), patch().instagramUrl(invalid).build()))
+                    .as("instagramUrl " + invalid).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> service.update(concert.getId(), patch().xUrl(invalid).build()))
+                    .as("xUrl " + invalid).isInstanceOf(IllegalArgumentException.class);
+        }
     }
 
     // ---------- 상세 ----------
@@ -453,7 +522,7 @@ class AdminConcertServiceTest {
         AdminConcertDetailResponse created = service.create(new AdminConcertCreateRequest(
                 ConcertCategory.J_POP_ARTIST, "YUURI LIVE", null,
                 LocalDate.of(2026, 12, 5), LocalDate.of(2026, 12, 5), null,
-                null, List.of(yuuri.getId()), 18, false, null, null, null, null));
+                null, List.of(yuuri.getId()), 18, false, null, null, null, null, null, null));
         flushAndClear();
 
         // then
@@ -604,7 +673,7 @@ class AdminConcertServiceTest {
         // when
         AdminConcertDetailResponse created = service.create(new AdminConcertCreateRequest(
                 ConcertCategory.J_POP_ARTIST, "YUURI LIVE", null, null, null, null,
-                venue.getId(), null, null, true, DEEPLINK, null, null, null));
+                venue.getId(), null, null, true, DEEPLINK, null, null, null, null, null));
         flushAndClear();
 
         // then

@@ -77,6 +77,12 @@ public record AdminConcertDetailResponse(
         @Schema(description = "특설 공식 사이트 URL", types = {"string", "null"})
         String officialSiteUrl,
 
+        @Schema(description = "공연 공식 인스타그램 URL", types = {"string", "null"})
+        String instagramUrl,
+
+        @Schema(description = "공연 공식 X URL", types = {"string", "null"})
+        String xUrl,
+
         @Schema(description = "선예매 목록. 예매 일시 순, 일시가 없는 건은 뒤", requiredMode = Schema.RequiredMode.REQUIRED)
         List<TicketSaleResponse> presales,
 
@@ -114,7 +120,7 @@ public record AdminConcertDetailResponse(
                 solo == null ? null : solo.getExpectedSongCount(), solo == null ? null : solo.getId(),
                 c.getLinkedVenue() != null && c.getLinkedVenue().isLodgingVisible(),
                 c.getLinkedVenue() == null ? null : c.getLinkedVenue().getLodgingUrl(),
-                c.getOfficialSiteUrl(),
+                c.getOfficialSiteUrl(), c.getInstagramUrl(), c.getXUrl(),
                 TicketSaleResponse.fromPresales(presales), TicketSaleResponse.fromGeneralSales(generalSales));
     }
 

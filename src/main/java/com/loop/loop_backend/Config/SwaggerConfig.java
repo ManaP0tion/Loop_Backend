@@ -26,9 +26,14 @@ public class SwaggerConfig {
     private static final String ADMIN_CONCERT_TAG = "Admin Concert";
     private static final String ADMIN_CONCERT_IMPORT_TAG = "Admin Concert Import";
     private static final String ADMIN_SONG_TAG = "Admin Song";
+    private static final String ADMIN_SETLIST_TAG = "Admin Setlist";
+    private static final String ADMIN_LINEUP_TAG = "Admin Lineup";
 
     // 곡 관리 API는 /artists/{id}/songs·/artists/{id}/itunes 처럼 artists 아래에도 있어서, Admin Artist보다 먼저 본다.
     private static final String ADMIN_SONG_PATH = "/api/admin/(songs|itunes)(/.*)?|/api/admin/artists/[^/]+/(songs|itunes)(/.*)?";
+    // 셋리스트·라인업 API는 concerts 아래에 있어서, Admin Concert보다 먼저 본다.
+    private static final String ADMIN_SETLIST_PATH = "/api/admin/concerts/[^/]+/performances/[^/]+/setlists(/.*)?";
+    private static final String ADMIN_LINEUP_PATH = "/api/admin/concerts/[^/]+/lineup(/.*)?";
 
     // 경로 조각 규칙보다 먼저 보는 예외. KOPIS 수동 수집은 경로가 concerts지만 선별 대기 화면의 기능이다.
     private static final Map<String, String> ADMIN_TAG_BY_PATH = Map.of(
@@ -52,6 +57,8 @@ public class SwaggerConfig {
 
     // 태그가 어느 관리자 화면용인지 스웨거에서 보이게 하는 설명. 없는 태그는 설명 없이 둔다.
     private static final Map<String, String> ADMIN_TAG_DESCRIPTIONS = Map.of(
+            ADMIN_SETLIST_TAG, "셋리스트 관리: 출연 정보별 예상·실제 셋리스트 조회·저장·삭제, 이전 실제 셋리스트 불러오기",
+            ADMIN_LINEUP_TAG, "페스티벌 라인업 관리: 라인업 추가·삭제, DAY·노출 순서·헤드라이너·예상 곡 수 변경",
             ADMIN_CONCERT_IMPORT_TAG, "공연 관리 > 선별 대기: KOPIS 수집 공연 목록, 등록(승인)·제외, KOPIS 수동 수집, KOPIS 검색·직접 등록",
             ADMIN_CONCERT_TAG, "공연 관리 > 등록된 공연: 목록, 상세, 직접 등록, 저장(공개 토글·예매 정보 포함), 포스터 업로드, 삭제",
             "Admin Venue", "공연장 관리: 목록, 상세, 직접 등록, 수정, 삭제",
@@ -95,6 +102,8 @@ public class SwaggerConfig {
     static String adminTagFor(String path) {
         if (ADMIN_TAG_BY_PATH.containsKey(path)) return ADMIN_TAG_BY_PATH.get(path);
         if (path.matches(ADMIN_SONG_PATH)) return ADMIN_SONG_TAG;
+        if (path.matches(ADMIN_SETLIST_PATH)) return ADMIN_SETLIST_TAG;
+        if (path.matches(ADMIN_LINEUP_PATH)) return ADMIN_LINEUP_TAG;
         if (!path.startsWith(ADMIN_PATH_PREFIX)) return ADMIN_ETC_TAG;
         String segment = path.substring(ADMIN_PATH_PREFIX.length()).split("/")[0];
         return ADMIN_TAG_BY_SEGMENT.getOrDefault(segment, ADMIN_ETC_TAG);

@@ -1,7 +1,9 @@
 package com.loop.loop_backend.Concert.dto;
 
 import com.loop.loop_backend.Artist.dto.ArtistProductDto;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.loop.loop_backend.Concert.domain.Concert;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertGeneralSale;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertPresale;
@@ -38,6 +40,11 @@ public class ConcertUpcomingDetailDto {
     @Schema(description = "공연명", requiredMode = Schema.RequiredMode.REQUIRED)
     private final String title;
 
+    @Schema(description = "공연 유형. J_POP_ARTIST(내한 공연) / JAPAN_FESTIVAL(페스티벌). " +
+            "V2 이전 데이터는 DOMESTIC_ARTIST / DOMESTIC_FESTIVAL일 수 있다", example = "JAPAN_FESTIVAL",
+            requiredMode = Schema.RequiredMode.REQUIRED)
+    private final ConcertCategory category;
+
     @Schema(description = "포스터 이미지 URL", types = {"string", "null"})
     private final String posterUrl;
 
@@ -71,8 +78,17 @@ public class ConcertUpcomingDetailDto {
             types = {"string", "null"})
     private final String lodgingUrl;
 
-    @Schema(description = "특설 공식 사이트 URL. 없으면 null(버튼 숨김)", types = {"string", "null"})
+    @Schema(description = "특설 공식 사이트 URL(공연 공식 홈페이지). 없으면 null(버튼 숨김)", types = {"string", "null"})
     private final String officialSiteUrl;
+
+    @Schema(description = "공연 공식 인스타그램 URL(페스티벌 공식 채널용). 없으면 null(버튼 숨김)", types = {"string", "null"})
+    private final String instagramUrl;
+
+    // Lombok getXUrl()을 Jackson이 "xurl"로 읽어서(필드 xUrl과 따로 두 번 나감) getter에 키 이름을 고정한다.
+    // 키가 getter 기준이 되므로 스웨거 설명(@Schema)도 getter에 붙여야 스펙에 실린다.
+    @Getter(onMethod_ = {@JsonProperty("xUrl"),
+            @Schema(description = "공연 공식 X URL(페스티벌 공식 채널용). 없으면 null(버튼 숨김)", types = {"string", "null"})})
+    private final String xUrl;
 
     @Schema(description = "관련 상품(공연 아티스트에 등록된 상품). 관리자가 입력한 순서대로, 아티스트가 없거나 상품이 없으면 빈 목록(섹션 숨김)",
             requiredMode = Schema.RequiredMode.REQUIRED)
@@ -111,6 +127,7 @@ public class ConcertUpcomingDetailDto {
                 .concertId(concert.getId())
                 .artists(ConcertArtistDto.listOf(concert))
                 .title(concert.getTitle())
+                .category(concert.getCategory())
                 .posterUrl(concert.getPosterUrl())
                 .venue(ConcertVenueDto.of(concert))
                 .startDate(concert.getStartDate())
@@ -125,6 +142,8 @@ public class ConcertUpcomingDetailDto {
                 .generalSales(ConcertTicketSaleDto.fromGeneralSales(generalSales))
                 .lodgingUrl(concert.getLinkedVenue() == null ? null : concert.getLinkedVenue().visibleLodgingUrl())
                 .officialSiteUrl(concert.getOfficialSiteUrl())
+                .instagramUrl(concert.getInstagramUrl())
+                .xUrl(concert.getXUrl())
                 .products(ArtistProductDto.listOf(concert.getArtist()))
                 .scrapped(scrapped)
                 .presaleAlarm(alarms.contains(TicketAlarmType.PRESALE))

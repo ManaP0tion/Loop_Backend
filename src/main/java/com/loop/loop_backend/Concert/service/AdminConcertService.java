@@ -92,6 +92,8 @@ public class AdminConcertService {
         if (req.artistIds() != null) concert.changeArtist(findSingleArtist(req.artistIds()));
         applyLodgingToVenue(concert, req.lodgingVisible(), req.lodgingUrl());
         concert.changeOfficialSiteUrl(req.officialSiteUrl());
+        concert.changeInstagramUrl(req.instagramUrl());
+        concert.changeXUrl(req.xUrl());
         concert.validateState();
         concertRepository.save(concert);
         // 출연 정보·예매 블록은 공연 id가 있어야 저장할 수 있어 공연을 먼저 저장한다
@@ -128,6 +130,8 @@ public class AdminConcertService {
         // 공연장 변경(venueId) 다음에 둔다 - 같은 요청에서 공연장을 바꾸면 새 공연장에 저장되게
         applyLodgingToVenue(concert, req.lodgingVisible(), req.lodgingUrl());
         if (req.officialSiteUrl() != null) concert.changeOfficialSiteUrl(req.officialSiteUrl());
+        if (req.instagramUrl() != null) concert.changeInstagramUrl(req.instagramUrl());
+        if (req.xUrl() != null) concert.changeXUrl(req.xUrl());
         if (req.published() != null) concert.changePublished(req.published(), LocalDateTime.now());
         // 예매 정보도 같은 저장 버튼으로 함께 온다 - 실패하면 위 수정과 함께 롤백된다
         if (req.presales() != null) replacePresales(concert, req.presales());

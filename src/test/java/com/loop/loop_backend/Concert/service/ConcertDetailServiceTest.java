@@ -1,5 +1,7 @@
 package com.loop.loop_backend.Concert.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.domain.ArtistProduct;
 import com.loop.loop_backend.Artist.dto.ArtistProductDto;
@@ -724,6 +726,79 @@ class ConcertDetailServiceTest {
         assertThat(dto.getOfficialSiteUrl()).isNull();
         assertThat(dto.getArtists()).extracting("instagramUrl", "xUrl", "homepageUrl")
                 .containsExactly(tuple(null, null, null));
+    }
+
+    // ---------- 공연 유형·공연 공식 채널 ----------
+    // 공연 공식 채널(인스타그램·X, 홈페이지는 공식 사이트)은 아티스트가 없는 페스티벌용이지만 유형과 상관없이 저장한 값을 그대로 내려준다.
+
+    @Test
+    @DisplayName("예정 공연 상세에 공연 유형과 공연 공식 채널이 나온다")
+    void getUpcomingDetail_ReturnsCategoryAndOfficialChannels() {
+        // given
+        Concert concert = givenConcert(TODAY.plusDays(30), TODAY.plusDays(30));
+        concert.changeInstagramUrl("https://www.instagram.com/summersonic_official");
+        concert.changeXUrl("https://x.com/summer_sonic");
+
+        // when
+        ConcertUpcomingDetailDto dto = concertService.getUpcomingDetail(CONCERT_ID, null);
+
+        // then
+        assertThat(dto.getCategory()).isEqualTo(ConcertCategory.J_POP_ARTIST);
+        assertThat(dto.getInstagramUrl()).isEqualTo("https://www.instagram.com/summersonic_official");
+        assertThat(dto.getXUrl()).isEqualTo("https://x.com/summer_sonic");
+    }
+
+    @Test
+    @DisplayName("지난 공연 상세에도 공연 유형과 공연 공식 채널이 나온다")
+    void getPastDetail_ReturnsCategoryAndOfficialChannels() {
+        // given
+        Concert concert = givenConcert(TODAY.minusDays(30), TODAY.minusDays(29));
+        concert.changeInstagramUrl("https://www.instagram.com/summersonic_official");
+        concert.changeXUrl("https://x.com/summer_sonic");
+
+        // when
+        ConcertPastDetailDto dto = concertService.getPastDetail(CONCERT_ID, null);
+
+        // then
+        assertThat(dto.getCategory()).isEqualTo(ConcertCategory.J_POP_ARTIST);
+        assertThat(dto.getInstagramUrl()).isEqualTo("https://www.instagram.com/summersonic_official");
+        assertThat(dto.getXUrl()).isEqualTo("https://x.com/summer_sonic");
+    }
+
+    @Test
+    @DisplayName("공연 공식 채널을 등록하지 않은 공연은 null로 나온다")
+    void getUpcomingDetail_WithoutOfficialChannels_ReturnsNull() {
+        // given
+        givenConcert(TODAY.plusDays(30), TODAY.plusDays(30));
+
+        // when
+        ConcertUpcomingDetailDto dto = concertService.getUpcomingDetail(CONCERT_ID, null);
+
+        // then
+        assertThat(dto.getInstagramUrl()).isNull();
+        assertThat(dto.getXUrl()).isNull();
+    }
+
+    @Test
+    @DisplayName("상세 응답 JSON의 키는 category, instagramUrl, xUrl이다")
+    void detailJson_UsesCategoryInstagramUrlXUrlKeys() throws Exception {
+        // given - 프론트는 아티스트 링크(artists[].xUrl)와 같은 키 이름으로 읽는다
+        Concert concert = givenConcert(TODAY.plusDays(30), TODAY.plusDays(30));
+        concert.changeInstagramUrl("https://www.instagram.com/summersonic_official");
+        concert.changeXUrl("https://x.com/summer_sonic");
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+
+        // when
+        JsonNode upcoming = mapper.valueToTree(concertService.getUpcomingDetail(CONCERT_ID, null));
+        JsonNode past = mapper.valueToTree(ConcertPastDetailDto.from(concert, false, null, null, List.of()));
+
+        // then
+        for (JsonNode json : List.of(upcoming, past)) {
+            assertThat(json.get("category").asText()).isEqualTo("J_POP_ARTIST");
+            assertThat(json.get("instagramUrl").asText()).isEqualTo("https://www.instagram.com/summersonic_official");
+            assertThat(json.get("xUrl").asText()).isEqualTo("https://x.com/summer_sonic");
+            assertThat(json.has("xurl")).isFalse();
+        }
     }
 
     // ---------- 예매 알림 ----------

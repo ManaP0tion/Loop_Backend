@@ -113,7 +113,7 @@ public class AdminConcertController {
                     "|---|---|---|\n" +
                     "| 값 (title, venueId 등) | 그 값으로 변경 | 유지 |\n" +
                     "| 목록 (titleAliases, showtimes, artistIds, presales, generalSales) | 통째로 교체, `[]`는 비움 | 유지 |\n" +
-                    "| lodgingUrl, officialSiteUrl | `\"\"`이면 비움 | 유지 |\n\n" +
+                    "| lodgingUrl, officialSiteUrl, instagramUrl, xUrl | `\"\"`이면 비움 | 유지 |\n\n" +
                     "**관련 상품**은 공연이 아니라 아티스트에 등록한다(PUT /api/admin/artists/{id}/products).\n\n" +
                     "**숙소(lodgingVisible, lodgingUrl)**는 공연이 아니라 **연결된 공연장에 저장**된다 - " +
                     "같은 공연장의 다른 공연에도 함께 반영된다. 같은 요청에서 venueId도 바꾸면 새 공연장에 저장. " +
