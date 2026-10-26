@@ -5,6 +5,7 @@ import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.Paths;
 import io.swagger.v3.oas.models.tags.Tag;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -53,6 +54,43 @@ class SwaggerConfigTest {
         assertThat(SwaggerConfig.adminTagFor("/api/admin/songs/{songId}/image")).isEqualTo("Admin Song");
         assertThat(SwaggerConfig.adminTagFor("/api/admin/artists/{id}")).isEqualTo("Admin Artist");
         assertThat(SwaggerConfig.adminTagFor("/api/admin/artists/{id}/image")).isEqualTo("Admin Artist");
+    }
+
+    @Test
+    @DisplayName("셋리스트·라인업 API는 공연 경로 아래에 있어도 각자 태그로 묶이고, 나머지 공연 경로는 Admin Concert로 남는다")
+    void adminTagFor_SetlistAndLineupUnderConcerts_UseOwnTags() {
+        // when & then - 셋리스트
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/concerts/{concertId}/performances/{performanceId}/setlists"))
+                .isEqualTo("Admin Setlist");
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/concerts/{concertId}/performances/{performanceId}/setlists/previous-actuals"))
+                .isEqualTo("Admin Setlist");
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/concerts/{concertId}/performances/{performanceId}/setlists/{type}"))
+                .isEqualTo("Admin Setlist");
+        // 라인업
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/concerts/{concertId}/lineup")).isEqualTo("Admin Lineup");
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/concerts/{concertId}/lineup/{lineupId}/headliner"))
+                .isEqualTo("Admin Lineup");
+        // 나머지 공연 경로
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/concerts/{id}")).isEqualTo("Admin Concert");
+        assertThat(SwaggerConfig.adminTagFor("/api/admin/concerts/{id}/image")).isEqualTo("Admin Concert");
+    }
+
+    @Test
+    @DisplayName("셋리스트·라인업 태그에도 어느 화면용인지 설명이 붙는다")
+    void groupAdminTags_SetlistAndLineupTags_HaveDescriptions() {
+        // given
+        OpenAPI openApi = new OpenAPI()
+                .paths(new Paths()
+                        .addPathItem("/api/admin/concerts/{concertId}/performances/{performanceId}/setlists",
+                                new PathItem().get(new Operation()))
+                        .addPathItem("/api/admin/concerts/{concertId}/lineup", new PathItem().get(new Operation())));
+
+        // when
+        SwaggerConfig.groupAdminTags(openApi);
+
+        // then
+        assertThat(openApi.getTags()).extracting(Tag::getName).containsExactly("Admin Lineup", "Admin Setlist");
+        assertThat(openApi.getTags()).allSatisfy(tag -> assertThat(tag.getDescription()).isNotBlank());
     }
 
     @Test
