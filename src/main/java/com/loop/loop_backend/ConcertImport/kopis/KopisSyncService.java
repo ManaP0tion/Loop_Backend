@@ -3,11 +3,14 @@ package com.loop.loop_backend.ConcertImport.kopis;
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.ConcertImport.event.KopisSyncCompletedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -24,6 +27,7 @@ public class KopisSyncService {
     private final KopisClient kopisClient;
     private final PerformanceIdentifier identifier;
     private final ConcertImportWriter writer;
+    private final ApplicationEventPublisher eventPublisher;
 
     // 싱크가 돌고 있는지. 스케줄러와 수동 실행이 겹쳐도 한 번만 돌게 한다 (동시에 돌면 KOPIS 요청이 두 배로 몰린다).
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -36,23 +40,25 @@ public class KopisSyncService {
     // 다른 빈(컨트롤러)이 프록시를 통해 불러야 @Async가 적용된다.
     @Async("kopisSyncExecutor")
     public void syncAllAsync() {
-        syncAll();
+        syncAll(SyncTrigger.MANUAL);
     }
 
-    // 스케줄러용: 현재 스레드에서 끝날 때까지 실행한다. 이미 돌고 있으면 건너뛴다.
-    public void syncAll() {
+    // 스케줄러용: 현재 스레드에서 끝날 때까지 실행한다. 이미 돌고 있으면 건너뛴다(완료 이벤트도 발행하지 않는다).
+    public void syncAll(SyncTrigger trigger) {
         if (!running.compareAndSet(false, true)) {
             log.warn("KOPIS sync skipped: already running");
             return;
         }
         try {
-            runSync();
+            SyncStats stats = runSync();
+            // 알림 여부(자동 실행만, 새 건이 있을 때만)는 받는 쪽이 정한다. 리스너가 비동기라 디스코드 전송이 싱크를 붙잡지 않는다.
+            eventPublisher.publishEvent(new KopisSyncCompletedEvent(trigger, List.copyOf(stats.newImports), stats.failed));
         } finally {
             running.set(false); // 예외가 나도 다음 실행을 막지 않게 반드시 푼다
         }
     }
 
-    private void runSync() {
+    private SyncStats runSync() {
         // V2는 J-POP 공연만 수집한다. Repository 조회 방식은 쿼리 최적화 작업에서 다룰 예정이라 여기서 메모리로 거른다.
         List<Artist> artists = artistRepository.findByAutoFetchConcertsTrue().stream()
                 .filter(a -> a.getCategory() == ConcertCategory.J_POP_ARTIST)
@@ -73,24 +79,34 @@ public class KopisSyncService {
             }
         }
         log.info("KOPIS sync completed: {}", stats);
+        return stats;
     }
 
     // 공연 1건 처리 흐름: 제목으로 식별 → (실패 시) 출연진으로 식별 → 수집 대상이면 검토 큐에 저장
     // 식별은 identifier가, 출연진 조회(KOPIS 상세 API)만 여기서 한다.
     private void processPerformance(KopisPerformance perf, List<Artist> artists, SyncStats stats) {
+
         // 제목으로 식별 (API 호출 없음)
         IdentificationResult result = identifier.identifyByTitle(perf.getTitle(), artists);
 
         // 제목으로 못 찾으면 출연진으로 식별. 상세 API는 공연마다 호출되므로 일본 신호가 있는 공연만 조회한다.
-        // 출연진 매칭은 실효성 검토 중(실측 매칭 0건) — 제거 시 이 블록과 identifier.shouldFetchCast/matchCast를 함께 지운다.
         if (!result.isMatched() && identifier.shouldFetchCast(perf.getTitle())) {
             String cast = kopisClient.getPerformanceCast(perf.getKopisId());
             result = identifier.matchCast(cast, artists);
         }
 
+        //검토 큐에 저장
         if (result.isMatched()) {
-            stats.record(result.matchReason(), writer.saveImport(perf, result));
+            ImportSaveResult saved = writer.saveImport(perf, result);
+            stats.record(result.matchReason(), saved);
+            // 새 행이 하나라도 생긴 공연만 알림 목록에 넣는다(재수집으로 갱신·건너뛴 공연은 이미 알린 공연)
+            if (saved.created() > 0) stats.newImports.add(toNewImport(perf, result));
         }
+    }
+
+    private static KopisSyncCompletedEvent.NewImport toNewImport(KopisPerformance perf, IdentificationResult result) {
+        return new KopisSyncCompletedEvent.NewImport(perf.getTitle(), perf.getStartDate(), perf.getEndDate(),
+                result.category(), result.artists().stream().map(Artist::getName).toList());
     }
 
     // 싱크 1회의 집계. 완료 로그 한 줄로 새로 들어온 건지, 기존 행을 갱신한 건지 구분할 수 있게 한다.
@@ -100,6 +116,8 @@ public class KopisSyncService {
         private int festival;
         private int failed;
         private ImportSaveResult saved = ImportSaveResult.NONE;
+        // 새로 들어온 공연(공연 단위). 완료 이벤트로 넘겨 알림에 쓴다.
+        private final List<KopisSyncCompletedEvent.NewImport> newImports = new ArrayList<>();
 
         void record(String matchReason, ImportSaveResult result) {
             switch (matchReason) {
