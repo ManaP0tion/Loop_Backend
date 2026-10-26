@@ -31,6 +31,9 @@ import java.util.Objects;
 @AllArgsConstructor
 public class ConcertImport {
 
+    /** 관리자가 KOPIS 검색으로 직접 등록한 건의 매칭 근거 */
+    public static final String MATCH_REASON_MANUAL = "MANUAL";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
@@ -112,6 +115,19 @@ public class ConcertImport {
         this.suggestedCategory = suggestedCategory;
         this.matchReason = matchReason;
         return changed;
+    }
+
+    /**
+     * 관리자 직접 등록(KOPIS 검색)으로 같은 (kopisId, 아티스트) 행을 다시 쓸 때: KOPIS 최신값과 관리자가 고른 유형으로 바꾸고
+     * 검토 대기로 되돌린다. 거절됐거나, 승인됐지만 공연이 삭제된 행도 여기서 다시 열린다(바로 이어서 승인된다).
+     */
+    public void resetForManualImport(String title, String posterUrl, String venue,
+                                     LocalDate startDate, LocalDate endDate, ConcertCategory category) {
+        updateFromKopis(title, posterUrl, venue, startDate, endDate, category, MATCH_REASON_MANUAL);
+        this.status = ImportStatus.PENDING;
+        this.publishedConcertId = null;
+        this.rejectReason = null;
+        this.reviewedAt = null;
     }
 
     public void markApproved(Long concertId) {
