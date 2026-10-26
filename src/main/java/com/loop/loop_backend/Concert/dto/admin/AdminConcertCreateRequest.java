@@ -68,6 +68,16 @@ public record AdminConcertCreateRequest(
                 types = {"string", "null"})
         String officialSiteUrl,
 
+        @Size(max = 500)
+        @Schema(description = "공연 공식 인스타그램 URL(페스티벌 공식 채널용, 유형과 상관없이 저장). http/https 주소만(아니면 400)",
+                example = "https://www.instagram.com/summersonic_official", types = {"string", "null"})
+        String instagramUrl,
+
+        @Size(max = 500)
+        @Schema(description = "공연 공식 X URL(페스티벌 공식 채널용, 유형과 상관없이 저장). http/https 주소만(아니면 400)",
+                example = "https://x.com/summer_sonic", types = {"string", "null"})
+        String xUrl,
+
         @Schema(description = "선예매 목록. 블록마다 예매 일시(미정이면 null) + 예매처 목록", types = {"array", "null"})
         List<@Valid TicketSaleRequest> presales,
 

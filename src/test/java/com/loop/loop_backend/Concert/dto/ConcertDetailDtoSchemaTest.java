@@ -33,13 +33,13 @@ class ConcertDetailDtoSchemaTest {
 
     // 항상 값이 있는 필드: 식별자·공연명·스크랩/예매 알림 여부, 그리고 비어 있으면 빈 배열로 내려가는 목록들
     private static final String[] UPCOMING_ALWAYS = {
-            "concertId", "title", "artists", "showtimes", "presales", "generalSales", "products", "scrapped",
+            "concertId", "title", "category", "artists", "showtimes", "presales", "generalSales", "products", "scrapped",
             "presaleAlarm", "generalSaleAlarm"
     };
 
-    // 공연 상태에 따라 없을 수 있는 필드: 포스터·날짜 미정, 공연장 정보 없음, 숙소 미노출, 공식 사이트 미등록
+    // 공연 상태에 따라 없을 수 있는 필드: 포스터·날짜 미정, 공연장 정보 없음, 숙소 미노출, 공식 사이트·공식 채널 미등록
     private static final String[] UPCOMING_NULLABLE = {
-            "posterUrl", "venue", "startDate", "endDate", "dday", "lodgingUrl", "officialSiteUrl"
+            "posterUrl", "venue", "startDate", "endDate", "dday", "lodgingUrl", "officialSiteUrl", "instagramUrl", "xUrl"
     };
 
     @Test
@@ -79,11 +79,11 @@ class ConcertDetailDtoSchemaTest {
         Schema<?> schema = resolve(ConcertPastDetailDto.class);
 
         // 지난 공연은 날짜로 판단하므로 시작일이 항상 있다
-        for (String field : new String[]{"concertId", "title", "artists", "startDate", "showtimes", "products", "scrapped", "upcomingConcerts"}) {
+        for (String field : new String[]{"concertId", "title", "category", "artists", "startDate", "showtimes", "products", "scrapped", "upcomingConcerts"}) {
             assertThat(requiredOf(schema)).as("required 목록에 %s가 있어야 함", field).contains(field);
             assertThat(typesOf(schema, field)).as("%s의 type에 null이 없어야 함", field).doesNotContain("null");
         }
-        for (String field : new String[]{"posterUrl", "artistName", "venue", "endDate", "officialSiteUrl"}) {
+        for (String field : new String[]{"posterUrl", "artistName", "venue", "endDate", "officialSiteUrl", "instagramUrl", "xUrl"}) {
             assertThat(typesOf(schema, field)).as("%s의 type에 null이 포함돼야 함", field).contains("null");
         }
     }

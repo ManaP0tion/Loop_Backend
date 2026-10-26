@@ -130,6 +130,14 @@ public class Concert {
     @Column(name = "official_site_url", length = 500)
     private String officialSiteUrl;
 
+    // 공연 공식 채널(관리자 수기 입력). 홈페이지는 officialSiteUrl을 쓴다. 아티스트가 없는 페스티벌용이지만 유형과 상관없이 저장한다.
+    // http/https 주소만.
+    @Column(name = "instagram_url", length = 500)
+    private String instagramUrl;
+
+    @Column(name = "x_url", length = 500)
+    private String xUrl;
+
     // 여러 개 값은 공연에 딸린 목록으로 둔다. 공연이 DB 단에서 지워질 때(아티스트 삭제 연쇄)도 함께 지워지게 한다.
 
     /** 공연명 별칭(검색용). 예: 히게단, 오피셜히게단디즘 */
@@ -248,6 +256,16 @@ public class Concert {
     /** 빈 문자열이면 비운다. http/https 주소가 아니면 400. */
     public void changeOfficialSiteUrl(String officialSiteUrl) {
         this.officialSiteUrl = WebUrls.normalize(officialSiteUrl);
+    }
+
+    /** 빈 문자열이면 비운다. http/https 주소가 아니면 400. */
+    public void changeInstagramUrl(String instagramUrl) {
+        this.instagramUrl = WebUrls.normalize(instagramUrl);
+    }
+
+    /** 빈 문자열이면 비운다. http/https 주소가 아니면 400. */
+    public void changeXUrl(String xUrl) {
+        this.xUrl = WebUrls.normalize(xUrl);
     }
 
     public void replaceTitleAliases(List<String> aliases) {
