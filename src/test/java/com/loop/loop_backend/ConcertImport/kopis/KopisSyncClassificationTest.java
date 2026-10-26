@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -43,7 +44,8 @@ class KopisSyncClassificationTest {
     void setUp() {
         kopisClient = mock(KopisClient.class);
         kopisSyncService = new KopisSyncService(artistRepository, kopisClient,
-                new PerformanceIdentifier(), new ConcertImportWriter(concertImportRepository));
+                new PerformanceIdentifier(), new ConcertImportWriter(concertImportRepository),
+                mock(ApplicationEventPublisher.class));
     }
 
     private Artist jpopArtist(String name, String nameKo, String nameAlias) {
@@ -85,7 +87,7 @@ class KopisSyncClassificationTest {
 
     private void syncWith(KopisPerformance... performances) {
         when(kopisClient.getAllUpcomingPerformances()).thenReturn(List.of(performances));
-        kopisSyncService.syncAll();
+        kopisSyncService.syncAll(SyncTrigger.SCHEDULED);
     }
 
     private List<ConcertImport> imports() {

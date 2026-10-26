@@ -1,6 +1,7 @@
 package com.loop.loop_backend.ConcertImport.kopis;
 
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -27,7 +28,7 @@ class KopisSyncGuardTest {
         ArtistRepository artistRepository = mock(ArtistRepository.class);
         kopisClient = mock(KopisClient.class);
         service = new KopisSyncService(artistRepository, kopisClient,
-                new PerformanceIdentifier(), mock(ConcertImportWriter.class));
+                new PerformanceIdentifier(), mock(ConcertImportWriter.class), mock(ApplicationEventPublisher.class));
         when(artistRepository.findByAutoFetchConcertsTrue()).thenReturn(List.of());
     }
 
@@ -47,7 +48,7 @@ class KopisSyncGuardTest {
         givenSyncBlockedUntil(started, release);
 
         assertThat(service.isRunning()).isFalse();
-        Thread running = new Thread(service::syncAll);
+        Thread running = new Thread(() -> service.syncAll(SyncTrigger.SCHEDULED));
         running.start();
         assertThat(started.await(2, TimeUnit.SECONDS)).isTrue();
 
@@ -63,11 +64,11 @@ class KopisSyncGuardTest {
         CountDownLatch started = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         givenSyncBlockedUntil(started, release);
-        Thread running = new Thread(service::syncAll);
+        Thread running = new Thread(() -> service.syncAll(SyncTrigger.SCHEDULED));
         running.start();
         assertThat(started.await(2, TimeUnit.SECONDS)).isTrue();
 
-        service.syncAll(); // 겹쳐서 호출 - 기다리지 않고 바로 돌아와야 한다
+        service.syncAll(SyncTrigger.SCHEDULED); // 겹쳐서 호출 - 기다리지 않고 바로 돌아와야 한다
 
         release.countDown();
         running.join(2000);
@@ -79,8 +80,8 @@ class KopisSyncGuardTest {
     void 싱크가_끝나면_다음_싱크를_실행할_수_있다() {
         when(kopisClient.getAllUpcomingPerformances()).thenReturn(List.of());
 
-        service.syncAll();
-        service.syncAll();
+        service.syncAll(SyncTrigger.SCHEDULED);
+        service.syncAll(SyncTrigger.SCHEDULED);
 
         verify(kopisClient, times(2)).getAllUpcomingPerformances();
         assertThat(service.isRunning()).isFalse();
@@ -92,10 +93,10 @@ class KopisSyncGuardTest {
                 .thenThrow(new RuntimeException("boom"))
                 .thenReturn(List.of());
 
-        assertThatThrownBy(service::syncAll).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> service.syncAll(SyncTrigger.SCHEDULED)).isInstanceOf(RuntimeException.class);
         assertThat(service.isRunning()).isFalse();
 
-        service.syncAll();
+        service.syncAll(SyncTrigger.SCHEDULED);
         verify(kopisClient, times(2)).getAllUpcomingPerformances();
     }
 }
