@@ -47,6 +47,15 @@ public class ConcertImportService {
 
         // 가격/공연시간/예매처 목록은 KOPIS 상세에만 있어 승인 시점에 1회 조회한다(실패해도 null로 진행).
         KopisClient.KopisDetail detail = kopisClient.getPerformanceDetail(imp.getKopisId());
+        return publish(imp, detail);
+    }
+
+    /**
+     * 검토 대기 건을 이미 조회한 KOPIS 상세로 공연을 만들고 승인 처리한다.
+     * 직접 등록(ConcertManualImportService)은 등록하면서 상세를 이미 받았으므로 다시 조회하지 않고 이것만 부른다.
+     * 호출하는 쪽의 트랜잭션 안에서 실행된다.
+     */
+    Concert publish(ConcertImport imp, KopisClient.KopisDetail detail) {
         // 공연장 정보(주소/좌표/수용인원)는 상세 응답의 시설·홀 ID로 시설 API를 이어서 조회한다.
         // 상세 조회가 실패했으면 시설 ID도 없어 호출 없이 전부 null이 된다.
         KopisClient.KopisFacility facility = kopisClient.getFacility(detail.facilityId(), detail.hallId());

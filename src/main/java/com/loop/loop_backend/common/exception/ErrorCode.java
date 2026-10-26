@@ -66,6 +66,9 @@ public enum ErrorCode {
     CONCERT_IMPORT_NOT_FOUND(404, "수집된 공연 정보를 찾을 수 없습니다."),
     IMPORT_ALREADY_PROCESSED(409, "이미 승인 또는 거절 처리된 공연입니다."),
     KOPIS_SYNC_ALREADY_RUNNING(409, "KOPIS 동기화가 이미 실행 중입니다. 끝난 뒤 다시 시도해 주세요."),
+    KOPIS_UNAVAILABLE(502, "KOPIS 조회에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+    KOPIS_PERFORMANCE_NOT_FOUND(404, "KOPIS에서 공연을 찾을 수 없습니다."),
+    CONCERT_ALREADY_REGISTERED(409, "이미 등록된 공연입니다."),
     IMAGE_COPY_ALREADY_RUNNING(409, "이미지 복사가 이미 실행 중입니다. 끝난 뒤 다시 시도해 주세요."),
     VENUE_NOT_FOUND(404, "공연장을 찾을 수 없습니다."),
 

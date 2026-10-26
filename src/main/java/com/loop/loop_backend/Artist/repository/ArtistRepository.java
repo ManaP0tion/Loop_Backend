@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Artist.repository;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -13,6 +14,7 @@ import java.util.Optional;
 public interface ArtistRepository extends JpaRepository<Artist, Long> {
     Optional<Artist> findByName(String name);
     List<Artist> findByAutoFetchConcertsTrue();
+    List<Artist> findByCategory(ConcertCategory category);
 
     @Query("SELECT a FROM Artist a WHERE " +
             "LOWER(a.name) LIKE LOWER(CONCAT('%', :q, '%')) OR " +

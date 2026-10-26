@@ -42,14 +42,22 @@ public class PerformanceIdentifier {
      * 페스티벌이면 출연 아티스트가 있어도 아티스트 없는 페스티벌 1건으로 본다.
      */
     public IdentificationResult identifyByTitle(String title, List<Artist> artists) {
-        List<Artist> matched = artists.stream()
-                .filter(a -> nameContainedInTitle(title, a))
-                .toList();
+        List<Artist> matched = matchArtistsByTitle(title, artists);
 
         if (isJapanFestival(title, !matched.isEmpty())) {
             return IdentificationResult.japanFestival();
         }
         return IdentificationResult.jpopArtists(matched, IdentificationResult.TITLE_MATCH);
+    }
+
+    /**
+     * 공연명에 이름(원어명·한글명·별칭)이 들어 있는 아티스트. 페스티벌 판정 없이 이름만 본다 -
+     * KOPIS 검색 결과의 추천 아티스트(관리자 직접 등록)에도 쓴다.
+     */
+    public List<Artist> matchArtistsByTitle(String title, List<Artist> artists) {
+        return artists.stream()
+                .filter(a -> nameContainedInTitle(title, a))
+                .toList();
     }
 
     /**

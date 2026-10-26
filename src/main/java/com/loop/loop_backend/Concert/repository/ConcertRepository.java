@@ -9,10 +9,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 public interface ConcertRepository extends JpaRepository<Concert, Long> {
+
+    // KOPIS 직접 등록: 아티스트와 상관없이 이 KOPIS 공연으로 만든 공연이 있는지 / 검색 결과의 등록 상태 계산
+    boolean existsByKopisId(String kopisId);
+    List<Concert> findByKopisIdIn(Collection<String> kopisIds);
 
     // 어드민 검색: 공연명/장소/아티스트명(별칭 포함). q 없으면 전체
     @Query("SELECT c FROM Concert c LEFT JOIN c.artist a WHERE :q IS NULL " +

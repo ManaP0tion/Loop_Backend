@@ -184,6 +184,11 @@ public class Concert {
     private static final Set<ConcertCategory> SELECTABLE_CATEGORIES =
             Set.of(ConcertCategory.J_POP_ARTIST, ConcertCategory.JAPAN_FESTIVAL);
 
+    /** 관리자가 고를 수 있는 유형인지. KOPIS 직접 등록도 같은 기준으로 받는다. */
+    public static boolean isSelectableCategory(ConcertCategory category) {
+        return category != null && SELECTABLE_CATEGORIES.contains(category);
+    }
+
     /** 유형 변경. 페스티벌로 바꾸면 페스티벌 화면에 없는 아티스트를 비운다(PATCH의 null은 '변경 없음'이라 프론트가 비울 수 없다). */
     public void changeCategory(ConcertCategory category) {
         if (!SELECTABLE_CATEGORIES.contains(category)) {

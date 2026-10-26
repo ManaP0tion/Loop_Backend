@@ -1,6 +1,8 @@
 package com.loop.loop_backend.ConcertImport.kopis;
 
 import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
+import com.loop.loop_backend.common.exception.BusinessException;
+import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -51,6 +53,7 @@ public class KopisClient {
     private static final String BASE_URL = "http://kopis.or.kr/openApi/restful/pblprfr";
     private static final String DETAIL_URL = BASE_URL; // 공연 상세는 목록과 같은 경로 뒤에 /{공연ID}
     private static final String POPULAR_MUSIC_GENRE_CODE = "CCCD"; // KOPIS 장르 코드: 대중음악
+    private static final int SEARCH_PAGE_SIZE = 100; // 공연명 검색 한 페이지 건수
     private static final String FACILITY_URL ="http://kopis.or.kr/openApi/restful/prfplc"; // 공연시설 상세 /{시설ID}
     private static final DateTimeFormatter PARAM_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter PARSE_FORMAT = DateTimeFormatter.ofPattern("yyyy.MM.dd");
@@ -81,7 +84,7 @@ public class KopisClient {
                 // 간격 조절(throttle)과 차단 시 재시도는 getWithRetryOnBlock 안에서 처리한다.
                 // 재시도를 다 써도 막히면 예외가 올라와 아래 catch에서 이 페이지까지 받은 만큼만 반환한다.
                 String xml = getWithRetryOnBlock(uri);
-                ParsedPage parsed = parseListXml(xml);
+                ParsedPage parsed = parseListXml(xml, true);
                 all.addAll(parsed.filtered);
                 if (parsed.rawCount < 100) break;
                 page++;
@@ -94,6 +97,65 @@ public class KopisClient {
         log.info("KOPIS full scan: fetched {} performances (pages: {})", all.size(), page);
         return all;
     }
+
+    /**
+     * 관리자 직접 등록용 공연명 검색. 장르 제한 없이 기간(from~to)에 걸친 공연을 최대 maxResults건까지 받는다.
+     * 마지막 페이지까지 꽉 차면 더 있을 수 있어 truncated=true. KOPIS 조회에 실패하면 502(KOPIS_UNAVAILABLE).
+     */
+    public SearchResult searchPerformances(String keyword, LocalDate from, LocalDate to, int maxResults) {
+        List<KopisPerformance> found = new ArrayList<>();
+        int pages = (maxResults + SEARCH_PAGE_SIZE - 1) / SEARCH_PAGE_SIZE;
+        for (int page = 1; page <= pages; page++) {
+            URI uri = UriComponentsBuilder.fromHttpUrl(BASE_URL)
+                    .queryParam("service", apiKey)
+                    .queryParam("stdate", from.format(PARAM_FORMAT))
+                    .queryParam("eddate", to.format(PARAM_FORMAT))
+                    .queryParam("shprfnm", keyword)
+                    .queryParam("rows", SEARCH_PAGE_SIZE)
+                    .queryParam("cpage", page)
+                    .encode()
+                    .build()
+                    .toUri();
+            String xml;
+            try {
+                xml = getWithRetryOnBlock(uri);
+            } catch (Exception e) {
+                // 자동 수집과 달리 관리자가 결과를 기다리고 있어서, 받은 만큼만 보여주지 않고 실패로 알린다(일부만 보이면 없는 공연으로 오해한다).
+                log.warn("KOPIS search '{}' failed at page {}: {}", keyword, page, e.getMessage());
+                throw new BusinessException(ErrorCode.KOPIS_UNAVAILABLE);
+            }
+            ParsedPage parsed = parseListXml(xml, false);
+            found.addAll(parsed.filtered);
+            if (parsed.rawCount < SEARCH_PAGE_SIZE) return new SearchResult(found, false);
+        }
+        return new SearchResult(found, true);
+    }
+
+    /** @param truncated 최대 건수까지 받아서 더 있을 수 있음 */
+    public record SearchResult(List<KopisPerformance> performances, boolean truncated) {}
+
+    /**
+     * 관리자 직접 등록용: 상세 1번으로 검토 대기열에 넣을 기본 정보(공연명·포스터·공연장명·기간)와
+     * 승인에 쓸 상세(가격·공연 시간·예매처·시설·홀 ID)를 함께 꺼낸다.
+     * 승인과 달리 기본 정보 없이는 공연을 만들 수 없어서, 조회 실패는 502, 없는 공연은 404로 던진다.
+     */
+    public ImportSource getPerformanceForImport(String kopisId) {
+        String xml = fetchXml(DETAIL_URL, kopisId);
+        if (xml == null) throw new BusinessException(ErrorCode.KOPIS_UNAVAILABLE);
+        Element db;
+        try {
+            NodeList items = buildDocument(xml).getElementsByTagName("db");
+            db = items.getLength() == 0 ? null : (Element) items.item(0);
+        } catch (Exception e) {
+            log.warn("Failed to parse KOPIS detail for {}: {}", kopisId, e.getMessage());
+            throw new BusinessException(ErrorCode.KOPIS_UNAVAILABLE);
+        }
+        KopisPerformance performance = db == null ? null : toPerformance(db);
+        if (performance == null) throw new BusinessException(ErrorCode.KOPIS_PERFORMANCE_NOT_FOUND);
+        return new ImportSource(performance, toDetail(db));
+    }
+
+    public record ImportSource(KopisPerformance performance, KopisDetail detail) {}
 
     /** 공연 상세의 출연진(prfcast) 문자열을 반환. 조회 실패 시 null. */
     public String getPerformanceCast(String kopisId) {
@@ -110,13 +172,16 @@ public class KopisClient {
         try {
             NodeList items = buildDocument(xml).getElementsByTagName("db");
             if (items.getLength() == 0) return KopisDetail.EMPTY;
-            Element db = (Element) items.item(0);
-            return new KopisDetail(text(db, "pcseguidance"), text(db, "dtguidance"),
-                    parseTicketVendors(db), text(db, "mt10id"), text(db, "mt13id"));
+            return toDetail((Element) items.item(0));
         } catch (Exception e) {
             log.warn("Failed to parse KOPIS detail for {}: {}", kopisId, e.getMessage());
             return KopisDetail.EMPTY;
         }
+    }
+
+    private KopisDetail toDetail(Element db) {
+        return new KopisDetail(text(db, "pcseguidance"), text(db, "dtguidance"),
+                parseTicketVendors(db), text(db, "mt10id"), text(db, "mt13id"));
     }
 
     /**
@@ -314,9 +379,9 @@ public class KopisClient {
 
     /**
      * KOPIS 목록 XML을 파싱한다. rawCount는 페이지네이션 종료 조건(다음 페이지 존재 여부)
-     * 판단용으로 XML의 db 태그 총 개수, filtered는 대중음악 장르만 남긴 결과.
+     * 판단용으로 XML의 db 태그 총 개수, filtered는 파싱한 결과(popularMusicOnly면 대중음악 장르만).
      */
-    private ParsedPage parseListXml(String xml) {
+    private ParsedPage parseListXml(String xml, boolean popularMusicOnly) {
         if (xml == null || xml.isBlank()) return new ParsedPage(0, List.of());
 
         try {
@@ -328,20 +393,9 @@ public class KopisClient {
             for (int i = 0; i < rawCount; i++) {
                 Element item = (Element) items.item(i);
 
-                String kopisId = text(item, "mt20id");
-                String title = text(item, "prfnm");
-                String genre = text(item, "genrenm");
-                if (kopisId == null || title == null) continue;
-                if (!"대중음악".equals(genre)) continue;
-
-                results.add(KopisPerformance.builder()
-                        .kopisId(kopisId)
-                        .title(title)
-                        .posterUrl(toHttps(text(item, "poster")))
-                        .venue(text(item, "fcltynm"))
-                        .startDate(parseDate(text(item, "prfpdfrom")))
-                        .endDate(parseDate(text(item, "prfpdto")))
-                        .build());
+                if (popularMusicOnly && !"대중음악".equals(text(item, "genrenm"))) continue;
+                KopisPerformance performance = toPerformance(item);
+                if (performance != null) results.add(performance);
             }
             return new ParsedPage(rawCount, results);
         } catch (Exception e) {
@@ -351,6 +405,21 @@ public class KopisClient {
     }
 
     private record ParsedPage(int rawCount, List<KopisPerformance> filtered) {}
+
+    /** 목록의 db와 상세의 db는 기본 정보 태그 이름이 같아서 둘 다 여기서 읽는다. 공연 ID나 공연명이 없으면 null. */
+    private KopisPerformance toPerformance(Element db) {
+        String kopisId = text(db, "mt20id");
+        String title = text(db, "prfnm");
+        if (kopisId == null || title == null) return null;
+        return KopisPerformance.builder()
+                .kopisId(kopisId)
+                .title(title)
+                .posterUrl(toHttps(text(db, "poster")))
+                .venue(text(db, "fcltynm"))
+                .startDate(parseDate(text(db, "prfpdfrom")))
+                .endDate(parseDate(text(db, "prfpdto")))
+                .build();
+    }
 
     private String parseCastFromDetail(String xml) {
         if (xml == null || xml.isBlank()) return null;
