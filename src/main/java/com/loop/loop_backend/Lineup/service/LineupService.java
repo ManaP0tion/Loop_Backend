@@ -36,6 +36,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class LineupService {
 
+    static final int MAX_HEADLINERS = 3;
+
     private final PerformanceRepository performanceRepository;
     private final ConcertRepository concertRepository;
     private final ArtistRepository artistRepository;
@@ -132,11 +134,15 @@ public class LineupService {
         return currentList(concertId);
     }
 
-    /** 헤드라이너 해제는 셋리스트·투표가 없을 때만(409). 지정은 언제든. */
+    /** 헤드라이너 해제는 셋리스트·투표가 없을 때만(409). 지정은 페스티벌당 최대 3팀(400) - 예상 셋리스트를 3아티스트로 나눠 보여준다. */
     @Transactional
     public List<LineupItemResponse> changeHeadliner(Long concertId, Long lineupId, boolean headliner) {
         Performance lineup = findLineup(concertId, lineupId);
         if (!headliner) setlistDataGuard.requireNone(lineup.getId());
+        if (headliner && !lineup.isHeadliner() && performanceRepository.findByConcertId(concertId).stream()
+                .filter(Performance::isHeadliner).count() >= MAX_HEADLINERS) {
+            throw new IllegalArgumentException("헤드라이너는 최대 " + MAX_HEADLINERS + "팀");
+        }
         lineup.changeHeadliner(headliner);
         return currentList(concertId);
     }
