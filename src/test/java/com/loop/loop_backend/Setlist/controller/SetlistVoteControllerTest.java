@@ -72,7 +72,7 @@ class SetlistVoteControllerTest {
     @Test
     void 후보는_n_마감_여부_곡_필드를_준다() throws Exception {
         when(service.candidates(1L, PERFORMANCE_ID)).thenReturn(new SetlistCandidatesResponse(20, false,
-                List.of(new SongCandidateResponse(12L, "ドライフラワー", "Dry Flower", "드라이플라워", "https://img/a.jpg", 1))));
+                List.of(new SongCandidateResponse(12L, "ドライフラワー", "Dry Flower", "드라이플라워", "https://img/a.jpg", 1, "https://audio/a.m4a"))));
 
         mockMvc.perform(get("/api/concerts/{concertId}/performances/{performanceId}/setlist/candidates", 1L, PERFORMANCE_ID))
                 .andExpect(status().isOk())
@@ -83,7 +83,8 @@ class SetlistVoteControllerTest {
                 .andExpect(jsonPath("$.data.songs[0].titleRomanized").value("Dry Flower"))
                 .andExpect(jsonPath("$.data.songs[0].titleKo").value("드라이플라워"))
                 .andExpect(jsonPath("$.data.songs[0].albumArtUrl").value("https://img/a.jpg"))
-                .andExpect(jsonPath("$.data.songs[0].sortOrder").value(1));
+                .andExpect(jsonPath("$.data.songs[0].sortOrder").value(1))
+                .andExpect(jsonPath("$.data.songs[0].previewUrl").value("https://audio/a.m4a"));
     }
 
     @Test

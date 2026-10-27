@@ -4,6 +4,7 @@ import com.loop.loop_backend.Performance.domain.Performance;
 import com.loop.loop_backend.Performance.repository.PerformanceRepository;
 import com.loop.loop_backend.Setlist.domain.Setlist;
 import com.loop.loop_backend.Setlist.domain.SetlistType;
+import com.loop.loop_backend.Setlist.dto.ConcertSetlistResultResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistResultResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistResultResponse.HitRate;
 import com.loop.loop_backend.Setlist.dto.SetlistResultResponse.MissedSong;
@@ -18,6 +19,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -95,6 +98,57 @@ public class SetlistResultService {
                 .toList();
 
         return new SetlistResultResponse(true, participants, overall, average, myRate, myTopPercent, songs, missed);
+    }
+
+    /**
+     * 공연 단위 내 적중률: 투표한 출연 정보들의 적중 곡 수 합 ÷ 실제 곡 수 합(예: 8/12 + 7/13 → 15/25).
+     * 실제 셋리스트가 없는 출연 정보는 뺀다. 상위 n%는 result와 같은 식이되 적중률로 비교한다 - 유저마다 분모가 달라서.
+     * 공연이 없거나 셋리스트 대상 출연 정보가 없으면 대기(ready=false).
+     */
+    @Transactional(readOnly = true)
+    public ConcertSetlistResultResponse concertResult(Long concertId, Long userId) {
+        List<Performance> targets = performanceRepository.findByConcertId(concertId).stream()
+                .filter(Performance::isSetlistTarget).toList();
+        if (targets.isEmpty()) return ConcertSetlistResultResponse.waiting();
+        SetlistRules.requirePublished(targets.get(0).getConcert());
+
+        // 출연 정보 id → 실제 곡(중복 연주 1회)
+        Map<Long, Long> performanceBySetlist = new HashMap<>();
+        for (Performance p : targets) {
+            setlistRepository.findByPerformanceIdAndType(p.getId(), SetlistType.ACTUAL)
+                    .ifPresent(s -> performanceBySetlist.put(s.getId(), p.getId()));
+        }
+        Map<Long, Set<Long>> actualByPerformance = new HashMap<>();
+        setlistRepository.findSongsIncludingDeleted(performanceBySetlist.keySet()).forEach((setlistId, songs) ->
+                actualByPerformance.put(performanceBySetlist.get(setlistId),
+                        songs.stream().map(SetlistSong::songId).collect(Collectors.toSet())));
+        if (actualByPerformance.isEmpty()) return ConcertSetlistResultResponse.waiting();
+
+        // 유저 → 출연 정보 → 고른 곡
+        Map<Long, Map<Long, Set<Long>>> picksByUser = new HashMap<>();
+        for (Object[] row : voteRepository.findUserSongRowsIncludingDeleted(actualByPerformance.keySet())) {
+            picksByUser.computeIfAbsent(((Number) row[1]).longValue(), k -> new HashMap<>())
+                    .computeIfAbsent(((Number) row[0]).longValue(), k -> new HashSet<>())
+                    .add(((Number) row[2]).longValue());
+        }
+        Map<Long, HitRate> rates = new HashMap<>();
+        picksByUser.forEach((user, picks) -> {
+            int hits = 0, total = 0;
+            for (Map.Entry<Long, Set<Long>> e : picks.entrySet()) {
+                Set<Long> actual = actualByPerformance.get(e.getKey());
+                hits += countHits(e.getValue(), actual);
+                total += actual.size();
+            }
+            rates.put(user, HitRate.of(hits, total));
+        });
+
+        HitRate mine = userId == null ? null : rates.get(userId);
+        if (mine == null) return new ConcertSetlistResultResponse(true, null, null);
+        // 적중률 비교는 교차곱으로(반올림한 percent로 비교하면 근소한 차이가 동점이 된다)
+        long higher = rates.values().stream()
+                .filter(r -> (long) r.hitCount() * mine.totalCount() > (long) mine.hitCount() * r.totalCount())
+                .count();
+        return new ConcertSetlistResultResponse(true, mine, (int) Math.ceil(100.0 * (1 + higher) / rates.size()));
     }
 
     private static int countHits(Set<Long> picks, Set<Long> actual) {

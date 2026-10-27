@@ -56,6 +56,7 @@ public enum ErrorCode {
     // Song 도메인 / iTunes
     SONG_NOT_FOUND(404, "곡을 찾을 수 없습니다."),
     ARTIST_NOT_LINKED(409, "iTunes에 연결되지 않은 아티스트입니다."),
+    SONG_CSV_INVALID_PREVIEW_URL(400, "미리듣기 URL은 iTunes 미리듣기 주소(https://audio-ssl.itunes.apple.com/...)만 넣을 수 있습니다."),
     SONG_CSV_NO_MATCH(400, "CSV에서 이 아티스트의 곡을 하나도 찾지 못해 삭제하지 않았습니다. 다른 아티스트의 파일이 아닌지 확인해 주세요."),
     ITUNES_ARTIST_NOT_FOUND(404, "iTunes 아티스트를 찾을 수 없습니다."),
     ITUNES_FETCH_FAILED(502, "iTunes 연동 중 오류가 발생했습니다."),

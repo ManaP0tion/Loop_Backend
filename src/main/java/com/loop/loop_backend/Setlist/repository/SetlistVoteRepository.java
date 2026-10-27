@@ -72,6 +72,14 @@ public interface SetlistVoteRepository extends JpaRepository<SetlistVote, Long> 
                 .toList();
     }
 
+    // 공연 단위 내 적중률: 출연 정보·유저별로 고른 곡. 삭제된 곡도 포함(위와 같은 이유)
+    @Query(value = """
+            select v.performance_id, v.user_id, vs.song_id
+            from setlist_vote_songs vs join setlist_votes v on v.id = vs.vote_id
+            where v.performance_id in (:performanceIds)
+            """, nativeQuery = true)
+    List<Object[]> findUserSongRowsIncludingDeleted(@Param("performanceIds") Collection<Long> performanceIds);
+
     /**
      * 결과 메일 대상(NO.69): 투표 + 수신 동의 + 이메일 인증(email 존재) + 설정의 셋리스트 결과 알림 ON.
      * 탈퇴 유저는 투표가 지워져 있어 걸리지 않는다.

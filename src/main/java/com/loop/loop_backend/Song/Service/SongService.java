@@ -30,7 +30,9 @@ import java.util.stream.Collectors;
 public class SongService {
 
     // id = 곡 PK. 수동 추가 곡은 trackId가 없어 id로만 매칭된다
-    static final String[] CSV_HEADER = {"id", "trackId", "원문", "로마자", "한글", "sortOrder"};
+    static final String[] CSV_HEADER = {"id", "trackId", "원문", "로마자", "한글", "sortOrder", "미리듣기"};
+    // CSV 미리듣기 URL은 iTunes 미리듣기 음원만 받는다 - 앱이 바로 재생할 수 있는 파일 주소라서(유튜브·스포티파이 링크는 재생 불가)
+    static final String PREVIEW_URL_PREFIX = "https://audio-ssl.itunes.apple.com/";
     private static final char BOM = '﻿';
 
     private final SongRepository songRepository;
@@ -123,7 +125,7 @@ public class SongService {
             // trackId가 달라도 같은 제목 곡이 이미 있으면 그 곡을 갱신 (대표 버전이 바뀌어도 중복 생성 안 함)
             Song song = existing.getOrDefault(t.trackId(), existingByTitle.get(t.trackName()));
             if (song != null) {
-                song.updateFromItunes(t.trackName(), rom, art, order);
+                song.updateFromItunes(t.trackName(), rom, art, t.previewUrl(), order);
                 renumbered.add(song.getId());
                 updated++;
             } else {
@@ -133,6 +135,7 @@ public class SongService {
                         .titleOriginal(t.trackName())
                         .titleRomanized(rom)
                         .albumArtUrl(art)
+                        .previewUrl(t.previewUrl())
                         .sortOrder(order)
                         .build());
                 created++;
@@ -154,7 +157,7 @@ public class SongService {
         try (CSVPrinter printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder().setHeader(CSV_HEADER).build())) {
             for (Song s : songRepository.findAllByArtistIdOrderBySortOrderAsc(artistId)) {
                 printer.printRecord(s.getId(), s.getTrackId(), s.getTitleOriginal(), s.getTitleRomanized(),
-                        s.getTitleKo(), s.getSortOrder());
+                        s.getTitleKo(), s.getSortOrder(), s.getPreviewUrl());
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -163,7 +166,7 @@ public class SongService {
     }
 
     /**
-     * CSV 업로드: id(없으면 trackId)로 매칭해 로마자·한글만 반영. 빈 값은 기존 값 유지, 매칭 안 된 행은 리포트로 반환.
+     * CSV 업로드: id(없으면 trackId)로 매칭해 로마자·한글·미리듣기 URL만 반영. 빈 값은 기존 값 유지, 매칭 안 된 행은 리포트로 반환.
      * 로마자는 US 스토어에 없는 곡·영문 번역 제목 보정용 (재불러오기는 로마자가 비어 있을 때만 채움)
      * deleteMissing이면 CSV에 없는 곡을 소프트 삭제한다 - 받은 CSV에서 instrumental·live 같은 행을 지우고 올리는 용도.
      * 소프트 삭제라 iTunes 재불러오기에서도 다시 생기지 않는다. 한 곡도 매칭되지 않으면(다른 아티스트 파일 등) 아무것도 지우지 않고 400.
@@ -192,10 +195,14 @@ public class SongService {
                 matchedIds.add(song.getId());
                 String romanized = column(r, "로마자");
                 String ko = column(r, "한글");
-                if (romanized.isBlank() && ko.isBlank()) {
+                String preview = column(r, "미리듣기");
+                if (!preview.isBlank() && !preview.startsWith(PREVIEW_URL_PREFIX)) {
+                    throw new BusinessException(ErrorCode.SONG_CSV_INVALID_PREVIEW_URL);
+                }
+                if (romanized.isBlank() && ko.isBlank() && preview.isBlank()) {
                     unchanged++;
                 } else {
-                    song.updateFromCsv(romanized, ko);
+                    song.updateFromCsv(romanized, ko, preview);
                     updated++;
                 }
             }

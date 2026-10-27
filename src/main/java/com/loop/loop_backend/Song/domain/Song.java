@@ -36,6 +36,10 @@ public class Song {
     @Column(length = 500)
     private String albumArtUrl;
 
+    // iTunes 30초 미리듣기(.m4a) URL. 앱이 직접 재생한다. 수동 추가 곡·미리듣기 없는 곡은 null
+    @Column(length = 500)
+    private String previewUrl;
+
     @Column(nullable = false)
     private Integer sortOrder;
 
@@ -44,13 +48,14 @@ public class Song {
     @Builder
     private Song(Artist artist, Long trackId, String titleOriginal,
                  String titleRomanized, String titleKo,
-                 String albumArtUrl, Integer sortOrder) {
+                 String albumArtUrl, String previewUrl, Integer sortOrder) {
         this.artist = artist;
         this.trackId = trackId;
         this.titleOriginal = titleOriginal;
         this.titleRomanized = titleRomanized;
         this.titleKo = titleKo;
         this.albumArtUrl = albumArtUrl;
+        this.previewUrl = previewUrl;
         this.sortOrder = sortOrder;
     }
 
@@ -64,10 +69,11 @@ public class Song {
 
     // iTunes 재불러오기: titleKo는 관리자가 입력한 값이라 덮어쓰지 않는다. 로마자는 비어 있을 때만 채운다 (수동 보정값 보존)
     public void updateFromItunes(String titleOriginal, String titleRomanized,
-                                 String albumArtUrl, Integer sortOrder) {
+                                 String albumArtUrl, String previewUrl, Integer sortOrder) {
         this.titleOriginal = titleOriginal;
         if (this.titleRomanized == null) this.titleRomanized = titleRomanized;
         this.albumArtUrl = albumArtUrl;
+        if (previewUrl != null) this.previewUrl = previewUrl; // iTunes에 미리듣기가 없으면 CSV로 넣은 값 유지
         this.sortOrder = sortOrder;
     }
 
@@ -76,8 +82,9 @@ public class Song {
     }
 
     // CSV 업로드: 빈 값은 기존 값 유지
-    public void updateFromCsv(String titleRomanized, String titleKo) {
+    public void updateFromCsv(String titleRomanized, String titleKo, String previewUrl) {
         if (titleRomanized != null && !titleRomanized.isBlank()) this.titleRomanized = titleRomanized;
         if (titleKo != null && !titleKo.isBlank()) this.titleKo = titleKo;
+        if (previewUrl != null && !previewUrl.isBlank()) this.previewUrl = previewUrl;
     }
 }

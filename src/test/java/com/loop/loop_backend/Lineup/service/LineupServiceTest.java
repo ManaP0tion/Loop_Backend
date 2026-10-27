@@ -39,7 +39,7 @@ import static org.assertj.core.groups.Tuple.tuple;
 // - DB 선택(여러 명) 또는 직접 입력(아티스트 DB에도 저장) 중 하나로 추가하고, 새 항목은 맨 뒤에 붙는다.
 // - 공연당 아티스트 1항목. 같은 아티스트를 다른 DAY로 추가하면 그 항목의 출연 DAY가 늘고(셋리스트·투표는 아티스트당 하나),
 //   같은 DAY 중복은 409이고 아무것도 추가되지 않는다. 출연 DAY 목록은 통째로 바꾼다.
-// - 순서는 한 칸씩 이동(맨 앞 UP·맨 뒤 DOWN은 변화 없음), 헤드라이너는 개수 제한 없이 지정.
+// - 순서는 한 칸씩 이동(맨 앞 UP·맨 뒤 DOWN은 변화 없음), 헤드라이너는 페스티벌당 최대 3팀(4팀째 지정은 400, 이미 헤드라이너인 항목 재지정은 통과).
 // - 다른 공연의 라인업 항목은 404. 응답은 항상 그 공연의 라인업 전체.
 // - 셋리스트·투표가 있는 항목은 삭제·헤드라이너 해제 409. 예상 곡 수는 헤드라이너만.
 // - 동행 무대 검증: 고른 항목이 모두 그 공연 소속이고 그 DAY에 출연해야 하고, 미선택은 통과.
@@ -288,8 +288,8 @@ class LineupServiceTest {
     }
 
     @Test
-    @DisplayName("헤드라이너는 개수 제한 없이 지정하고 해제할 수 있다")
-    void changeHeadliner_SetsAndUnsetsWithoutLimit() {
+    @DisplayName("헤드라이너를 지정하고 해제할 수 있다")
+    void changeHeadliner_SetsAndUnsets() {
         // given
         List<LineupItemResponse> list = select(1, yoasobi, yuuri);
 
@@ -301,6 +301,23 @@ class LineupServiceTest {
         assertThat(after).extracting(LineupItemResponse::headliner).containsExactly(true, true);
         assertThat(service.changeHeadliner(festival.getId(), idOf(list, "Yuuri"), false))
                 .extracting(LineupItemResponse::headliner).containsExactly(true, false);
+    }
+
+    @Test
+    @DisplayName("헤드라이너가 이미 3팀이면 4팀째 지정은 400이고, 기존 헤드라이너 재지정은 통과한다")
+    void changeHeadliner_WhenAlreadyThree_ThrowsInvalidInputForFourth() {
+        // given
+        Artist aimer = artistRepository.save(Artist.builder().name("Aimer").build());
+        List<LineupItemResponse> list = select(1, yoasobi, yuuri, vaundy, aimer);
+        service.changeHeadliner(festival.getId(), idOf(list, "YOASOBI"), true);
+        service.changeHeadliner(festival.getId(), idOf(list, "Yuuri"), true);
+        service.changeHeadliner(festival.getId(), idOf(list, "Vaundy"), true);
+
+        // when & then
+        assertThatThrownBy(() -> service.changeHeadliner(festival.getId(), idOf(list, "Aimer"), true))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(service.changeHeadliner(festival.getId(), idOf(list, "Vaundy"), true))
+                .filteredOn(LineupItemResponse::headliner).hasSize(3);
     }
 
     // ---------- 헤드라이너 예상 셋리스트 ----------

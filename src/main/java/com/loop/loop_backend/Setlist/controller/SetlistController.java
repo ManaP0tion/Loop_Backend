@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Setlist.controller;
 
+import com.loop.loop_backend.Setlist.dto.ConcertSetlistResultResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistCandidatesResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse;
 import com.loop.loop_backend.Setlist.dto.SetlistResponse;
@@ -28,7 +29,7 @@ import java.util.List;
  * 비로그인 열람 - GET /api/concerts/** 는 SecurityConfig에서 permitAll.
  */
 @RestController
-@RequestMapping("/api/concerts/{concertId}/performances/{performanceId}/setlist")
+@RequestMapping("/api/concerts/{concertId}")
 @RequiredArgsConstructor
 @Tag(name = "Setlist", description = "예상 셋리스트 조회 (비로그인 가능). 출연 정보 단위 - 단독 공연은 공연 상세의 performanceId, " +
         "페스티벌은 라인업에서 headliner=true인 항목의 lineupId. 투표는 /api/users/me/setlist-votes")
@@ -38,7 +39,7 @@ public class SetlistController {
     private final SetlistService setlistService;
     private final SetlistResultService resultService;
 
-    @GetMapping("/result")
+    @GetMapping("/performances/{performanceId}/setlist/result")
     @Operation(summary = "예상 셋리스트 결과(공연 후)",
             description = "적중률 + 실제 셋리스트 + 예상했지만 나오지 않은 곡. 실제 셋리스트를 고치면 다음 조회부터 재산출된 값.\n\n" +
                     "- 적중률 = 맞힌 곡 수 ÷ 실제 셋리스트 곡 수(중복 연주 1회, 순서·앵코르 무시)\n" +
@@ -61,7 +62,25 @@ public class SetlistController {
         return ResponseEntity.ok(CommonResponse.success(resultService.result(concertId, performanceId, userId)));
     }
 
-    @GetMapping("/ranking")
+    @GetMapping("/setlist/result")
+    @Operation(summary = "내 예상 셋리스트 적중률(공연 단위)",
+            description = "페스티벌은 헤드라이너 여러 팀을 합산한다. 단독 공연은 출연 정보 단위 결과의 mine·myTopPercent와 같다.\n\n" +
+                    "- 적중률 = 적중 곡 수 합 ÷ 실제 곡 수 합(예: 8/12 + 7/13 → 15/25)\n" +
+                    "- 내가 투표했고 실제 셋리스트가 저장된 아티스트만 센다\n" +
+                    "- myTopPercent = 합산 적중률 상위 n%(동점은 같은 순위). 참여자 = 위 기준으로 적중률이 있는 유저\n" +
+                    "- 실제 셋리스트가 하나도 없으면 ready=false, 비로그인·미투표면 mine·myTopPercent null\n\n" +
+                    "비공개(오픈 예정) 공연이면 403.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "403", description = "오픈 예정(비공개) 공연 - CONCERT_NOT_OPEN")
+    })
+    public ResponseEntity<CommonResponse<ConcertSetlistResultResponse>> concertResult(
+            @AuthenticationPrincipal Long userId,
+            @Parameter(description = "콘서트 PK") @PathVariable Long concertId) {
+        return ResponseEntity.ok(CommonResponse.success(resultService.concertResult(concertId, userId)));
+    }
+
+    @GetMapping("/performances/{performanceId}/setlist/ranking")
     @Operation(summary = "예상 셋리스트 순위",
             description = "득표순, 동점이면 곡 정렬 순번 순(공동 순위 없음). 득표한 곡 전체를 한 번에 준다.\n\n" +
                     "- 미리보기 = 앞 5곡, 전체 순위 = 20곡 단위 더보기(프론트)\n" +
@@ -82,7 +101,7 @@ public class SetlistController {
         return ResponseEntity.ok(CommonResponse.success(voteService.ranking(concertId, performanceId, userId)));
     }
 
-    @GetMapping("/past")
+    @GetMapping("/performances/{performanceId}/setlist/past")
     @Operation(summary = "지난 공연 셋리스트",
             description = "최근 공연(RECENT) → 지난 내한(PREVIOUS_VISIT) 순, 최대 2건.\n\n" +
                     "- 2건이면 칩 2개, 1건이면 칩 없이 목록만, 0건이면 섹션 미렌더링\n" +
@@ -99,7 +118,7 @@ public class SetlistController {
         return ResponseEntity.ok(CommonResponse.success(setlistService.pastSetlists(concertId, performanceId)));
     }
 
-    @GetMapping("/candidates")
+    @GetMapping("/performances/{performanceId}/setlist/candidates")
     @Operation(summary = "예상 셋리스트 후보(곡 선택 화면)",
             description = "출연 아티스트의 곡 전체를 정렬 순번대로 준다. 순위·득표 수는 없다(상위권 쏠림 방지).\n\n" +
                     "- 50곡 → 20곡씩 더보기, 원제·로마자·한글 검색은 프론트가 이 목록으로 한다(로마자는 화면 미노출)\n" +
