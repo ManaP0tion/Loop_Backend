@@ -8,4 +8,5 @@ public record ItunesTrack(
         Long trackId,
         String trackName,
         String collectionName,
-        String artworkUrl100) {}
+        String artworkUrl100,
+        String previewUrl) {}

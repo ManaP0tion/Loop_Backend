@@ -10,10 +10,12 @@ public record SongCandidateResponse(
         @Schema(description = "로마자(검색용)", types = {"string", "null"}) String titleRomanized,
         @Schema(description = "한글 곡명", types = {"string", "null"}) String titleKo,
         @Schema(description = "앨범아트 URL(200x200, https)", types = {"string", "null"}) String albumArtUrl,
-        @Schema(description = "정렬 순번(목록 순서)", requiredMode = Schema.RequiredMode.REQUIRED) int sortOrder
+        @Schema(description = "정렬 순번(목록 순서)", requiredMode = Schema.RequiredMode.REQUIRED) int sortOrder,
+        @Schema(description = "30초 미리듣기 음원 URL(.m4a, Apple CDN). 앱에서 바로 재생한다. null이면 재생 버튼 숨김",
+                types = {"string", "null"}) String previewUrl
 ) {
     public static SongCandidateResponse from(Song song) {
         return new SongCandidateResponse(song.getId(), song.getTitleOriginal(), song.getTitleRomanized(),
-                song.getTitleKo(), song.getAlbumArtUrl(), song.getSortOrder());
+                song.getTitleKo(), song.getAlbumArtUrl(), song.getSortOrder(), song.getPreviewUrl());
     }
 }

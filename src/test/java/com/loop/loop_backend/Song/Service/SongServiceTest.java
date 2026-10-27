@@ -10,6 +10,7 @@ import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.infra.itunes.ItunesClient;
 import com.loop.loop_backend.infra.itunes.ItunesTrack;
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -94,7 +95,29 @@ class SongServiceTest {
     }
 
     private ItunesTrack track(Long id, String name, String art) {
-        return new ItunesTrack("track", id, name, null, art);
+        return new ItunesTrack("track", id, name, null, art, null);
+    }
+
+    @Test
+    @DisplayName("iTunes 불러오기는 미리듣기 URL을 저장하고, 재불러오기 때 새 URL로 갱신한다")
+    void fetchSongs_WithPreviewUrl_SavesAndRefreshesPreviewUrl() {
+        // given
+        Artist artist = artistRepository.save(Artist.builder().name("YOASOBI").build());
+        artist.linkItunes(100L, "https://music.apple.com/jp/artist/100");
+        given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.COUNTRY_JP))).willReturn(List.of(
+                new ItunesTrack("track", 1L, "夜に駆ける", null, null, "https://audio/old.m4a")));
+        songService.fetchSongs(artist.getId());
+
+        // when
+        given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.COUNTRY_JP))).willReturn(List.of(
+                new ItunesTrack("track", 1L, "夜に駆ける", null, null, "https://audio/new.m4a")));
+        songService.fetchSongs(artist.getId());
+        em.flush();
+        em.clear();
+
+        // then
+        assertThat(em.createQuery("select s.previewUrl from Song s", String.class).getResultList())
+                .containsExactly("https://audio/new.m4a");
     }
 
     @Test
@@ -117,6 +140,52 @@ class SongServiceTest {
         List<SongResponse> songs = songService.getSongs(artist.getId());
         assertThat(songs).extracting(SongResponse::sortOrder).containsExactly(1, 2, 3, 4);
         assertThat(songs).extracting(SongResponse::titleOriginal).containsExactly("夜に駆ける", "群青", "アイドル", "新曲");
+    }
+
+    @Test
+    @DisplayName("CSV 미리듣기 컬럼으로 수동 추가 곡에 URL을 넣고, iTunes에 미리듣기가 없는 곡은 재불러오기에도 CSV 값을 유지한다")
+    void importCsv_WithPreviewUrl_SetsUrlAndKeepsItWhenItunesHasNone() {
+        // given: iTunes 곡(미리듣기 없음) + 수동 곡
+        Artist artist = artistRepository.save(Artist.builder().name("YOASOBI").build());
+        artist.linkItunes(100L, "https://music.apple.com/jp/artist/100");
+        given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.COUNTRY_JP))).willReturn(List.of(track(1L, "夜に駆ける", null)));
+        songService.fetchSongs(artist.getId());
+        Long manual = songService.createSong(artist.getId(),
+                new com.loop.loop_backend.Song.DTO.SongCreateRequest("新曲", null, null, null)).id();
+        String url1 = "https://audio-ssl.itunes.apple.com/a.m4a";
+        String url2 = "https://audio-ssl.itunes.apple.com/b.m4a";
+        String csv = "id,trackId,원문,로마자,한글,sortOrder,미리듣기\n"
+                + ",1,夜に駆ける,,,1," + url1 + "\n"
+                + manual + ",,新曲,,,2," + url2 + "\n";
+
+        // when
+        CsvImportResult r = songService.importCsv(artist.getId(),
+                new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), false);
+        songService.fetchSongs(artist.getId());
+        em.flush();
+        em.clear();
+
+        // then
+        assertThat(r.updated()).isEqualTo(2);
+        assertThat(em.createQuery("select s.previewUrl from Song s order by s.sortOrder", String.class).getResultList())
+                .containsExactly(url1, url2);
+        assertThat(new String(songService.exportCsv(artist.getId()), StandardCharsets.UTF_8)).contains(url1, url2);
+    }
+
+    @Test
+    @DisplayName("CSV 미리듣기에 iTunes 미리듣기 주소가 아닌 URL을 넣으면 업로드 전체가 400이다")
+    void importCsv_WithNonItunesPreviewUrl_ThrowsBadRequest() {
+        // given
+        Artist artist = artistRepository.save(Artist.builder().name("YOASOBI").build());
+        Long id = songService.createSong(artist.getId(),
+                new com.loop.loop_backend.Song.DTO.SongCreateRequest("新曲", null, null, null)).id();
+        String csv = "id,trackId,원문,로마자,한글,sortOrder,미리듣기\n" + id + ",,新曲,,,1,https://youtu.be/abc\n";
+
+        // when & then
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> songService.importCsv(artist.getId(),
+                        new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), false))
+                .isInstanceOf(com.loop.loop_backend.common.exception.BusinessException.class)
+                .hasMessageContaining("미리듣기");
     }
 
     @Test
