@@ -329,4 +329,77 @@ class SetlistResultServiceTest {
         assertThat(HitRate.of(2, 3).percent()).isEqualTo(67);
         assertThat(HitRate.of(1, 8).percent()).isEqualTo(13);
     }
+
+    // ---------- 공연 단위 내 적중률(페스티벌 헤드라이너 합산) ----------
+
+    private Performance headliner(Concert festival, Artist artist, int order) {
+        Performance p = Performance.builder().concert(festival).artist(artist).day(1).displayOrder(order).build();
+        p.changeHeadliner(true);
+        return performanceRepository.save(p);
+    }
+
+    private void vote(Performance p, User user, Song... songs) {
+        voteRepository.save(SetlistVote.builder().performance(p).user(user).songs(Set.of(songs)).build());
+    }
+
+    private void actual(Performance p, Song... songs) {
+        setlistRepository.save(Setlist.builder().performance(p).type(SetlistType.ACTUAL).songs(List.of(songs)).build());
+    }
+
+    private Song song(Artist artist, String title, int sortOrder) {
+        return songRepository.save(Song.builder().artist(artist).titleOriginal(title).sortOrder(sortOrder).build());
+    }
+
+    @Test
+    @DisplayName("페스티벌 내 적중률은 투표한 헤드라이너의 적중 곡 수 합 ÷ 실제 곡 수 합이고, 실제 셋리스트 없는 아티스트는 뺀다")
+    void concertResult_WithSeveralHeadliners_SumsHitsOverSumOfActualSongs() {
+        // given: Yuuri 실제 3곡, Vaundy 실제 2곡, Aimer 실제 셋리스트 없음
+        Concert festival = concertRepository.save(Concert.builder()
+                .title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL).published(true)
+                .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 21)).build());
+        Artist vaundy = artistRepository.save(Artist.builder().name("Vaundy").build());
+        Artist aimer = artistRepository.save(Artist.builder().name("Aimer").build());
+        Performance p1 = headliner(festival, yuuri, 1);
+        Performance p2 = headliner(festival, vaundy, 2);
+        Performance p3 = headliner(festival, aimer, 3);
+        Song t1 = song(vaundy, "怪獣の花唄", 1);
+        Song t2 = song(vaundy, "踊り子", 2);
+        Song u1 = song(aimer, "残響散歌", 1);
+        actual(p1, s1, s2, s3);
+        actual(p2, t1, t2);
+        vote(p1, me, s1, s2);       // 2/3
+        vote(p2, me, t1);           // 1/2
+        vote(p3, me, u1);           // 실제 셋리스트 없음 → 제외. 합산 3/5 = 60%
+        vote(p1, a, s1, s2, s3);    // 3/3 = 100%
+        vote(p2, b, t2, t1);        // 2/2 = 100%
+        vote(p1, user("c"), s4);    // 0/3 = 0%
+        em.flush();
+        em.clear();
+
+        // when
+        var res = service.concertResult(festival.getId(), me.getId());
+
+        // then: 4명 중 나보다 높은 2명 → ceil(100 × 3 / 4) = 75
+        assertThat(res.ready()).isTrue();
+        assertThat(res.mine()).isEqualTo(new HitRate(3, 5, 60, HitGrade.MID));
+        assertThat(res.myTopPercent()).isEqualTo(75);
+        assertThat(service.concertResult(festival.getId(), null).mine()).isNull();
+    }
+
+    @Test
+    @DisplayName("실제 셋리스트가 하나도 없으면 공연 단위 결과는 대기, 비공개 공연이면 403")
+    void concertResult_WithoutActualOrUnpublished_WaitsOrThrows() {
+        // given
+        vote(me, s1);
+        em.flush();
+
+        // when & then
+        assertThat(service.concertResult(concert.getId(), me.getId()).ready()).isFalse();
+        Concert hidden = saveSoloConcert(false);
+        performanceRepository.save(Performance.solo(hidden, yuuri));
+        assertThatThrownBy(() -> service.concertResult(hidden.getId(), me.getId()))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONCERT_NOT_OPEN);
+    }
 }
