@@ -62,8 +62,8 @@ public class AdminConcertImportController {
     @Operation(summary = "KOPIS 공연 직접 등록",
             description = "검색 결과의 kopisId로 공연을 등록한다. 서버가 KOPIS 상세를 다시 조회해 값을 채우고, " +
                     "검토 대기열을 거쳐 **바로 승인**해 비공개 공연을 만든다(기본값은 검토 대기열 승인과 같다).\n\n" +
-                    "- category: J_POP_ARTIST 또는 JAPAN_FESTIVAL\n" +
-                    "- artistIds: 내한 공연은 0~1명, 페스티벌은 비워야 한다(라인업은 등록 후 라인업 관리에서 추가)\n" +
+                    "- category: STAGE(단독 공연) 또는 FESTIVAL(페스티벌)\n" +
+                    "- artistIds: 단독 공연은 0~1명, 페스티벌은 비워야 한다(라인업은 등록 후 라인업 관리에서 추가)\n" +
                     "- 이미 이 KOPIS 공연으로 만든 공연이 있으면 409\n" +
                     "- 검토 대기열에 같은 공연이 대기·거절 상태로 있으면 그 행을 다시 써서 승인한다\n\n" +
                     "등록 후에는 PATCH /api/admin/concerts/{concertId}로 고치고 공개한다.")

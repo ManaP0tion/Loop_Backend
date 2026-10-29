@@ -22,7 +22,7 @@ class ArtistProductPersistenceTest {
 
     private Artist savedArtistWithProducts() {
         Artist artist = artistRepository.save(Artist.builder().name("Official髭男dism")
-                .autoFetchConcerts(false).category(ConcertCategory.J_POP_ARTIST).build());
+                .autoFetchConcerts(false).nationality(Nationality.JP).build());
         artist.replaceProducts(List.of(
                 new ArtistProduct("Rejoice", "https://www.cdjapan.co.jp/aff/b", "https://www.cdjapan.co.jp/image.html?id=b"),
                 new ArtistProduct("Live Blu-ray", "https://www.cdjapan.co.jp/aff/a", "https://www.cdjapan.co.jp/image.html?id=a"),

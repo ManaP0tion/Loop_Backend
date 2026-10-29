@@ -1,6 +1,6 @@
 package com.loop.loop_backend.Lineup.controller;
 
-import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.loop.loop_backend.Lineup.dto.LineupItemResponse;
 import com.loop.loop_backend.Lineup.dto.LineupResponse;
@@ -50,8 +50,8 @@ class LineupControllerTest {
         when(service.publicLineup(1L)).thenReturn(new LineupResponse(
                 List.of(new LineupResponse.Day(1, LocalDate.of(2026, 11, 20)),
                         new LineupResponse.Day(2, LocalDate.of(2026, 11, 21))),
-                List.of(new LineupItemResponse(10L, 3L, "YOASOBI", "요아소비", "https://img/y.png", ConcertCategory.J_POP_ARTIST, List.of(2), true, 1, null),
-                        new LineupItemResponse(11L, 4L, "Yuuri", null, null, ConcertCategory.J_POP_ARTIST, List.of(1, 3), false, 2, null))));
+                List.of(new LineupItemResponse(10L, 3L, "YOASOBI", "요아소비", "https://img/y.png", Nationality.JP, List.of(2), true, 1, null),
+                        new LineupItemResponse(11L, 4L, "Yuuri", null, null, Nationality.JP, List.of(1, 3), false, 2, null))));
 
         mockMvc.perform(get(URL, 1L))
                 .andExpect(status().isOk())

@@ -1,7 +1,7 @@
 package com.loop.loop_backend.Lineup.dto;
 
 import com.loop.loop_backend.Artist.domain.Artist;
-import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Performance.domain.Performance;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -15,8 +15,8 @@ public record LineupItemResponse(
         @Schema(description = "아티스트 이름", requiredMode = Schema.RequiredMode.REQUIRED) String name,
         @Schema(description = "아티스트 한글 이름", types = {"string", "null"}) String nameKo,
         @Schema(description = "아티스트 이미지 URL", types = {"string", "null"}) String imageUrl,
-        @Schema(description = "일본/국내 구분(J_POP_ARTIST, DOMESTIC_ARTIST)", example = "J_POP_ARTIST",
-                requiredMode = Schema.RequiredMode.REQUIRED) ConcertCategory category,
+        @Schema(description = "아티스트 국적(JP 일본, KR 국내). 미입력이면 null", example = "JP",
+                types = {"string", "null"}) Nationality nationality,
         @Schema(description = "출연 DAY 번호 목록(1부터, 오름차순). 같은 아티스트가 여러 DAY에 나와도 항목은 하나다",
                 example = "[2, 3]", requiredMode = Schema.RequiredMode.REQUIRED) List<Integer> days,
         @Schema(description = "헤드라이너 여부. 출연한 모든 DAY에서 헤드라이너로 표시한다", requiredMode = Schema.RequiredMode.REQUIRED) boolean headliner,
@@ -27,7 +27,7 @@ public record LineupItemResponse(
     public static LineupItemResponse from(Performance lineup) {
         Artist artist = lineup.getArtist();
         return new LineupItemResponse(lineup.getId(), artist.getId(), artist.getName(), artist.getNameKo(),
-                artist.getImageUrl(), artist.getCategory(), List.copyOf(lineup.getDays()), lineup.isHeadliner(), lineup.getDisplayOrder(),
+                artist.getImageUrl(), artist.getNationality(), List.copyOf(lineup.getDays()), lineup.isHeadliner(), lineup.getDisplayOrder(),
                 lineup.getExpectedSongCount());
     }
 }

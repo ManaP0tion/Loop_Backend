@@ -69,7 +69,7 @@ class TicketAlarmServiceTest {
     }
 
     private Concert concert(boolean published) {
-        Concert concert = Concert.builder().title("YUURI LIVE").category(ConcertCategory.J_POP_ARTIST)
+        Concert concert = Concert.builder().title("YUURI LIVE").category(ConcertCategory.STAGE)
                 .startDate(LocalDate.of(2026, 12, 5)).endDate(LocalDate.of(2026, 12, 5)).build();
         concert.changePublished(published, LocalDateTime.now());
         return concertRepository.save(concert);

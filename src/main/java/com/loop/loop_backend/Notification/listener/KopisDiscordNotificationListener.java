@@ -68,7 +68,7 @@ public class KopisDiscordNotificationListener {
     }
 
     private static String label(NewImport imp) {
-        if (imp.category() == ConcertCategory.JAPAN_FESTIVAL) return "[페스티벌] ";
+        if (imp.category() == ConcertCategory.FESTIVAL) return "[페스티벌] ";
         if (imp.artistNames().isEmpty()) return "";
         return "[" + String.join(", ", imp.artistNames()) + "] ";
     }

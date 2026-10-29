@@ -25,8 +25,8 @@ public record ManualImportRequest(
         String kopisId,
 
         @NotNull
-        @Schema(description = "공연 유형. J_POP_ARTIST(내한 공연) 또는 JAPAN_FESTIVAL(페스티벌). 그 외 값은 400",
-                example = "J_POP_ARTIST", requiredMode = Schema.RequiredMode.REQUIRED)
+        @Schema(description = "공연 유형. STAGE(단독 공연) 또는 FESTIVAL(페스티벌). 그 외 값은 400",
+                example = "STAGE", requiredMode = Schema.RequiredMode.REQUIRED)
         ConcertCategory category,
 
         @Schema(description = "아티스트 PK 목록. 내한 공연은 0~1명(비우면 아티스트 없이 등록, 공개 전 공연 수정에서 지정), " +

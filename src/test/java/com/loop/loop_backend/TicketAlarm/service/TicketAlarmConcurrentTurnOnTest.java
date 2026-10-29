@@ -45,7 +45,7 @@ class TicketAlarmConcurrentTurnOnTest {
 
     @Test
     void 동시에_들어온_켜기_요청이_먼저_저장된_뒤라도_켜진_상태를_돌려준다() {
-        Concert concert = Concert.builder().title("YUURI LIVE").category(ConcertCategory.J_POP_ARTIST).build();
+        Concert concert = Concert.builder().title("YUURI LIVE").category(ConcertCategory.STAGE).build();
         concert.changePublished(true, LocalDateTime.now());
         User user = User.builder().authProvider(AuthProvider.KAKAO).providerId("me").status(Status.ACTIVE).build();
         when(concertRepository.findById(CONCERT_ID)).thenReturn(Optional.of(concert));

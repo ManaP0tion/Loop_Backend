@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Concert.service;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
@@ -90,37 +91,37 @@ class AdminConcertListTest {
 
     @Test
     void 공개와_비공개_공연이_모두_최근_등록순으로_나온다() {
-        concert("A", ConcertCategory.J_POP_ARTIST, true);
-        concert("B", ConcertCategory.J_POP_ARTIST, false);
-        concert("C", ConcertCategory.JAPAN_FESTIVAL, false);
+        concert("A", ConcertCategory.STAGE, true);
+        concert("B", ConcertCategory.STAGE, false);
+        concert("C", ConcertCategory.FESTIVAL, false);
 
         assertThat(titles(search(null, null, null))).containsExactly("C", "B", "A");
     }
 
     @Test
     void 유형과_공개_여부로_거른다() {
-        concert("내한 공개", ConcertCategory.J_POP_ARTIST, true);
-        concert("내한 비공개", ConcertCategory.J_POP_ARTIST, false);
-        concert("페스티벌 비공개", ConcertCategory.JAPAN_FESTIVAL, false);
+        concert("내한 공개", ConcertCategory.STAGE, true);
+        concert("내한 비공개", ConcertCategory.STAGE, false);
+        concert("페스티벌 비공개", ConcertCategory.FESTIVAL, false);
 
-        assertThat(titles(search(null, ConcertCategory.JAPAN_FESTIVAL, null))).containsExactly("페스티벌 비공개");
+        assertThat(titles(search(null, ConcertCategory.FESTIVAL, null))).containsExactly("페스티벌 비공개");
         assertThat(titles(search(null, null, false))).containsExactlyInAnyOrder("내한 비공개", "페스티벌 비공개");
-        assertThat(titles(search(null, ConcertCategory.J_POP_ARTIST, true))).containsExactly("내한 공개");
+        assertThat(titles(search(null, ConcertCategory.STAGE, true))).containsExactly("내한 공개");
     }
 
     // ---------- 검색어 ----------
 
     @Test
     void 검색어는_공연명_별칭_아티스트_장소에서_대소문자_구분_없이_찾는다() {
-        Concert byTitle = concert("YUURI LIVE [서울]", ConcertCategory.J_POP_ARTIST, true);
-        Concert byAlias = concert("Official HIGE DANdism Arena Tour", ConcertCategory.J_POP_ARTIST, true);
+        Concert byTitle = concert("YUURI LIVE [서울]", ConcertCategory.STAGE, true);
+        Concert byAlias = concert("Official HIGE DANdism Arena Tour", ConcertCategory.STAGE, true);
         byAlias.replaceTitleAliases(List.of("히게단"));
-        Concert byArtist = concert("ASIA TOUR 2026", ConcertCategory.J_POP_ARTIST, true);
+        Concert byArtist = concert("ASIA TOUR 2026", ConcertCategory.STAGE, true);
         byArtist.changeArtist(artistRepository.save(Artist.builder().name("YOASOBI").nameKo("요아소비")
-                .category(ConcertCategory.J_POP_ARTIST).build()));
-        Concert byVenue = concert("SUMMER SONIC 2026", ConcertCategory.JAPAN_FESTIVAL, true);
+                .nationality(Nationality.JP).build()));
+        Concert byVenue = concert("SUMMER SONIC 2026", ConcertCategory.FESTIVAL, true);
         byVenue.changeVenue(venueRepository.save(Venue.builder().name("KSPO DOME").address("서울특별시 송파구").build()));
-        concertRepository.save(Concert.builder().title("기존 공연").category(ConcertCategory.J_POP_ARTIST)
+        concertRepository.save(Concert.builder().title("기존 공연").category(ConcertCategory.STAGE)
                 .venue("인스파이어 엔터테인먼트 리조트").build()); // 공연장 미연결 - KOPIS 장소 문자열
 
         assertThat(titles(search("yuuri", null, null))).containsExactly("YUURI LIVE [서울]");
@@ -132,7 +133,7 @@ class AdminConcertListTest {
 
     @Test
     void 별칭이_여러_개_걸려도_같은_공연은_한_번만_나오고_전체_개수도_맞다() {
-        Concert concert = concert("Official HIGE DANdism", ConcertCategory.J_POP_ARTIST, true);
+        Concert concert = concert("Official HIGE DANdism", ConcertCategory.STAGE, true);
         concert.replaceTitleAliases(List.of("히게단", "오피셜히게단디즘"));
         em.flush();
         em.clear();
@@ -147,13 +148,13 @@ class AdminConcertListTest {
 
     @Test
     void 한_행에는_id_유형_제목_장소_일자_공개_여부가_있다() {
-        Concert concert = concert("YUURI LIVE [서울]", ConcertCategory.J_POP_ARTIST, false);
+        Concert concert = concert("YUURI LIVE [서울]", ConcertCategory.STAGE, false);
         concert.changeVenue(venueRepository.save(Venue.builder().name("인스파이어 아레나").address("인천광역시 중구").build()));
 
         AdminConcertRow row = search(null, null, null).get(0);
 
         assertThat(row.id()).isEqualTo(concert.getId());
-        assertThat(row.category()).isEqualTo(ConcertCategory.J_POP_ARTIST);
+        assertThat(row.category()).isEqualTo(ConcertCategory.STAGE);
         assertThat(row.title()).isEqualTo("YUURI LIVE [서울]");
         assertThat(row.venueName()).isEqualTo("인스파이어 아레나");
         assertThat(row.startDate()).isEqualTo(LocalDate.of(2026, 12, 5));
@@ -163,7 +164,7 @@ class AdminConcertListTest {
 
     @Test
     void 공연장이_연결되지_않은_공연은_장소가_비어_있다() {
-        concert("YUURI LIVE [서울]", ConcertCategory.J_POP_ARTIST, true);
+        concert("YUURI LIVE [서울]", ConcertCategory.STAGE, true);
 
         assertThat(search(null, null, null).get(0).venueName()).isNull();
     }
@@ -172,13 +173,13 @@ class AdminConcertListTest {
 
     @Test
     void 예매_일시가_입력된_선예매나_일반예매가_있어야_예매_등록으로_본다() {
-        Concert none = concert("예매 없음", ConcertCategory.J_POP_ARTIST, true);
-        Concert undated = concert("일시 없는 일반예매만", ConcertCategory.J_POP_ARTIST, true);
+        Concert none = concert("예매 없음", ConcertCategory.STAGE, true);
+        Concert undated = concert("일시 없는 일반예매만", ConcertCategory.STAGE, true);
         generalSaleRepository.save(ConcertGeneralSale.builder().concert(undated)
                 .vendors(List.of(new TicketVendorInfo("NOL", "https://nol"))).build());
-        Concert presaleDated = concert("선예매 일시 있음", ConcertCategory.J_POP_ARTIST, true);
+        Concert presaleDated = concert("선예매 일시 있음", ConcertCategory.STAGE, true);
         presaleRepository.save(ConcertPresale.builder().concert(presaleDated).opensAt(OCT_20).build());
-        Concert generalDated = concert("일반예매 일시 있음", ConcertCategory.J_POP_ARTIST, true);
+        Concert generalDated = concert("일반예매 일시 있음", ConcertCategory.STAGE, true);
         generalSaleRepository.save(ConcertGeneralSale.builder().concert(generalDated).opensAt(OCT_20).build());
 
         List<AdminConcertRow> rows = search(null, null, null);
@@ -199,10 +200,10 @@ class AdminConcertListTest {
     }
 
     private void concertWithVenueArtistAndSale(int i) {
-        Concert concert = concert("공연 " + i, ConcertCategory.J_POP_ARTIST, true);
+        Concert concert = concert("공연 " + i, ConcertCategory.STAGE, true);
         concert.changeVenue(venueRepository.save(Venue.builder().name("공연장 " + i).address("서울특별시 송파구").build()));
         concert.changeArtist(artistRepository.save(Artist.builder().name("아티스트 " + i)
-                .category(ConcertCategory.J_POP_ARTIST).build()));
+                .nationality(Nationality.JP).build()));
         generalSaleRepository.save(ConcertGeneralSale.builder().concert(concert).opensAt(OCT_20).build());
     }
 

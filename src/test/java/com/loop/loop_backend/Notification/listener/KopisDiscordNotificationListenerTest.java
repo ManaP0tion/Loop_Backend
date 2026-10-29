@@ -43,12 +43,12 @@ class KopisDiscordNotificationListenerTest {
 
     private static NewImport solo(String artist, String title) {
         return new NewImport(title, LocalDate.of(2026, 11, 3), LocalDate.of(2026, 11, 4),
-                ConcertCategory.J_POP_ARTIST, List.of(artist));
+                ConcertCategory.STAGE, List.of(artist));
     }
 
     private static NewImport festival(String title) {
         return new NewImport(title, LocalDate.of(2026, 8, 15), LocalDate.of(2026, 8, 16),
-                ConcertCategory.JAPAN_FESTIVAL, List.of());
+                ConcertCategory.FESTIVAL, List.of());
     }
 
     private String sentMessage() {
@@ -129,8 +129,8 @@ class KopisDiscordNotificationListenerTest {
         // when
         listener.handleSyncCompleted(new KopisSyncCompletedEvent(SyncTrigger.SCHEDULED, List.of(
                 new NewImport("하루 공연", LocalDate.of(2026, 11, 3), LocalDate.of(2026, 11, 3),
-                        ConcertCategory.J_POP_ARTIST, List.of("Vaundy")),
-                new NewImport("날짜 미정 공연", null, null, ConcertCategory.J_POP_ARTIST, List.of())), 0));
+                        ConcertCategory.STAGE, List.of("Vaundy")),
+                new NewImport("날짜 미정 공연", null, null, ConcertCategory.STAGE, List.of())), 0));
 
         // then
         String message = sentMessage();

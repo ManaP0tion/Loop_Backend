@@ -70,14 +70,14 @@ class ActualSetlistReminderServiceTest {
     private Performance solo(String title, String artistName, LocalDate start, LocalDate end, boolean published) {
         Artist artist = artist(artistName);
         Concert concert = concertRepository.save(Concert.builder()
-                .title(title).category(ConcertCategory.J_POP_ARTIST).artist(artist).published(published)
+                .title(title).category(ConcertCategory.STAGE).artist(artist).published(published)
                 .startDate(start).endDate(end).build());
         return performanceRepository.save(Performance.solo(concert, artist));
     }
 
     private Concert festival(String title, LocalDate start, LocalDate end) {
         return concertRepository.save(Concert.builder()
-                .title(title).category(ConcertCategory.JAPAN_FESTIVAL).published(true)
+                .title(title).category(ConcertCategory.FESTIVAL).published(true)
                 .startDate(start).endDate(end).build());
     }
 

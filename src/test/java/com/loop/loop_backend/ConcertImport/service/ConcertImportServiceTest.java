@@ -65,7 +65,7 @@ class ConcertImportServiceTest {
                 .venue("인스파이어 엔터테인먼트 리조트 (아레나)")
                 .startDate(LocalDate.of(2026, 9, 19))
                 .endDate(LocalDate.of(2026, 9, 20))
-                .suggestedCategory(ConcertCategory.J_POP_ARTIST)
+                .suggestedCategory(ConcertCategory.STAGE)
                 .status(ImportStatus.PENDING)
                 .build();
         when(importRepository.findById(1L)).thenReturn(Optional.of(pendingImport));
@@ -162,7 +162,7 @@ class ConcertImportServiceTest {
         assertThat(concert.isPublished()).isFalse();
         assertThat(concert.getTitle()).isEqualTo("Vaundy ASIA ARENA TOUR HORO IN SEOUL");
         assertThat(concert.getStartDate()).isEqualTo(LocalDate.of(2026, 9, 19));
-        assertThat(concert.getCategory()).isEqualTo(ConcertCategory.J_POP_ARTIST);
+        assertThat(concert.getCategory()).isEqualTo(ConcertCategory.STAGE);
         assertThat(pendingImport.getStatus()).isEqualTo(ImportStatus.APPROVED);
     }
 

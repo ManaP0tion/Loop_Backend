@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Concert.domain;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Venue.domain.Venue;
 import org.junit.jupiter.api.Test;
 
@@ -26,18 +27,18 @@ class ConcertAdminRulesTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 4, 12, 0);
 
     private static Concert jpopConcert() {
-        return Concert.builder().title("YUURI LIVE").category(ConcertCategory.J_POP_ARTIST).build();
+        return Concert.builder().title("YUURI LIVE").category(ConcertCategory.STAGE).build();
     }
 
     private static Concert publishableJpopConcert() {
         return Concert.builder()
                 .title("YUURI LIVE")
-                .category(ConcertCategory.J_POP_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .posterUrl("https://poster")
                 .startDate(LocalDate.of(2026, 12, 5))
                 .endDate(LocalDate.of(2026, 12, 6))
                 .linkedVenue(Venue.builder().name("인스파이어 아레나").address("인천광역시 중구").build())
-                .artist(Artist.builder().name("Yuuri").category(ConcertCategory.J_POP_ARTIST).build())
+                .artist(Artist.builder().name("Yuuri").nationality(Nationality.JP).build())
                 .build();
     }
 
@@ -48,25 +49,24 @@ class ConcertAdminRulesTest {
     // ---------- 유형 ----------
 
     @Test
-    void 국내_유형으로는_바꿀_수_없다() {
+    void 공연_유형은_비울_수_없다() {
         Concert concert = jpopConcert();
 
-        assertRejected(() -> concert.changeCategory(ConcertCategory.DOMESTIC_ARTIST));
-        assertRejected(() -> concert.changeCategory(ConcertCategory.DOMESTIC_FESTIVAL));
+        assertRejected(() -> concert.changeCategory(null));
     }
 
     @Test
     void 페스티벌로_바꾸면_아티스트가_비워진다() {
         Concert concert = publishableJpopConcert();
 
-        concert.changeCategory(ConcertCategory.JAPAN_FESTIVAL);
+        concert.changeCategory(ConcertCategory.FESTIVAL);
 
         assertThat(concert.getArtist()).isNull();
     }
 
     @Test
     void 페스티벌에는_아티스트를_둘_수_없다() {
-        Concert festival = Concert.builder().title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL).build();
+        Concert festival = Concert.builder().title("SUMMER SONIC").category(ConcertCategory.FESTIVAL).build();
 
         assertRejected(() -> festival.changeArtist(Artist.builder().name("Yuuri").build()));
     }
@@ -171,22 +171,10 @@ class ConcertAdminRulesTest {
     @Test
     void 페스티벌은_아티스트_없이_공개된다() {
         Concert festival = publishableJpopConcert();
-        festival.changeCategory(ConcertCategory.JAPAN_FESTIVAL);
+        festival.changeCategory(ConcertCategory.FESTIVAL);
         festival.changePublished(true, NOW);
 
         festival.validateState();
-    }
-
-    @Test
-    void V2_이전_국내_페스티벌은_아티스트_없이도_공개_상태로_수정된다() {
-        Concert domestic = Concert.builder()
-                .title("어쩌다 페스티벌").category(ConcertCategory.DOMESTIC_FESTIVAL).posterUrl("https://poster")
-                .startDate(LocalDate.of(2026, 11, 15)).endDate(LocalDate.of(2026, 11, 15))
-                .linkedVenue(Venue.builder().name("연세대학교 대강당").address("서울특별시 서대문구").build())
-                .build();
-        domestic.changePublished(true, NOW);
-
-        domestic.validateState();
     }
 
     // ---------- 공개 전환 시각 ----------

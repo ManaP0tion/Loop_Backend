@@ -63,7 +63,7 @@ public class AdminLineupController {
                     "| 방식 | 요청 |\n" +
                     "|---|---|\n" +
                     "| DB 선택 | `{\"day\": 1, \"artistIds\": [3, 7]}` |\n" +
-                    "| 직접 입력 | `{\"day\": 1, \"name\": \"Vaundy\", \"imageUrl\": \"https://...\", \"category\": \"DOMESTIC_ARTIST\"}` - 아티스트 DB에도 저장된다. category 생략 시 J_POP_ARTIST |\n\n" +
+                    "| 직접 입력 | `{\"day\": 1, \"name\": \"Vaundy\", \"imageUrl\": \"https://...\", \"nationality\": \"KR\"}` - 아티스트 DB에도 저장된다. nationality(JP/KR) 생략 시 null |\n\n" +
                     "이미 라인업에 있는 아티스트를 다른 DAY로 추가하면 새 항목이 생기지 않고 그 항목의 `days`에 DAY가 더해진다" +
                     "(셋리스트·투표는 아티스트당 하나). 같은 DAY에 이미 있으면 409이고 아무것도 추가되지 않는다.")
     @ApiResponses({

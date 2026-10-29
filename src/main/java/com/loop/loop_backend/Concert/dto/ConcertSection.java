@@ -6,14 +6,13 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
-// 공연 탭의 대분류(내한/페스티벌). ConcertCategory(세부 장르)를 화면 탐색 단위로 묶은 것.
-// 지금은 J-pop 한정 스코프라 카테고리가 하나씩만 매핑돼 있지만, 국내 카테고리를 다시 들여올 때
-// 이 목록에 DOMESTIC_ARTIST/DOMESTIC_FESTIVAL을 추가하기만 하면 되도록 매핑을 여기 한곳에 모아둔다.
+// 공연 탭의 대분류(내한/페스티벌). ConcertCategory(공연 형태)를 화면 탐색 단위로 묶은 것.
+// 지금은 일본 아티스트 한정 스코프라 단독 공연 = 내한이다. 국내외로 넓히면 내한은 '단독 공연 + 해외 국적 아티스트'로 바뀌어야 한다.
 @Getter
 @RequiredArgsConstructor
 public enum ConcertSection {
-    DOMESTIC_TOUR("내한", List.of(ConcertCategory.J_POP_ARTIST)),
-    FESTIVAL("페스티벌", List.of(ConcertCategory.JAPAN_FESTIVAL));
+    DOMESTIC_TOUR("내한", List.of(ConcertCategory.STAGE)),
+    FESTIVAL("페스티벌", List.of(ConcertCategory.FESTIVAL));
 
     private final String label;
     private final List<ConcertCategory> categories;

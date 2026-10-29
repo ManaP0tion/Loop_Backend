@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Concert.repository;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
@@ -35,7 +36,7 @@ class ConcertListQueryCountTest {
     private static final LocalDate CUTOFF = LocalDate.of(2026, 10, 5);
     private static final LocalDate UPCOMING = CUTOFF.plusDays(30);
     private static final LocalDate PAST = CUTOFF.minusDays(30);
-    private static final List<ConcertCategory> J_POP = List.of(ConcertCategory.J_POP_ARTIST);
+    private static final List<ConcertCategory> J_POP = List.of(ConcertCategory.STAGE);
 
     @Autowired private ConcertRepository concertRepository;
     @Autowired private ConcertScrapRepository concertScrapRepository;
@@ -55,7 +56,7 @@ class ConcertListQueryCountTest {
     }
 
     private Artist artist(String name) {
-        Artist artist = Artist.builder().name(name).category(ConcertCategory.J_POP_ARTIST).build();
+        Artist artist = Artist.builder().name(name).nationality(Nationality.JP).build();
         em.persist(artist);
         return artist;
     }
@@ -66,7 +67,7 @@ class ConcertListQueryCountTest {
             int n = ++seq;
             Venue venue = Venue.builder().name("공연장 " + n).address("서울특별시 송파구").build();
             em.persist(venue);
-            Concert concert = Concert.builder().title("공연 " + n).category(ConcertCategory.J_POP_ARTIST)
+            Concert concert = Concert.builder().title("공연 " + n).category(ConcertCategory.STAGE)
                     .artist(shareArtist ? sharedArtist : artist("아티스트 " + n))
                     .startDate(date).endDate(date).build();
             concert.changeVenue(venue);

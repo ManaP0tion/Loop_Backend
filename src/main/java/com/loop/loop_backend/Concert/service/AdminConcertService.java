@@ -84,7 +84,7 @@ public class AdminConcertService {
                 .title(req.title().trim())
                 .category(req.category())
                 .build();
-        concert.changeCategory(req.category()); // 선택 가능한 유형인지 검사
+        concert.changeCategory(req.category()); // 유형 필수 검사
         if (req.titleAliases() != null) concert.replaceTitleAliases(req.titleAliases());
         concert.changePeriod(req.startDate(), req.endDate());
         if (req.showtimes() != null) concert.replaceShowtimes(req.showtimes());
@@ -112,7 +112,7 @@ public class AdminConcertService {
     public AdminConcertDetailResponse update(Long id, AdminConcertUpdateRequest req) {
         Concert concert = findConcert(id);
 
-        // 수정 화면은 원래 유형을 그대로 보내므로 바뀔 때만 유형 규칙을 적용한다(국내 유형인 기존 공연도 다른 필드는 고칠 수 있게).
+        // 수정 화면은 원래 유형을 그대로 보내므로 바뀔 때만 유형 규칙(페스티벌이면 아티스트 비움)을 적용한다.
         boolean categoryChanged = req.category() != null && req.category() != concert.getCategory();
         if (categoryChanged) {
             concert.changeCategory(req.category());

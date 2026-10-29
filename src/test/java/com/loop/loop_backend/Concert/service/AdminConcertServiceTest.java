@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Concert.service;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
@@ -78,7 +79,7 @@ class AdminConcertServiceTest {
                 new PerformanceSync(performanceRepository, new SetlistDataGuard(setlistRepository, setlistVoteRepository)));
         venue = venueRepository.save(Venue.builder().name("인스파이어 아레나").address("인천광역시 중구").build());
         yuuri = artistRepository.save(Artist.builder().name("Yuuri")
-                .autoFetchConcerts(true).category(ConcertCategory.J_POP_ARTIST).build());
+                .autoFetchConcerts(true).nationality(Nationality.JP).build());
     }
 
     private static AdminConcertUpdateRequest.AdminConcertUpdateRequestBuilder patch() {
@@ -102,7 +103,7 @@ class AdminConcertServiceTest {
         return concertRepository.save(Concert.builder()
                 .kopisId("PF297519")
                 .title("YUURI LIVE [서울]")
-                .category(ConcertCategory.J_POP_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .posterUrl("https://poster")
                 .startDate(LocalDate.of(2026, 12, 5))
                 .endDate(LocalDate.of(2026, 12, 6))
@@ -114,7 +115,7 @@ class AdminConcertServiceTest {
     @Test
     void 직접_등록한_공연은_비공개로_만들어진다() {
         AdminConcertDetailResponse created = service.create(new AdminConcertCreateRequest(
-                ConcertCategory.J_POP_ARTIST, "YUURI LIVE", List.of("유우리"),
+                ConcertCategory.STAGE, "YUURI LIVE", List.of("유우리"),
                 LocalDate.of(2026, 12, 5), LocalDate.of(2026, 12, 6), Arrays.asList(LocalTime.of(18, 0), null),
                 venue.getId(), List.of(yuuri.getId()), 20, false, null, "https://yuuri-live.example.com", null, null,
                 List.of(sale(null, "공식 안내")), List.of(sale(OCT_25, "NOL"))));
@@ -175,7 +176,7 @@ class AdminConcertServiceTest {
     void create_WithOfficialChannels_SavesBoth() {
         // when
         AdminConcertDetailResponse created = service.create(new AdminConcertCreateRequest(
-                ConcertCategory.JAPAN_FESTIVAL, "SUMMER SONIC 2026", null, null, null, null,
+                ConcertCategory.FESTIVAL, "SUMMER SONIC 2026", null, null, null, null,
                 null, null, null, false, null, "https://www.summersonic.com",
                 "https://www.instagram.com/summersonic_official", "https://x.com/summer_sonic", null, null));
         flushAndClear();
@@ -315,18 +316,6 @@ class AdminConcertServiceTest {
                 ErrorCode.ARTIST_NOT_FOUND);
     }
 
-    @Test
-    void 원래_국내_유형인_공연도_유형을_그대로_보내면_다른_필드를_고칠_수_있다() {
-        Concert domestic = concertRepository.save(Concert.builder()
-                .title("잔나비 콘서트").category(ConcertCategory.DOMESTIC_ARTIST).build());
-        flushAndClear();
-
-        service.update(domestic.getId(), patch().category(ConcertCategory.DOMESTIC_ARTIST).title("잔나비 단독 콘서트").build());
-        flushAndClear();
-
-        assertThat(service.get(domestic.getId()).title()).isEqualTo("잔나비 단독 콘서트");
-    }
-
     // ---------- 예매 정보 (수정 화면의 저장 버튼으로 함께 저장) ----------
 
     private static final LocalDateTime OCT_20 = LocalDateTime.of(2026, 10, 20, 20, 0);
@@ -423,7 +412,7 @@ class AdminConcertServiceTest {
     @Test
     void 공연장이_연결되지_않은_기존_공개_공연은_공연장을_함께_골라야_수정된다() {
         Concert legacy = concertRepository.save(Concert.builder()
-                .title("YUURI LIVE [서울]").category(ConcertCategory.J_POP_ARTIST).posterUrl("https://poster")
+                .title("YUURI LIVE [서울]").category(ConcertCategory.STAGE).posterUrl("https://poster")
                 .startDate(LocalDate.of(2026, 12, 5)).endDate(LocalDate.of(2026, 12, 6))
                 .artist(yuuri).build());
         legacy.changePublished(true, java.time.LocalDateTime.now()); // 기존 공연은 공개 상태
@@ -442,7 +431,7 @@ class AdminConcertServiceTest {
 
     private Concert festivalWithLineupOnEveryDay() {
         Concert festival = concertRepository.save(Concert.builder()
-                .title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL)
+                .title("SUMMER SONIC").category(ConcertCategory.FESTIVAL)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 22))
                 .build());
         // DAY마다 다른 아티스트 1팀(공연당 아티스트 1항목)
@@ -483,7 +472,7 @@ class AdminConcertServiceTest {
     void 페스티벌을_내한_공연으로_바꾸면_라인업이_모두_지워진다() {
         Concert festival = festivalWithLineupOnEveryDay();
 
-        service.update(festival.getId(), patch().category(ConcertCategory.J_POP_ARTIST).build());
+        service.update(festival.getId(), patch().category(ConcertCategory.STAGE).build());
         flushAndClear();
 
         assertThat(lineupDays(festival)).isEmpty();
@@ -520,7 +509,7 @@ class AdminConcertServiceTest {
     void create_WithArtistAndExpectedCount_CreatesSoloPerformance() {
         // when
         AdminConcertDetailResponse created = service.create(new AdminConcertCreateRequest(
-                ConcertCategory.J_POP_ARTIST, "YUURI LIVE", null,
+                ConcertCategory.STAGE, "YUURI LIVE", null,
                 LocalDate.of(2026, 12, 5), LocalDate.of(2026, 12, 5), null,
                 null, List.of(yuuri.getId()), 18, false, null, null, null, null, null, null));
         flushAndClear();
@@ -541,7 +530,7 @@ class AdminConcertServiceTest {
         service.update(concert.getId(), patch().artistIds(List.of(yuuri.getId())).build());
         flushAndClear();
         Long performanceId = soloPerformanceOf(concert).getId();
-        Artist ado = artistRepository.save(Artist.builder().name("Ado").category(ConcertCategory.J_POP_ARTIST).build());
+        Artist ado = artistRepository.save(Artist.builder().name("Ado").nationality(Nationality.JP).build());
 
         // when
         service.update(concert.getId(), patch().artistIds(List.of(ado.getId())).build());
@@ -560,7 +549,7 @@ class AdminConcertServiceTest {
         Concert empty = approvedConcert();
         service.update(empty.getId(), patch().artistIds(List.of(yuuri.getId())).build());
         // approvedConcert는 KOPIS ID가 같아 (KOPIS ID, 아티스트) 유니크를 피하려고 다른 아티스트를 쓴다
-        Artist ado = artistRepository.save(Artist.builder().name("Ado").category(ConcertCategory.J_POP_ARTIST).build());
+        Artist ado = artistRepository.save(Artist.builder().name("Ado").nationality(Nationality.JP).build());
         Concert withSetlist = approvedConcert();
         service.update(withSetlist.getId(), patch().artistIds(List.of(ado.getId())).build());
         flushAndClear();
@@ -587,7 +576,7 @@ class AdminConcertServiceTest {
         attachSetlist(solo);
 
         // when & then - 공연 유형 롤백은 요청 트랜잭션이 맡는다(@DataJpaTest는 테스트 전체가 한 트랜잭션이라 여기서 확인하지 않음)
-        assertErrorCode(() -> service.update(concert.getId(), patch().category(ConcertCategory.JAPAN_FESTIVAL).build()),
+        assertErrorCode(() -> service.update(concert.getId(), patch().category(ConcertCategory.FESTIVAL).build()),
                 ErrorCode.PERFORMANCE_HAS_SETLIST_DATA);
         em.clear();
         assertThat(performanceRepository.findById(solo.getId())).isPresent();
@@ -672,7 +661,7 @@ class AdminConcertServiceTest {
     void create_WithVenueAndLodging_SavesToVenue() {
         // when
         AdminConcertDetailResponse created = service.create(new AdminConcertCreateRequest(
-                ConcertCategory.J_POP_ARTIST, "YUURI LIVE", null, null, null, null,
+                ConcertCategory.STAGE, "YUURI LIVE", null, null, null, null,
                 venue.getId(), null, null, true, DEEPLINK, null, null, null, null, null));
         flushAndClear();
 
@@ -700,7 +689,7 @@ class AdminConcertServiceTest {
     void update_WhenPeriodShrinks_DropsOnlyOutOfRangeDaysOfMultiDayPerformance() {
         // given - DAY2·DAY3에 나오는 헤드라이너
         Concert festival = concertRepository.save(Concert.builder()
-                .title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL)
+                .title("SUMMER SONIC").category(ConcertCategory.FESTIVAL)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 22))
                 .build());
         Performance headliner = Performance.builder().concert(festival).artist(yuuri).day(2).displayOrder(1).build();

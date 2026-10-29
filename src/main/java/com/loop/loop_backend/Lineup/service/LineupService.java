@@ -3,7 +3,6 @@ package com.loop.loop_backend.Lineup.service;
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
-import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.Lineup.dto.LineupItemResponse;
 import com.loop.loop_backend.Lineup.dto.LineupAddRequest;
@@ -177,15 +176,12 @@ public class LineupService {
         if (bySelect == byInput) {
             throw new IllegalArgumentException("artistIds와 name 중 하나만 보내야 한다");
         }
-        if (req.category() == ConcertCategory.JAPAN_FESTIVAL || req.category() == ConcertCategory.DOMESTIC_FESTIVAL) {
-            throw new IllegalArgumentException("아티스트 구분은 J_POP_ARTIST 또는 DOMESTIC_ARTIST");
-        }
         if (byInput) {
             // 직접 입력한 아티스트는 아티스트 DB에도 남아 다음 페스티벌부터 DB 선택으로 고를 수 있다
             return List.of(artistRepository.save(Artist.builder()
                     .name(req.name().trim())
                     .imageUrl(blankToNull(req.imageUrl()))
-                    .category(req.category() != null ? req.category() : ConcertCategory.J_POP_ARTIST)
+                    .nationality(req.nationality())
                     .build()));
         }
         List<Long> ids = req.artistIds().stream().distinct().toList();

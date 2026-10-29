@@ -64,7 +64,7 @@ class ConcertServiceImplTest {
         String json = """
                 {
                     "title": "%s",
-                    "category": "DOMESTIC_ARTIST"
+                    "category": "STAGE"
                 }
                 """.formatted(title);
         return objectMapper.readValue(json, ConcertRequestDto.class);
@@ -147,8 +147,8 @@ class ConcertServiceImplTest {
     @Test
     @DisplayName("예전 API로 공연 유형을 바꾸면 유형 변경으로 출연 정보 동기화를 호출한다")
     void updateConcert_WhenCategoryChanged_SyncsWithCategoryChanged() throws Exception {
-        // given - 요청 유형은 DOMESTIC_ARTIST
-        Concert existing = Concert.builder().title("페스티벌").category(ConcertCategory.JAPAN_FESTIVAL).build();
+        // given - 요청 유형은 STAGE
+        Concert existing = Concert.builder().title("페스티벌").category(ConcertCategory.FESTIVAL).build();
         ReflectionTestUtils.setField(existing, "id", 10L);
         when(concertRepository.findById(10L)).thenReturn(Optional.of(existing));
 
@@ -163,7 +163,7 @@ class ConcertServiceImplTest {
     @DisplayName("예전 API로 유형을 그대로 두고 수정하면 유형 변경 없이 출연 정보 동기화를 호출한다")
     void updateConcert_WhenCategoryUnchanged_SyncsWithoutCategoryChanged() throws Exception {
         // given
-        Concert existing = Concert.builder().title("기존").category(ConcertCategory.DOMESTIC_ARTIST).build();
+        Concert existing = Concert.builder().title("기존").category(ConcertCategory.STAGE).build();
         ReflectionTestUtils.setField(existing, "id", 10L);
         when(concertRepository.findById(10L)).thenReturn(Optional.of(existing));
 

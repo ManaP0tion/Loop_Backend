@@ -20,11 +20,11 @@ class PerformanceTest {
     private static final Artist YUURI = Artist.builder().name("Yuuri").build();
 
     private static Concert solo() {
-        return Concert.builder().title("YUURI LIVE").category(ConcertCategory.J_POP_ARTIST).artist(YUURI).build();
+        return Concert.builder().title("YUURI LIVE").category(ConcertCategory.STAGE).artist(YUURI).build();
     }
 
     private static Concert festival() {
-        return Concert.builder().title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL)
+        return Concert.builder().title("SUMMER SONIC").category(ConcertCategory.FESTIVAL)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 21)).build();
     }
 

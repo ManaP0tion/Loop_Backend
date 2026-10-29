@@ -55,7 +55,7 @@ class SetlistPersistenceTest {
     void setUp() {
         yuuri = artistRepository.save(Artist.builder().name("Yuuri").build());
         concert = concertRepository.save(Concert.builder()
-                .title("YUURI LIVE").category(ConcertCategory.J_POP_ARTIST).artist(yuuri)
+                .title("YUURI LIVE").category(ConcertCategory.STAGE).artist(yuuri)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 20))
                 .build());
         performance = performanceRepository.save(Performance.solo(concert, yuuri));
@@ -79,7 +79,7 @@ class SetlistPersistenceTest {
 
     private Performance festivalLineup(boolean headliner) {
         Concert festival = concertRepository.save(Concert.builder()
-                .title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL)
+                .title("SUMMER SONIC").category(ConcertCategory.FESTIVAL)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 21))
                 .build());
         Performance lineup = Performance.builder().concert(festival).artist(yuuri).day(1).displayOrder(1).build();

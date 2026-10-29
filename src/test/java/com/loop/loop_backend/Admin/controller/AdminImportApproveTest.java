@@ -44,7 +44,7 @@ class AdminImportApproveTest {
     private static Concert concert(Long id, Venue venue) {
         Concert concert = Concert.builder()
                 .title("YUURI LIVE [서울]")
-                .category(ConcertCategory.J_POP_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .linkedVenue(venue)
                 .build();
         ReflectionTestUtils.setField(concert, "id", id);
