@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Artist.service;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.dto.ArtistRequestDto;
 import com.loop.loop_backend.Artist.dto.ArtistResponseDto;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
@@ -72,8 +73,10 @@ public class ArtistServiceImpl implements ArtistService {
     }
 
     @Override
-    public List<ArtistResponseDto> searchArtists(String query) {
-        return artistRepository.searchByAllNames(query).stream()
+    public List<ArtistResponseDto> searchArtists(String query, Nationality nationality) {
+        // 빈 검색어는 '이름 조건 없음'으로 본다 (LIKE '%%'가 우연히 전체를 돌려주는 데 기대지 않는다)
+        String q = query == null || query.isBlank() ? null : query.trim();
+        return artistRepository.search(q, nationality).stream()
                 .map(ArtistResponseDto::from)
                 .collect(Collectors.toList());
     }
