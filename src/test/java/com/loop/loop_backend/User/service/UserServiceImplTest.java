@@ -1,5 +1,6 @@
 package com.loop.loop_backend.User.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loop.loop_backend.Setlist.repository.SetlistVoteRepository;
 import com.loop.loop_backend.Chat.service.ChatService;
 import com.loop.loop_backend.CompanionHeart.repository.CompanionHeartRepository;
@@ -13,11 +14,13 @@ import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.dto.NotificationSettingsRequestDto;
+import com.loop.loop_backend.User.dto.OnboardingRequestDto;
 import com.loop.loop_backend.User.dto.TermsAgreementRequestDto;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.auth.service.RefreshTokenService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -163,6 +166,91 @@ class UserServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.USER_NOT_FOUND);
+    }
+
+    // ── completeOnboarding ───────────────────────────────────────────────
+    // 요구사항: 생년월일·성별은 필수, 닉네임·프로필 이미지는 선택.
+    // - 닉네임을 보내지 않으면 카카오 첫 로그인 때 받은 랜덤 닉네임을 그대로 쓴다. 보내면 중복 검사 후 바꾼다.
+    // - 프로필 이미지는 업로드 API가 준 URL을 저장하고, 보내지 않으면 없음(null).
+
+    private User newKakaoUserWithRandomNickname() {
+        User user = User.builder()
+                .authProvider(AuthProvider.KAKAO)
+                .providerId("kakao-1")
+                .status(Status.ACTIVE)
+                .onboardingCompleted(false)
+                .build();
+        user.assignNickname("달빛군청");
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        return user;
+    }
+
+    private static OnboardingRequestDto onboarding(String json) throws Exception {
+        return new ObjectMapper().findAndRegisterModules().readValue(json, OnboardingRequestDto.class);
+    }
+
+    @Test
+    @DisplayName("닉네임 없이 온보딩하면 가입 때 받은 랜덤 닉네임을 그대로 쓰고 온보딩이 완료된다")
+    void completeOnboarding_WithoutNickname_KeepsRandomNickname() throws Exception {
+        // given
+        User user = newKakaoUserWithRandomNickname();
+
+        // when
+        userService.completeOnboarding(USER_ID, onboarding("""
+                {"birthDate": "2000-01-01", "gender": "FEMALE"}"""));
+
+        // then
+        assertThat(user.getNickname()).isEqualTo("달빛군청");
+        assertThat(user.isOnboardingCompleted()).isTrue();
+        assertThat(user.getProfileImageUrl()).isNull();
+    }
+
+    @Test
+    @DisplayName("닉네임과 프로필 이미지를 보내면 그 값으로 온보딩이 완료된다")
+    void completeOnboarding_WithNicknameAndImage_SavesBoth() throws Exception {
+        // given
+        User user = newKakaoUserWithRandomNickname();
+        when(userRepository.existsByNickname("유우리팬")).thenReturn(false);
+
+        // when
+        userService.completeOnboarding(USER_ID, onboarding("""
+                {"nickname": "유우리팬", "birthDate": "2000-01-01", "gender": "FEMALE",
+                 "profileImageUrl": "https://cdn.loop.io.kr/profiles/1/a.png"}"""));
+
+        // then
+        assertThat(user.getNickname()).isEqualTo("유우리팬");
+        assertThat(user.getProfileImageUrl()).isEqualTo("https://cdn.loop.io.kr/profiles/1/a.png");
+    }
+
+    @Test
+    @DisplayName("다른 사용자가 쓰는 닉네임으로 온보딩하면 409이고 랜덤 닉네임은 그대로다")
+    void completeOnboarding_WithTakenNickname_ThrowsDuplicate() throws Exception {
+        // given
+        User user = newKakaoUserWithRandomNickname();
+        when(userRepository.existsByNickname("이미있음")).thenReturn(true);
+
+        // when & then
+        assertThatThrownBy(() -> userService.completeOnboarding(USER_ID, onboarding("""
+                {"nickname": "이미있음", "birthDate": "2000-01-01", "gender": "FEMALE"}""")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.DUPLICATE_NICKNAME);
+        assertThat(user.getNickname()).isEqualTo("달빛군청");
+        assertThat(user.isOnboardingCompleted()).isFalse();
+    }
+
+    @Test
+    @DisplayName("프로필 이미지를 빈 문자열로 보내면 없음(null)으로 저장된다")
+    void completeOnboarding_WithBlankImage_SavesNull() throws Exception {
+        // given
+        User user = newKakaoUserWithRandomNickname();
+
+        // when
+        userService.completeOnboarding(USER_ID, onboarding("""
+                {"birthDate": "2000-01-01", "gender": "FEMALE", "profileImageUrl": ""}"""));
+
+        // then
+        assertThat(user.getProfileImageUrl()).isNull();
     }
 
     // ── agreeToTerms ──────────────────────────────────────────────────────

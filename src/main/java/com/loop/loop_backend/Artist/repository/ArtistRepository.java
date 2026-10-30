@@ -17,12 +17,15 @@ public interface ArtistRepository extends JpaRepository<Artist, Long> {
     // nationality <> :excluded 는 null 행을 빼므로 미입력은 따로 붙인다
     List<Artist> findByNationalityNotOrNationalityIsNull(Nationality excluded);
 
+    // 이름(서비스명/기본명칭/한국어/별칭) 부분 일치 + 국적. 각 조건은 null이면 걸지 않는다.
     @Query("SELECT a FROM Artist a WHERE " +
+            "(:nationality IS NULL OR a.nationality = :nationality) AND " +
+            "(:q IS NULL OR " +
             "LOWER(a.name) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
             "LOWER(a.baseName) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
             "LOWER(a.nameKo) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
-            "LOWER(a.nameAlias) LIKE LOWER(CONCAT('%', :q, '%'))")
-    List<Artist> searchByAllNames(@Param("q") String q);
+            "LOWER(a.nameAlias) LIKE LOWER(CONCAT('%', :q, '%')))")
+    List<Artist> search(@Param("q") String q, @Param("nationality") Nationality nationality);
 
     // 이미지 복사 중에 관리자가 imageUrl을 바꿨으면 덮어쓰지 않도록 원래 값일 때만 교체한다. 반환값 0이면 건너뜀.
     @Modifying
