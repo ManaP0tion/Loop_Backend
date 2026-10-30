@@ -1,6 +1,7 @@
 package com.loop.loop_backend.ConcertImport.service;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
@@ -72,8 +73,9 @@ public class ConcertManualImportService {
                 .collect(Collectors.groupingBy(ConcertImport::getKopisId,
                         Collectors.mapping(ConcertImport::getStatus, Collectors.toSet())));
         // 추천 아티스트: 대기열 자동 매칭과 같은 공연명 규칙. 자동 수집을 꺼 둔 아티스트 공연이 직접 등록의 주 대상이라
-        // 자동 수집 여부와 상관없이 J-POP 아티스트 전체와 비교한다. 출연진 매칭은 결과마다 KOPIS 상세가 필요해 하지 않는다.
-        List<Artist> jpopArtists = artistRepository.findByCategory(ConcertCategory.J_POP_ARTIST);
+        // 자동 수집 여부와 상관없이 국내(KR)를 뺀 아티스트 전체와 비교한다(국적 미입력도 포함 - 새로 등록한 아티스트가 빠지지 않게).
+        // 출연진 매칭은 결과마다 KOPIS 상세가 필요해 하지 않는다.
+        List<Artist> candidates = artistRepository.findByNationalityNotOrNationalityIsNull(Nationality.KR);
 
         List<KopisSearchItem> items = result.performances().stream()
                 .sorted(Comparator.comparing(KopisPerformance::getStartDate,
@@ -82,7 +84,7 @@ public class ConcertManualImportService {
                     List<Long> concertIds = concertIdsByKopisId.getOrDefault(p.getKopisId(), List.of());
                     KopisSearchStatus status = statusOf(concertIds,
                             importStatusesByKopisId.getOrDefault(p.getKopisId(), Set.of()));
-                    List<KopisSearchItem.SuggestedArtist> suggested = identifier.matchArtistsByTitle(p.getTitle(), jpopArtists)
+                    List<KopisSearchItem.SuggestedArtist> suggested = identifier.matchArtistsByTitle(p.getTitle(), candidates)
                             .stream().map(a -> new KopisSearchItem.SuggestedArtist(a.getId(), a.getName())).toList();
                     return new KopisSearchItem(p.getKopisId(), p.getTitle(), p.getPosterUrl(), p.getVenue(),
                             p.getStartDate(), p.getEndDate(), status, concertIds, suggested);
@@ -109,7 +111,7 @@ public class ConcertManualImportService {
     @Transactional
     public ManualImportResponse register(ManualImportRequest request) {
         ConcertCategory category = request.category();
-        if (!Concert.isSelectableCategory(category)) throw new BusinessException(ErrorCode.INVALID_INPUT);
+        if (category == null) throw new BusinessException(ErrorCode.INVALID_INPUT);
         Artist artist = resolveArtist(category, request.artistIdsOrEmpty());
 
         String kopisId = request.kopisId().trim();
@@ -137,9 +139,9 @@ public class ConcertManualImportService {
         return ManualImportResponse.of(imp.getId(), concert);
     }
 
-    /** 페스티벌은 아티스트 없이(라인업으로 관리), 내한 공연은 0~1명. */
+    /** 페스티벌은 아티스트 없이(라인업으로 관리), 단독 공연은 0~1명. */
     private Artist resolveArtist(ConcertCategory category, List<Long> artistIds) {
-        if (category == ConcertCategory.JAPAN_FESTIVAL && !artistIds.isEmpty()) {
+        if (category == ConcertCategory.FESTIVAL && !artistIds.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT);
         }
         if (artistIds.size() > 1) throw new BusinessException(ErrorCode.INVALID_INPUT);

@@ -19,8 +19,8 @@ import java.util.List;
 public record AdminConcertCreateRequest(
 
         @NotNull
-        @Schema(description = "공연 유형 (필수). J_POP_ARTIST(내한 공연) / JAPAN_FESTIVAL(페스티벌)",
-                example = "J_POP_ARTIST", requiredMode = Schema.RequiredMode.REQUIRED)
+        @Schema(description = "공연 유형 (필수). STAGE(단독 공연) / FESTIVAL(페스티벌)",
+                example = "STAGE", requiredMode = Schema.RequiredMode.REQUIRED)
         ConcertCategory category,
 
         @NotBlank

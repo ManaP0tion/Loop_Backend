@@ -15,7 +15,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 @Entity
 @Table(
@@ -188,19 +187,10 @@ public class Concert {
     // ---------- 관리자 수정 (AD-01) ----------
     // 규칙 위반은 IllegalArgumentException → GlobalExceptionHandler가 400(INVALID_INPUT) 하나로 응답한다.
 
-    /** 관리자가 새로 고를 수 있는 공연 유형. 국내 유형은 V2 이전 데이터에만 남아 있다. */
-    private static final Set<ConcertCategory> SELECTABLE_CATEGORIES =
-            Set.of(ConcertCategory.J_POP_ARTIST, ConcertCategory.JAPAN_FESTIVAL);
-
-    /** 관리자가 고를 수 있는 유형인지. KOPIS 직접 등록도 같은 기준으로 받는다. */
-    public static boolean isSelectableCategory(ConcertCategory category) {
-        return category != null && SELECTABLE_CATEGORIES.contains(category);
-    }
-
     /** 유형 변경. 페스티벌로 바꾸면 페스티벌 화면에 없는 아티스트를 비운다(PATCH의 null은 '변경 없음'이라 프론트가 비울 수 없다). */
     public void changeCategory(ConcertCategory category) {
-        if (!SELECTABLE_CATEGORIES.contains(category)) {
-            throw new IllegalArgumentException("선택할 수 없는 공연 유형: " + category);
+        if (category == null) {
+            throw new IllegalArgumentException("공연 유형은 비울 수 없다");
         }
         this.category = category;
         if (isFestival()) {
@@ -293,14 +283,14 @@ public class Concert {
                 || startDate == null || endDate == null || linkedVenue == null) {
             throw new IllegalArgumentException("공개하려면 필수값(유형·공연명·포스터·기간·공연장)을 모두 채워야 한다");
         }
-        // 아티스트 필수는 내한 공연만. 국내 유형(V2 이전 데이터)은 그대로 수정할 수 있게 검사하지 않는다.
-        if (category == ConcertCategory.J_POP_ARTIST && artist == null) {
-            throw new IllegalArgumentException("내한 공연을 공개하려면 아티스트가 있어야 한다");
+        // 아티스트 필수는 단독 공연만(페스티벌은 라인업으로 관리)
+        if (category == ConcertCategory.STAGE && artist == null) {
+            throw new IllegalArgumentException("단독 공연을 공개하려면 아티스트가 있어야 한다");
         }
     }
 
     public boolean isFestival() {
-        return category == ConcertCategory.JAPAN_FESTIVAL;
+        return category == ConcertCategory.FESTIVAL;
     }
 
     private boolean isWithinPeriod(LocalDate date) {

@@ -1,6 +1,5 @@
 package com.loop.loop_backend.Artist.domain;
 
-import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.common.util.WebUrls;
 import jakarta.persistence.*;
 import lombok.*;
@@ -44,9 +43,10 @@ public class Artist {
     @Column(name = "auto_fetch_concerts", nullable = false)
     private boolean autoFetchConcerts;
 
+    // 국적. 모르면 null(관리자가 나중에 채운다)
     @Enumerated(EnumType.STRING)
-    @Column(name = "category", length = 30, nullable = false)
-    private ConcertCategory category;
+    @Column(name = "nationality", length = 30)
+    private Nationality nationality;
 
     // iTunes 연결 정보 (AD-03). 연결된 아티스트만 곡 불러오기 가능
     @Column(name = "itunes_artist_id")
@@ -79,17 +79,16 @@ public class Artist {
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
-        if (category == null) category = ConcertCategory.J_POP_ARTIST;
     }
 
     public void update(String name, String baseName, String nameKo, String nameAlias,
-                       String imageUrl, ConcertCategory category) {
+                       String imageUrl, Nationality nationality) {
         this.name = name;
         this.baseName = baseName;
         this.nameKo = nameKo;
         this.nameAlias = nameAlias;
         this.imageUrl = imageUrl;
-        if (category != null) this.category = category;
+        this.nationality = nationality;
     }
 
     public void updateAutoFetch(boolean autoFetchConcerts) {

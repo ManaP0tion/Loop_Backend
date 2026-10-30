@@ -34,7 +34,7 @@ class ConcertDetailPersistenceTest {
 
         Concert loaded = saveAndReload(Concert.builder()
                 .title("Vaundy ASIA ARENA TOUR")
-                .category(ConcertCategory.J_POP_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .ticketVendors(vendors)
                 .venueAddress("인천광역시 중구 공항문화로 127 (운서동)")
                 .venueLatitude(37.4655301)
@@ -53,7 +53,7 @@ class ConcertDetailPersistenceTest {
     void 새_필드가_없는_기존_콘서트는_그대로_null로_읽힌다() {
         Concert loaded = saveAndReload(Concert.builder()
                 .title("기존 콘서트")
-                .category(ConcertCategory.DOMESTIC_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .build());
 
         assertThat(loaded.getTicketVendors()).isNull();
@@ -66,7 +66,7 @@ class ConcertDetailPersistenceTest {
     void 예매처가_빈_목록이면_null이_아니라_빈_목록으로_읽힌다() {
         Concert loaded = saveAndReload(Concert.builder()
                 .title("예매처 없는 콘서트")
-                .category(ConcertCategory.DOMESTIC_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .ticketVendors(List.of())
                 .build());
 

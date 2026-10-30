@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Lineup.service;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
@@ -72,7 +73,7 @@ class LineupServiceTest {
 
     private Concert saveFestival() {
         return concertRepository.save(Concert.builder()
-                .title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL)
+                .title("SUMMER SONIC").category(ConcertCategory.FESTIVAL)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 22))
                 .build());
     }
@@ -127,15 +128,28 @@ class LineupServiceTest {
     void add_WithDirectInput_SavesArtistToo() {
         // when
         List<LineupItemResponse> list = service.add(festival.getId(),
-                new LineupAddRequest(1, null, "  Ado ", "https://img/ado.png", ConcertCategory.DOMESTIC_ARTIST));
+                new LineupAddRequest(1, null, "  Ado ", "https://img/ado.png", Nationality.JP));
 
         // then
         assertThat(list).singleElement().satisfies(r -> {
             assertThat(r.name()).isEqualTo("Ado");
             assertThat(r.imageUrl()).isEqualTo("https://img/ado.png");
-            assertThat(r.category()).isEqualTo(ConcertCategory.DOMESTIC_ARTIST);
+            assertThat(r.nationality()).isEqualTo(Nationality.JP);
         });
         assertThat(artistRepository.findAll()).extracting(Artist::getName).contains("Ado");
+    }
+
+    @Test
+    @DisplayName("직접 입력에서 국적을 보내지 않으면 국적 없이(null) 저장된다")
+    void add_WithDirectInputWithoutNationality_SavesNullNationality() {
+        // when
+        List<LineupItemResponse> list = service.add(festival.getId(),
+                new LineupAddRequest(1, null, "새소년", null, null));
+
+        // then
+        assertThat(list).singleElement().satisfies(r -> assertThat(r.nationality()).isNull());
+        assertThat(artistRepository.findByName("새소년")).get()
+                .extracting(Artist::getNationality).isNull();
     }
 
     @Test
@@ -191,7 +205,7 @@ class LineupServiceTest {
     void add_WithDayOutOfRangeOrNonFestival_ThrowsInvalidInput() {
         // given
         Concert solo = concertRepository.save(Concert.builder()
-                .title("YUURI LIVE").category(ConcertCategory.J_POP_ARTIST)
+                .title("YUURI LIVE").category(ConcertCategory.STAGE)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 20)).build());
 
         // when & then
@@ -444,7 +458,7 @@ class LineupServiceTest {
     void publicLineup_WhenNotFestival_ReturnsEmpty() {
         // given
         Concert solo = concertRepository.save(Concert.builder()
-                .title("YUURI LIVE").category(ConcertCategory.J_POP_ARTIST)
+                .title("YUURI LIVE").category(ConcertCategory.STAGE)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 20)).build());
         publish(solo);
 

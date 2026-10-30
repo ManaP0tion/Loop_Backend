@@ -1,6 +1,7 @@
 package com.loop.loop_backend.ConcertImport.kopis;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -31,7 +32,7 @@ class PerformanceIdentifierTest {
                 .nameKo(nameKo)
                 .nameAlias(nameAlias)
                 .autoFetchConcerts(true)
-                .category(ConcertCategory.J_POP_ARTIST)
+                .nationality(Nationality.JP)
                 .build();
     }
 
@@ -70,7 +71,7 @@ class PerformanceIdentifierTest {
         IdentificationResult result = identifier.identifyByTitle(title, ALL);
 
         assertThat(result.isMatched()).isTrue();
-        assertThat(result.category()).isEqualTo(ConcertCategory.J_POP_ARTIST);
+        assertThat(result.category()).isEqualTo(ConcertCategory.STAGE);
         assertThat(result.matchReason()).isEqualTo(IdentificationResult.TITLE_MATCH);
         assertThat(result.artists()).extracting(Artist::getName).containsExactly(artistName);
     }
@@ -144,7 +145,7 @@ class PerformanceIdentifierTest {
         IdentificationResult result = identifier.identifyByTitle(title, ALL);
 
         assertThat(result.isMatched()).isTrue();
-        assertThat(result.category()).isEqualTo(ConcertCategory.JAPAN_FESTIVAL);
+        assertThat(result.category()).isEqualTo(ConcertCategory.FESTIVAL);
         assertThat(result.matchReason()).isEqualTo(IdentificationResult.JAPAN_FESTIVAL);
         assertThat(result.artists()).isEmpty();
     }
@@ -153,7 +154,7 @@ class PerformanceIdentifierTest {
     void 일본_표시만_있고_페스티벌_표시가_없으면_페스티벌이_아니다() {
         IdentificationResult result = identifier.identifyByTitle("[일본] YUURI 단독 공연", ALL);
 
-        assertThat(result.category()).isEqualTo(ConcertCategory.J_POP_ARTIST);
+        assertThat(result.category()).isEqualTo(ConcertCategory.STAGE);
         assertThat(result.artists()).extracting(Artist::getName).containsExactly("Yuuri");
     }
 
@@ -161,7 +162,7 @@ class PerformanceIdentifierTest {
     void 일본_페스티벌_제목에_등록_아티스트가_있어도_아티스트_없는_페스티벌로_판정한다() {
         IdentificationResult result = identifier.identifyByTitle("SUMMER SONIC 2026 with YOASOBI", ALL);
 
-        assertThat(result.category()).isEqualTo(ConcertCategory.JAPAN_FESTIVAL);
+        assertThat(result.category()).isEqualTo(ConcertCategory.FESTIVAL);
         assertThat(result.artists()).isEmpty();
     }
 
@@ -181,7 +182,7 @@ class PerformanceIdentifierTest {
         IdentificationResult result = identifier.identifyByTitle(title, ALL);
 
         assertThat(result.isMatched()).isTrue();
-        assertThat(result.category()).isEqualTo(ConcertCategory.JAPAN_FESTIVAL);
+        assertThat(result.category()).isEqualTo(ConcertCategory.FESTIVAL);
         assertThat(result.matchReason()).isEqualTo(IdentificationResult.JAPAN_FESTIVAL);
         assertThat(result.artists()).isEmpty();
     }
@@ -190,7 +191,7 @@ class PerformanceIdentifierTest {
     void 페스티벌_제목에_J_POP_아티스트가_여러_명이어도_페스티벌_하나다() {
         IdentificationResult result = identifier.identifyByTitle("어쩌다 페스티벌, YOASOBI X Ado", ALL);
 
-        assertThat(result.category()).isEqualTo(ConcertCategory.JAPAN_FESTIVAL);
+        assertThat(result.category()).isEqualTo(ConcertCategory.FESTIVAL);
         assertThat(result.artists()).isEmpty();
     }
 
@@ -214,7 +215,7 @@ class PerformanceIdentifierTest {
     void 페스티벌_표시어가_아닌_제목의_J_POP_아티스트는_그_아티스트의_공연이다(String title, String artistName) {
         IdentificationResult result = identifier.identifyByTitle(title, ALL);
 
-        assertThat(result.category()).isEqualTo(ConcertCategory.J_POP_ARTIST);
+        assertThat(result.category()).isEqualTo(ConcertCategory.STAGE);
         assertThat(result.artists()).extracting(Artist::getName).containsExactly(artistName);
     }
 

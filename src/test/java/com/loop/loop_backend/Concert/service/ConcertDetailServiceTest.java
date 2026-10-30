@@ -109,7 +109,7 @@ class ConcertDetailServiceTest {
         Concert concert = Concert.builder()
                 .title("Vaundy ASIA ARENA TOUR")
                 .venue("인스파이어 엔터테인먼트 리조트")
-                .category(ConcertCategory.J_POP_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .artist(artist)
                 .startDate(startDate)
                 .endDate(endDate)
@@ -292,7 +292,7 @@ class ConcertDetailServiceTest {
     void getUpcomingDetail_WhenFestival_ReturnsNonePreview() {
         // given
         Concert festival = givenConcert(TODAY.plusDays(10), TODAY.plusDays(11), null);
-        festival.changeCategory(ConcertCategory.JAPAN_FESTIVAL);
+        festival.changeCategory(ConcertCategory.FESTIVAL);
 
         // when
         ConcertUpcomingDetailDto dto = concertService.getUpcomingDetail(CONCERT_ID, USER_ID);
@@ -335,12 +335,12 @@ class ConcertDetailServiceTest {
     @Test
     void 지난_공연_상세는_다가오는_J_POP_내한_공연_4건을_목록_형식으로_돌려준다() {
         givenConcert(TODAY.minusDays(30), TODAY.minusDays(29));
-        Concert upcoming = Concert.builder().title("YUURI LIVE").category(ConcertCategory.J_POP_ARTIST)
+        Concert upcoming = Concert.builder().title("YUURI LIVE").category(ConcertCategory.STAGE)
                 .artist(Artist.builder().name("優里").build())
                 .startDate(TODAY.plusDays(7)).endDate(TODAY.plusDays(7)).posterUrl("https://img.example/yuuri.jpg").build();
         ReflectionTestUtils.setField(upcoming, "id", 99L);
         when(concertRepository.findPublishedUpcomingOrUndatedByCategories(
-                eq(List.of(ConcertCategory.J_POP_ARTIST)), any(), eq(PageRequest.of(0, 4))))
+                eq(List.of(ConcertCategory.STAGE)), any(), eq(PageRequest.of(0, 4))))
                 .thenReturn(List.of(upcoming));
 
         ConcertPastDetailDto dto = concertService.getPastDetail(CONCERT_ID, null);
@@ -743,7 +743,7 @@ class ConcertDetailServiceTest {
         ConcertUpcomingDetailDto dto = concertService.getUpcomingDetail(CONCERT_ID, null);
 
         // then
-        assertThat(dto.getCategory()).isEqualTo(ConcertCategory.J_POP_ARTIST);
+        assertThat(dto.getCategory()).isEqualTo(ConcertCategory.STAGE);
         assertThat(dto.getInstagramUrl()).isEqualTo("https://www.instagram.com/summersonic_official");
         assertThat(dto.getXUrl()).isEqualTo("https://x.com/summer_sonic");
     }
@@ -760,7 +760,7 @@ class ConcertDetailServiceTest {
         ConcertPastDetailDto dto = concertService.getPastDetail(CONCERT_ID, null);
 
         // then
-        assertThat(dto.getCategory()).isEqualTo(ConcertCategory.J_POP_ARTIST);
+        assertThat(dto.getCategory()).isEqualTo(ConcertCategory.STAGE);
         assertThat(dto.getInstagramUrl()).isEqualTo("https://www.instagram.com/summersonic_official");
         assertThat(dto.getXUrl()).isEqualTo("https://x.com/summer_sonic");
     }
@@ -794,7 +794,7 @@ class ConcertDetailServiceTest {
 
         // then
         for (JsonNode json : List.of(upcoming, past)) {
-            assertThat(json.get("category").asText()).isEqualTo("J_POP_ARTIST");
+            assertThat(json.get("category").asText()).isEqualTo("STAGE");
             assertThat(json.get("instagramUrl").asText()).isEqualTo("https://www.instagram.com/summersonic_official");
             assertThat(json.get("xUrl").asText()).isEqualTo("https://x.com/summer_sonic");
             assertThat(json.has("xurl")).isFalse();

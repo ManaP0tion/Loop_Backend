@@ -289,7 +289,7 @@ class VenueServiceTest {
         Venue venue = savedVenue("KSPO DOME");
         Concert concert = concertRepository.save(Concert.builder()
                 .title("YOASOBI ASIA TOUR")
-                .category(ConcertCategory.J_POP_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .linkedVenue(venue)
                 .build());
         em.flush();
@@ -313,7 +313,7 @@ class VenueServiceTest {
         for (int i = 0; i < count; i++) {
             concertRepository.save(Concert.builder()
                     .title(venue.getName() + " 공연 " + i)
-                    .category(ConcertCategory.J_POP_ARTIST)
+                    .category(ConcertCategory.STAGE)
                     .linkedVenue(venue)
                     .build());
         }

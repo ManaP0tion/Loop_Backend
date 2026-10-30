@@ -13,7 +13,7 @@ public record AdminConcertRow(
         @Schema(description = "공연 id (수정 화면에서 상세 조회에 쓴다)", requiredMode = Schema.RequiredMode.REQUIRED)
         Long id,
 
-        @Schema(description = "공연 유형. J_POP_ARTIST(내한) / JAPAN_FESTIVAL(페스티벌). V2 이전 공연은 국내 유형일 수 있다",
+        @Schema(description = "공연 유형. STAGE(단독 공연) / FESTIVAL(페스티벌)",
                 requiredMode = Schema.RequiredMode.REQUIRED)
         ConcertCategory category,
 

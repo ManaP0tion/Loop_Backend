@@ -68,7 +68,7 @@ class SetlistServiceTest {
 
     private Concert saveSoloConcert(String title, boolean published) {
         return concertRepository.save(Concert.builder()
-                .title(title).category(ConcertCategory.J_POP_ARTIST).artist(yuuri).published(published)
+                .title(title).category(ConcertCategory.STAGE).artist(yuuri).published(published)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 20))
                 .build());
     }
@@ -79,7 +79,7 @@ class SetlistServiceTest {
 
     private Performance saveFestivalLineup(boolean headliner) {
         Concert festival = concertRepository.save(Concert.builder()
-                .title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL)
+                .title("SUMMER SONIC").category(ConcertCategory.FESTIVAL)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 21))
                 .build());
         Performance lineup = Performance.builder().concert(festival).artist(yuuri).day(1).displayOrder(1).build();
@@ -360,7 +360,7 @@ class SetlistServiceTest {
 
     private Concert saveSoloConcertOn(String title, LocalDate startDate) {
         return concertRepository.save(Concert.builder()
-                .title(title).category(ConcertCategory.J_POP_ARTIST).artist(yuuri).venue("Zepp Haneda")
+                .title(title).category(ConcertCategory.STAGE).artist(yuuri).venue("Zepp Haneda")
                 .startDate(startDate).endDate(startDate)
                 .build());
     }
@@ -378,7 +378,7 @@ class SetlistServiceTest {
         service.save(newer.getId(), newerPerformance.getId(), SetlistType.RECENT, past(s1.getId()));
         save(SetlistType.ACTUAL, actual(s3.getId()));
         Artist ado = artistRepository.save(Artist.builder().name("Ado").build());
-        Concert adoConcert = concertRepository.save(Concert.builder().title("ADO").category(ConcertCategory.J_POP_ARTIST)
+        Concert adoConcert = concertRepository.save(Concert.builder().title("ADO").category(ConcertCategory.STAGE)
                 .artist(ado).startDate(LocalDate.of(2025, 12, 1)).endDate(LocalDate.of(2025, 12, 1)).build());
         Performance adoPerformance = performanceRepository.save(Performance.solo(adoConcert, ado));
         service.save(adoConcert.getId(), adoPerformance.getId(), SetlistType.ACTUAL, actual(song(ado, "うっせぇわ", 1).getId()));
@@ -403,7 +403,7 @@ class SetlistServiceTest {
     void previousActuals_IncludesFestivalHeadlinerWithDayDate() {
         // given - DAY2·DAY3 헤드라이너
         Concert festival = concertRepository.save(Concert.builder()
-                .title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL)
+                .title("SUMMER SONIC").category(ConcertCategory.FESTIVAL)
                 .startDate(LocalDate.of(2025, 8, 15)).endDate(LocalDate.of(2025, 8, 17))
                 .build());
         Performance headliner = Performance.builder().concert(festival).artist(yuuri).day(2).displayOrder(1).build();

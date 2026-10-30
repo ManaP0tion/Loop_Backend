@@ -2,10 +2,10 @@ package com.loop.loop_backend.Admin.controller;
 
 import com.loop.loop_backend.Admin.service.AdminAccessLogService;
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.dto.ArtistProductDto;
 import com.loop.loop_backend.Artist.dto.ArtistProductRequest;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
-import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.Report.domain.Report;
 import com.loop.loop_backend.Report.domain.ReportAction;
@@ -174,14 +174,14 @@ class AdminControllerTest {
     private static final Long ARTIST_ID = 5L;
 
     private Artist givenArtist() {
-        Artist artist = Artist.builder().name("Yuuri").category(ConcertCategory.J_POP_ARTIST).build();
+        Artist artist = Artist.builder().name("Yuuri").nationality(Nationality.JP).build();
         ReflectionTestUtils.setField(artist, "id", ARTIST_ID);
         when(artistRepository.findById(ARTIST_ID)).thenReturn(Optional.of(artist));
         return artist;
     }
 
     private static AdminController.ArtistReq artistReq(String instagram, String x, String homepage) {
-        return new AdminController.ArtistReq("Yuuri", null, "유우리", null, null, ConcertCategory.J_POP_ARTIST,
+        return new AdminController.ArtistReq("Yuuri", null, "유우리", null, null, Nationality.JP,
                 instagram, x, homepage);
     }
 
@@ -327,7 +327,7 @@ class AdminControllerTest {
     void 공식_링크_CSV는_빈_칸을_유지하고_못_찾은_행과_잘못된_링크_행을_알려준다() throws Exception {
         Artist artist = givenArtist();
         artist.changeLinks(null, "https://x.com/old", "https://yuuri.jp");
-        Artist ado = Artist.builder().name("Ado").category(ConcertCategory.J_POP_ARTIST).build();
+        Artist ado = Artist.builder().name("Ado").nationality(Nationality.JP).build();
         when(artistRepository.findByName("Ado")).thenReturn(Optional.of(ado));
         String csv = "\uFEFFid,name,instagramUrl,xUrl,homepageUrl\n"
                 + "5,Yuuri,https://www.instagram.com/yuuri_official,,\n"   // 1: 반영, 빈 칸 유지
@@ -351,24 +351,24 @@ class AdminControllerTest {
 
     @Test
     void 공식_링크_CSV_다운로드는_업로드와_같은_헤더로_내보낸다() throws Exception {
-        Artist artist = Artist.builder().name("Yuuri, Jr").category(ConcertCategory.J_POP_ARTIST).build();
+        Artist artist = Artist.builder().name("Yuuri, Jr").nationality(Nationality.JP).build();
         ReflectionTestUtils.setField(artist, "id", ARTIST_ID);
         artist.changeLinks("https://www.instagram.com/yuuri_official", null, "https://yuuri.jp");
         when(artistRepository.findAll(any(org.springframework.data.domain.Sort.class))).thenReturn(List.of(artist));
 
         String csv = new String(adminController.exportArtistLinksCsv().getBody(), java.nio.charset.StandardCharsets.UTF_8);
 
-        assertThat(csv).isEqualTo("\uFEFFid,name,baseName,nameKo,nameAlias,imageUrl,category,instagramUrl,xUrl,homepageUrl\r\n"
-                + "5,\"Yuuri, Jr\",,,,,J_POP_ARTIST,https://www.instagram.com/yuuri_official,,https://yuuri.jp\r\n");
+        assertThat(csv).isEqualTo("\uFEFFid,name,baseName,nameKo,nameAlias,imageUrl,nationality,instagramUrl,xUrl,homepageUrl\r\n"
+                + "5,\"Yuuri, Jr\",,,,,JP,https://www.instagram.com/yuuri_official,,https://yuuri.jp\r\n");
     }
 
     @Test
     void 아티스트_CSV는_수정_폼_전체_항목을_반영하고_잘못된_값_행은_건너뛴다() throws Exception {
         Artist artist = givenArtist();
-        artist.update("Yuuri", null, "유우리", null, "https://old.com/a.jpg", ConcertCategory.J_POP_ARTIST);
-        String csv = "id,name,baseName,nameKo,nameAlias,imageUrl,category,instagramUrl,xUrl,homepageUrl\n"
-                + "5,Yuuri2,,,ゆうり,https://img.com/y.jpg,DOMESTIC_ARTIST,,,\n"   // 1: id 매칭이라 이름도 변경
-                + "5,,,,,,NOPE,,,\n"                                             // 2: 없는 카테고리
+        artist.update("Yuuri", null, "유우리", null, "https://old.com/a.jpg", Nationality.JP);
+        String csv = "id,name,baseName,nameKo,nameAlias,imageUrl,nationality,instagramUrl,xUrl,homepageUrl\n"
+                + "5,Yuuri2,,,ゆうり,https://img.com/y.jpg,KR,,,\n"               // 1: id 매칭이라 이름도 변경
+                + "5,,,,,,NOPE,,,\n"                                             // 2: 없는 국적
                 + "5,,,,,ftp://img.com/y.jpg,,,,\n"                              // 3: http/https 아닌 이미지
                 + "5,," + "a".repeat(101) + ",,,,,,,\n"                          // 4: baseName 길이 초과
                 + "5,Yuuri2,,,,,,,,\n";                                          // 5: 같은 값이면 유지
@@ -384,7 +384,7 @@ class AdminControllerTest {
         assertThat(artist.getNameKo()).isEqualTo("유우리");
         assertThat(artist.getNameAlias()).isEqualTo("ゆうり");
         assertThat(artist.getImageUrl()).isEqualTo("https://img.com/y.jpg");
-        assertThat(artist.getCategory()).isEqualTo(ConcertCategory.DOMESTIC_ARTIST);
+        assertThat(artist.getNationality()).isEqualTo(Nationality.KR);
         assertThat(artist.getBaseName()).isNull();
     }
 }

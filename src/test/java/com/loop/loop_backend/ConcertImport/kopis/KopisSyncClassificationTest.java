@@ -1,6 +1,7 @@
 package com.loop.loop_backend.ConcertImport.kopis;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.ConcertImport.domain.ConcertImport;
@@ -25,7 +26,7 @@ import static org.mockito.Mockito.*;
 //   페스티벌 표시어와 함께 "[일본" 표시 또는 등록 J-POP 아티스트가 제목에 있으면 일본 페스티벌이다.
 // - 제목으로 못 찾았을 때는 일본 신호가 있는 공연만 상세 API로 출연진을 확인한다 - 신호가 없으면 호출하지 않는다.
 // - 재수집 시 검토 전(PENDING) 건은 최신값으로 갱신, 이미 처리된 건은 건드리지 않는다.
-// - V2는 J-POP 공연만 수집한다 - 국내 아티스트는 자동 수집이 켜져 있어도 매칭 대상이 아니다.
+// - V2는 일본 아티스트(국적 JP) 공연만 수집한다 - 국내(KR)·국적 미입력 아티스트는 자동 수집이 켜져 있어도 매칭 대상이 아니다.
 //
 // KOPIS 클라이언트만 가짜로 두고 리포지토리는 실제 DB를 쓴다 - 저장을 누가 하든 "검토 큐에 남은 결과"만 본다.
 @DataJpaTest
@@ -57,7 +58,7 @@ class KopisSyncClassificationTest {
                 .name(name)
                 .nameKo(nameKo)
                 .autoFetchConcerts(true)
-                .category(ConcertCategory.DOMESTIC_ARTIST)
+                .nationality(Nationality.KR)
                 .build());
     }
 
@@ -67,7 +68,7 @@ class KopisSyncClassificationTest {
                 .nameKo(nameKo)
                 .nameAlias(nameAlias)
                 .autoFetchConcerts(autoFetchConcerts)
-                .category(ConcertCategory.J_POP_ARTIST)
+                .nationality(Nationality.JP)
                 .build());
     }
 
@@ -105,7 +106,7 @@ class KopisSyncClassificationTest {
         assertThat(imports()).singleElement().satisfies(imp -> {
             assertThat(imp.getKopisId()).isEqualTo("PF1");
             assertThat(imp.getMatchedArtist().getId()).isEqualTo(vaundy.getId());
-            assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.J_POP_ARTIST);
+            assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.STAGE);
             assertThat(imp.getMatchReason()).isEqualTo("TITLE_MATCH");
             assertThat(imp.getStatus()).isEqualTo(ImportStatus.PENDING);
         });
@@ -140,7 +141,7 @@ class KopisSyncClassificationTest {
         assertThat(imports()).hasSize(2)
                 .allSatisfy(imp -> {
                     assertThat(imp.getKopisId()).isEqualTo("PF1");
-                    assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.J_POP_ARTIST);
+                    assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.STAGE);
                 })
                 .extracting(imp -> imp.getMatchedArtist().getName())
                 .containsExactlyInAnyOrder("YOASOBI", "Ado");
@@ -181,7 +182,7 @@ class KopisSyncClassificationTest {
 
         assertThat(imports()).singleElement().satisfies(imp -> {
             assertThat(imp.getMatchedArtist()).isNull();
-            assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.JAPAN_FESTIVAL);
+            assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.FESTIVAL);
             assertThat(imp.getMatchReason()).isEqualTo("JAPAN_FESTIVAL");
         });
     }
@@ -192,7 +193,7 @@ class KopisSyncClassificationTest {
 
         assertThat(imports()).singleElement().satisfies(imp -> {
             assertThat(imp.getMatchedArtist()).isNull();
-            assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.JAPAN_FESTIVAL);
+            assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.FESTIVAL);
         });
     }
 
@@ -206,7 +207,7 @@ class KopisSyncClassificationTest {
         assertThat(imports()).singleElement().satisfies(imp -> {
             assertThat(imp.getKopisId()).isEqualTo("PF1");
             assertThat(imp.getMatchedArtist()).isNull();
-            assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.JAPAN_FESTIVAL);
+            assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.FESTIVAL);
             assertThat(imp.getMatchReason()).isEqualTo("JAPAN_FESTIVAL");
         });
         verify(kopisClient, never()).getPerformanceCast(any());
@@ -232,7 +233,7 @@ class KopisSyncClassificationTest {
 
         assertThat(imports()).singleElement().satisfies(imp -> {
             assertThat(imp.getMatchedArtist().getName()).isEqualTo("YOASOBI");
-            assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.J_POP_ARTIST);
+            assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.STAGE);
             assertThat(imp.getMatchReason()).isEqualTo("CAST_MATCH");
         });
     }
@@ -279,6 +280,15 @@ class KopisSyncClassificationTest {
     }
 
     @Test
+    void 국적을_모르는_아티스트는_자동_수집이_켜져_있어도_제목에_있는_공연을_수집하지_않는다() {
+        artistRepository.save(Artist.builder().name("Vaundy").autoFetchConcerts(true).build());
+
+        syncWith(perf("PF1", "Vaundy ASIA TOUR IN SEOUL"));
+
+        assertThat(imports()).isEmpty();
+    }
+
+    @Test
     void 페스티벌_제목에_국내_아티스트만_있으면_수집하지_않는다() {
         domesticArtist("Nell", "넬");
 
@@ -306,7 +316,7 @@ class KopisSyncClassificationTest {
 
         assertThat(imports()).singleElement().satisfies(imp -> {
             assertThat(imp.getMatchedArtist().getName()).isEqualTo("YOASOBI");
-            assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.J_POP_ARTIST);
+            assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.STAGE);
         });
     }
 
@@ -333,7 +343,7 @@ class KopisSyncClassificationTest {
                 .kopisId("PF1")
                 .matchedArtist(vaundy)
                 .title("Vaundy LIVE")
-                .suggestedCategory(ConcertCategory.J_POP_ARTIST)
+                .suggestedCategory(ConcertCategory.STAGE)
                 .matchReason("TITLE_MATCH")
                 .status(ImportStatus.REJECTED)
                 .build());

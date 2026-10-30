@@ -84,7 +84,7 @@ class SetlistResultServiceTest {
 
     private Concert saveSoloConcert(boolean published) {
         return concertRepository.save(Concert.builder()
-                .title("YUURI LIVE").category(ConcertCategory.J_POP_ARTIST).artist(yuuri)
+                .title("YUURI LIVE").category(ConcertCategory.STAGE).artist(yuuri)
                 .published(published).startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 20))
                 .build());
     }
@@ -253,7 +253,7 @@ class SetlistResultServiceTest {
     void result_WhenFestivalHeadliner_CalculatesPerPerformance() {
         // given
         Concert festival = concertRepository.save(Concert.builder()
-                .title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL).published(true)
+                .title("SUMMER SONIC").category(ConcertCategory.FESTIVAL).published(true)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 21))
                 .build());
         Performance headliner = Performance.builder().concert(festival).artist(yuuri).day(1).displayOrder(1).build();
@@ -355,7 +355,7 @@ class SetlistResultServiceTest {
     void concertResult_WithSeveralHeadliners_SumsHitsOverSumOfActualSongs() {
         // given: Yuuri 실제 3곡, Vaundy 실제 2곡, Aimer 실제 셋리스트 없음
         Concert festival = concertRepository.save(Concert.builder()
-                .title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL).published(true)
+                .title("SUMMER SONIC").category(ConcertCategory.FESTIVAL).published(true)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 21)).build());
         Artist vaundy = artistRepository.save(Artist.builder().name("Vaundy").build());
         Artist aimer = artistRepository.save(Artist.builder().name("Aimer").build());

@@ -76,7 +76,7 @@ class SetlistVoteServiceTest {
 
     private Concert saveSoloConcert(boolean published) {
         return concertRepository.save(Concert.builder()
-                .title("YUURI LIVE").category(ConcertCategory.J_POP_ARTIST).artist(yuuri).published(published)
+                .title("YUURI LIVE").category(ConcertCategory.STAGE).artist(yuuri).published(published)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 20))
                 .build());
     }
@@ -90,7 +90,7 @@ class SetlistVoteServiceTest {
     /** 2026-11-20 ~ 21 이틀 페스티벌 */
     private Concert saveFestival() {
         return concertRepository.save(Concert.builder()
-                .title("SUMMER SONIC").category(ConcertCategory.JAPAN_FESTIVAL).published(true)
+                .title("SUMMER SONIC").category(ConcertCategory.FESTIVAL).published(true)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 21))
                 .build());
     }
@@ -260,7 +260,7 @@ class SetlistVoteServiceTest {
     @DisplayName("공연 시작일이 미정이면 투표 마감이 없다")
     void saveVote_WhenStartDateUndecided_NeverCloses() {
         // given
-        Concert undated = concertRepository.save(Concert.builder().title("미정").category(ConcertCategory.J_POP_ARTIST)
+        Concert undated = concertRepository.save(Concert.builder().title("미정").category(ConcertCategory.STAGE)
                 .artist(yuuri).published(true).build());
         Performance undatedPerformance = saveSolo(undated, 2);
 

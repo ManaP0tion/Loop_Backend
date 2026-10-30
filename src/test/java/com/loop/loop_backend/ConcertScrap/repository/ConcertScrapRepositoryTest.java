@@ -51,7 +51,7 @@ class ConcertScrapRepositoryTest {
     private Concert persistConcert(String title, LocalDate startDate, LocalDate endDate) {
         Concert concert = Concert.builder()
                 .title(title)
-                .category(ConcertCategory.J_POP_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .startDate(startDate)
                 .endDate(endDate)
                 .build();

@@ -4,6 +4,7 @@ import com.loop.loop_backend.Admin.domain.AdminAccessLog;
 import com.loop.loop_backend.Admin.repository.AdminAccessLogRepository;
 import com.loop.loop_backend.Admin.service.AdminAccessLogService;
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.dto.ArtistProductDto;
 import com.loop.loop_backend.Artist.dto.ArtistProductRequest;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
@@ -368,7 +369,7 @@ public class AdminController {
                 .nameKo(body.nameKo())
                 .nameAlias(body.nameAlias())
                 .imageUrl(body.imageUrl())
-                .category(body.category())
+                .nationality(body.nationality())
                 .autoFetchConcerts(false)
                 .build());
         a.changeLinks(body.instagramUrl(), body.xUrl(), body.homepageUrl());
@@ -379,7 +380,7 @@ public class AdminController {
     @Transactional
     public ResponseEntity<CommonResponse<ArtistRow>> updateArtist(@PathVariable Long id, @RequestBody ArtistReq body) {
         Artist a = artistRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
-        a.update(body.name(), body.baseName(), body.nameKo(), body.nameAlias(), body.imageUrl(), body.category());
+        a.update(body.name(), body.baseName(), body.nameKo(), body.nameAlias(), body.imageUrl(), body.nationality());
         a.changeLinks(body.instagramUrl(), body.xUrl(), body.homepageUrl());
         return ResponseEntity.ok(CommonResponse.success(ArtistRow.of(a)));
     }
@@ -435,7 +436,7 @@ public class AdminController {
             @PathVariable Long id, @RequestPart("image") MultipartFile image) {
         Artist a = artistRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
         String url = s3StorageService.uploadPublic("artists", id, image);
-        a.update(a.getName(), a.getBaseName(), a.getNameKo(), a.getNameAlias(), url, a.getCategory());
+        a.update(a.getName(), a.getBaseName(), a.getNameKo(), a.getNameAlias(), url, a.getNationality());
         return ResponseEntity.ok(CommonResponse.success(Map.of("imageUrl", url)));
     }
 
@@ -465,14 +466,14 @@ public class AdminController {
     // 수정 폼의 전체 항목. 업로드와 같은 헤더라 받은 파일을 고쳐 그대로 다시 올리면 된다. UTF-8 BOM(엑셀 한글 깨짐 방지).
     @GetMapping("/artists/links/csv")
     @Operation(summary = "아티스트 CSV 다운로드",
-            description = "헤더: id, name, baseName, nameKo, nameAlias, imageUrl, category, instagramUrl, xUrl, homepageUrl")
+            description = "헤더: id, name, baseName, nameKo, nameAlias, imageUrl, nationality, instagramUrl, xUrl, homepageUrl")
     public ResponseEntity<byte[]> exportArtistLinksCsv() throws IOException {
         StringWriter out = new StringWriter();
         out.write('\uFEFF');
         try (CSVPrinter printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder().setHeader(ARTIST_CSV_HEADER).build())) {
             for (Artist a : artistRepository.findAll(Sort.by("id"))) {
                 printer.printRecord(a.getId(), a.getName(), a.getBaseName(), a.getNameKo(), a.getNameAlias(),
-                        a.getImageUrl(), a.getCategory(), a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
+                        a.getImageUrl(), a.getNationality(), a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
             }
         }
         return ResponseEntity.ok()
@@ -482,13 +483,13 @@ public class AdminController {
     }
 
     private static final String[] ARTIST_CSV_HEADER = {"id", "name", "baseName", "nameKo", "nameAlias",
-            "imageUrl", "category", "instagramUrl", "xUrl", "homepageUrl"};
+            "imageUrl", "nationality", "instagramUrl", "xUrl", "homepageUrl"};
 
     // 아티스트 일괄 수정. id(없으면 name)로 매칭, 빈 칸은 기존 값 유지(CSV로 값을 지우지는 못함). 없는 열도 유지.
-    // name은 id로 매칭한 행에서만 바뀐다. 못 찾은 행·잘못된 값(URL·카테고리·길이) 행은 건너뛰고 행 번호로 알려준다.
+    // name은 id로 매칭한 행에서만 바뀐다. 못 찾은 행·잘못된 값(URL·국적·길이) 행은 건너뛰고 행 번호로 알려준다.
     @PostMapping(value = "/artists/links/csv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "아티스트 CSV 업로드",
-            description = "UTF-8(BOM 허용). 헤더: id, name, baseName, nameKo, nameAlias, imageUrl, category, instagramUrl, xUrl, homepageUrl. "
+            description = "UTF-8(BOM 허용). 헤더: id, name, baseName, nameKo, nameAlias, imageUrl, nationality(JP/KR), instagramUrl, xUrl, homepageUrl. "
                     + "id가 비면 name으로 매칭. 빈 칸은 기존 값 유지. imageUrl·링크는 http/https만")
     @Transactional
     public ResponseEntity<CommonResponse<ArtistLinkCsvResult>> importArtistLinksCsv(
@@ -514,17 +515,17 @@ public class AdminController {
                     String nKo = csvText(csvColumn(r, "nameKo"), a.getNameKo(), 200);
                     String nAlias = csvText(csvColumn(r, "nameAlias"), a.getNameAlias(), 200);
                     String nImage = csvUrl(csvColumn(r, "imageUrl"), a.getImageUrl());
-                    String cat = csvColumn(r, "category");
-                    ConcertCategory nCat = cat.isEmpty() ? a.getCategory() : ConcertCategory.valueOf(cat);
+                    String nat = csvColumn(r, "nationality");
+                    Nationality nNat = nat.isEmpty() ? a.getNationality() : Nationality.valueOf(nat);
                     String nIg = csvUrl(csvColumn(r, "instagramUrl"), a.getInstagramUrl());
                     String nX = csvUrl(csvColumn(r, "xUrl"), a.getXUrl());
                     String nHome = csvUrl(csvColumn(r, "homepageUrl"), a.getHomepageUrl());
                     List<Object> before = Arrays.asList(a.getName(), a.getBaseName(), a.getNameKo(), a.getNameAlias(),
-                            a.getImageUrl(), a.getCategory(), a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
-                    if (before.equals(Arrays.asList(nName, nBase, nKo, nAlias, nImage, nCat, nIg, nX, nHome))) {
+                            a.getImageUrl(), a.getNationality(), a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
+                    if (before.equals(Arrays.asList(nName, nBase, nKo, nAlias, nImage, nNat, nIg, nX, nHome))) {
                         unchanged++;
                     } else {
-                        a.update(nName, nBase, nKo, nAlias, nImage, nCat);
+                        a.update(nName, nBase, nKo, nAlias, nImage, nNat);
                         a.changeLinks(nIg, nX, nHome);
                         updated++;
                     }
@@ -824,11 +825,11 @@ public class AdminController {
     public record InquiryStatusReq(InquiryStatus status) {}
 
     public record ArtistRow(Long id, String name, String baseName, String nameKo, String nameAlias,
-                            String imageUrl, ConcertCategory category, Long itunesArtistId,
+                            String imageUrl, Nationality nationality, Long itunesArtistId,
                             String artistViewUrl, String instagramUrl, String xUrl, String homepageUrl) {
         static ArtistRow of(Artist a) {
             return new ArtistRow(a.getId(), a.getName(), a.getBaseName(), a.getNameKo(),
-                    a.getNameAlias(), a.getImageUrl(), a.getCategory(), a.getItunesArtistId(),
+                    a.getNameAlias(), a.getImageUrl(), a.getNationality(), a.getItunesArtistId(),
                     a.getArtistViewUrl(), a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
         }
     }
@@ -837,7 +838,10 @@ public class AdminController {
 
     // PUT이라 공식 링크(instagramUrl·xUrl·homepageUrl)도 통째로 교체된다 - 보내지 않으면 비워진다. http/https 주소만(아니면 400).
     public record ArtistReq(String name, String baseName, String nameKo, String nameAlias,
-                            String imageUrl, ConcertCategory category,
+                            String imageUrl,
+                            @Schema(description = "국적(JP 일본, KR 국내). 비우거나 보내지 않으면 null(PUT이라 기존 값도 지워진다)",
+                                    example = "JP", types = {"string", "null"})
+                            Nationality nationality,
                             @Schema(description = "공식 인스타그램 URL. 비우거나 보내지 않으면 삭제",
                                     example = "https://www.instagram.com/yuuri_official", types = {"string", "null"})
                             String instagramUrl,

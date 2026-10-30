@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Concert.repository;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
@@ -33,7 +34,7 @@ class ConcertRepositoryTest {
     private EntityManager entityManager;
 
     private Concert persistConcert(String title, LocalDate startDate, LocalDate endDate) {
-        return persistConcert(title, startDate, endDate, ConcertCategory.DOMESTIC_ARTIST);
+        return persistConcert(title, startDate, endDate, ConcertCategory.STAGE);
     }
 
     private Concert persistConcert(String title, LocalDate startDate, LocalDate endDate, ConcertCategory category) {
@@ -60,7 +61,7 @@ class ConcertRepositoryTest {
                 .nameKo(nameKo)
                 .nameAlias(nameAlias)
                 .autoFetchConcerts(false)
-                .category(ConcertCategory.J_POP_ARTIST)
+                .nationality(Nationality.JP)
                 .build();
         entityManager.persist(artist);
         return artist;
@@ -119,7 +120,7 @@ class ConcertRepositoryTest {
         entityManager.flush();
 
         List<Concert> result = concertRepository.findUpcomingOrUndatedByCategories(
-                List.of(ConcertCategory.DOMESTIC_ARTIST), today);
+                List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).extracting(Concert::getTitle).containsExactly("연장 공연");
     }
@@ -131,7 +132,7 @@ class ConcertRepositoryTest {
         entityManager.flush();
 
         List<Concert> result = concertRepository.findUpcomingOrUndatedByCategories(
-                List.of(ConcertCategory.DOMESTIC_ARTIST), today);
+                List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).isEmpty();
     }
@@ -144,7 +145,7 @@ class ConcertRepositoryTest {
         entityManager.flush();
 
         List<Concert> result = concertRepository.findUpcomingOrUndatedByCategories(
-                List.of(ConcertCategory.DOMESTIC_ARTIST), today);
+                List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).extracting(Concert::getTitle).containsExactly("종료일_없음_미래");
     }
@@ -156,7 +157,7 @@ class ConcertRepositoryTest {
         entityManager.flush();
 
         List<Concert> result = concertRepository.findUpcomingOrUndatedByCategories(
-                List.of(ConcertCategory.DOMESTIC_ARTIST), today);
+                List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).extracting(Concert::getTitle).containsExactly("날짜_미정");
     }
@@ -164,12 +165,12 @@ class ConcertRepositoryTest {
     @Test
     void 예정_조회시_요청한_카테고리에_속하지_않는_공연은_제외된다() {
         LocalDate today = LocalDate.now();
-        persistConcert("J팝 내한", today.plusDays(1), today.plusDays(1), ConcertCategory.J_POP_ARTIST);
-        persistConcert("국내 페스티벌", today.plusDays(1), today.plusDays(1), ConcertCategory.DOMESTIC_FESTIVAL);
+        persistConcert("J팝 내한", today.plusDays(1), today.plusDays(1), ConcertCategory.STAGE);
+        persistConcert("일본 페스티벌", today.plusDays(1), today.plusDays(1), ConcertCategory.FESTIVAL);
         entityManager.flush();
 
         List<Concert> result = concertRepository.findUpcomingOrUndatedByCategories(
-                List.of(ConcertCategory.J_POP_ARTIST), today);
+                List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).extracting(Concert::getTitle).containsExactly("J팝 내한");
     }
@@ -177,13 +178,12 @@ class ConcertRepositoryTest {
     @Test
     void 예정_조회시_카테고리_여러개를_한번에_조회할_수_있다() {
         LocalDate today = LocalDate.now();
-        persistConcert("J팝 내한", today.plusDays(1), today.plusDays(1), ConcertCategory.J_POP_ARTIST);
-        persistConcert("일본 페스티벌", today.plusDays(2), today.plusDays(2), ConcertCategory.JAPAN_FESTIVAL);
-        persistConcert("국내 아티스트", today.plusDays(1), today.plusDays(1), ConcertCategory.DOMESTIC_ARTIST);
+        persistConcert("J팝 내한", today.plusDays(1), today.plusDays(1), ConcertCategory.STAGE);
+        persistConcert("일본 페스티벌", today.plusDays(2), today.plusDays(2), ConcertCategory.FESTIVAL);
         entityManager.flush();
 
         List<Concert> result = concertRepository.findUpcomingOrUndatedByCategories(
-                List.of(ConcertCategory.J_POP_ARTIST, ConcertCategory.JAPAN_FESTIVAL), today);
+                List.of(ConcertCategory.STAGE, ConcertCategory.FESTIVAL), today);
 
         assertThat(result).extracting(Concert::getTitle)
                 .containsExactlyInAnyOrder("J팝 내한", "일본 페스티벌");
@@ -198,7 +198,7 @@ class ConcertRepositoryTest {
         entityManager.flush();
 
         List<Concert> result = concertRepository.findUpcomingOrUndatedByCategories(
-                List.of(ConcertCategory.DOMESTIC_ARTIST), today);
+                List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).extracting(Concert::getTitle)
                 .containsExactly("가까운_공연", "먼_공연", "날짜_미정");
@@ -216,12 +216,12 @@ class ConcertRepositoryTest {
     @Test
     void 다가오는_공연_미리보기는_비공개_공연을_제외한다() {
         LocalDate today = LocalDate.now();
-        persistPublishedConcert("공개", today.plusDays(2), ConcertCategory.J_POP_ARTIST);
-        persistConcert("오픈_예정", today.plusDays(1), today.plusDays(1), ConcertCategory.J_POP_ARTIST);
+        persistPublishedConcert("공개", today.plusDays(2), ConcertCategory.STAGE);
+        persistConcert("오픈_예정", today.plusDays(1), today.plusDays(1), ConcertCategory.STAGE);
         entityManager.flush();
 
         List<Concert> result = concertRepository.findPublishedUpcomingOrUndatedByCategories(
-                List.of(ConcertCategory.J_POP_ARTIST), today, PageRequest.of(0, 4));
+                List.of(ConcertCategory.STAGE), today, PageRequest.of(0, 4));
 
         assertThat(result).extracting(Concert::getTitle).containsExactly("공개");
     }
@@ -229,13 +229,13 @@ class ConcertRepositoryTest {
     @Test
     void 다가오는_공연_미리보기는_요청한_카테고리의_예정_공연만_포함한다() {
         LocalDate today = LocalDate.now();
-        persistPublishedConcert("내한", today.plusDays(2), ConcertCategory.J_POP_ARTIST);
-        persistPublishedConcert("페스티벌", today.plusDays(1), ConcertCategory.JAPAN_FESTIVAL);
-        persistPublishedConcert("지난_내한", today.minusDays(1), ConcertCategory.J_POP_ARTIST);
+        persistPublishedConcert("내한", today.plusDays(2), ConcertCategory.STAGE);
+        persistPublishedConcert("페스티벌", today.plusDays(1), ConcertCategory.FESTIVAL);
+        persistPublishedConcert("지난_내한", today.minusDays(1), ConcertCategory.STAGE);
         entityManager.flush();
 
         List<Concert> result = concertRepository.findPublishedUpcomingOrUndatedByCategories(
-                List.of(ConcertCategory.J_POP_ARTIST), today, PageRequest.of(0, 4));
+                List.of(ConcertCategory.STAGE), today, PageRequest.of(0, 4));
 
         assertThat(result).extracting(Concert::getTitle).containsExactly("내한");
     }
@@ -243,17 +243,17 @@ class ConcertRepositoryTest {
     @Test
     void 다가오는_공연_미리보기는_가까운_순으로_요청한_개수까지만_날짜_미정은_뒤로_간다() {
         LocalDate today = LocalDate.now();
-        persistPublishedConcert("날짜_미정", null, ConcertCategory.J_POP_ARTIST);
-        persistPublishedConcert("D+5", today.plusDays(5), ConcertCategory.J_POP_ARTIST);
-        persistPublishedConcert("D+1", today.plusDays(1), ConcertCategory.J_POP_ARTIST);
-        persistPublishedConcert("D+3", today.plusDays(3), ConcertCategory.J_POP_ARTIST);
+        persistPublishedConcert("날짜_미정", null, ConcertCategory.STAGE);
+        persistPublishedConcert("D+5", today.plusDays(5), ConcertCategory.STAGE);
+        persistPublishedConcert("D+1", today.plusDays(1), ConcertCategory.STAGE);
+        persistPublishedConcert("D+3", today.plusDays(3), ConcertCategory.STAGE);
         entityManager.flush();
 
         assertThat(concertRepository.findPublishedUpcomingOrUndatedByCategories(
-                List.of(ConcertCategory.J_POP_ARTIST), today, PageRequest.of(0, 4)))
+                List.of(ConcertCategory.STAGE), today, PageRequest.of(0, 4)))
                 .extracting(Concert::getTitle).containsExactly("D+1", "D+3", "D+5", "날짜_미정");
         assertThat(concertRepository.findPublishedUpcomingOrUndatedByCategories(
-                List.of(ConcertCategory.J_POP_ARTIST), today, PageRequest.of(0, 2)))
+                List.of(ConcertCategory.STAGE), today, PageRequest.of(0, 2)))
                 .extracting(Concert::getTitle).containsExactly("D+1", "D+3");
     }
 
@@ -268,7 +268,7 @@ class ConcertRepositoryTest {
         entityManager.flush();
 
         List<Concert> result = concertRepository.findPastByCategories(
-                List.of(ConcertCategory.DOMESTIC_ARTIST), today);
+                List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).extracting(Concert::getTitle).containsExactly("종료된 공연");
     }
@@ -280,7 +280,7 @@ class ConcertRepositoryTest {
         entityManager.flush();
 
         List<Concert> result = concertRepository.findPastByCategories(
-                List.of(ConcertCategory.DOMESTIC_ARTIST), today);
+                List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).isEmpty();
     }
@@ -293,7 +293,7 @@ class ConcertRepositoryTest {
         entityManager.flush();
 
         List<Concert> result = concertRepository.findPastByCategories(
-                List.of(ConcertCategory.DOMESTIC_ARTIST), today);
+                List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).extracting(Concert::getTitle).containsExactly("종료일_없음_과거");
     }
@@ -305,7 +305,7 @@ class ConcertRepositoryTest {
         entityManager.flush();
 
         List<Concert> result = concertRepository.findPastByCategories(
-                List.of(ConcertCategory.DOMESTIC_ARTIST), today);
+                List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).isEmpty();
     }
@@ -313,12 +313,12 @@ class ConcertRepositoryTest {
     @Test
     void 지난_조회시_요청한_카테고리에_속하지_않는_공연은_제외된다() {
         LocalDate today = LocalDate.now();
-        persistConcert("J팝 내한", today.minusDays(1), today.minusDays(1), ConcertCategory.J_POP_ARTIST);
-        persistConcert("국내 페스티벌", today.minusDays(1), today.minusDays(1), ConcertCategory.DOMESTIC_FESTIVAL);
+        persistConcert("J팝 내한", today.minusDays(1), today.minusDays(1), ConcertCategory.STAGE);
+        persistConcert("일본 페스티벌", today.minusDays(1), today.minusDays(1), ConcertCategory.FESTIVAL);
         entityManager.flush();
 
         List<Concert> result = concertRepository.findPastByCategories(
-                List.of(ConcertCategory.J_POP_ARTIST), today);
+                List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).extracting(Concert::getTitle).containsExactly("J팝 내한");
     }
@@ -331,7 +331,7 @@ class ConcertRepositoryTest {
         entityManager.flush();
 
         List<Concert> result = concertRepository.findPastByCategories(
-                List.of(ConcertCategory.DOMESTIC_ARTIST), today);
+                List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).extracting(Concert::getTitle)
                 .containsExactly("최근_종료", "오래전_종료");
@@ -349,7 +349,7 @@ class ConcertRepositoryTest {
         entityManager.flush();
 
         List<Concert> result = concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
-                "아이유", List.of(ConcertCategory.DOMESTIC_ARTIST), today);
+                "아이유", List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).extracting(Concert::getTitle).containsExactly("아이유 콘서트");
     }
@@ -358,11 +358,11 @@ class ConcertRepositoryTest {
     void 검색_예정_조회시_아티스트_원어명_한글명_별칭으로도_매칭된다() {
         LocalDate today = LocalDate.now();
         Artist artist = persistArtist("King Gnu", "King Gnu", "킹누", "킹구누");
-        persistConcert("무제 공연", today.plusDays(1), today.plusDays(1), ConcertCategory.J_POP_ARTIST, artist);
+        persistConcert("무제 공연", today.plusDays(1), today.plusDays(1), ConcertCategory.STAGE, artist);
         entityManager.flush();
 
         List<Concert> result = concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
-                "킹누", List.of(ConcertCategory.J_POP_ARTIST), today);
+                "킹누", List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).extracting(Concert::getTitle).containsExactly("무제 공연");
     }
@@ -370,11 +370,11 @@ class ConcertRepositoryTest {
     @Test
     void 검색_예정_조회시_요청한_카테고리에_속하지_않는_공연은_제외된다() {
         LocalDate today = LocalDate.now();
-        persistConcert("페스티벌 공연", today.plusDays(1), today.plusDays(1), ConcertCategory.JAPAN_FESTIVAL);
+        persistConcert("페스티벌 공연", today.plusDays(1), today.plusDays(1), ConcertCategory.FESTIVAL);
         entityManager.flush();
 
         List<Concert> result = concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
-                "공연", List.of(ConcertCategory.J_POP_ARTIST), today);
+                "공연", List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).isEmpty();
     }
@@ -388,7 +388,7 @@ class ConcertRepositoryTest {
         entityManager.flush();
 
         List<Concert> result = concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
-                "공연", List.of(ConcertCategory.DOMESTIC_ARTIST), today);
+                "공연", List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).extracting(Concert::getTitle)
                 .containsExactly("가까운_공연", "먼_공연", "날짜_미정_공연");
@@ -398,12 +398,12 @@ class ConcertRepositoryTest {
     void 검색_지난_조회시_아티스트명으로도_매칭되고_최근_종료일_순으로_정렬된다() {
         LocalDate today = LocalDate.now();
         Artist artist = persistArtist("King Gnu", "King Gnu", "킹누", null);
-        persistConcert("오래전_종료", today.minusDays(10), today.minusDays(10), ConcertCategory.J_POP_ARTIST, artist);
-        persistConcert("최근_종료", today.minusDays(1), today.minusDays(1), ConcertCategory.J_POP_ARTIST, artist);
+        persistConcert("오래전_종료", today.minusDays(10), today.minusDays(10), ConcertCategory.STAGE, artist);
+        persistConcert("최근_종료", today.minusDays(1), today.minusDays(1), ConcertCategory.STAGE, artist);
         entityManager.flush();
 
         List<Concert> result = concertRepository.searchPastByTitleAndCategories(
-                "킹누", List.of(ConcertCategory.J_POP_ARTIST), today);
+                "킹누", List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).extracting(Concert::getTitle)
                 .containsExactly("최근_종료", "오래전_종료");
@@ -416,7 +416,7 @@ class ConcertRepositoryTest {
         entityManager.flush();
 
         List<Concert> result = concertRepository.searchPastByTitleAndCategories(
-                "공연", List.of(ConcertCategory.DOMESTIC_ARTIST), today);
+                "공연", List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).isEmpty();
     }
@@ -424,11 +424,11 @@ class ConcertRepositoryTest {
     @Test
     void 검색_지난_조회시_요청한_카테고리에_속하지_않는_공연은_제외된다() {
         LocalDate today = LocalDate.now();
-        persistConcert("페스티벌 공연", today.minusDays(1), today.minusDays(1), ConcertCategory.JAPAN_FESTIVAL);
+        persistConcert("페스티벌 공연", today.minusDays(1), today.minusDays(1), ConcertCategory.FESTIVAL);
         entityManager.flush();
 
         List<Concert> result = concertRepository.searchPastByTitleAndCategories(
-                "공연", List.of(ConcertCategory.J_POP_ARTIST), today);
+                "공연", List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).isEmpty();
     }
@@ -437,7 +437,7 @@ class ConcertRepositoryTest {
     // 규칙: 관리자가 입력한 공연명 별칭으로도 찾는다(대소문자 무시, 부분 일치). 별칭이 여러 개 걸려도 같은 공연은 한 번만 나온다.
 
     private Concert persistConcertWithAliases(String title, LocalDate date, List<String> aliases) {
-        Concert concert = persistConcert(title, date, date, ConcertCategory.J_POP_ARTIST);
+        Concert concert = persistConcert(title, date, date, ConcertCategory.STAGE);
         concert.replaceTitleAliases(aliases);
         return concert;
     }
@@ -451,7 +451,7 @@ class ConcertRepositoryTest {
         entityManager.clear();
 
         List<Concert> result = concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
-                "히게단", List.of(ConcertCategory.J_POP_ARTIST), today);
+                "히게단", List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).extracting(Concert::getTitle).containsExactly("Official HIGE DANdism Arena Tour");
     }
@@ -464,7 +464,7 @@ class ConcertRepositoryTest {
         entityManager.clear();
 
         List<Concert> result = concertRepository.searchPastByTitleAndCategories(
-                "히게단", List.of(ConcertCategory.J_POP_ARTIST), today);
+                "히게단", List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).extracting(Concert::getTitle).containsExactly("Official HIGE DANdism Arena Tour");
     }
@@ -477,7 +477,7 @@ class ConcertRepositoryTest {
         entityManager.clear();
 
         List<Concert> result = concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
-                "seoul", List.of(ConcertCategory.J_POP_ARTIST), today);
+                "seoul", List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).extracting(Concert::getTitle).containsExactly("YOASOBI ASIA TOUR");
     }
@@ -490,7 +490,7 @@ class ConcertRepositoryTest {
         entityManager.clear();
 
         List<Concert> result = concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
-                "히게단", List.of(ConcertCategory.J_POP_ARTIST), today);
+                "히게단", List.of(ConcertCategory.STAGE), today);
 
         assertThat(result).hasSize(1);
     }

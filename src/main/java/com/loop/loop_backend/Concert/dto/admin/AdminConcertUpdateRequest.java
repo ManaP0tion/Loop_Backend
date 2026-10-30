@@ -23,8 +23,8 @@ import java.util.List;
 @Builder
 public record AdminConcertUpdateRequest(
 
-        @Schema(description = "공연 유형. J_POP_ARTIST(내한) / JAPAN_FESTIVAL(페스티벌). 페스티벌로 바꾸면 아티스트·예상 곡 수가 비워진다",
-                example = "J_POP_ARTIST", types = {"string", "null"})
+        @Schema(description = "공연 유형. STAGE(단독 공연) / FESTIVAL(페스티벌). 페스티벌로 바꾸면 아티스트·예상 곡 수가 비워진다",
+                example = "STAGE", types = {"string", "null"})
         ConcertCategory category,
 
         // null은 통과(변경 없음), 빈 값·공백만 있는 문자열은 거절

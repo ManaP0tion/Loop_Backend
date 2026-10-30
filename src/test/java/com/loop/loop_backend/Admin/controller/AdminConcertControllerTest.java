@@ -44,7 +44,7 @@ class AdminConcertControllerTest {
     private AdminConcertService service;
 
     private static final AdminConcertDetailResponse DETAIL = new AdminConcertDetailResponse(
-            1L, null, ConcertCategory.J_POP_ARTIST, "YUURI LIVE", List.of(), null,
+            1L, null, ConcertCategory.STAGE, "YUURI LIVE", List.of(), null,
             LocalDate.of(2026, 12, 5), LocalDate.of(2026, 12, 6),
             List.of(new AdminConcertDetailResponse.Showtime(1, LocalDate.of(2026, 12, 5), LocalTime.of(18, 0)),
                     new AdminConcertDetailResponse.Showtime(2, LocalDate.of(2026, 12, 6), null)),
@@ -69,11 +69,11 @@ class AdminConcertControllerTest {
         when(service.search(any(), any(), any(), any())).thenReturn(Page.empty());
 
         mockMvc.perform(get("/api/admin/concerts")
-                        .param("q", "YUURI").param("category", "JAPAN_FESTIVAL").param("published", "false"))
+                        .param("q", "YUURI").param("category", "FESTIVAL").param("published", "false"))
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/admin/concerts")).andExpect(status().isOk());
 
-        verify(service).search(eq("YUURI"), eq(ConcertCategory.JAPAN_FESTIVAL), eq(false), any());
+        verify(service).search(eq("YUURI"), eq(ConcertCategory.FESTIVAL), eq(false), any());
         verify(service).search(isNull(), isNull(), isNull(), any());
     }
 
@@ -82,9 +82,9 @@ class AdminConcertControllerTest {
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {
             "{\"title\": \"YUURI LIVE\"}",                                                    // 유형 없음
-            "{\"category\": \"J_POP_ARTIST\"}",                                               // 공연명 없음
-            "{\"category\": \"J_POP_ARTIST\", \"title\": \"  \"}",                            // 공연명 공백
-            "{\"category\": \"J_POP_ARTIST\", \"title\": \"YUURI LIVE\", \"artistIds\": [1, 2]}", // 아티스트 2명
+            "{\"category\": \"STAGE\"}",                                               // 공연명 없음
+            "{\"category\": \"STAGE\", \"title\": \"  \"}",                            // 공연명 공백
+            "{\"category\": \"STAGE\", \"title\": \"YUURI LIVE\", \"artistIds\": [1, 2]}", // 아티스트 2명
     })
     void 등록할_때_필수값이_없거나_아티스트가_2명_이상이면_400이고_서비스를_부르지_않는다(String body) throws Exception {
         mockMvc.perform(post("/api/admin/concerts").contentType(MediaType.APPLICATION_JSON).content(body))
@@ -99,7 +99,7 @@ class AdminConcertControllerTest {
         when(service.create(any())).thenReturn(DETAIL);
 
         mockMvc.perform(post("/api/admin/concerts").contentType(MediaType.APPLICATION_JSON).content("""
-                        {"category": "J_POP_ARTIST", "title": "YUURI LIVE",
+                        {"category": "STAGE", "title": "YUURI LIVE",
                          "startDate": "2026-12-05", "endDate": "2026-12-06", "showtimes": ["18:00", null]}
                         """))
                 .andExpect(status().isOk());

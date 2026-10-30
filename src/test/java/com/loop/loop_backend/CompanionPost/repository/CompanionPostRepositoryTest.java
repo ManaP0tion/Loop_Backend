@@ -41,7 +41,7 @@ class CompanionPostRepositoryTest {
     void setUpConcert() {
         concert = Concert.builder()
                 .title("테스트 콘서트")
-                .category(ConcertCategory.DOMESTIC_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .build();
         entityManager.persist(concert);
     }
@@ -541,7 +541,7 @@ class CompanionPostRepositoryTest {
                 .venue("장소")
                 .startDate(startDate)
                 .endDate(startDate)
-                .category(ConcertCategory.J_POP_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .build();
         entityManager.persist(concert);
         return concert;

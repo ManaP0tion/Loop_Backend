@@ -68,7 +68,7 @@ class CompanionHeartServiceImplTest {
     }
 
     private Concert testConcert(long id, String title, LocalDate startDate) {
-        Concert concert = Concert.builder().title(title).category(ConcertCategory.DOMESTIC_ARTIST)
+        Concert concert = Concert.builder().title(title).category(ConcertCategory.STAGE)
                 .startDate(startDate).venue(title + " 공연장").build();
         ReflectionTestUtils.setField(concert, "id", id);
         return concert;

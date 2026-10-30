@@ -20,7 +20,7 @@ class ArtistProductRulesTest {
     private static final String IMAGE = "https://www.cdjapan.co.jp/image.html?id=PCXP-51237";
 
     private static Artist artist() {
-        return Artist.builder().name("Official髭男dism").category(ConcertCategory.J_POP_ARTIST).build();
+        return Artist.builder().name("Official髭男dism").nationality(Nationality.JP).build();
     }
 
     private static void assertRejected(Runnable action) {

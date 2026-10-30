@@ -25,8 +25,7 @@ public class ConcertPastDetailDto {
     @Schema(description = "공연명", requiredMode = Schema.RequiredMode.REQUIRED)
     private final String title;
 
-    @Schema(description = "공연 유형. J_POP_ARTIST(내한 공연) / JAPAN_FESTIVAL(페스티벌). " +
-            "V2 이전 데이터는 DOMESTIC_ARTIST / DOMESTIC_FESTIVAL일 수 있다", example = "JAPAN_FESTIVAL",
+    @Schema(description = "공연 유형. STAGE(단독 공연) / FESTIVAL(페스티벌)", example = "FESTIVAL",
             requiredMode = Schema.RequiredMode.REQUIRED)
     private final ConcertCategory category;
 

@@ -1,8 +1,8 @@
 package com.loop.loop_backend.ConcertImport.kopis;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
-import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.ConcertImport.event.KopisSyncCompletedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,9 +59,9 @@ public class KopisSyncService {
     }
 
     private SyncStats runSync() {
-        // V2는 J-POP 공연만 수집한다. Repository 조회 방식은 쿼리 최적화 작업에서 다룰 예정이라 여기서 메모리로 거른다.
+        // V2는 일본 아티스트 공연만 수집한다(국적 미입력은 제외). Repository 조회 방식은 쿼리 최적화 작업에서 다룰 예정이라 여기서 메모리로 거른다.
         List<Artist> artists = artistRepository.findByAutoFetchConcertsTrue().stream()
-                .filter(a -> a.getCategory() == ConcertCategory.J_POP_ARTIST)
+                .filter(a -> a.getNationality() == Nationality.JP)
                 .toList();
 
         // KOPIS 목록 API: 오늘~1년 뒤 대중음악 공연. 목록에는 출연진이 없다.

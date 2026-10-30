@@ -47,7 +47,7 @@ public class AdminConcertController {
     @Operation(summary = "등록된 공연 목록",
             description = "공연 관리 페이지의 등록된 공연 목록. 공개·비공개 공연을 모두 보여주고 최근 등록순이다.\n\n" +
                     "- q: 공연명, 공연명 별칭, 아티스트 이름(별칭 포함), 장소(공연장 이름)에서 부분 일치 검색(대소문자 무시)\n" +
-                    "- category: 공연 유형으로 거른다 (J_POP_ARTIST 내한 / JAPAN_FESTIVAL 페스티벌)\n" +
+                    "- category: 공연 유형으로 거른다 (STAGE 단독 공연 / FESTIVAL 페스티벌)\n" +
                     "- published: true 공개만 / false 비공개만 / 없으면 전체\n\n" +
                     "ticketScheduled(예매 등록 여부)는 예매 일시가 입력된 선예매·일반예매가 하나라도 있으면 true다.")
     @ApiResponses({
@@ -56,7 +56,7 @@ public class AdminConcertController {
     public ResponseEntity<CommonResponse<PageResp<AdminConcertRow>>> list(
             @Parameter(description = "검색어(공연명·별칭·아티스트·장소). 비우면 전체", example = "YUURI")
             @RequestParam(required = false) String q,
-            @Parameter(description = "공연 유형. 비우면 전체", example = "J_POP_ARTIST")
+            @Parameter(description = "공연 유형. 비우면 전체", example = "STAGE")
             @RequestParam(required = false) ConcertCategory category,
             @Parameter(description = "공개 여부. 비우면 전체", example = "false")
             @RequestParam(required = false) Boolean published,
@@ -93,7 +93,7 @@ public class AdminConcertController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "등록 성공 (비공개)"),
             @ApiResponse(responseCode = "400",
-                    description = "필수값 누락, 국내 유형 선택, 시작일 > 종료일, 공연 시각 개수 불일치, 예매처 이름 누락, 페스티벌에 아티스트·예상 곡 수, " +
+                    description = "필수값 누락, 시작일 > 종료일, 공연 시각 개수 불일치, 예매처 이름 누락, 페스티벌에 아티스트·예상 곡 수, " +
                             "숙소 노출인데 딥링크 없음 등 - 필드 구분 없이 하나로 응답",
                     content = @Content(examples = @ExampleObject(value = INVALID_INPUT_EXAMPLE))),
             @ApiResponse(responseCode = "404", description = "없는 공연장·아티스트")
@@ -131,7 +131,7 @@ public class AdminConcertController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수정 성공"),
             @ApiResponse(responseCode = "400",
-                    description = "공개 상태인데 필수값 누락, 공연명 빈 값, 국내 유형 선택, 시작일 > 종료일, 공연 시각 개수 불일치, 예매처 이름 누락, " +
+                    description = "공개 상태인데 필수값 누락, 공연명 빈 값, 시작일 > 종료일, 공연 시각 개수 불일치, 예매처 이름 누락, " +
                             "페스티벌에 아티스트·예상 곡 수, 숙소 노출인데 딥링크 없음, 상품 링크·이미지 주소 누락 또는 http/https가 아님 등 - 필드 구분 없이 하나로 응답",
                     content = @Content(examples = @ExampleObject(value = INVALID_INPUT_EXAMPLE))),
             @ApiResponse(responseCode = "404", description = "없는 공연·공연장·아티스트",

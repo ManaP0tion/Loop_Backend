@@ -1,6 +1,7 @@
 package com.loop.loop_backend.ConcertImport.kopis;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.ConcertImport.event.KopisSyncCompletedEvent;
@@ -50,7 +51,7 @@ class KopisSyncCompletedEventTest {
 
     private void jpopArtist(String name) {
         artistRepository.save(Artist.builder().name(name).autoFetchConcerts(true)
-                .category(ConcertCategory.J_POP_ARTIST).build());
+                .nationality(Nationality.JP).build());
     }
 
     private static KopisPerformance perf(String kopisId, String title) {
@@ -84,8 +85,8 @@ class KopisSyncCompletedEventTest {
         assertThat(event.newImports())
                 .extracting(NewImport::title, NewImport::category, NewImport::artistNames)
                 .containsExactlyInAnyOrder(
-                        tuple("YOASOBI ASIA TOUR 2026", ConcertCategory.J_POP_ARTIST, List.of("YOASOBI")),
-                        tuple("SUMMER SONIC 2026", ConcertCategory.JAPAN_FESTIVAL, List.of()));
+                        tuple("YOASOBI ASIA TOUR 2026", ConcertCategory.STAGE, List.of("YOASOBI")),
+                        tuple("SUMMER SONIC 2026", ConcertCategory.FESTIVAL, List.of()));
     }
 
     @Test

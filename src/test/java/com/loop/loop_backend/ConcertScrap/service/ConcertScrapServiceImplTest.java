@@ -49,7 +49,7 @@ class ConcertScrapServiceImplTest {
     private Concert concert(Long id, String title) {
         Concert concert = Concert.builder()
                 .title(title)
-                .category(ConcertCategory.J_POP_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .startDate(LocalDate.of(2026, 12, 1))
                 .endDate(LocalDate.of(2026, 12, 1))
                 .build();

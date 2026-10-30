@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Concert.domain;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertGeneralSale;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertPresale;
@@ -39,7 +40,7 @@ class ConcertAdminFieldsPersistenceTest {
         return concertRepository.save(Concert.builder()
                 .artist(artist)
                 .title("YUURI LIVE [서울]")
-                .category(ConcertCategory.J_POP_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .build());
     }
 
@@ -69,7 +70,7 @@ class ConcertAdminFieldsPersistenceTest {
     @Test
     void 공개_여부_항목이_생기기_전부터_있던_공연은_공개로_남는다() {
         // 컬럼이 추가될 때 기존 행은 컬럼 기본값으로 채워진다 - 공개 여부를 지정하지 않은 행이 공개인지 본다
-        em.createNativeQuery("INSERT INTO concerts (title, category) VALUES ('기존 공연', 'J_POP_ARTIST')").executeUpdate();
+        em.createNativeQuery("INSERT INTO concerts (title, category) VALUES ('기존 공연', 'STAGE')").executeUpdate();
 
         Object published = em.createNativeQuery("SELECT published FROM concerts WHERE title = '기존 공연'").getSingleResult();
 
@@ -82,7 +83,7 @@ class ConcertAdminFieldsPersistenceTest {
     void 별칭은_여러_개_저장된다() {
         Concert concert = concertRepository.save(Concert.builder()
                 .title("Official髭男dism Arena Tour")
-                .category(ConcertCategory.J_POP_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .titleAliases(List.of("히게단", "오피셜히게단디즘"))
                 .build());
         flushAndClear();
@@ -95,7 +96,7 @@ class ConcertAdminFieldsPersistenceTest {
     void DAY별_공연_시각은_날짜_순으로_나오고_시각은_비워_둘_수_있다() {
         Concert concert = concertRepository.save(Concert.builder()
                 .title("YOASOBI ASIA TOUR")
-                .category(ConcertCategory.J_POP_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .startDate(LocalDate.of(2026, 12, 5))
                 .endDate(LocalDate.of(2026, 12, 6))
                 .showtimes(List.of(
@@ -150,7 +151,7 @@ class ConcertAdminFieldsPersistenceTest {
         Concert concert = concertRepository.save(Concert.builder()
                 .artist(artist)
                 .title("YUURI LIVE [서울]")
-                .category(ConcertCategory.J_POP_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .titleAliases(List.of("유우리"))
                 .showtimes(List.of(new ConcertShowtime(LocalDate.of(2026, 12, 5), LocalTime.of(18, 0))))
                 .build());
@@ -180,7 +181,7 @@ class ConcertAdminFieldsPersistenceTest {
     @Test
     void 아티스트가_지워져_공연이_함께_지워질_때도_하위_정보가_남지_않는다() {
         Artist artist = artistRepository.save(Artist.builder().name("Yuuri")
-                .autoFetchConcerts(true).category(ConcertCategory.J_POP_ARTIST).build());
+                .autoFetchConcerts(true).nationality(Nationality.JP).build());
         Concert concert = concertWithEverything(artist);
 
         // 공연은 아티스트 삭제 시 DB가 직접 지운다(ON DELETE CASCADE) - JPA를 거치지 않는 경로를 그대로 재현

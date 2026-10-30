@@ -41,7 +41,7 @@ class PerformancePersistenceTest {
     void setUp() {
         festival = concertRepository.save(Concert.builder()
                 .title("SUMMER SONIC")
-                .category(ConcertCategory.JAPAN_FESTIVAL)
+                .category(ConcertCategory.FESTIVAL)
                 .startDate(LocalDate.of(2026, 11, 20))
                 .endDate(LocalDate.of(2026, 11, 22))
                 .build());
@@ -66,7 +66,7 @@ class PerformancePersistenceTest {
     void build_WhenNotFestival_ThrowsInvalidInput() {
         // given
         Concert solo = concertRepository.save(Concert.builder()
-                .title("YUURI LIVE").category(ConcertCategory.J_POP_ARTIST)
+                .title("YUURI LIVE").category(ConcertCategory.STAGE)
                 .startDate(LocalDate.of(2026, 11, 20)).endDate(LocalDate.of(2026, 11, 20))
                 .build());
 
@@ -89,7 +89,7 @@ class PerformancePersistenceTest {
     void build_WhenPeriodUndecided_ThrowsInvalidInput() {
         // given
         Concert undated = concertRepository.save(Concert.builder()
-                .title("미정 페스티벌").category(ConcertCategory.JAPAN_FESTIVAL).build());
+                .title("미정 페스티벌").category(ConcertCategory.FESTIVAL).build());
 
         // when & then
         assertThatThrownBy(() -> Performance.builder().concert(undated).artist(yuuri).day(1).displayOrder(1).build())

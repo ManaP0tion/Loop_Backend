@@ -1,6 +1,7 @@
 package com.loop.loop_backend.ConcertImport.service;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
@@ -113,7 +114,7 @@ class ConcertManualImportServiceTest {
     @DisplayName("페스티벌에 아티스트를 지정하면 거절하고 KOPIS를 부르지 않는다")
     void register_FestivalWithArtist_RejectsWithoutCallingKopis() {
         // when & then
-        assertErrorCode(() -> service.register(request(ConcertCategory.JAPAN_FESTIVAL, List.of(3L))),
+        assertErrorCode(() -> service.register(request(ConcertCategory.FESTIVAL, List.of(3L))),
                 ErrorCode.INVALID_INPUT);
         verifyNoInteractions(kopisClient);
     }
@@ -122,16 +123,16 @@ class ConcertManualImportServiceTest {
     @DisplayName("내한 공연에 아티스트를 2명 이상 지정하면 거절한다")
     void register_SoloWithTwoArtists_Rejects() {
         // when & then
-        assertErrorCode(() -> service.register(request(ConcertCategory.J_POP_ARTIST, List.of(3L, 4L))),
+        assertErrorCode(() -> service.register(request(ConcertCategory.STAGE, List.of(3L, 4L))),
                 ErrorCode.INVALID_INPUT);
         verifyNoInteractions(kopisClient);
     }
 
     @Test
-    @DisplayName("관리자가 고를 수 없는 유형(국내 유형)으로는 등록할 수 없다")
-    void register_NonSelectableCategory_Rejects() {
+    @DisplayName("공연 유형 없이는 등록할 수 없다")
+    void register_WithoutCategory_Rejects() {
         // when & then
-        assertErrorCode(() -> service.register(request(ConcertCategory.DOMESTIC_ARTIST, List.of())),
+        assertErrorCode(() -> service.register(request(null, List.of())),
                 ErrorCode.INVALID_INPUT);
         verifyNoInteractions(kopisClient);
     }
@@ -143,7 +144,7 @@ class ConcertManualImportServiceTest {
         when(artistRepository.findById(99L)).thenReturn(Optional.empty());
 
         // when & then
-        assertErrorCode(() -> service.register(request(ConcertCategory.J_POP_ARTIST, List.of(99L))),
+        assertErrorCode(() -> service.register(request(ConcertCategory.STAGE, List.of(99L))),
                 ErrorCode.ARTIST_NOT_FOUND);
         verifyNoInteractions(kopisClient);
     }
@@ -155,7 +156,7 @@ class ConcertManualImportServiceTest {
         when(concertRepository.existsByKopisId(KOPIS_ID)).thenReturn(true);
 
         // when & then
-        assertErrorCode(() -> service.register(request(ConcertCategory.J_POP_ARTIST, List.of())),
+        assertErrorCode(() -> service.register(request(ConcertCategory.STAGE, List.of())),
                 ErrorCode.CONCERT_ALREADY_REGISTERED);
         verifyNoInteractions(kopisClient);
         verify(concertImportService, never()).publish(any(), any());
@@ -173,7 +174,7 @@ class ConcertManualImportServiceTest {
         givenPublishSucceeds();
 
         // when
-        service.register(request(ConcertCategory.J_POP_ARTIST, List.of(3L)));
+        service.register(request(ConcertCategory.STAGE, List.of(3L)));
 
         // then
         ConcertImport imp = publishedImport();
@@ -184,7 +185,7 @@ class ConcertManualImportServiceTest {
         assertThat(imp.getVenue()).isEqualTo("인스파이어 엔터테인먼트 리조트 (아레나)");
         assertThat(imp.getStartDate()).isEqualTo(LocalDate.of(2026, 9, 19));
         assertThat(imp.getEndDate()).isEqualTo(LocalDate.of(2026, 9, 20));
-        assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.J_POP_ARTIST);
+        assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.STAGE);
         assertThat(imp.getMatchReason()).isEqualTo(ConcertImport.MATCH_REASON_MANUAL);
         verify(importRepository).save(imp);
     }
@@ -198,7 +199,7 @@ class ConcertManualImportServiceTest {
         givenPublishSucceeds();
 
         // when
-        service.register(request(ConcertCategory.J_POP_ARTIST, List.of()));
+        service.register(request(ConcertCategory.STAGE, List.of()));
 
         // then - 승인에는 받은 상세를 그대로 넘긴다
         verify(kopisClient).getPerformanceForImport(KOPIS_ID);
@@ -215,7 +216,7 @@ class ConcertManualImportServiceTest {
         givenPublishSucceeds();
 
         // when
-        service.register(request(ConcertCategory.J_POP_ARTIST, null));
+        service.register(request(ConcertCategory.STAGE, null));
 
         // then
         assertThat(publishedImport().getMatchedArtist()).isNull();
@@ -230,12 +231,12 @@ class ConcertManualImportServiceTest {
         givenPublishSucceeds();
 
         // when
-        service.register(request(ConcertCategory.JAPAN_FESTIVAL, List.of()));
+        service.register(request(ConcertCategory.FESTIVAL, List.of()));
 
         // then
         ConcertImport imp = publishedImport();
         assertThat(imp.getMatchedArtist()).isNull();
-        assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.JAPAN_FESTIVAL);
+        assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.FESTIVAL);
     }
 
     @Test
@@ -244,7 +245,7 @@ class ConcertManualImportServiceTest {
         // given
         ConcertImport rejected = ConcertImport.builder()
                 .id(7L).kopisId(KOPIS_ID).matchedArtist(VAUNDY).title("옛 공연명")
-                .suggestedCategory(ConcertCategory.J_POP_ARTIST).matchReason("TITLE_MATCH")
+                .suggestedCategory(ConcertCategory.STAGE).matchReason("TITLE_MATCH")
                 .status(ImportStatus.PENDING).build();
         rejected.markRejected("일본 아티스트 아님");
         when(artistRepository.findById(3L)).thenReturn(Optional.of(VAUNDY));
@@ -253,7 +254,7 @@ class ConcertManualImportServiceTest {
         givenPublishSucceeds();
 
         // when
-        var response = service.register(request(ConcertCategory.J_POP_ARTIST, List.of(3L)));
+        var response = service.register(request(ConcertCategory.STAGE, List.of(3L)));
 
         // then
         ConcertImport imp = publishedImport();
@@ -272,19 +273,19 @@ class ConcertManualImportServiceTest {
         // given - 자동 수집이 내한 공연으로 넣어 둔 행을 관리자가 페스티벌로 등록
         ConcertImport pending = ConcertImport.builder()
                 .id(8L).kopisId(KOPIS_ID).title("옛 공연명")
-                .suggestedCategory(ConcertCategory.J_POP_ARTIST).matchReason("TITLE_MATCH")
+                .suggestedCategory(ConcertCategory.STAGE).matchReason("TITLE_MATCH")
                 .status(ImportStatus.PENDING).build();
         when(importRepository.findByKopisIdAndMatchedArtistIsNull(KOPIS_ID)).thenReturn(Optional.of(pending));
         givenKopis();
         givenPublishSucceeds();
 
         // when
-        service.register(request(ConcertCategory.JAPAN_FESTIVAL, List.of()));
+        service.register(request(ConcertCategory.FESTIVAL, List.of()));
 
         // then
         ConcertImport imp = publishedImport();
         assertThat(imp).isSameAs(pending);
-        assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.JAPAN_FESTIVAL);
+        assertThat(imp.getSuggestedCategory()).isEqualTo(ConcertCategory.FESTIVAL);
     }
 
     // ---------- 검색 ----------
@@ -295,7 +296,7 @@ class ConcertManualImportServiceTest {
 
     private static ConcertImport importRow(String kopisId, ImportStatus status) {
         return ConcertImport.builder().kopisId(kopisId).title("공연 " + kopisId)
-                .suggestedCategory(ConcertCategory.J_POP_ARTIST).status(status).build();
+                .suggestedCategory(ConcertCategory.STAGE).status(status).build();
     }
 
     @Test
@@ -385,14 +386,13 @@ class ConcertManualImportServiceTest {
     }
 
     @Test
-    @DisplayName("공연명에 J-POP 아티스트 이름이 있으면 자동 수집이 꺼진 아티스트라도 추천하고, 여러 명이면 모두 추천한다")
-    void search_SuggestsJpopArtistsNamedInTitle() {
-        // given - 둘 다 자동 수집이 꺼진 아티스트
+    @DisplayName("공연명에 국내가 아닌 아티스트 이름이 있으면 자동 수집이 꺼졌거나 국적 미입력이라도 추천하고, 여러 명이면 모두 추천한다")
+    void search_SuggestsNonDomesticArtistsNamedInTitle() {
+        // given - 둘 다 자동 수집이 꺼진 아티스트, Ado는 국적 미입력
         Artist yoasobi = Artist.builder().id(5L).name("YOASOBI").nameKo("요아소비")
-                .category(ConcertCategory.J_POP_ARTIST).autoFetchConcerts(false).build();
-        Artist ado = Artist.builder().id(6L).name("Ado")
-                .category(ConcertCategory.J_POP_ARTIST).autoFetchConcerts(false).build();
-        when(artistRepository.findByCategory(ConcertCategory.J_POP_ARTIST)).thenReturn(List.of(yoasobi, ado));
+                .nationality(Nationality.JP).autoFetchConcerts(false).build();
+        Artist ado = Artist.builder().id(6L).name("Ado").autoFetchConcerts(false).build();
+        when(artistRepository.findByNationalityNotOrNationalityIsNull(Nationality.KR)).thenReturn(List.of(yoasobi, ado));
         when(kopisClient.searchPerformances(anyString(), any(), any(), any(Integer.class)))
                 .thenReturn(new KopisClient.SearchResult(List.of(
                         titled("PF_SOLO", "요아소비 내한 공연"),
@@ -413,7 +413,7 @@ class ConcertManualImportServiceTest {
     @DisplayName("공연명에 아는 아티스트 이름이 없으면 추천 아티스트는 빈 목록이다")
     void search_NoArtistNamedInTitle_SuggestsNone() {
         // given
-        when(artistRepository.findByCategory(ConcertCategory.J_POP_ARTIST)).thenReturn(List.of(VAUNDY));
+        when(artistRepository.findByNationalityNotOrNationalityIsNull(Nationality.KR)).thenReturn(List.of(VAUNDY));
         when(kopisClient.searchPerformances(anyString(), any(), any(), any(Integer.class)))
                 .thenReturn(new KopisClient.SearchResult(List.of(titled("PF1", "ASIA ARENA TOUR IN SEOUL")), false));
 

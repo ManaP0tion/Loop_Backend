@@ -1,6 +1,7 @@
 package com.loop.loop_backend.ConcertImport.kopis;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.ConcertImport.domain.ConcertImport;
@@ -40,7 +41,7 @@ class ConcertImportWriterTest {
         return artistRepository.save(Artist.builder()
                 .name(name)
                 .autoFetchConcerts(true)
-                .category(ConcertCategory.J_POP_ARTIST)
+                .nationality(Nationality.JP)
                 .build());
     }
 
@@ -59,7 +60,7 @@ class ConcertImportWriterTest {
                 .kopisId(kopisId)
                 .matchedArtist(artist)
                 .title("이전 제목")
-                .suggestedCategory(ConcertCategory.J_POP_ARTIST)
+                .suggestedCategory(ConcertCategory.STAGE)
                 .matchReason(IdentificationResult.TITLE_MATCH)
                 .status(status)
                 .build());
