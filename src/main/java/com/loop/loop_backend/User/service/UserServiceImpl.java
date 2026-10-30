@@ -102,8 +102,12 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(ErrorCode.ONBOARDING_ALREADY_COMPLETED);
         }
 
-        checkNicknameAvailable(user, requestDto.getNickname());
-        user.completeOnboarding(requestDto.getNickname(), requestDto.getBirthDate(), requestDto.getGender());
+        // 닉네임을 보내지 않으면 가입 때 받은 랜덤 닉네임을 그대로 쓴다
+        if (requestDto.getNickname() != null) {
+            checkNicknameAvailable(user, requestDto.getNickname());
+        }
+        user.completeOnboarding(requestDto.getNickname(), requestDto.getBirthDate(), requestDto.getGender(),
+                requestDto.getProfileImageUrl());
         return toResponseDto(user);
     }
 
