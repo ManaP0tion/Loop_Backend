@@ -8,5 +8,6 @@ public interface UserHashtagService {
 
     List<HashtagResponseDto> getHashtags(Long userId);
     HashtagResponseDto addHashtag(Long userId, String rawTag);
+    List<HashtagResponseDto> replaceHashtags(Long userId, List<String> tags);
     void deleteHashtag(Long userId, Long hashtagId);
 }

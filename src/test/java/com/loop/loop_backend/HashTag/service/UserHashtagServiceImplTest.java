@@ -127,10 +127,23 @@ class UserHashtagServiceImplTest {
     }
 
     @Test
-    void 이미_3개_등록된_경우_LIMIT_HASHTAG_예외를_던지고_저장하지_않는다() {
+    void 이미_4개_등록된_경우_다섯번째는_추가된다() {
         User user = testUser();
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-        when(userHashtagRepository.countByUser(user)).thenReturn(3);
+        when(userHashtagRepository.countByUser(user)).thenReturn(4);
+        when(userHashtagRepository.existsByUserAndTag(user, "새태그")).thenReturn(false);
+        when(userHashtagRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        HashtagResponseDto result = userHashtagService.addHashtag(USER_ID, "새태그");
+
+        assertThat(result.getTag()).isEqualTo("새태그");
+    }
+
+    @Test
+    void 이미_5개_등록된_경우_LIMIT_HASHTAG_예외를_던지고_저장하지_않는다() {
+        User user = testUser();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(userHashtagRepository.countByUser(user)).thenReturn(5);
 
         assertThatThrownBy(() -> userHashtagService.addHashtag(USER_ID, "새태그"))
                 .isInstanceOf(BusinessException.class)
