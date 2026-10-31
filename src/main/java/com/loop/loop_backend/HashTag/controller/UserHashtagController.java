@@ -1,6 +1,7 @@
 package com.loop.loop_backend.HashTag.controller;
 
 import com.loop.loop_backend.HashTag.dto.HashtagCreateRequestDto;
+import com.loop.loop_backend.HashTag.dto.HashtagReplaceRequestDto;
 import com.loop.loop_backend.HashTag.dto.HashtagResponseDto;
 import com.loop.loop_backend.HashTag.service.UserHashtagService;
 import com.loop.loop_backend.common.exception.CommonResponse;
@@ -52,8 +53,32 @@ public class UserHashtagController {
         return ResponseEntity.ok(CommonResponse.success(userHashtagService.getHashtags(userId)));
     }
 
+    @PutMapping("/me/hashtags")
+    @Operation(summary = "관심 해시태그 목록 교체",
+            description = "보낸 목록으로 내 해시태그를 통째로 교체합니다 (최대 5개). 빠진 태그는 삭제되고 []는 모두 비웁니다.\n\n" +
+                    "교체할 때마다 해시태그 id가 새로 발급되므로 응답의 id를 사용하세요.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "교체 성공 - 저장된 목록"),
+            @ApiResponse(responseCode = "400", description = "유효성 검사 실패 (태그 1~5자, 특수문자 불가)",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"입력값이 올바르지 않습니다.\",\"code\":400}"))),
+            @ApiResponse(responseCode = "409", description = "목록에 같은 태그가 있거나 개수 초과",
+                    content = @Content(examples = {
+                            @ExampleObject(name = "중복 태그",
+                                    value = "{\"success\":false,\"message\":\"이미 사용중인 해시태그입니다.\",\"code\":409}"),
+                            @ExampleObject(name = "개수 초과",
+                                    value = "{\"success\":false,\"message\":\"해시태그는 최대 5개까지 등록할 수 있습니다.\",\"code\":409}")
+                    }))
+    })
+    public ResponseEntity<CommonResponse<List<HashtagResponseDto>>> replaceHashtags(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody HashtagReplaceRequestDto requestDto) {
+        return ResponseEntity.ok(CommonResponse.success(
+                userHashtagService.replaceHashtags(userId, requestDto.getTags())));
+    }
+
     @PostMapping("/me/hashtags")
-    @Operation(summary = "관심 해시태그 추가", description = "내 관심 해시태그를 추가합니다 (최대 3개)")
+    @Operation(summary = "관심 해시태그 추가", description = "내 관심 해시태그를 추가합니다 (최대 5개)")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "추가 성공"),
             @ApiResponse(responseCode = "400", description = "유효성 검사 실패",
@@ -64,7 +89,7 @@ public class UserHashtagController {
                             @ExampleObject(name = "중복 태그",
                                     value = "{\"success\":false,\"message\":\"이미 사용중인 해시태그입니다.\",\"code\":409}"),
                             @ExampleObject(name = "개수 초과",
-                                    value = "{\"success\":false,\"message\":\"해시태그는 최대 3개까지 등록할 수 있습니다.\",\"code\":409}")
+                                    value = "{\"success\":false,\"message\":\"해시태그는 최대 5개까지 등록할 수 있습니다.\",\"code\":409}")
                     }))
     })
     public ResponseEntity<CommonResponse<HashtagResponseDto>> addHashtag(

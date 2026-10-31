@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
 
 @Service
@@ -19,7 +20,7 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class UserHashtagServiceImpl implements UserHashtagService {
 
-    private static final int MAX_HASHTAG_COUNT = 3;
+    private static final int MAX_HASHTAG_COUNT = 5;
 
     private final UserHashtagRepository userHashtagRepository;
     private final UserRepository userRepository;
@@ -55,6 +56,30 @@ public class UserHashtagServiceImpl implements UserHashtagService {
                         .build()
         );
         return HashtagResponseDto.from(saved);
+    }
+
+    @Override
+    @Transactional
+    public List<HashtagResponseDto> replaceHashtags(Long userId, List<String> tags) {
+        User user = getUser(userId);
+
+        if (tags.size() > MAX_HASHTAG_COUNT) {
+            throw new BusinessException(ErrorCode.LIMIT_HASHTAG);
+        }
+        if (new HashSet<>(tags).size() != tags.size()) {
+            throw new BusinessException(ErrorCode.DUPLICATE_HASHTAG);
+        }
+
+        // 벌크 삭제로 DELETE를 즉시 보낸다. 엔티티 단위 삭제는 flush 때 INSERT 뒤로 밀려
+        // 유지하는 태그를 다시 넣을 때 uq_user_tag 위반이 난다
+        userHashtagRepository.deleteAllInBulkByUser(user);
+
+        return userHashtagRepository.saveAll(tags.stream()
+                        .map(tag -> UserHashtag.builder().user(user).tag(tag).build())
+                        .toList())
+                .stream()
+                .map(HashtagResponseDto::from)
+                .toList();
     }
 
     @Override
