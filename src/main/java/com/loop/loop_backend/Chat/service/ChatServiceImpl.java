@@ -317,6 +317,11 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
+    public long getUnreadCount(Long userId) {
+        return messageRepository.countUnreadForUser(userId);
+    }
+
+    @Override
     public ChatMessagesResponseDto getMessages(Long roomId, Long userId, Pageable pageable) {
         // boolean 존재 체크(assertActiveParticipant) 대신 참여자 엔티티를 직접 가져온다.
         // messageVisibleFrom 커트라인을 읽어야 하기 때문. 검증 조건(ACTIVE 아니면 거부)은 동일하다.
