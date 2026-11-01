@@ -14,14 +14,16 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class FavoriteArtistServiceImpl implements FavoriteArtistService {
 
-    private static final int MAX_FAVORITE_ARTIST_COUNT = 3;
+    private static final int MAX_FAVORITE_ARTIST_COUNT = 5;
 
     private final FavoriteArtistRepository favoriteArtistRepository;
     private final UserRepository userRepository;
@@ -68,6 +70,38 @@ public class FavoriteArtistServiceImpl implements FavoriteArtistService {
         FavoriteArtist favoriteArtist = favoriteArtistRepository.findByIdAndUser(favoriteArtistId, user)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FAVORITE_ARTIST_NOT_FOUND));
         favoriteArtistRepository.delete(favoriteArtist);
+    }
+
+    @Override
+    @Transactional
+    public List<FavoriteArtistResponseDto> replaceFavoriteArtists(Long userId, List<Long> artistIds) {
+        User user = getUser(userId);
+        Set<Long> targetIds = new LinkedHashSet<>(artistIds);
+        if (targetIds.size() > MAX_FAVORITE_ARTIST_COUNT) {
+            throw new BusinessException(ErrorCode.LIMIT_FAVORITE_ARTIST);
+        }
+        List<Artist> artists = artistRepository.findAllById(targetIds);
+        if (artists.size() != targetIds.size()) {
+            throw new BusinessException(ErrorCode.ARTIST_NOT_FOUND);
+        }
+
+        List<FavoriteArtist> current = favoriteArtistRepository.findAllByUser(user);
+        Set<Long> currentIds = new LinkedHashSet<>();
+        for (FavoriteArtist favoriteArtist : current) {
+            if (targetIds.contains(favoriteArtist.getArtist().getId())) {
+                currentIds.add(favoriteArtist.getArtist().getId());
+            } else {
+                favoriteArtistRepository.delete(favoriteArtist);
+            }
+        }
+        favoriteArtistRepository.saveAll(artists.stream()
+                .filter(artist -> !currentIds.contains(artist.getId()))
+                .map(artist -> FavoriteArtist.builder().user(user).artist(artist).build())
+                .toList());
+
+        return favoriteArtistRepository.findAllByUser(user).stream()
+                .map(FavoriteArtistResponseDto::from)
+                .toList();
     }
 
     private User getUser(Long userId) {
