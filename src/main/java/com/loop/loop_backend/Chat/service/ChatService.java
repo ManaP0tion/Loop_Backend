@@ -21,6 +21,8 @@ public interface ChatService {
 
     List<ChatRoomResponseDto> getMyRooms(Long userId);
 
+    long getUnreadCount(Long userId);
+
     ChatMessagesResponseDto getMessages(Long roomId, Long userId, Pageable pageable);
 
     ChatMessageDto saveMessage(Long roomId, Long senderId, String rawContent);

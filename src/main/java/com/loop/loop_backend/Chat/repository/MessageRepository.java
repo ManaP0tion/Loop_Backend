@@ -31,6 +31,19 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 
     long countByChatRoom_IdAndSender_IdNotAndIsReadFalseAndCreatedAtAfter(Long roomId, Long senderId, LocalDateTime cutoff);
 
+    // 채팅 탭 뱃지용 전체 안읽음 수. getMyRooms()의 방별 unreadCount 합과 같은 기준
+    // (ACTIVE 참여 방, 상대가 보낸 안읽은 메시지, messageVisibleFrom 커트라인 이후)을 쿼리 1번으로 집계한다.
+    @Query("""
+            SELECT COUNT(m) FROM Message m, ChatParticipant cp
+            WHERE cp.chatRoom = m.chatRoom
+              AND cp.user.id = :userId
+              AND cp.status = com.loop.loop_backend.Chat.domain.ParticipantStatus.ACTIVE
+              AND m.sender.id <> :userId
+              AND m.isRead = false
+              AND (cp.messageVisibleFrom IS NULL OR m.createdAt > cp.messageVisibleFrom)
+            """)
+    long countUnreadForUser(@Param("userId") Long userId);
+
     @Modifying
     @Query("UPDATE Message m SET m.isRead = true WHERE m.chatRoom.id = :roomId AND m.sender.id <> :userId AND m.isRead = false")
     void markAllAsRead(@Param("roomId") Long roomId, @Param("userId") Long userId);
