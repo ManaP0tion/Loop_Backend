@@ -39,7 +39,7 @@ class SongServiceTest {
     @Test
     void 불러오기_병합_재불러오기시_한글유지_삭제곡skip_CSV반영() {
         Artist artist = artistRepository.save(Artist.builder().name("YOASOBI").build());
-        artist.linkItunes(100L, "https://music.apple.com/jp/artist/100");
+        artist.linkItunes(100L, "https://music.apple.com/jp/artist/100", "YOASOBI");
         given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.COUNTRY_JP))).willReturn(List.of(
                 track(1L, "夜に駆ける", "http://x/100x100bb.jpg"),
                 track(2L, "群青", null),
@@ -103,7 +103,7 @@ class SongServiceTest {
     void fetchSongs_WithPreviewUrl_SavesAndRefreshesPreviewUrl() {
         // given
         Artist artist = artistRepository.save(Artist.builder().name("YOASOBI").build());
-        artist.linkItunes(100L, "https://music.apple.com/jp/artist/100");
+        artist.linkItunes(100L, "https://music.apple.com/jp/artist/100", "YOASOBI");
         given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.COUNTRY_JP))).willReturn(List.of(
                 new ItunesTrack("track", 1L, "夜に駆ける", null, null, "https://audio/old.m4a")));
         songService.fetchSongs(artist.getId());
@@ -123,7 +123,7 @@ class SongServiceTest {
     @Test
     void 재불러오기시_수동추가곡과_sortOrder가_겹치지_않는다() {
         Artist artist = artistRepository.save(Artist.builder().name("YOASOBI").build());
-        artist.linkItunes(100L, "https://music.apple.com/jp/artist/100");
+        artist.linkItunes(100L, "https://music.apple.com/jp/artist/100", "YOASOBI");
         given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.COUNTRY_JP))).willReturn(List.of(
                 track(1L, "夜に駆ける", null), track(2L, "群青", null)));
         songService.fetchSongs(artist.getId());
@@ -147,7 +147,7 @@ class SongServiceTest {
     void importCsv_WithPreviewUrl_SetsUrlAndKeepsItWhenItunesHasNone() {
         // given: iTunes 곡(미리듣기 없음) + 수동 곡
         Artist artist = artistRepository.save(Artist.builder().name("YOASOBI").build());
-        artist.linkItunes(100L, "https://music.apple.com/jp/artist/100");
+        artist.linkItunes(100L, "https://music.apple.com/jp/artist/100", "YOASOBI");
         given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.COUNTRY_JP))).willReturn(List.of(track(1L, "夜に駆ける", null)));
         songService.fetchSongs(artist.getId());
         Long manual = songService.createSong(artist.getId(),

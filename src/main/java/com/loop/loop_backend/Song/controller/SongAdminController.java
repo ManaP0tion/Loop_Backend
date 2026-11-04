@@ -2,6 +2,7 @@ package com.loop.loop_backend.Song.controller;
 
 import com.loop.loop_backend.Artist.dto.ArtistResponseDto;
 import com.loop.loop_backend.Artist.service.ArtistService;
+import com.loop.loop_backend.Artist.service.ItunesAutoLinkService;
 import com.loop.loop_backend.Song.DTO.*;
 import com.loop.loop_backend.Song.Service.SongService;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -26,7 +27,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * AD-03 곡 데이터 관리. 전부 관리자 전용(/api/admin/** → hasRole("ADMIN"), SecurityConfig).
@@ -40,6 +43,7 @@ public class SongAdminController {
     private final SongService songService;
     private final ArtistService artistService;
     private final ItunesClient itunesClient;
+    private final ItunesAutoLinkService itunesAutoLinkService;
 
     public record ItunesLinkRequest(@NotNull Long itunesArtistId) {}
 
@@ -116,7 +120,9 @@ public class SongAdminController {
     }
 
     @PutMapping("/artists/{artistId}/itunes")
-    @Operation(summary = "아티스트 ↔ iTunes 연결", description = "iTunes에서 실제로 조회되는 아티스트 ID만 연결")
+    @Operation(summary = "아티스트 ↔ iTunes 연결(확인)",
+            description = "iTunes에서 실제로 조회되는 아티스트 ID만 연결. 연결하면 itunesAutoLinked=false(관리자 확인 완료). " +
+                    "자동 연결된 후보가 맞으면 같은 itunesArtistId로 다시 보내 확인 처리한다")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "연결 성공"),
             @ApiResponse(responseCode = "404", description = "아티스트 없음 / iTunes 아티스트 없음"),
@@ -127,6 +133,33 @@ public class SongAdminController {
             @Valid @RequestBody ItunesLinkRequest request) {
         return ResponseEntity.ok(CommonResponse.success(
                 artistService.linkItunes(artistId, request.itunesArtistId())));
+    }
+
+    @PostMapping("/artists/itunes/auto-link")
+    @Operation(summary = "iTunes 일괄 자동 연결 시작",
+            description = "iTunes 미연결 아티스트 전체를 이름으로 검색해 1순위 후보에 연결(itunesAutoLinked=true, 관리자 확인 대기). " +
+                    "이미 연결된 아티스트는 건드리지 않는다. iTunes 호출 제한 때문에 아티스트당 약 3초. 결과는 GET 같은 경로로 확인")
+    @ApiResponses({
+            @ApiResponse(responseCode = "202", description = "시작"),
+            @ApiResponse(responseCode = "409", description = "이미 실행 중")
+    })
+    public ResponseEntity<CommonResponse<String>> startItunesAutoLink() {
+        if (itunesAutoLinkService.isRunning()) {
+            throw new BusinessException(ErrorCode.ITUNES_AUTO_LINK_ALREADY_RUNNING);
+        }
+        itunesAutoLinkService.linkAllAsync();
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(CommonResponse.success("iTunes 자동 연결을 시작했습니다."));
+    }
+
+    @GetMapping("/artists/itunes/auto-link")
+    @Operation(summary = "iTunes 일괄 자동 연결 상태",
+            description = "running=true면 진행 중. result는 마지막 실행 결과(서버 재시작 시 사라짐, 없으면 null). " +
+                    "noCandidate = 검색 결과가 없어 직접 연결해야 하는 아티스트")
+    public ResponseEntity<CommonResponse<Map<String, Object>>> itunesAutoLinkStatus() {
+        Map<String, Object> body = new HashMap<>();
+        body.put("running", itunesAutoLinkService.isRunning());
+        body.put("result", itunesAutoLinkService.getLastResult());
+        return ResponseEntity.ok(CommonResponse.success(body));
     }
 
     @PostMapping("/artists/{artistId}/songs/fetch")

@@ -20,12 +20,16 @@ public class ArtistResponseDto {
     private final Nationality nationality;
     private final Long itunesArtistId;
     private final String artistViewUrl;
+    private final String itunesArtistName;
+    private final boolean itunesAutoLinked;
     private final LocalDateTime createdAt;
 
     public static ArtistResponseDto from(Artist artist) {
         return ArtistResponseDto.builder()
                 .itunesArtistId(artist.getItunesArtistId())
                 .artistViewUrl(artist.getArtistViewUrl())
+                .itunesArtistName(artist.getItunesArtistName())
+                .itunesAutoLinked(artist.isItunesAutoLinked())
                 .id(artist.getId())
                 .name(artist.getName())
                 .baseName(artist.getBaseName())
