@@ -826,11 +826,13 @@ public class AdminController {
 
     public record ArtistRow(Long id, String name, String baseName, String nameKo, String nameAlias,
                             String imageUrl, Nationality nationality, Long itunesArtistId,
-                            String artistViewUrl, String instagramUrl, String xUrl, String homepageUrl) {
+                            String artistViewUrl, String itunesArtistName, boolean itunesAutoLinked,
+                            String instagramUrl, String xUrl, String homepageUrl) {
         static ArtistRow of(Artist a) {
             return new ArtistRow(a.getId(), a.getName(), a.getBaseName(), a.getNameKo(),
                     a.getNameAlias(), a.getImageUrl(), a.getNationality(), a.getItunesArtistId(),
-                    a.getArtistViewUrl(), a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
+                    a.getArtistViewUrl(), a.getItunesArtistName(), a.isItunesAutoLinked(),
+                    a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
         }
     }
     /** updated = 반영, unchanged = 바뀐 값 없음, failedRows = 아티스트를 못 찾았거나 값이 잘못된 행 번호(헤더 제외 1부터) */

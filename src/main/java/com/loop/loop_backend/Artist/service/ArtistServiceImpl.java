@@ -86,7 +86,7 @@ public class ArtistServiceImpl implements ArtistService {
     public ArtistResponseDto linkItunes(Long id, Long itunesArtistId) {
         Artist artist = findArtistOrThrow(id);
         ItunesArtist itunesArtist = itunesClient.lookupArtist(itunesArtistId);
-        artist.linkItunes(itunesArtist.artistId(), itunesArtist.artistLinkUrl());
+        artist.linkItunes(itunesArtist.artistId(), itunesArtist.artistLinkUrl(), itunesArtist.artistName());
         return ArtistResponseDto.from(artist);
     }
 

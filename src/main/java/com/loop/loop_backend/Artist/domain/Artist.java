@@ -55,6 +55,14 @@ public class Artist {
     @Column(name = "artist_view_url", length = 500)
     private String artistViewUrl;
 
+    // 연결한 iTunes 아티스트 이름. 관리자가 맞는 아티스트인지 확인하는 용도(이 필드 추가 전에 연결한 건 null)
+    @Column(name = "itunes_artist_name", length = 200)
+    private String itunesArtistName;
+
+    // true = 일괄 자동 연결로 검색 1순위 후보가 붙었고 관리자 확인 전. 관리자가 연결(PUT)하면 false
+    @Column(name = "itunes_auto_linked", nullable = false)
+    private boolean itunesAutoLinked;
+
     // 공식 SNS·홈페이지 (관리자 수기 입력). 공연 상세에 노출. http/https 주소만.
     @Column(name = "instagram_url", length = 500)
     private String instagramUrl;
@@ -133,8 +141,11 @@ public class Artist {
         return new ArtistProduct(title, linkUrl, imageUrl);
     }
 
-    public void linkItunes(Long itunesArtistId, String artistViewUrl) {
+    /** 관리자가 고른(확인한) 연결 */
+    public void linkItunes(Long itunesArtistId, String artistViewUrl, String itunesArtistName) {
         this.itunesArtistId = itunesArtistId;
         this.artistViewUrl = artistViewUrl;
+        this.itunesArtistName = itunesArtistName;
+        this.itunesAutoLinked = false;
     }
 }

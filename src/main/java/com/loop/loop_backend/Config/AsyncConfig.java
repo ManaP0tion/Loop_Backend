@@ -63,6 +63,19 @@ public class AsyncConfig {
         return executor;
     }
 
+    // iTunes 일괄 자동 연결 전용. 같은 이유로 스레드 1개, 대기열 없음.
+    @Bean(name = "itunesAutoLinkExecutor")
+    public Executor itunesAutoLinkExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(0);
+        executor.setThreadNamePrefix("itunes-auto-link-");
+        executor.setTaskDecorator(mdcTaskDecorator());
+        executor.initialize();
+        return executor;
+    }
+
     // MDC는 스레드 로컬이라 @Async로 넘어가면 기본적으로 유실됨.
     // 요청 스레드의 MDC(userId 등)를 작업 실행 시점의 워커 스레드로 복사해서 로그에 이어지게 한다.
     private TaskDecorator mdcTaskDecorator() {
