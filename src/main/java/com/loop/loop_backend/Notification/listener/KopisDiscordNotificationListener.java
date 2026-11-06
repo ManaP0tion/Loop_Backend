@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 /**
  * 매일 자동 KOPIS 싱크로 검토 대기열에 새 공연이 들어오면 디스코드로 한 통 알린다.
  * - 자동 실행(09:00)만 알린다. 어드민 수동 실행은 실행한 관리자가 바로 대기열을 보므로 알리지 않는다.
- * - 새 건이 없으면 실패가 있어도 보내지 않는다(실패는 서버 로그로 본다). (임시로 0건도 보냄 - handleSyncCompleted TODO)
+ * - 새 건이 없으면 실패가 있어도 보내지 않는다(실패는 서버 로그로 본다).
  * 싱크는 트랜잭션 밖에서 끝나므로 @TransactionalEventListener가 아니라 @EventListener로 받는다(AFTER_COMMIT이면 이벤트가 버려진다).
  */
 @Component
@@ -40,18 +40,8 @@ public class KopisDiscordNotificationListener {
     @EventListener
     public void handleSyncCompleted(KopisSyncCompletedEvent event) {
         if (event.trigger() != SyncTrigger.SCHEDULED) return;
-        // TODO(임시): 웹훅 연결 확인용으로 0건이어도 보낸다. 확인 후 0건이면 보내지 않도록 되돌린다
-        //   → if (event.newImports().isEmpty()) return;
-        if (event.newImports().isEmpty()) {
-            discordNotificationService.send(webhookUrl, emptyMessage(event.failed()));
-            return;
-        }
+        if (event.newImports().isEmpty()) return;
         discordNotificationService.send(webhookUrl, message(event.newImports()));
-    }
-
-    /** 임시(연결 확인용): 새 건이 없을 때. 싱크가 제대로 돌았는지 보려고 실패 수를 함께 적는다. */
-    static String emptyMessage(int failed) {
-        return "**KOPIS 자동 수집 완료** 신규 0건 (실패 " + failed + "건)";
     }
 
     static String message(List<NewImport> newImports) {
