@@ -24,7 +24,7 @@ import static org.mockito.Mockito.verify;
 
 // KOPIS 신규 수집 디스코드 알림 요구사항:
 // - 매일 자동 실행(09:00)으로 새 공연이 들어왔을 때만 KOPIS 채널에 한 통 보낸다.
-// - 새 건이 없으면 실패가 있어도 보내지 않는다(임시: 웹훅 연결 확인 기간에는 0건도 보낸다). 어드민 수동 실행은 보내지 않는다.
+// - 새 건이 없으면 실패가 있어도 보내지 않는다. 어드민 수동 실행은 보내지 않는다.
 // - 메시지에는 건수와 목록(아티스트 또는 페스티벌, 공연명, 기간)이 담긴다.
 // - 디스코드 2000자 제한 때문에 10건까지만 나열하고 나머지는 "외 N건", 긴 공연명은 줄인다.
 class KopisDiscordNotificationListenerTest {
@@ -72,16 +72,14 @@ class KopisDiscordNotificationListenerTest {
         assertThat(message).contains("- [페스티벌] SUMMER SONIC 2026 (2026.08.15~2026.08.16)");
     }
 
-    // TODO(임시): 웹훅 연결 확인 기간에는 0건도 보낸다. 되돌릴 때 이 테스트를 아래 원래 요구사항으로 바꾼다.
-    //   @DisplayName("새 공연이 없으면 실패가 있어도 보내지 않는다") → verify(discord, never()).send(anyString(), anyString());
     @Test
-    @DisplayName("(임시) 자동 실행에서 새 공연이 없어도 연결 확인용으로 0건과 실패 수를 보낸다")
-    void handleSyncCompleted_NoNewImports_SendsEmptyMessageTemporarily() {
+    @DisplayName("자동 실행에서 새 공연이 없으면 실패가 있어도 보내지 않는다")
+    void handleSyncCompleted_NoNewImports_SendsNothing() {
         // when
         listener.handleSyncCompleted(new KopisSyncCompletedEvent(SyncTrigger.SCHEDULED, List.of(), 3));
 
         // then
-        assertThat(sentMessage()).isEqualTo("**KOPIS 자동 수집 완료** 신규 0건 (실패 3건)");
+        verify(discord, never()).send(anyString(), anyString());
     }
 
     @Test
