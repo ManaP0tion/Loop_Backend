@@ -46,6 +46,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
@@ -404,6 +405,34 @@ class CompanionServiceImplTest {
         assertThat(dto.getPreferredArtistNames()).containsExactly("아이유");
     }
 
+    // 동행 프로필에 관심 아티스트 이미지를 보여준다: 아티스트마다 PK·이름·이미지를 함께 주고, 이미지가 없으면 null.
+    // 구버전 앱용 이름 목록(preferredArtistNames)도 같은 순서로 계속 내려준다.
+    @Test
+    void 상세조회시_작성자의_관심_아티스트_이미지가_이름과_함께_내려간다() {
+        ReflectionTestUtils.setField(user, "id", 1L);
+        CompanionPost post = buildPost(user, 10L);
+        when(companionPostRepository.findById(1L)).thenReturn(Optional.of(post));
+
+        Artist withImage = Artist.builder().name("YOASOBI").imageUrl("https://img.example/yoasobi.jpg").build();
+        ReflectionTestUtils.setField(withImage, "id", 3L);
+        Artist withoutImage = Artist.builder().name("Vaundy").build();
+        ReflectionTestUtils.setField(withoutImage, "id", 7L);
+        when(favoriteArtistRepository.findAllByUser(user)).thenReturn(List.of(
+                FavoriteArtist.builder().user(user).artist(withImage).build(),
+                FavoriteArtist.builder().user(user).artist(withoutImage).build()));
+
+        CompanionDetailResponseDto dto = (CompanionDetailResponseDto) companionService.getCompanion(999L, 1L);
+
+        assertThat(dto.getPreferredArtists())
+                .extracting(CompanionDetailResponseDto.PreferredArtist::getArtistId,
+                        CompanionDetailResponseDto.PreferredArtist::getName,
+                        CompanionDetailResponseDto.PreferredArtist::getImageUrl)
+                .containsExactly(
+                        tuple(3L, "YOASOBI", "https://img.example/yoasobi.jpg"),
+                        tuple(7L, "Vaundy", null));
+        assertThat(dto.getPreferredArtistNames()).containsExactly("YOASOBI", "Vaundy");
+    }
+
     @Test
     void 관심_아티스트가_없으면_빈_목록을_반환한다() {
         ReflectionTestUtils.setField(user, "id", 1L);
@@ -414,6 +443,7 @@ class CompanionServiceImplTest {
         CompanionDetailResponseDto dto = (CompanionDetailResponseDto) companionService.getCompanion(999L, 1L);
 
         assertThat(dto.getPreferredArtistNames()).isEmpty();
+        assertThat(dto.getPreferredArtists()).isEmpty();
     }
 
     @Test
