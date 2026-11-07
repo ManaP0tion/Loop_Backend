@@ -300,14 +300,15 @@ public class CompanionServiceImpl implements CompanionService {
                 .map(tag -> new CompanionDetailResponseDto.HashtagSummary(tag.getId(), tag.getTag()))
                 .toList();
 
-        List<String> preferredArtistNames = favoriteArtistRepository.findAllByUser(post.getUser())
+        List<CompanionDetailResponseDto.PreferredArtist> preferredArtists = favoriteArtistRepository.findAllByUser(post.getUser())
                 .stream()
-                .map(fa -> fa.getArtist().getName())
+                .map(fa -> new CompanionDetailResponseDto.PreferredArtist(
+                        fa.getArtist().getId(), fa.getArtist().getName(), fa.getArtist().getImageUrl()))
                 .toList();
 
         boolean isHearted = companionHeartRepository.existsByUser_IdAndCompanionPost_Id(userId, companionId);
 
-        return new CompanionDetailResponseDto(post, hashtags, preferredArtistNames, isHearted);
+        return new CompanionDetailResponseDto(post, hashtags, preferredArtists, isHearted);
     }
 
     @Override
