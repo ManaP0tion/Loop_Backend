@@ -18,6 +18,8 @@ public interface ConcertImportRepository extends JpaRepository<ConcertImport, Lo
 
     Page<ConcertImport> findByStatus(ImportStatus status, Pageable pageable);
 
+    List<ConcertImport> findByPublishedConcertId(Long publishedConcertId);
+
     // KOPIS 검색 결과의 등록 상태 계산용: 검색된 공연들의 대기열 행을 한 번에 가져온다.
     List<ConcertImport> findByKopisIdIn(Collection<String> kopisIds);
 }

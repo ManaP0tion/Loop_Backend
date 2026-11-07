@@ -106,6 +106,29 @@ public class ConcertImportService {
         findPending(importId).markRejected(reason);
     }
 
+    /** 공연 삭제 시 호출. 대기열 행이 없는 공연(어드민에서 직접 만든 공연)이면 아무것도 하지 않는다. */
+    @Transactional
+    public void markDeletedByConcert(Long concertId) {
+        importRepository.findByPublishedConcertId(concertId).forEach(ConcertImport::markDeleted);
+    }
+
+    /**
+     * 삭제된 공연을 검토 대기로 되돌린다.
+     * 그사이 같은 KOPIS 공연이 다른 아티스트로 직접 등록됐으면, 다시 승인할 때 공연이 중복되므로 막는다.
+     */
+    @Transactional
+    public void restore(Long importId) {
+        ConcertImport imp = importRepository.findById(importId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_IMPORT_NOT_FOUND));
+        if (imp.getStatus() != ImportStatus.DELETED) {
+            throw new BusinessException(ErrorCode.IMPORT_NOT_DELETED);
+        }
+        if (concertRepository.existsByKopisId(imp.getKopisId())) {
+            throw new BusinessException(ErrorCode.CONCERT_ALREADY_REGISTERED);
+        }
+        imp.restore();
+    }
+
     private ConcertImport findPending(Long importId) {
         ConcertImport imp = importRepository.findById(importId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_IMPORT_NOT_FOUND));

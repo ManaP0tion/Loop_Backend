@@ -119,7 +119,7 @@ public class ConcertImport {
 
     /**
      * 관리자 직접 등록(KOPIS 검색)으로 같은 (kopisId, 아티스트) 행을 다시 쓸 때: KOPIS 최신값과 관리자가 고른 유형으로 바꾸고
-     * 검토 대기로 되돌린다. 거절됐거나, 승인됐지만 공연이 삭제된 행도 여기서 다시 열린다(바로 이어서 승인된다).
+     * 검토 대기로 되돌린다. 거절됐거나 공연이 삭제된 행도 여기서 다시 열린다(바로 이어서 승인된다).
      */
     public void resetForManualImport(String title, String posterUrl, String venue,
                                      LocalDate startDate, LocalDate endDate, ConcertCategory category) {
@@ -140,5 +140,18 @@ public class ConcertImport {
         this.status = ImportStatus.REJECTED;
         this.rejectReason = reason;
         this.reviewedAt = LocalDateTime.now();
+    }
+
+    /** 승인으로 만든 공연이 삭제됐을 때. reviewedAt은 삭제 시각이 된다. */
+    public void markDeleted() {
+        this.status = ImportStatus.DELETED;
+        this.publishedConcertId = null;
+        this.reviewedAt = LocalDateTime.now();
+    }
+
+    /** 삭제된 공연을 검토 대기로 되돌린다. 다시 승인하면 새 공연으로 만들어진다. */
+    public void restore() {
+        this.status = ImportStatus.PENDING;
+        this.reviewedAt = null;
     }
 }

@@ -330,7 +330,7 @@ class ConcertManualImportServiceTest {
         when(kopisClient.searchPerformances(anyString(), any(), any(), any(Integer.class)))
                 .thenReturn(new KopisClient.SearchResult(List.of(
                         perf("PF_REG", date), perf("PF_PENDING", date), perf("PF_REJECTED", date),
-                        perf("PF_NEW", date), perf("PF_DELETED", date)), false));
+                        perf("PF_NEW", date), perf("PF_DELETED", date), perf("PF_DELETED_OLD", date)), false));
         // 등록됨: 공연 2건(아티스트별) + 승인된 대기열 행
         when(concertRepository.findByKopisIdIn(any())).thenReturn(List.of(
                 Concert.builder().id(10L).kopisId("PF_REG").build(),
@@ -340,8 +340,9 @@ class ConcertManualImportServiceTest {
                 importRow("PF_PENDING", ImportStatus.PENDING),
                 importRow("PF_PENDING", ImportStatus.REJECTED),
                 importRow("PF_REJECTED", ImportStatus.REJECTED),
-                // 승인했지만 공연이 삭제된 건
-                importRow("PF_DELETED", ImportStatus.APPROVED)));
+                importRow("PF_DELETED", ImportStatus.DELETED),
+                // 이 상태가 생기기 전에 삭제돼 APPROVED로 남은 건
+                importRow("PF_DELETED_OLD", ImportStatus.APPROVED)));
 
         // when
         KopisSearchResponse response = service.search("공연");
@@ -354,7 +355,8 @@ class ConcertManualImportServiceTest {
                         tuple("PF_PENDING", KopisSearchStatus.PENDING, List.of()),
                         tuple("PF_REJECTED", KopisSearchStatus.REJECTED, List.of()),
                         tuple("PF_NEW", KopisSearchStatus.NEW, List.of()),
-                        tuple("PF_DELETED", KopisSearchStatus.NEW, List.of()));
+                        tuple("PF_DELETED", KopisSearchStatus.NEW, List.of()),
+                        tuple("PF_DELETED_OLD", KopisSearchStatus.NEW, List.of()));
     }
 
     @Test

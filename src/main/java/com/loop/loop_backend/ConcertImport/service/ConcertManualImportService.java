@@ -95,7 +95,7 @@ public class ConcertManualImportService {
 
     /**
      * 공연이 있으면 등록됨. 없으면 검토 대기열 상태로 본다 - 대기 > 거절 순.
-     * 승인됐는데 공연이 없는 행(승인 후 삭제)은 아무 기록이 없는 것과 같아 NEW다(등록하면 다시 열린다).
+     * 공연이 삭제된 행(DELETED, 이전에 삭제돼 APPROVED로 남은 행)은 아무 기록이 없는 것과 같아 NEW다(등록하면 다시 열린다).
      */
     private KopisSearchStatus statusOf(List<Long> concertIds, Set<ImportStatus> importStatuses) {
         if (!concertIds.isEmpty()) return KopisSearchStatus.REGISTERED;

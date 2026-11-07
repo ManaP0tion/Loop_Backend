@@ -8,6 +8,7 @@ import com.loop.loop_backend.ConcertImport.domain.ConcertImport;
 import com.loop.loop_backend.ConcertImport.domain.ImportStatus;
 import com.loop.loop_backend.ConcertImport.repository.ConcertImportRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -154,6 +155,22 @@ class ConcertImportWriterTest {
         assertThat(result).isEqualTo(new ImportSaveResult(0, 0, 0, 2));
         assertThat(concertImportRepository.findAll())
                 .allSatisfy(imp -> assertThat(imp.getTitle()).isEqualTo("이전 제목"));
+    }
+
+    @Test
+    @DisplayName("삭제된 공연은 복원 전까지 다시 수집해도 되살아나지 않는다")
+    void saveImport_WhenDeleted_SkipsWithoutReviving() {
+        Artist vaundy = jpopArtist("Vaundy");
+        saveExisting("PF1", vaundy, ImportStatus.DELETED);
+
+        ImportSaveResult result = writer.saveImport(perf("PF1", "새 제목"),
+                IdentificationResult.jpopArtists(List.of(vaundy), IdentificationResult.TITLE_MATCH));
+
+        assertThat(result).isEqualTo(new ImportSaveResult(0, 0, 0, 1));
+        assertThat(concertImportRepository.findAll()).singleElement().satisfies(imp -> {
+            assertThat(imp.getStatus()).isEqualTo(ImportStatus.DELETED);
+            assertThat(imp.getTitle()).isEqualTo("이전 제목");
+        });
     }
 
     @Test
