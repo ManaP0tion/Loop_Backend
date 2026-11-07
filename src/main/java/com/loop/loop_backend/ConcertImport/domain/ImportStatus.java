@@ -8,7 +8,8 @@ import lombok.RequiredArgsConstructor;
 public enum ImportStatus {
     PENDING("검토 대기"),
     APPROVED("승인 (게시됨)"),
-    REJECTED("거절");
+    REJECTED("거절"),
+    DELETED("삭제됨");
 
     private final String displayName;
 }

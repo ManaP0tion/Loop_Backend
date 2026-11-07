@@ -589,6 +589,7 @@ public class AdminController {
         // ChatRoom.concertId는 post와 별개로 저장된 스냅샷이라 DB 캐스케이드가 안 닿으므로, 여기서 직접 정리해서
         // 삭제된 공연 id를 계속 들고 있는 유령 참조가 안 남게 한다.
         chatRoomRepository.clearConcertId(id);
+        concertImportService.markDeletedByConcert(id);
         concertRepository.deleteById(id);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
@@ -652,6 +653,21 @@ public class AdminController {
         String reason = body != null ? body.getOrDefault("reason", "") : "";
         concertImportService.reject(id, reason);
         accessLog.log(adminId, req, "REJECT_IMPORT", "CONCERT", id, "수집 공연 거절 · 사유: " + reason);
+        return ResponseEntity.ok(CommonResponse.success(null));
+    }
+
+    @PostMapping("/concert-imports/{id}/restore")
+    @Transactional
+    @Operation(summary = "삭제된 공연 복원",
+            description = "삭제된 공연의 검토 큐 행(GET /api/admin/concert-imports?status=DELETED)을 검토 대기로 되돌린다. 요청 본문은 없다.\n\n" +
+                    "다시 승인하면 **새 공연 id**로 만들어진다. 관리자가 고친 공연 정보, 동행 프로필, 셋리스트·투표는 돌아오지 않는다.\n\n" +
+                    "- 삭제 상태가 아니면 409\n" +
+                    "- 같은 KOPIS 공연으로 만든 공연이 이미 있으면 409")
+    public ResponseEntity<CommonResponse<Void>> restoreImport(
+            @AuthenticationPrincipal Long adminId, HttpServletRequest req,
+            @Parameter(description = "검토 큐 id") @PathVariable Long id) {
+        concertImportService.restore(id);
+        accessLog.log(adminId, req, "RESTORE_IMPORT", "CONCERT", id, "삭제된 수집 공연 복원");
         return ResponseEntity.ok(CommonResponse.success(null));
     }
 

@@ -41,7 +41,7 @@ public class ConcertImportWriter {
      * 재수집 멱등성:
      * - 신규 → PENDING import 저장
      * - 기존 PENDING → 원본 필드만 최신화 (아직 검토 전)
-     * - 기존 APPROVED/REJECTED → skip (이미 처리한 건을 검토 큐에 되살리지 않음)
+     * - 기존 APPROVED/REJECTED/DELETED → skip (이미 처리한 건을 검토 큐에 되살리지 않음. DELETED는 관리자가 복원해야 돌아온다)
      */
     private ImportSaveResult upsertImport(Artist artist, KopisPerformance perf, IdentificationResult result,
                                           Optional<ConcertImport> existing) {
