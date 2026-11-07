@@ -44,12 +44,15 @@ public record SetlistRankingResponse(
             @Schema(description = "원제", requiredMode = Schema.RequiredMode.REQUIRED) String titleOriginal,
             @Schema(description = "한글 곡명", types = {"string", "null"}) String titleKo,
             @Schema(description = "앨범아트 URL", types = {"string", "null"}) String albumArtUrl,
+            @Schema(description = "30초 미리듣기 음원 URL(.m4a, Apple CDN). 앱에서 바로 재생한다. null이면 재생 버튼 숨김",
+                    types = {"string", "null"}) String previewUrl,
             @Schema(description = "득표 수", requiredMode = Schema.RequiredMode.REQUIRED) long votes,
             @Schema(description = "상위 n곡 하이라이트 여부", requiredMode = Schema.RequiredMode.REQUIRED) boolean highlighted,
             @Schema(description = "내가 고른 곡인지(비로그인·미투표면 false)", requiredMode = Schema.RequiredMode.REQUIRED) boolean mine
     ) {
         public static RankedSong of(int rank, Song song, long votes, boolean highlighted, boolean mine) {
             return new RankedSong(rank, song.getId(), song.getTitleOriginal(), song.getTitleKo(), song.getAlbumArtUrl(),
+                    song.getPreviewUrl(),
                     votes, highlighted, mine);
         }
     }

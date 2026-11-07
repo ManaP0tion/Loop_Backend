@@ -90,7 +90,7 @@ class SetlistVoteControllerTest {
     @Test
     void 순위는_로그인_유저를_넘기고_순위_필드를_모두_준다() throws Exception {
         when(service.ranking(1L, PERFORMANCE_ID, USER_ID)).thenReturn(new SetlistRankingResponse(20, 31, true,
-                List.of(new RankedSong(1, 12L, "ドライフラワー", "드라이플라워", "https://img/a.jpg", 25, true, true))));
+                List.of(new RankedSong(1, 12L, "ドライフラワー", "드라이플라워", "https://img/a.jpg", "https://audio/a.m4a", 25, true, true))));
 
         mockMvc.perform(get("/api/concerts/{concertId}/performances/{performanceId}/setlist/ranking", 1L, PERFORMANCE_ID))
                 .andExpect(status().isOk())
@@ -102,6 +102,7 @@ class SetlistVoteControllerTest {
                 .andExpect(jsonPath("$.data.songs[0].titleOriginal").value("ドライフラワー"))
                 .andExpect(jsonPath("$.data.songs[0].titleKo").value("드라이플라워"))
                 .andExpect(jsonPath("$.data.songs[0].albumArtUrl").value("https://img/a.jpg"))
+                .andExpect(jsonPath("$.data.songs[0].previewUrl").value("https://audio/a.m4a"))
                 .andExpect(jsonPath("$.data.songs[0].votes").value(25))
                 .andExpect(jsonPath("$.data.songs[0].highlighted").value(true))
                 .andExpect(jsonPath("$.data.songs[0].mine").value(true));
