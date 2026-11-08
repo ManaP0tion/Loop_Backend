@@ -5,6 +5,7 @@ import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.extern.jackson.Jacksonized;
 
 import java.time.LocalDate;
 
@@ -13,8 +14,10 @@ import java.time.LocalDate;
 // 동행 인원수가 필요한 화면은 별도로 companionCount를 채워주는 DTO(ConcertResponseDto)를 쓸 것.
 //
 // 목록 쿼리는 아티스트·공연장을 fetch join으로 함께 가져와야 한다 - 이 DTO가 둘 다 읽어서, 아니면 공연마다 쿼리가 더 나간다(N+1).
+// @Jacksonized: Redis 목록 캐시(RedisConfig.CONCERT_LIST_CACHE)에서 다시 읽을 때 빌더로 만든다.
 @Getter
 @Builder
+@Jacksonized
 public class ConcertSummaryDto {
 
     private final Long concertId;

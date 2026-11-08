@@ -17,6 +17,7 @@ import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleReposit
 import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
+import com.loop.loop_backend.Config.RedisConfig;
 import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
 import com.loop.loop_backend.Performance.domain.Performance;
 import com.loop.loop_backend.Performance.repository.PerformanceRepository;
@@ -31,6 +32,7 @@ import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.common.time.ExpiryCutoff;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -224,7 +226,9 @@ public class ConcertServiceImpl implements ConcertService {
                 .toList();
     }
 
+    // userId는 결과에 쓰지 않는다 - 모든 사용자가 같은 캐시를 본다. userId를 쓰게 되면 캐시를 빼거나 키에 넣을 것.
     @Override
+    @Cacheable(cacheNames = RedisConfig.CONCERT_LIST_CACHE, key = "#section.name() + ':' + #period.name()")
     public List<ConcertSummaryDto> getConcertsBySection(ConcertSection section, ConcertPeriod period, Long userId) {
         List<ConcertCategory> categories = section.getCategories();
         LocalDate cutoff = ExpiryCutoff.cutoffDate();

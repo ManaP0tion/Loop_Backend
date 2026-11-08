@@ -3,6 +3,7 @@ package com.loop.loop_backend.Concert.service;
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
+import com.loop.loop_backend.Config.RedisConfig;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
 import com.loop.loop_backend.Concert.domain.ticket.ConcertGeneralSale;
@@ -24,6 +25,7 @@ import com.loop.loop_backend.Venue.repository.VenueRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -82,6 +84,7 @@ public class AdminConcertService {
 
     /** 직접 등록 - 항상 비공개로 만든다(포스터는 생성 후 업로드, 공개는 수정에서). */
     @Transactional
+    @CacheEvict(cacheNames = RedisConfig.CONCERT_LIST_CACHE, allEntries = true)
     public AdminConcertDetailResponse create(AdminConcertCreateRequest req) {
         Concert concert = Concert.builder()
                 .title(req.title().trim())
@@ -112,6 +115,7 @@ public class AdminConcertService {
      * 기간 다음 시각(시각 개수는 바뀐 기간 기준), 공개 여부는 마지막에 반영하고 전체 상태를 검사한다.
      */
     @Transactional
+    @CacheEvict(cacheNames = RedisConfig.CONCERT_LIST_CACHE, allEntries = true)
     public AdminConcertDetailResponse update(Long id, AdminConcertUpdateRequest req) {
         Concert concert = findConcert(id);
 
