@@ -123,6 +123,17 @@ public class Concert {
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
 
+    /**
+     * 동행 기능 상태(저장값). 처음 저장할 때 유형으로 정하고(페스티벌 모집 중, 그 외 미오픈) 유형을 바꿔도 유지한다.
+     * 사용자에게는 companionStatusForUsers()로 보여준다 - 비공개 공연은 저장값과 상관없이 닫힌 것처럼 보인다.
+     * varchar로 고정: Hibernate 6 기본은 MySQL ENUM 컬럼이라 값을 추가할 때 기존 행 변경이 실패한다.
+     * 컬럼 기본값은 컬럼이 생길 때 기존 공연을 채우는 값(ddl-auto update) - 기존 페스티벌은 배포 후 SQL로 OPEN으로 바꾼다.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "companion_status", nullable = false, length = 20,
+            columnDefinition = "varchar(20) default 'NOT_OPENED'")
+    private CompanionStatus companionStatus;
+
     // 숙소(노출 여부·딥링크)는 공연장으로 옮겼다(Venue.lodgingVisible/lodgingUrl).
 
     /** 공연 특설 공식 사이트. 있는 공연만 상세에서 연결한다. http/https 주소만. */
@@ -261,6 +272,43 @@ public class Concert {
     public void replaceTitleAliases(List<String> aliases) {
         this.titleAliases.clear();
         this.titleAliases.addAll(cleanDistinct(aliases));
+    }
+
+    // ---------- 동행 기능 상태 ----------
+
+    // 공연을 만드는 경로(어드민 등록, KOPIS 승인, 구 등록 API)가 모두 builder라 저장 시점에 한 번에 기본값을 채운다
+    @PrePersist
+    void initCompanionStatus() {
+        if (companionStatus == null) companionStatus = defaultCompanionStatus();
+    }
+
+    /** 저장 전(builder로 만든 직후)에도 유형별 기본값을 돌려준다. */
+    public CompanionStatus getCompanionStatus() {
+        return companionStatus != null ? companionStatus : defaultCompanionStatus();
+    }
+
+    private CompanionStatus defaultCompanionStatus() {
+        return isFestival() ? CompanionStatus.OPEN : CompanionStatus.NOT_OPENED;
+    }
+
+    /**
+     * 어드민 동행 ON/OFF. ON이면 모집 중, OFF면 모집 중이던 공연만 종료로 바뀐다.
+     * 미오픈을 끄면 미오픈 그대로다 - 연 적 없는 공연이 '종료'로 보이면 안 된다. 미오픈으로 되돌리는 방법은 없다.
+     */
+    public void changeCompanionEnabled(boolean enabled) {
+        CompanionStatus current = getCompanionStatus();
+        if (enabled) {
+            this.companionStatus = CompanionStatus.OPEN;
+        } else {
+            this.companionStatus = current == CompanionStatus.OPEN ? CompanionStatus.CLOSED : current;
+        }
+    }
+
+    /** 사용자에게 보여줄 상태. 비공개 공연은 열린 적이 있으면 종료로 보인다(저장값은 그대로라 다시 공개하면 원래대로). */
+    public CompanionStatus companionStatusForUsers() {
+        CompanionStatus stored = getCompanionStatus();
+        if (published || stored == CompanionStatus.NOT_OPENED) return stored;
+        return CompanionStatus.CLOSED;
     }
 
     /** 공개 여부 변경. 비공개 → 공개로 바뀌는 순간을 기록한다(새 공연 알림 기준). */

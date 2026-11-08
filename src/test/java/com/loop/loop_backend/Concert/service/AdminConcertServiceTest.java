@@ -3,6 +3,7 @@ package com.loop.loop_backend.Concert.service;
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
+import com.loop.loop_backend.Concert.domain.CompanionStatus;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertCreateRequest;
@@ -258,6 +259,35 @@ class AdminConcertServiceTest {
     void 없는_공연은_조회하거나_수정할_수_없다() {
         assertErrorCode(() -> service.get(999L), ErrorCode.CONCERT_NOT_FOUND);
         assertErrorCode(() -> service.update(999L, patch().build()), ErrorCode.CONCERT_NOT_FOUND);
+    }
+
+    // ---------- 동행 기능 ON/OFF ----------
+    // 관리자는 수정 요청의 토글(companionEnabled)로 공연별 동행을 켜고 끈다. null이면 유지.
+
+    @Test
+    @DisplayName("동행을 켜면 모집 중, 끄면 종료로 저장되고 상세에 나온다")
+    void update_CompanionEnabled_TogglesStatus() {
+        Concert concert = approvedConcert();
+        flushAndClear();
+
+        assertThat(service.update(concert.getId(), patch().companionEnabled(true).build()).companionStatus())
+                .isEqualTo(CompanionStatus.OPEN);
+        flushAndClear();
+        assertThat(service.update(concert.getId(), patch().companionEnabled(false).build()).companionStatus())
+                .isEqualTo(CompanionStatus.CLOSED);
+    }
+
+    @Test
+    @DisplayName("동행 토글을 보내지 않으면(null) 동행 상태는 유지된다")
+    void update_WithoutCompanionEnabled_KeepsStatus() {
+        Concert concert = approvedConcert();
+        flushAndClear();
+        service.update(concert.getId(), patch().companionEnabled(true).build());
+        flushAndClear();
+
+        AdminConcertDetailResponse kept = service.update(concert.getId(), patch().title("YUURI LIVE 2026").build());
+
+        assertThat(kept.companionStatus()).isEqualTo(CompanionStatus.OPEN);
     }
 
     // ---------- 부분 수정 ----------

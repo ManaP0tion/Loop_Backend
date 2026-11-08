@@ -136,6 +136,7 @@ public class AdminConcertService {
         if (req.instagramUrl() != null) concert.changeInstagramUrl(req.instagramUrl());
         if (req.xUrl() != null) concert.changeXUrl(req.xUrl());
         if (req.published() != null) concert.changePublished(req.published(), LocalDateTime.now());
+        if (req.companionEnabled() != null) concert.changeCompanionEnabled(req.companionEnabled());
         // 예매 정보도 같은 저장 버튼으로 함께 온다 - 실패하면 위 수정과 함께 롤백된다
         if (req.presales() != null) replacePresales(concert, req.presales());
         if (req.generalSales() != null) replaceGeneralSales(concert, req.generalSales());

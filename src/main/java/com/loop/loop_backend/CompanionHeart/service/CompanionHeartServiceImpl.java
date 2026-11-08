@@ -103,7 +103,8 @@ public class CompanionHeartServiceImpl implements CompanionHeartService {
                 concert.getEndDate(),
                 concert.getVenue(),
                 group.size(),
-                preview);
+                preview,
+                concert.companionStatusForUsers());
     }
 
     @Override
@@ -127,7 +128,8 @@ public class CompanionHeartServiceImpl implements CompanionHeartService {
                 concert.getArtist() != null ? concert.getArtist().getName() : null,
                 concert.getStartDate(),
                 concert.getEndDate(),
-                days);
+                days,
+                concert.companionStatusForUsers());
     }
 
     // 하트한 뒤에 작성자가 비공개로 돌렸거나, 나와 작성자 사이에 차단 관계가 생겼거나, 작성자가 탈퇴했거나,

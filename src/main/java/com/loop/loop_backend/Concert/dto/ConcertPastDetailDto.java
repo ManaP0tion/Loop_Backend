@@ -2,6 +2,7 @@ package com.loop.loop_backend.Concert.dto;
 
 import com.loop.loop_backend.Artist.dto.ArtistProductDto;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.loop.loop_backend.Concert.domain.CompanionStatus;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Setlist.dto.SetlistResultResponse;
@@ -28,6 +29,10 @@ public class ConcertPastDetailDto {
     @Schema(description = "공연 유형. STAGE(단독 공연) / FESTIVAL(페스티벌)", example = "FESTIVAL",
             requiredMode = Schema.RequiredMode.REQUIRED)
     private final ConcertCategory category;
+
+    @Schema(description = "동행 기능 상태. NOT_OPENED 미오픈 / OPEN 모집 중(동행 진입 경로 노출) / CLOSED 종료. " +
+            "비공개 공연은 열린 적이 있으면 CLOSED", example = "OPEN", requiredMode = Schema.RequiredMode.REQUIRED)
+    private final CompanionStatus companionStatus;
 
     @Schema(description = "포스터 이미지 URL", types = {"string", "null"})
     private final String posterUrl;
@@ -92,6 +97,7 @@ public class ConcertPastDetailDto {
                 .concertId(concert.getId())
                 .title(concert.getTitle())
                 .category(concert.getCategory())
+                .companionStatus(concert.companionStatusForUsers())
                 .posterUrl(concert.getPosterUrl())
                 .artistName(concert.getArtist() != null ? concert.getArtist().getName() : null)
                 .artists(ConcertArtistDto.listOf(concert))
