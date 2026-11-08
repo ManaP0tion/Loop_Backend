@@ -30,6 +30,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 import com.loop.loop_backend.CompanionPost.event.CompanionCreatedEvent;
+import com.loop.loop_backend.Concert.domain.CompanionStatus;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -94,8 +95,9 @@ class CompanionServiceImplTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
+    // 동행 모집 중인 공개 공연 (등록 가능)
     private Concert stubConcert(long id) {
-        Concert c = Concert.builder().title("테스트 콘서트").build();
+        Concert c = Concert.builder().title("테스트 콘서트").published(true).companionStatus(CompanionStatus.OPEN).build();
         ReflectionTestUtils.setField(c, "id", id);
         return c;
     }
@@ -124,7 +126,8 @@ class CompanionServiceImplTest {
     }
 
     private Concert stubConcert(long id, LocalDate startDate) {
-        Concert c = Concert.builder().title("테스트 콘서트").startDate(startDate).build();
+        Concert c = Concert.builder().title("테스트 콘서트").startDate(startDate)
+                .published(true).companionStatus(CompanionStatus.OPEN).build();
         ReflectionTestUtils.setField(c, "id", id);
         return c;
     }
@@ -189,6 +192,29 @@ class CompanionServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.COMPANION_POST_ALREADY_EXISTS);
+    }
+
+    // 공연별 동행 ON/OFF: 동행 모집 중인 공개 공연에만 동행 프로필을 등록할 수 있다.
+    // 미오픈·종료 공연, 비공개 공연(저장 상태가 모집 중이어도)은 409이고 아무것도 저장·알림하지 않는다.
+    @Test
+    void 미오픈_종료_비공개_공연에는_동행_프로필을_등록할_수_없다() {
+        Concert notOpened = Concert.builder().title("미오픈").published(true)
+                .companionStatus(CompanionStatus.NOT_OPENED).build();
+        Concert closed = Concert.builder().title("종료").published(true)
+                .companionStatus(CompanionStatus.CLOSED).build();
+        Concert unpublished = Concert.builder().title("비공개").published(false)
+                .companionStatus(CompanionStatus.OPEN).build();
+
+        for (Concert notOpen : List.of(notOpened, closed, unpublished)) {
+            when(concertRepository.findById(10L)).thenReturn(Optional.of(notOpen));
+
+            assertThatThrownBy(() -> companionService.createCompanion(1L, requestDto(10L)))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.COMPANION_NOT_OPEN);
+        }
+        verify(companionPostRepository, never()).saveAndFlush(any(CompanionPost.class));
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
     // 동행 프로필 생성 디스코드 알림: 생성에 성공하면 공연명·관람일·작성자 닉네임·하고 싶은 말을 담아 한 번 알린다.

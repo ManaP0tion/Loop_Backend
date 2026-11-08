@@ -12,6 +12,7 @@ import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto;
 import com.loop.loop_backend.CompanionPost.event.CompanionCreatedEvent;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostSpecifications;
+import com.loop.loop_backend.Concert.domain.CompanionStatus;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
@@ -74,6 +75,12 @@ public class CompanionServiceImpl implements CompanionService {
 
         Concert concert = concertRepository.findById(requestDto.getConcertId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
+
+        // 미오픈·종료·비공개 공연은 화면에서 진입을 막지만, 구버전 앱 등으로 들어와도 숨겨진 글이 쌓이지 않게 서버에서도 막는다.
+        // 수정·삭제·하트·채팅은 막지 않는다(종료 공연의 내 프로필은 삭제할 수 있어야 한다)
+        if (concert.companionStatusForUsers() != CompanionStatus.OPEN) {
+            throw new BusinessException(ErrorCode.COMPANION_NOT_OPEN);
+        }
 
         if (companionPostRepository.existsByUserAndConcert_IdAndWatchDay(
                 user, requestDto.getConcertId(), requestDto.getWatchDay())) {
