@@ -29,7 +29,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -56,9 +58,10 @@ public class AdminConcertService {
      * 공연장·아티스트는 목록 쿼리에서 함께 가져온다.
      */
     @Transactional(readOnly = true)
-    public Page<AdminConcertRow> search(String q, ConcertCategory category, Boolean published, Pageable pageable) {
+    public Page<AdminConcertRow> search(String q, ConcertCategory category, Boolean published, Boolean ended, Pageable pageable) {
         String keyword = (q == null || q.isBlank()) ? null : "%" + q.trim().toLowerCase() + "%";
-        Page<Concert> page = adminConcertRepository.search(keyword, category, published, pageable);
+        Page<Concert> page = adminConcertRepository.search(keyword, category, published, ended,
+                LocalDate.now(ZoneId.of("Asia/Seoul")), pageable);
         Set<Long> scheduled = ticketScheduledConcertIds(page.getContent());
         return page.map(c -> AdminConcertRow.from(c, scheduled.contains(c.getId())));
     }

@@ -24,6 +24,7 @@ import jakarta.persistence.EntityManager;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -33,6 +34,7 @@ import org.springframework.data.domain.Sort;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -80,7 +82,7 @@ class AdminConcertListTest {
     private List<AdminConcertRow> search(String q, ConcertCategory category, Boolean published) {
         em.flush();
         em.clear();
-        return service.search(q, category, published, FIRST_PAGE).getContent();
+        return service.search(q, category, published, null, FIRST_PAGE).getContent();
     }
 
     private static List<String> titles(List<AdminConcertRow> rows) {
@@ -107,6 +109,23 @@ class AdminConcertListTest {
         assertThat(titles(search(null, ConcertCategory.FESTIVAL, null))).containsExactly("페스티벌 비공개");
         assertThat(titles(search(null, null, false))).containsExactlyInAnyOrder("내한 비공개", "페스티벌 비공개");
         assertThat(titles(search(null, ConcertCategory.STAGE, true))).containsExactly("내한 공개");
+    }
+
+    @Test
+    @DisplayName("지난 공연은 종료일이 오늘(KST) 전인 공연이고, 오늘 끝나는 공연과 기간 없는 공연은 지난 공연이 아니다")
+    void search_WithEndedFilter_SplitsByEndDateBeforeToday() {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        concertRepository.save(Concert.builder().title("어제 끝남").category(ConcertCategory.STAGE)
+                .startDate(today.minusDays(2)).endDate(today.minusDays(1)).build());
+        concertRepository.save(Concert.builder().title("오늘 끝남").category(ConcertCategory.STAGE)
+                .startDate(today).endDate(today).build());
+        concertRepository.save(Concert.builder().title("기간 없음").category(ConcertCategory.STAGE).build());
+        em.flush();
+        em.clear();
+
+        assertThat(titles(service.search(null, null, null, true, FIRST_PAGE).getContent())).containsExactly("어제 끝남");
+        assertThat(titles(service.search(null, null, null, false, FIRST_PAGE).getContent()))
+                .containsExactlyInAnyOrder("오늘 끝남", "기간 없음");
     }
 
     // ---------- 검색어 ----------
@@ -138,7 +157,7 @@ class AdminConcertListTest {
         em.flush();
         em.clear();
 
-        Page<AdminConcertRow> page = service.search("히게단", null, null, FIRST_PAGE);
+        Page<AdminConcertRow> page = service.search("히게단", null, null, null, FIRST_PAGE);
 
         assertThat(page.getContent()).hasSize(1);
         assertThat(page.getTotalElements()).isEqualTo(1);
@@ -210,10 +229,10 @@ class AdminConcertListTest {
     @Test
     void 공연이_늘어도_목록_조회_쿼리_수는_같다() {
         concertWithVenueArtistAndSale(1);
-        long withOne = queryCount(() -> service.search(null, null, null, FIRST_PAGE));
+        long withOne = queryCount(() -> service.search(null, null, null, null, FIRST_PAGE));
 
         for (int i = 2; i <= 5; i++) concertWithVenueArtistAndSale(i);
-        long withFive = queryCount(() -> service.search(null, null, null, FIRST_PAGE));
+        long withFive = queryCount(() -> service.search(null, null, null, null, FIRST_PAGE));
 
         assertThat(withOne).isPositive(); // 통계가 꺼져 있으면 둘 다 0이라 비교가 의미 없다
         assertThat(withFive).isEqualTo(withOne);

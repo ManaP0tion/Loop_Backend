@@ -48,7 +48,8 @@ public class AdminConcertController {
             description = "공연 관리 페이지의 등록된 공연 목록. 공개·비공개 공연을 모두 보여주고 최근 등록순이다.\n\n" +
                     "- q: 공연명, 공연명 별칭, 아티스트 이름(별칭 포함), 장소(공연장 이름)에서 부분 일치 검색(대소문자 무시)\n" +
                     "- category: 공연 유형으로 거른다 (STAGE 단독 공연 / FESTIVAL 페스티벌)\n" +
-                    "- published: true 공개만 / false 비공개만 / 없으면 전체\n\n" +
+                    "- published: true 공개만 / false 비공개만 / 없으면 전체\n" +
+                    "- ended: true 지난 공연만(종료일 < 오늘, KST) / false 지난 공연 제외(기간 없는 공연 포함) / 없으면 전체\n\n" +
                     "ticketScheduled(예매 등록 여부)는 예매 일시가 입력된 선예매·일반예매가 하나라도 있으면 true다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공")
@@ -60,13 +61,15 @@ public class AdminConcertController {
             @RequestParam(required = false) ConcertCategory category,
             @Parameter(description = "공개 여부. 비우면 전체", example = "false")
             @RequestParam(required = false) Boolean published,
+            @Parameter(description = "지난 공연 여부. 비우면 전체", example = "true")
+            @RequestParam(required = false) Boolean ended,
             @Parameter(description = "페이지 번호(0부터)", example = "0")
             @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "페이지 크기", example = "20")
             @RequestParam(defaultValue = "20") int size) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
         return ResponseEntity.ok(CommonResponse.success(
-                PageResp.from(adminConcertService.search(q, category, published, pageable))));
+                PageResp.from(adminConcertService.search(q, category, published, ended, pageable))));
     }
 
     @GetMapping("/{id}")
