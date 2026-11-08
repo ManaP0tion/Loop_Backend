@@ -2,6 +2,7 @@ package com.loop.loop_backend.Artist.service;
 
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
+import com.loop.loop_backend.Song.Service.SongService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.infra.itunes.ItunesArtist;
@@ -20,7 +21,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -41,9 +45,10 @@ class ItunesAutoLinkServiceTest {
     @Autowired ArtistRepository artistRepository;
     @Autowired EntityManager em;
     @MockitoBean ItunesClient itunesClient;
+    @MockitoBean SongService songService;
 
     @Test
-    @DisplayName("미연결 아티스트만 1순위 후보에 자동 연결하고, 이름이 같으면 확인 없이 확정하며, 후보 없음·검색 실패는 결과에 남긴다")
+    @DisplayName("미연결 아티스트만 1순위 후보에 자동 연결하고, 이름이 같으면 확인 없이 확정하며, 연결되면 곡도 불러오고, 후보 없음·검색·곡 불러오기 실패는 결과에 남긴다")
     void linkAllAsync_WithUnlinkedArtists_LinksTopCandidateAndReportsRest() {
         // given
         service.delayMillis = 0;
@@ -61,6 +66,7 @@ class ItunesAutoLinkServiceTest {
                 new ItunesArtist("artist", 300L, "ヨルシカ", "https://music.apple.com/jp/artist/300", "J-Pop")));
         given(itunesClient.searchArtists("없는가수")).willReturn(List.of());
         given(itunesClient.searchArtists("Ado")).willThrow(new BusinessException(ErrorCode.ITUNES_FETCH_FAILED));
+        doThrow(new BusinessException(ErrorCode.ITUNES_FETCH_FAILED)).when(songService).fetchSongs(yorushika.getId());
 
         // when
         service.linkAllAsync();
@@ -70,8 +76,14 @@ class ItunesAutoLinkServiceTest {
         assertThat(result.finishedAt()).isNotNull();
         assertThat(result.linked()).isEqualTo(2);
         assertThat(result.noCandidate()).extracting(ItunesAutoLinkService.Failure::artistId).containsExactly(unknown.getId());
-        assertThat(result.failures()).extracting(ItunesAutoLinkService.Failure::artistId).containsExactly(broken.getId());
+        // 곡 불러오기 실패(요루시카)는 연결은 유지하고 실패 목록에만 남는다
+        assertThat(result.failures()).extracting(ItunesAutoLinkService.Failure::artistId)
+                .containsExactly(broken.getId(), yorushika.getId());
         verify(itunesClient, never()).searchArtists("King Gnu");
+        // 연결에 성공한 아티스트만 곡 불러오기
+        verify(songService).fetchSongs(yoasobi.getId());
+        verify(songService).fetchSongs(yorushika.getId());
+        verify(songService, times(2)).fetchSongs(anyLong());
 
         em.clear();
         Artist linked = artistRepository.findById(yoasobi.getId()).orElseThrow();

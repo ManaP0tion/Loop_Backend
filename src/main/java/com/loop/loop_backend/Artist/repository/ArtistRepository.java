@@ -35,6 +35,8 @@ public interface ArtistRepository extends JpaRepository<Artist, Long> {
 
     List<Artist> findByItunesArtistIdIsNull();
 
+    List<Artist> findByItunesArtistIdIsNotNullOrderByIdAsc();
+
     // iTunes 일괄 자동 연결. 도는 사이 관리자가 직접 연결했으면 덮어쓰지 않도록 미연결일 때만. 반환값 0이면 건너뜀.
     // autoLinked=false면 이름이 같아 확인 없이 확정으로 저장한다.
     @Modifying

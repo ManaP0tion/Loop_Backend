@@ -4,6 +4,7 @@ import com.loop.loop_backend.Artist.dto.ArtistResponseDto;
 import com.loop.loop_backend.Artist.service.ArtistService;
 import com.loop.loop_backend.Artist.service.ItunesAutoLinkService;
 import com.loop.loop_backend.Song.DTO.*;
+import com.loop.loop_backend.Song.Service.SongBulkFetchService;
 import com.loop.loop_backend.Song.Service.SongService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.CommonResponse;
@@ -44,6 +45,7 @@ public class SongAdminController {
     private final ArtistService artistService;
     private final ItunesClient itunesClient;
     private final ItunesAutoLinkService itunesAutoLinkService;
+    private final SongBulkFetchService songBulkFetchService;
 
     public record ItunesLinkRequest(@NotNull Long itunesArtistId) {}
 
@@ -138,13 +140,13 @@ public class SongAdminController {
     @PostMapping("/artists/itunes/auto-link")
     @Operation(summary = "iTunes 일괄 자동 연결 시작",
             description = "iTunes 미연결 아티스트 전체를 이름으로 검색해 1순위 후보에 연결(itunesAutoLinked=true, 관리자 확인 대기). " +
-                    "이미 연결된 아티스트는 건드리지 않는다. iTunes 호출 제한 때문에 아티스트당 약 3초. 결과는 GET 같은 경로로 확인")
+                    "연결되면 곡 불러오기(미리듣기 포함)도 이어서 한다. 이미 연결된 아티스트는 건드리지 않는다. iTunes 호출 제한 때문에 아티스트당 약 3초(연결 시 약 9초). 결과는 GET 같은 경로로 확인")
     @ApiResponses({
             @ApiResponse(responseCode = "202", description = "시작"),
             @ApiResponse(responseCode = "409", description = "이미 실행 중")
     })
     public ResponseEntity<CommonResponse<String>> startItunesAutoLink() {
-        if (itunesAutoLinkService.isRunning()) {
+        if (itunesAutoLinkService.isRunning() || songBulkFetchService.isRunning()) {
             throw new BusinessException(ErrorCode.ITUNES_AUTO_LINK_ALREADY_RUNNING);
         }
         itunesAutoLinkService.linkAllAsync();
@@ -159,6 +161,32 @@ public class SongAdminController {
         Map<String, Object> body = new HashMap<>();
         body.put("running", itunesAutoLinkService.isRunning());
         body.put("result", itunesAutoLinkService.getLastResult());
+        return ResponseEntity.ok(CommonResponse.success(body));
+    }
+
+    @PostMapping("/artists/itunes/fetch-songs")
+    @Operation(summary = "iTunes 곡 일괄 불러오기 시작",
+            description = "iTunes에 연결된 아티스트 전체에 곡 불러오기를 실행(미리듣기 URL 채우기 등). 백그라운드로 돌고 아티스트당 약 6초. " +
+                    "자동 연결과 동시에 실행할 수 없다. 결과는 GET 같은 경로로 확인")
+    @ApiResponses({
+            @ApiResponse(responseCode = "202", description = "시작"),
+            @ApiResponse(responseCode = "409", description = "자동 연결 또는 일괄 불러오기가 이미 실행 중")
+    })
+    public ResponseEntity<CommonResponse<String>> startFetchAllSongs() {
+        if (itunesAutoLinkService.isRunning() || songBulkFetchService.isRunning()) {
+            throw new BusinessException(ErrorCode.SONG_FETCH_ALL_ALREADY_RUNNING);
+        }
+        songBulkFetchService.fetchAllAsync();
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(CommonResponse.success("곡 일괄 불러오기를 시작했습니다."));
+    }
+
+    @GetMapping("/artists/itunes/fetch-songs")
+    @Operation(summary = "iTunes 곡 일괄 불러오기 상태",
+            description = "running=true면 진행 중. result는 마지막 실행 결과(서버 재시작 시 사라짐, 없으면 null). done/total = 진행률")
+    public ResponseEntity<CommonResponse<Map<String, Object>>> fetchAllSongsStatus() {
+        Map<String, Object> body = new HashMap<>();
+        body.put("running", songBulkFetchService.isRunning());
+        body.put("result", songBulkFetchService.getLastResult());
         return ResponseEntity.ok(CommonResponse.success(body));
     }
 
