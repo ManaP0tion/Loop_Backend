@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
+
 /**
  * 관리자 공연 목록 전용 조회. ConcertRepository는 사용자용 조회와 쿼리 최적화 작업(팀원 담당) 영역이라 따로 둔다.
  */
@@ -16,6 +18,10 @@ public interface AdminConcertRepository extends JpaRepository<Concert, Long> {
     String SEARCH_CONDITION =
             "WHERE (:category IS NULL OR c.category = :category) " +
             "AND (:published IS NULL OR c.published = :published) " +
+            // 지난 공연 = 종료일이 오늘 전. 기간 없는 직접 등록 공연은 지난 공연이 아니다
+            "AND (:ended IS NULL " +
+            "  OR (:ended = true AND c.endDate < :today) " +
+            "  OR (:ended = false AND (c.endDate IS NULL OR c.endDate >= :today))) " +
             "AND (:keyword IS NULL " +
             "  OR LOWER(c.title) LIKE :keyword " +
             "  OR LOWER(c.venue) LIKE :keyword " +            // 공연장이 아직 연결되지 않은 기존 공연의 KOPIS 장소 문자열
@@ -30,11 +36,14 @@ public interface AdminConcertRepository extends JpaRepository<Concert, Long> {
     /**
      * 등록된 공연 목록. 공연장·아티스트는 함께 가져와 행마다 추가 조회가 나가지 않게 한다(N+1 방지).
      * @param keyword 소문자로 만든 LIKE 패턴(예: "%yuuri%"). null이면 검색하지 않는다
+     * @param ended true 지난 공연만 / false 지난 공연 제외 / null 전체. today(KST) 기준
      */
     @Query(value = "SELECT c FROM Concert c LEFT JOIN FETCH c.linkedVenue v LEFT JOIN FETCH c.artist a " + SEARCH_CONDITION,
             countQuery = "SELECT COUNT(c) FROM Concert c LEFT JOIN c.linkedVenue v LEFT JOIN c.artist a " + SEARCH_CONDITION)
     Page<Concert> search(@Param("keyword") String keyword,
                          @Param("category") ConcertCategory category,
                          @Param("published") Boolean published,
+                         @Param("ended") Boolean ended,
+                         @Param("today") LocalDate today,
                          Pageable pageable);
 }

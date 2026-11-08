@@ -66,15 +66,15 @@ class AdminConcertControllerTest {
 
     @Test
     void 목록의_검색어_유형_공개_여부는_그대로_서비스로_전달되고_비우면_전체다() throws Exception {
-        when(service.search(any(), any(), any(), any())).thenReturn(Page.empty());
+        when(service.search(any(), any(), any(), any(), any())).thenReturn(Page.empty());
 
         mockMvc.perform(get("/api/admin/concerts")
-                        .param("q", "YUURI").param("category", "FESTIVAL").param("published", "false"))
+                        .param("q", "YUURI").param("category", "FESTIVAL").param("published", "false").param("ended", "true"))
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/admin/concerts")).andExpect(status().isOk());
 
-        verify(service).search(eq("YUURI"), eq(ConcertCategory.FESTIVAL), eq(false), any());
-        verify(service).search(isNull(), isNull(), isNull(), any());
+        verify(service).search(eq("YUURI"), eq(ConcertCategory.FESTIVAL), eq(false), eq(true), any());
+        verify(service).search(isNull(), isNull(), isNull(), isNull(), any());
     }
 
     // ---------- 등록 ----------
