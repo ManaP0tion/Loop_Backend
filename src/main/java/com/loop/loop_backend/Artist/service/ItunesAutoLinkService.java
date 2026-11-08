@@ -12,10 +12,12 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * iTunes 미연결 아티스트 전체를 이름으로 검색해 1순위 후보에 자동 연결한다(itunesAutoLinked=true → 관리자 확인 대기).
+ * 후보 이름이 같으면(대소문자·공백 무시) 확인 없이 확정(itunesAutoLinked=false)으로 저장한다.
  * 관리자가 버튼으로 실행하고, 이미지 복사처럼 백그라운드로 돈다. 미연결만 대상이라 여러 번 실행해도 기존 연결은 안 바뀐다.
  */
 @Service
@@ -64,7 +66,8 @@ public class ItunesAutoLinkService {
                         noCandidate.add(new Failure(a.getId(), a.getName(), "검색 결과 없음"));
                     } else {
                         ItunesArtist top = candidates.get(0);
-                        if (artistRepository.autoLinkItunes(a.getId(), top.artistId(), top.artistLinkUrl(), top.artistName()) == 1) linked++;
+                        boolean needsReview = !normalize(a.getName()).equals(normalize(top.artistName()));
+                        if (artistRepository.autoLinkItunes(a.getId(), top.artistId(), top.artistLinkUrl(), top.artistName(), needsReview) == 1) linked++;
                         else skipped++; // 도는 사이 관리자가 직접 연결함
                     }
                 } catch (Exception e) {
@@ -81,5 +84,9 @@ public class ItunesAutoLinkService {
             lastResult = new Result(startedAt, LocalDateTime.now(), linked, skipped, noCandidate, failures);
             running.set(false);
         }
+    }
+
+    private static String normalize(String name) {
+        return name == null ? "" : name.replaceAll("\\s", "").toLowerCase(Locale.ROOT);
     }
 }

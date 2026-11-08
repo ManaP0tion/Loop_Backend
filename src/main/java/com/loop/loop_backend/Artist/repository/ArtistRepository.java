@@ -36,10 +36,12 @@ public interface ArtistRepository extends JpaRepository<Artist, Long> {
     List<Artist> findByItunesArtistIdIsNull();
 
     // iTunes 일괄 자동 연결. 도는 사이 관리자가 직접 연결했으면 덮어쓰지 않도록 미연결일 때만. 반환값 0이면 건너뜀.
+    // autoLinked=false면 이름이 같아 확인 없이 확정으로 저장한다.
     @Modifying
     @Transactional
     @Query("UPDATE Artist a SET a.itunesArtistId = :itunesId, a.artistViewUrl = :viewUrl, a.itunesArtistName = :itunesName, " +
-            "a.itunesAutoLinked = true WHERE a.id = :id AND a.itunesArtistId IS NULL")
+            "a.itunesAutoLinked = :autoLinked WHERE a.id = :id AND a.itunesArtistId IS NULL")
     int autoLinkItunes(@Param("id") Long id, @Param("itunesId") Long itunesId,
-                       @Param("viewUrl") String viewUrl, @Param("itunesName") String itunesName);
+                       @Param("viewUrl") String viewUrl, @Param("itunesName") String itunesName,
+                       @Param("autoLinked") boolean autoLinked);
 }
