@@ -77,6 +77,7 @@ public class User {
     private Long blockedUserId;
 
     // 가입 시점엔 이메일이 없어서(온보딩에 이메일 입력이 없음) 기본 OFF - 이메일 등록 후 알림 설정에서 직접 켜야 함
+    // 현재 미사용: 동행 기반 공연 리마인더 메일을 없앴다. 예매 알림 작업에서 재활용할지 정할 때까지 설정값만 남긴다
     @Column(name = "concert_reminder_email", nullable = false)
     private boolean concertReminderEmail = false;
 

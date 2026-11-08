@@ -2,7 +2,6 @@ package com.loop.loop_backend.Mail.service;
 
 import com.loop.loop_backend.Mail.domain.MailLog;
 import com.loop.loop_backend.Mail.domain.MailType;
-import com.loop.loop_backend.Mail.dto.ConcertReminderSummary;
 import com.loop.loop_backend.Mail.dto.UnreadChatRoomSummary;
 import com.loop.loop_backend.Mail.repository.MailLogRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -20,7 +19,6 @@ import org.springframework.stereotype.Service;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -154,24 +152,6 @@ public class MailServiceImpl implements MailService {
 
     @Override
     @Async("mailExecutor")
-    public void sendConcertReminderNotification(String toEmail, String recipientNickname,
-                                                List<ConcertReminderSummary> concerts) {
-        if (toEmail == null || toEmail.isBlank() || concerts == null || concerts.isEmpty()) {
-            return;
-        }
-
-        Context context = new Context();
-        context.setVariable("recipientNickname", recipientNickname);
-        context.setVariable("concerts", concerts);
-        context.setVariable("frontendUrl", frontendUrl);
-
-        String html = templateEngine.process("mail/concert-reminder-notification", context);
-        dispatch(sesMailSender, MailType.CONCERT_REMINDER, toEmail,
-                "[Loop] 내일 관람 예정 공연이 " + concerts.size() + "건 있어요", html);
-    }
-
-    @Override
-    @Async("mailExecutor")
     public void sendNewChatNotification(String toEmail, String recipientNickname, String partnerNickname, String concertTitle) {
         if (toEmail == null || toEmail.isBlank()) {
             return;
@@ -235,8 +215,7 @@ public class MailServiceImpl implements MailService {
             case UNREAD_CHAT -> sendUnreadChatNotification(toEmail, "테스터",
                     List.of(new UnreadChatRoomSummary(0L, "테스트상대", 3, LocalDateTime.now())));
             case VERIFICATION -> sendVerificationCode(toEmail, "123456");
-            case CONCERT_REMINDER -> sendConcertReminderNotification(toEmail, "테스터",
-                    List.of(new ConcertReminderSummary(0L, "테스트 콘서트", "테스트 공연장", LocalDate.now().plusDays(1))));
+            case CONCERT_REMINDER -> throw new IllegalArgumentException("더 이상 발송하지 않는 메일 유형이다");
             case NEW_CHAT -> sendNewChatNotification(toEmail, "테스터", "테스트상대", "테스트 콘서트");
             case SETLIST_RESULT -> sendSetlistResultNotification(toEmail, "테스터", 0L, "테스트 콘서트");
         }
