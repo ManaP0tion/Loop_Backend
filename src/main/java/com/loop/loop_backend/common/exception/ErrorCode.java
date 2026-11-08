@@ -73,6 +73,7 @@ public enum ErrorCode {
     CONCERT_ALREADY_REGISTERED(409, "이미 등록된 공연입니다."),
     IMAGE_COPY_ALREADY_RUNNING(409, "이미지 복사가 이미 실행 중입니다. 끝난 뒤 다시 시도해 주세요."),
     ITUNES_AUTO_LINK_ALREADY_RUNNING(409, "iTunes 자동 연결이 이미 실행 중입니다. 끝난 뒤 다시 시도해 주세요."),
+    SONG_FETCH_ALL_ALREADY_RUNNING(409, "iTunes 자동 연결 또는 곡 일괄 불러오기가 이미 실행 중입니다. 끝난 뒤 다시 시도해 주세요."),
     VENUE_NOT_FOUND(404, "공연장을 찾을 수 없습니다."),
 
     // TicketAlarm 도메인
