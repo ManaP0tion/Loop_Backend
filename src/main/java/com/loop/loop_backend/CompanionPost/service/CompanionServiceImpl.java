@@ -9,6 +9,7 @@ import com.loop.loop_backend.CompanionPost.domain.WatchStyle;
 import com.loop.loop_backend.CompanionPost.dto.CompanionDetailResponseDto;
 import com.loop.loop_backend.CompanionPost.dto.CompanionRequestDto;
 import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto;
+import com.loop.loop_backend.CompanionPost.event.CompanionCreatedEvent;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostSpecifications;
 import com.loop.loop_backend.Concert.domain.Concert;
@@ -31,6 +32,7 @@ import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Root;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -62,6 +64,7 @@ public class CompanionServiceImpl implements CompanionService {
     private final BlockRepository blockRepository;
     private final CompanionHeartRepository companionHeartRepository;
     private final EntityManager entityManager;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -77,20 +80,25 @@ public class CompanionServiceImpl implements CompanionService {
             throw new BusinessException(ErrorCode.COMPANION_POST_ALREADY_EXISTS);
         }
 
+        CompanionPost post = CompanionPost.builder()
+                .user(user)
+                .concert(concert)
+                .watchDay(requestDto.getWatchDay())
+                .activities(requestDto.getActivities())
+                .watchStyle(requestDto.getWatchStyle())
+                .messageToCompanion(requestDto.getMessageToCompanion())
+                .sameGenderOnly(requestDto.isSameGenderOnly())
+                .build();
         try {
-            companionPostRepository.saveAndFlush(CompanionPost.builder()
-                    .user(user)
-                    .concert(concert)
-                    .watchDay(requestDto.getWatchDay())
-                    .activities(requestDto.getActivities())
-                    .watchStyle(requestDto.getWatchStyle())
-                    .messageToCompanion(requestDto.getMessageToCompanion())
-                    .sameGenderOnly(requestDto.isSameGenderOnly())
-                    .build());
+            companionPostRepository.saveAndFlush(post);
         } catch (DataIntegrityViolationException e) {
             // 사전 존재 체크와 저장 사이의 동시 요청 레이스 - DB 유니크 제약이 최종 방어선
             throw new BusinessException(ErrorCode.COMPANION_POST_ALREADY_EXISTS);
         }
+
+        // 디스코드 동행 채널 알림 - 커밋 뒤에만 나간다(CompanionDiscordNotificationListener)
+        eventPublisher.publishEvent(new CompanionCreatedEvent(post.getId(), concert.getTitle(),
+                post.getWatchDay(), post.getWatchDate(), user.getNickname(), post.getMessageToCompanion()));
     }
 
     @Override

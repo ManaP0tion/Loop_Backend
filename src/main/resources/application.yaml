@@ -100,3 +100,4 @@ discord:
     report: ${DISCORD_REPORT_WEBHOOK_URL:}
     inquiry: ${DISCORD_INQUIRY_WEBHOOK_URL:}
     kopis: ${DISCORD_KOPIS_WEBHOOK_URL:}
+    companion: ${DISCORD_COMPANION_WEBHOOK_URL:}
