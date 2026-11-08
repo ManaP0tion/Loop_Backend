@@ -95,6 +95,10 @@ public record AdminConcertUpdateRequest(
         @Schema(description = "공개 여부. 저장 결과가 공개면 필수값(유형·공연명·포스터·기간·공연장, 내한이면 아티스트)을 검사하고, " +
                 "비공개→공개 전환 시각이 기록된다. 포스터는 POST /{id}/image로 먼저 올려야 한다",
                 example = "false", types = {"boolean", "null"})
-        Boolean published
+        Boolean published,
+
+        @Schema(description = "동행 기능 ON/OFF. true면 모집 중, false면 모집 중이던 공연만 종료로 바뀐다(미오픈은 그대로). " +
+                "null이면 유지", example = "true", types = {"boolean", "null"})
+        Boolean companionEnabled
 ) {
 }

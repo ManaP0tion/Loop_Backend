@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Concert.dto;
 
+import com.loop.loop_backend.Concert.domain.CompanionStatus;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -36,6 +37,10 @@ public class ConcertSummaryDto {
             requiredMode = Schema.RequiredMode.REQUIRED)
     private final boolean preparing;
 
+    @Schema(description = "동행 기능 상태. NOT_OPENED 미오픈 / OPEN 모집 중 / CLOSED 종료. 비공개 공연은 열린 적이 있으면 CLOSED",
+            example = "OPEN", requiredMode = Schema.RequiredMode.REQUIRED)
+    private final CompanionStatus companionStatus;
+
     public static ConcertSummaryDto from(Concert concert) {
         ConcertCategory category = concert.getCategory();
         return ConcertSummaryDto.builder()
@@ -51,6 +56,7 @@ public class ConcertSummaryDto {
                 .category(category)
                 .categoryDisplayName(category != null ? category.getDisplayName() : null)
                 .preparing(!concert.isPublished())
+                .companionStatus(concert.companionStatusForUsers())
                 .build();
     }
 }

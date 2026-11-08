@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Concert.dto.admin;
 
+import com.loop.loop_backend.Concert.domain.CompanionStatus;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -32,6 +33,10 @@ public record AdminConcertRow(
         @Schema(description = "공개 여부. false면 사용자에게 '오픈 예정'으로 보인다", requiredMode = Schema.RequiredMode.REQUIRED)
         boolean published,
 
+        @Schema(description = "동행 기능 상태(저장값). NOT_OPENED 미오픈 / OPEN 모집 중 / CLOSED 종료",
+                requiredMode = Schema.RequiredMode.REQUIRED)
+        CompanionStatus companionStatus,
+
         @Schema(description = "예매 등록 여부 - 선예매·일반예매 중 예매 일시가 입력된 블록이 하나라도 있으면 true. " +
                 "일시가 없는 블록은 사용자 화면에 보이지 않으므로, 승인 직후(KOPIS 예매처만 채워진 상태)는 false다",
                 requiredMode = Schema.RequiredMode.REQUIRED)
@@ -41,6 +46,6 @@ public record AdminConcertRow(
     public static AdminConcertRow from(Concert c, boolean ticketScheduled) {
         return new AdminConcertRow(c.getId(), c.getCategory(), c.getTitle(),
                 c.getLinkedVenue() == null ? null : c.getLinkedVenue().getName(),
-                c.getStartDate(), c.getEndDate(), c.isPublished(), ticketScheduled);
+                c.getStartDate(), c.getEndDate(), c.isPublished(), c.getCompanionStatus(), ticketScheduled);
     }
 }

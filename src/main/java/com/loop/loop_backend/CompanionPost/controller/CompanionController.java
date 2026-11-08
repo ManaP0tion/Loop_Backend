@@ -56,9 +56,13 @@ public class CompanionController {
             @ApiResponse(responseCode = "404", description = "콘서트 없음",
                     content = @Content(examples = @ExampleObject(
                             value = "{\"success\":false,\"message\":\"콘서트를 찾을 수 없습니다.\",\"code\":404}"))),
-            @ApiResponse(responseCode = "409", description = "이미 동행프로필 존재",
-                    content = @Content(examples = @ExampleObject(
-                            value = "{\"success\":false,\"message\":\"이미 해당 콘서트에 동행 프로필이 존재합니다.\",\"code\":409}")))
+            @ApiResponse(responseCode = "409", description = "이미 동행프로필 존재 / 동행 모집 중인 공연이 아님(미오픈·종료·비공개)",
+                    content = @Content(examples = {
+                            @ExampleObject(name = "이미 존재",
+                                    value = "{\"success\":false,\"message\":\"이미 해당 콘서트에 동행 프로필이 존재합니다.\",\"code\":409}"),
+                            @ExampleObject(name = "모집 중 아님",
+                                    value = "{\"success\":false,\"message\":\"동행 모집 중인 공연이 아닙니다.\",\"code\":409}")
+                    }))
     })
     @PostMapping
     public ResponseEntity<CommonResponse<Void>> createCompanion(

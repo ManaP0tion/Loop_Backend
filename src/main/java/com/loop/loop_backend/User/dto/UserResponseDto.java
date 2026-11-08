@@ -53,7 +53,8 @@ public class UserResponseDto {
     @Schema(description = "관심 아티스트 목록")
     private final List<ArtistSummary> favoriteArtists;
 
-    @Schema(description = "공연 하루전 리마인더 이메일 수신 여부", example = "true")
+    @Schema(description = "공연 하루전 리마인더 이메일 수신 여부. 현재 미사용 - 리마인더 메일은 발송하지 않는다(예매 알림으로 대체 예정)",
+            example = "true")
     private final boolean concertReminderEmail;
 
     @Schema(description = "미확인 채팅 일일 다이제스트 이메일 수신 여부", example = "true")

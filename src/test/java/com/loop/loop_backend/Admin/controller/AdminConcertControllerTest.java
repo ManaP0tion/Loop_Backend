@@ -2,6 +2,7 @@ package com.loop.loop_backend.Admin.controller;
 
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.loop.loop_backend.Admin.service.AdminAccessLogService;
+import com.loop.loop_backend.Concert.domain.CompanionStatus;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertCreateRequest;
 import com.loop.loop_backend.Concert.dto.admin.AdminConcertDetailResponse;
@@ -48,7 +49,8 @@ class AdminConcertControllerTest {
             LocalDate.of(2026, 12, 5), LocalDate.of(2026, 12, 6),
             List.of(new AdminConcertDetailResponse.Showtime(1, LocalDate.of(2026, 12, 5), LocalTime.of(18, 0)),
                     new AdminConcertDetailResponse.Showtime(2, LocalDate.of(2026, 12, 6), null)),
-            null, List.of(), false, null, null, null, false, null, null, null, null, List.of(), List.of());
+            null, List.of(), false, null, CompanionStatus.NOT_OPENED, null, null, false, null, null, null, null,
+            List.of(), List.of());
 
     @BeforeEach
     void setUp() {
