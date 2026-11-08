@@ -28,6 +28,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
+import com.loop.loop_backend.CompanionPost.event.CompanionCreatedEvent;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -63,6 +65,7 @@ class CompanionServiceImplTest {
     @Mock FavoriteArtistRepository favoriteArtistRepository;
     @Mock BlockRepository blockRepository;
     @Mock CompanionHeartRepository companionHeartRepository;
+    @Mock ApplicationEventPublisher eventPublisher;
     @InjectMocks CompanionServiceImpl companionService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -186,6 +189,47 @@ class CompanionServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.COMPANION_POST_ALREADY_EXISTS);
+    }
+
+    // 동행 프로필 생성 디스코드 알림: 생성에 성공하면 공연명·관람일·작성자 닉네임·하고 싶은 말을 담아 한 번 알린다.
+    // 생성이 실패(중복 등)하면 알리지 않는다.
+    @Test
+    void 생성에_성공하면_공연명_관람일_닉네임_하고싶은말을_담은_알림_이벤트를_한번_발행한다() throws Exception {
+        Concert dated = stubConcert(10L, LocalDate.of(2026, 11, 3));
+        when(concertRepository.findById(10L)).thenReturn(Optional.of(dated));
+        user.assignNickname("새벽베텔기우스");
+
+        companionService.createCompanion(1L, requestDto(10L));
+
+        ArgumentCaptor<CompanionCreatedEvent> captor = ArgumentCaptor.forClass(CompanionCreatedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        CompanionCreatedEvent event = captor.getValue();
+        assertThat(event.concertTitle()).isEqualTo("테스트 콘서트");
+        assertThat(event.watchDay()).isEqualTo(WatchDay.DAY1);
+        assertThat(event.watchDate()).isEqualTo(LocalDate.of(2026, 11, 3));
+        assertThat(event.authorNickname()).isEqualTo("새벽베텔기우스");
+        assertThat(event.messageToCompanion()).isEqualTo("같이 즐겁게 봐요!");
+    }
+
+    @Test
+    void 이미_프로필이_있어_생성이_실패하면_알림_이벤트를_발행하지_않는다() {
+        when(companionPostRepository.existsByUserAndConcert_IdAndWatchDay(any(), any(), any()))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> companionService.createCompanion(1L, requestDto(10L)))
+                .isInstanceOf(BusinessException.class);
+        // any()만 쓰면 publishEvent(ApplicationEvent) 오버로드로 묶여 검증이 항상 통과하므로 Object 쪽을 지정한다
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void 저장_시점_중복으로_생성이_실패해도_알림_이벤트를_발행하지_않는다() {
+        when(companionPostRepository.saveAndFlush(any(CompanionPost.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate"));
+
+        assertThatThrownBy(() -> companionService.createCompanion(1L, requestDto(10L)))
+                .isInstanceOf(BusinessException.class);
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
     // ── getWatchingCompanions ─────────────────────────────────────────────────
