@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -98,4 +99,16 @@ public interface ConcertRepository extends JpaRepository<Concert, Long> {
 
     List<Concert> findByArtistId(Long artistId);
     Optional<Concert> findByTitle(String title);
+
+    // 새 공연 알림(NO.47) 대상: 지금 공개 상태 + 마지막 공개 시각이 [publishedFrom, publishedTo] + 아직 알리지 않음 + 끝나지 않음.
+    // 공개 상태면 종료일이 반드시 있다(Concert.validateState). 메일에 공연장 이름을 쓰므로 함께 가져온다.
+    @Query("SELECT c FROM Concert c LEFT JOIN FETCH c.linkedVenue " +
+            "WHERE c.published = true " +
+            "AND c.publishedAt >= :publishedFrom AND c.publishedAt <= :publishedTo " +
+            "AND c.newConcertNotifiedAt IS NULL " +
+            "AND c.endDate >= :today " +
+            "ORDER BY c.startDate ASC, c.id ASC")
+    List<Concert> findNewConcertNotificationTargets(@Param("publishedFrom") LocalDateTime publishedFrom,
+                                                    @Param("publishedTo") LocalDateTime publishedTo,
+                                                    @Param("today") LocalDate today);
 }

@@ -123,6 +123,10 @@ public class Concert {
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
 
+    /** 새 공연 알림(NO.47) 대상으로 처리한 시각. 공연당 한 번만 보내려고 남긴다 - 비공개 후 다시 공개해도 다시 보내지 않는다. */
+    @Column(name = "new_concert_notified_at")
+    private LocalDateTime newConcertNotifiedAt;
+
     /**
      * 동행 기능 상태(저장값). 처음 저장할 때 유형으로 정하고(페스티벌 모집 중, 그 외 미오픈) 유형을 바꿔도 유지한다.
      * 사용자에게는 companionStatusForUsers()로 보여준다 - 비공개 공연은 저장값과 상관없이 닫힌 것처럼 보인다.
@@ -317,6 +321,11 @@ public class Concert {
             this.publishedAt = now;
         }
         this.published = published;
+    }
+
+    /** 새 공연 알림 대상으로 처리됨을 기록한다. 메일 발송 전에 먼저 남겨 같은 공연을 두 번 보내지 않게 한다. */
+    public void markNewConcertNotified(LocalDateTime now) {
+        this.newConcertNotifiedAt = now;
     }
 
     /**
