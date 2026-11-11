@@ -89,6 +89,11 @@ public class User {
     @Column(name = "setlist_result_email", nullable = false, columnDefinition = "boolean default true")
     private boolean setlistResultEmail = true;
 
+    // 새 공연 알림 메일(NO.47). 모든 사용자에게 가는 홍보성 알림이라 기본 OFF - 사용자가 직접 켜야 받는다
+    // columnDefinition: 기존 행이 있는 테이블에 컬럼을 추가할 때 false로 채우려고(ddl-auto update)
+    @Column(name = "new_concert_email", nullable = false, columnDefinition = "boolean default false")
+    private boolean newConcertEmail = false;
+
     // 약관 동의 (첫 로그인 시 저장) - 나이/이용약관/개인정보 수집은 필수, 프로필 정보 수집은 선택
     @Column(name = "age19_agreed", nullable = false)
     private boolean age19Agreed;
@@ -225,10 +230,11 @@ public class User {
     }
 
     public void updateNotificationSettings(Boolean concertReminderEmail, Boolean chatNotificationEmail,
-                                           Boolean setlistResultEmail) {
+                                           Boolean setlistResultEmail, Boolean newConcertEmail) {
         if (concertReminderEmail != null) this.concertReminderEmail = concertReminderEmail;
         if (chatNotificationEmail != null) this.chatNotificationEmail = chatNotificationEmail;
         if (setlistResultEmail != null) this.setlistResultEmail = setlistResultEmail;
+        if (newConcertEmail != null) this.newConcertEmail = newConcertEmail;
     }
 
     // 관리자 조작

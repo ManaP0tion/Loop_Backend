@@ -2,6 +2,7 @@ package com.loop.loop_backend.Mail.service;
 
 import com.loop.loop_backend.Mail.domain.MailLog;
 import com.loop.loop_backend.Mail.domain.MailType;
+import com.loop.loop_backend.Mail.dto.NewConcertSummary;
 import com.loop.loop_backend.Mail.dto.UnreadChatRoomSummary;
 import com.loop.loop_backend.Mail.repository.MailLogRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -187,6 +188,26 @@ public class MailServiceImpl implements MailService {
                 "[Loop] " + concertTitle + " 셋리스트가 공개됐어요", html);
     }
 
+    // 동기 발송 - 호출하는 NewConcertNotificationScheduler가 수신자마다 순서대로 부른다
+    // 한 번 실행에서 모인 공연을 메일 1통에 묶는다(NO.47)
+    @Override
+    public void sendNewConcertNotification(String toEmail, String recipientNickname, List<NewConcertSummary> concerts) {
+        if (toEmail == null || toEmail.isBlank() || concerts.isEmpty()) {
+            return;
+        }
+
+        Context context = new Context();
+        context.setVariable("recipientNickname", recipientNickname);
+        context.setVariable("concerts", concerts);
+        context.setVariable("frontendUrl", frontendUrl);
+
+        String subject = concerts.size() == 1
+                ? "[Loop] " + concerts.get(0).title() + " 공연이 새로 등록됐어요"
+                : "[Loop] 새 공연 " + concerts.size() + "개가 등록됐어요";
+        String html = templateEngine.process("mail/new-concert-notification", context);
+        dispatch(sesMailSender, MailType.NEW_CONCERT, toEmail, subject, html);
+    }
+
     @Override
     public void sendTest(MailType type, String toEmail) {
         switch (type) {
@@ -218,6 +239,9 @@ public class MailServiceImpl implements MailService {
             case CONCERT_REMINDER -> throw new IllegalArgumentException("더 이상 발송하지 않는 메일 유형이다");
             case NEW_CHAT -> sendNewChatNotification(toEmail, "테스터", "테스트상대", "테스트 콘서트");
             case SETLIST_RESULT -> sendSetlistResultNotification(toEmail, "테스터", 0L, "테스트 콘서트");
+            case NEW_CONCERT -> sendNewConcertNotification(toEmail, "테스터", List.of(
+                    new NewConcertSummary(0L, "테스트 콘서트", "단독 공연", "2026.12.24", "테스트 공연장"),
+                    new NewConcertSummary(0L, "테스트 페스티벌", "페스티벌", "2026.12.30 ~ 2026.12.31", "테스트 공연장")));
         }
     }
 }

@@ -9,5 +9,6 @@ public enum MailType {
     // 지난 발송 기록(mail_logs.type)을 어드민 메일 로그에서 읽어야 하므로 값은 남긴다.
     CONCERT_REMINDER,
     NEW_CHAT,          // 신규 채팅 알림 (→ 유저)
-    SETLIST_RESULT     // 예상 셋리스트 결과 (→ 유저)
+    SETLIST_RESULT,    // 예상 셋리스트 결과 (→ 유저)
+    NEW_CONCERT        // 새 공연 알림 (→ 유저)
 }

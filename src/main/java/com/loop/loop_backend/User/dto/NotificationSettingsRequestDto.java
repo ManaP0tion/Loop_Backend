@@ -20,4 +20,7 @@ public class NotificationSettingsRequestDto {
 
     @Schema(description = "예상 셋리스트 결과 이메일 수신 여부", example = "true")
     private Boolean setlistResultEmail;
+
+    @Schema(description = "새 공연 알림 이메일 수신 여부(기본 false). 공연이 공개되면 알림 메일을 받는다", example = "true")
+    private Boolean newConcertEmail;
 }

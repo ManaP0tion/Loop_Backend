@@ -281,7 +281,7 @@ class SetlistPersistenceTest {
         User noEmail = user("noEmail");
         User settingOff = user("settingOff");
         settingOff.verifyEmail("off@loop.com");
-        settingOff.updateNotificationSettings(null, null, false);
+        settingOff.updateNotificationSettings(null, null, false, null);
         User notVoted = user("notVoted");
         notVoted.verifyEmail("not-voted@loop.com");
 

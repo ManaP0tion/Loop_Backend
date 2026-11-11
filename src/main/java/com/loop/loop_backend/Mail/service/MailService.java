@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Mail.service;
 
+import com.loop.loop_backend.Mail.dto.NewConcertSummary;
 import com.loop.loop_backend.Mail.dto.UnreadChatRoomSummary;
 
 import java.util.List;
@@ -19,6 +20,8 @@ public interface MailService {
     void sendNewChatNotification(String toEmail, String recipientNickname, String partnerNickname, String concertTitle);
 
     void sendSetlistResultNotification(String toEmail, String recipientNickname, Long concertId, String concertTitle);
+
+    void sendNewConcertNotification(String toEmail, String recipientNickname, List<NewConcertSummary> concerts);
 
     // 관리자 콘솔 테스트용: 타입별 샘플 데이터로 지정 주소에 발송
     void sendTest(com.loop.loop_backend.Mail.domain.MailType type, String toEmail);

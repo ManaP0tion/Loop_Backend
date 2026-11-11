@@ -146,7 +146,7 @@ public class UserServiceImpl implements UserService {
     public UserResponseDto updateNotificationSettings(Long id, NotificationSettingsRequestDto requestDto) {
         User user = findUserOrThrow(id);
         user.updateNotificationSettings(requestDto.getConcertReminderEmail(), requestDto.getChatNotificationEmail(),
-                requestDto.getSetlistResultEmail());
+                requestDto.getSetlistResultEmail(), requestDto.getNewConcertEmail());
         return toResponseDto(user);
     }
 
