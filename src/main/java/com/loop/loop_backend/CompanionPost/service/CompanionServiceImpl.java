@@ -9,6 +9,7 @@ import com.loop.loop_backend.CompanionPost.domain.WatchStyle;
 import com.loop.loop_backend.CompanionPost.dto.CompanionDetailResponseDto;
 import com.loop.loop_backend.CompanionPost.dto.CompanionRequestDto;
 import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto;
+import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto.HashtagSummary;
 import com.loop.loop_backend.CompanionPost.event.CompanionCreatedEvent;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostSpecifications;
@@ -291,11 +292,23 @@ public class CompanionServiceImpl implements CompanionService {
                 ? Collections.emptySet()
                 : companionHeartRepository.findHeartedCompanionPostIds(userId, pageItemIds);
 
+        // 성격은 페이지에 나가는 작성자 것만 읽는다(정렬은 전체, 표시는 페이지)
+        Map<Long, List<HashtagSummary>> hashtags = hashtagsByAuthor(pageItems);
         List<CompanionResponseDto> content = pageItems.stream()
-                .map(post -> new CompanionResponseDto(post, heartedIds.contains(post.getId())))
+                .map(post -> new CompanionResponseDto(post, heartedIds.contains(post.getId()),
+                        hashtags.getOrDefault(post.getUser().getId(), List.of())))
                 .toList();
 
         return new PageResponseDto<>(content, sorted.size(), end < sorted.size());
+    }
+
+    // 작성자들의 성격을 쿼리 한 번으로 가져와 작성자별로 묶는다 - 프로필마다 조회하면 목록 길이만큼 쿼리가 늘어난다(N+1)
+    private Map<Long, List<HashtagSummary>> hashtagsByAuthor(List<CompanionPost> posts) {
+        if (posts.isEmpty()) {
+            return Map.of();
+        }
+        Set<Long> authorIds = posts.stream().map(post -> post.getUser().getId()).collect(Collectors.toSet());
+        return HashtagSummary.groupByUser(userHashtagRepository.findAllByUser_IdInOrderByIdAsc(authorIds));
     }
 
     @Override
@@ -322,9 +335,9 @@ public class CompanionServiceImpl implements CompanionService {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
-        List<CompanionDetailResponseDto.HashtagSummary> hashtags = userHashtagRepository.findAllByUser(post.getUser())
+        List<HashtagSummary> hashtags = userHashtagRepository.findAllByUser(post.getUser())
                 .stream()
-                .map(tag -> new CompanionDetailResponseDto.HashtagSummary(tag.getId(), tag.getTag()))
+                .map(tag -> new HashtagSummary(tag.getId(), tag.getTag()))
                 .toList();
 
         List<CompanionDetailResponseDto.PreferredArtist> preferredArtists = favoriteArtistRepository.findAllByUser(post.getUser())
@@ -352,7 +365,7 @@ public class CompanionServiceImpl implements CompanionService {
                 requestDto.isSameGenderOnly());
 
         // 본인 글이라 하트 자체가 불가능하므로 항상 false
-        return new CompanionResponseDto(post, false);
+        return new CompanionResponseDto(post, false, hashtagsByAuthor(List.of(post)).getOrDefault(userId, List.of()));
     }
 
     @Override
@@ -380,8 +393,9 @@ public class CompanionServiceImpl implements CompanionService {
 
         // 등록한 프로필이 없는 것도 정상 상태 - 목록 조회는 비어있어도 에러가 아니라 200 + 빈 배열이 REST 관례
         // 본인 글이라 하트 자체가 불가능하므로 항상 false
+        List<HashtagSummary> myHashtags = hashtagsByAuthor(posts).getOrDefault(userId, List.of());
         return posts.stream()
-                .map(post -> new CompanionResponseDto(post, false))
+                .map(post -> new CompanionResponseDto(post, false, myHashtags))
                 .toList();
     }
 
@@ -396,7 +410,7 @@ public class CompanionServiceImpl implements CompanionService {
         }
 
         // 본인 글이라 하트 자체가 불가능하므로 항상 false
-        return new CompanionResponseDto(post, false);
+        return new CompanionResponseDto(post, false, hashtagsByAuthor(List.of(post)).getOrDefault(userId, List.of()));
     }
 
     @Override

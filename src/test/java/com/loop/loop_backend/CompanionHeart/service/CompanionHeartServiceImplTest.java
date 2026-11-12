@@ -10,6 +10,8 @@ import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
 import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
+import com.loop.loop_backend.HashTag.domain.UserHashtag;
+import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
@@ -47,6 +49,7 @@ class CompanionHeartServiceImplTest {
     @Mock ConcertRepository concertRepository;
     @Mock UserRepository userRepository;
     @Mock BlockRepository blockRepository;
+    @Mock UserHashtagRepository userHashtagRepository;
     @InjectMocks CompanionHeartServiceImpl companionHeartService;
 
     private static final Long VIEWER_ID = 1L;
@@ -331,6 +334,43 @@ class CompanionHeartServiceImplTest {
 
         assertThat(result.getDays().get(WatchDay.DAY1)).extracting(CompanionResponseDto::getCompanionId)
                 .containsExactly(11L, 12L);
+    }
+
+    // 관심 프로필 카드에도 작성자 성격(해시태그)을 보여준다. 성격이 없는 작성자는 빈 목록.
+    private UserHashtag hashtag(long id, User owner, String tag) {
+        UserHashtag h = UserHashtag.builder().user(owner).tag(tag).build();
+        ReflectionTestUtils.setField(h, "id", id);
+        return h;
+    }
+
+    @Test
+    void 하트탭_메인과_전체보기의_프로필에_작성자_성격이_붙는다() {
+        User viewer = testUser(VIEWER_ID);
+        User author = testUser(AUTHOR_ID);
+        User noTagAuthor = testUser(3L);
+        Concert concert = testConcert(100L, "콘서트A");
+        CompanionPost tagged = testPost(11L, author, concert, WatchDay.DAY1);
+        CompanionPost untagged = testPost(12L, noTagAuthor, concert, WatchDay.DAY1);
+        List<CompanionHeart> hearts = List.of(
+                CompanionHeart.builder().user(viewer).companionPost(tagged).build(),
+                CompanionHeart.builder().user(viewer).companionPost(untagged).build());
+
+        when(companionHeartRepository.findAllByUser_IdOrderByCreatedAtDesc(VIEWER_ID)).thenReturn(hearts);
+        when(companionHeartRepository.findAllByUser_IdAndCompanionPost_Concert_IdOrderByCreatedAtDesc(VIEWER_ID, 100L))
+                .thenReturn(hearts);
+        when(concertRepository.findById(100L)).thenReturn(Optional.of(concert));
+        when(userHashtagRepository.findAllByUser_IdInOrderByIdAsc(any()))
+                .thenReturn(List.of(hashtag(1L, author, "낯가림"), hashtag(2L, author, "계획형")));
+
+        List<CompanionResponseDto> preview = companionHeartService.getMyHeartedConcerts(VIEWER_ID).get(0).getCompanions();
+        List<CompanionResponseDto> day1 = companionHeartService.getMyHeartedCompanionsByConcert(VIEWER_ID, 100L)
+                .getDays().get(WatchDay.DAY1);
+
+        for (List<CompanionResponseDto> profiles : List.of(preview, day1)) {
+            assertThat(profiles.get(0).getHashtags()).extracting(CompanionResponseDto.HashtagSummary::getTag)
+                    .containsExactly("낯가림", "계획형");
+            assertThat(profiles.get(1).getHashtags()).isEmpty();
+        }
     }
 
     @Test

@@ -18,6 +18,7 @@ import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.FavoriteArtist.domain.FavoriteArtist;
 import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
 import com.loop.loop_backend.FavoriteArtist.repository.UserArtistId;
+import com.loop.loop_backend.HashTag.domain.UserHashtag;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
@@ -54,6 +55,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
@@ -373,6 +375,88 @@ class CompanionServiceImplTest {
 
         assertThat(result.getContent()).extracting(CompanionResponseDto::getUserId)
                 .containsExactly(3L, 2L);
+    }
+
+    // ── 목록 성격(해시태그) ───────────────────────────────────────────────────
+    // 동행 프로필 목록·내 프로필 카드에 작성자 성격을 보여준다. 성격은 작성자(사용자)에 붙어 있고, 없으면 빈 목록.
+    // 목록은 작성자들 성격을 한 번에 조회한다(프로필 수만큼 조회하지 않는다). 상세는 그대로.
+
+    private UserHashtag hashtag(long id, User owner, String tag) {
+        UserHashtag h = UserHashtag.builder().user(owner).tag(tag).build();
+        ReflectionTestUtils.setField(h, "id", id);
+        return h;
+    }
+
+    @Test
+    void 동행_풀_목록의_프로필마다_그_작성자의_성격이_붙고_없으면_빈_목록이다() {
+        User tagged = buildUser(2L, "k2");
+        User untagged = buildUser(3L, "k3");
+        Concert fes = festival();
+        givenPool(null,
+                post(tagged, fes, Set.of(CompanionActivity.MEAL), null, NOW),
+                post(untagged, fes, Set.of(CompanionActivity.MEAL), null, NOW.minusDays(1)));
+        when(userHashtagRepository.findAllByUser_IdInOrderByIdAsc(any()))
+                .thenReturn(List.of(hashtag(1L, tagged, "낯가림"), hashtag(2L, tagged, "계획형")));
+
+        List<CompanionResponseDto> content = companionService.getAllCompanions(
+                1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20)).getContent();
+
+        assertThat(content.get(0).getHashtags()).extracting(CompanionResponseDto.HashtagSummary::getTag)
+                .containsExactly("낯가림", "계획형");
+        assertThat(content.get(1).getHashtags()).isEmpty();
+    }
+
+    @Test
+    void 동행_풀_목록은_작성자들의_성격을_한_번에_조회한다() {
+        Concert fes = festival();
+        givenPool(null,
+                post(buildUser(2L, "k2"), fes, Set.of(CompanionActivity.MEAL), null, NOW),
+                post(buildUser(3L, "k3"), fes, Set.of(CompanionActivity.MEAL), null, NOW),
+                post(buildUser(4L, "k4"), fes, Set.of(CompanionActivity.MEAL), null, NOW));
+
+        companionService.getAllCompanions(1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
+
+        verify(userHashtagRepository, times(1)).findAllByUser_IdInOrderByIdAsc(Set.of(2L, 3L, 4L));
+    }
+
+    @Test
+    void 동행_풀_목록은_현재_페이지에_나가는_작성자의_성격만_조회한다() {
+        Concert fes = festival();
+        givenPool(null,
+                post(buildUser(2L, "k2"), fes, Set.of(CompanionActivity.MEAL), null, NOW),
+                post(buildUser(3L, "k3"), fes, Set.of(CompanionActivity.MEAL), null, NOW.minusDays(1)));
+
+        companionService.getAllCompanions(1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 1));
+
+        verify(userHashtagRepository).findAllByUser_IdInOrderByIdAsc(Set.of(2L));
+    }
+
+    @Test
+    void 내_동행_프로필에도_내_성격이_붙는다() {
+        ReflectionTestUtils.setField(user, "id", 1L);
+        CompanionPost mine = post(user, festival(), Set.of(CompanionActivity.MEAL), null, NOW.plusDays(30));
+        when(companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(1L, 10L, WatchDay.DAY1))
+                .thenReturn(Optional.of(mine));
+        when(userHashtagRepository.findAllByUser_IdInOrderByIdAsc(any()))
+                .thenReturn(List.of(hashtag(1L, user, "낯가림")));
+
+        CompanionResponseDto result = companionService.getMyCompanion(1L, 10L, WatchDay.DAY1);
+
+        assertThat(result.getHashtags()).extracting(CompanionResponseDto.HashtagSummary::getTag)
+                .containsExactly("낯가림");
+    }
+
+    @Test
+    void 상세의_성격은_그대로_작성자_성격이다() {
+        ReflectionTestUtils.setField(user, "id", 1L);
+        when(companionPostRepository.findById(1L)).thenReturn(Optional.of(buildPost(user, 10L)));
+        when(userHashtagRepository.findAllByUser(user)).thenReturn(List.of(hashtag(7L, user, "계획형")));
+
+        CompanionDetailResponseDto dto = companionService.getCompanion(999L, 1L);
+
+        assertThat(dto.getHashtags()).extracting(CompanionResponseDto.HashtagSummary::getId,
+                        CompanionResponseDto.HashtagSummary::getTag)
+                .containsExactly(tuple(7L, "계획형"));
     }
 
     // ── getAllCompanions ──────────────────────────────────────────────────────

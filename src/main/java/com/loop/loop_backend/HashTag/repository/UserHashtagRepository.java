@@ -7,12 +7,16 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 public interface UserHashtagRepository extends JpaRepository<UserHashtag, Long> {
 
     List<UserHashtag> findAllByUser(User user);
+
+    // 동행 프로필 목록: 여러 작성자의 성격(해시태그)을 쿼리 한 번으로, 저장한 순서대로
+    List<UserHashtag> findAllByUser_IdInOrderByIdAsc(Collection<Long> userIds);
 
     int countByUser(User user);
 
