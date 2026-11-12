@@ -34,6 +34,7 @@ import com.loop.loop_backend.common.time.ExpiryCutoff;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -51,6 +52,7 @@ import java.util.stream.Stream;
 public class ConcertServiceImpl implements ConcertService {
 
     private static final int UPCOMING_PREVIEW_SIZE = 4;
+    private static final int MAX_SECTION_SIZE = 50;
 
     private final ConcertRepository concertRepository;
     private final ArtistRepository artistRepository;
@@ -228,13 +230,19 @@ public class ConcertServiceImpl implements ConcertService {
 
     // userId는 결과에 쓰지 않는다 - 모든 사용자가 같은 캐시를 본다. userId를 쓰게 되면 캐시를 빼거나 키에 넣을 것.
     @Override
-    @Cacheable(cacheNames = RedisConfig.CONCERT_LIST_CACHE, key = "#section.name() + ':' + #period.name()")
-    public List<ConcertSummaryDto> getConcertsBySection(ConcertSection section, ConcertPeriod period, Long userId) {
+    // size는 캐시 키에 들어간다 - 상한(MAX_SECTION_SIZE)으로 키 개수를 묶는다.
+    @Cacheable(cacheNames = RedisConfig.CONCERT_LIST_CACHE,
+            key = "#section.name() + ':' + #period.name() + ':' + (#size ?: 'all')")
+    public List<ConcertSummaryDto> getConcertsBySection(ConcertSection section, ConcertPeriod period, Integer size, Long userId) {
+        if (size != null && (size < 1 || size > MAX_SECTION_SIZE)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
         List<ConcertCategory> categories = section.getCategories();
         LocalDate cutoff = ExpiryCutoff.cutoffDate();
+        Pageable pageable = (size == null) ? Pageable.unpaged() : PageRequest.of(0, size);
         List<Concert> concerts = (period == ConcertPeriod.UPCOMING)
-                ? concertRepository.findUpcomingOrUndatedByCategories(categories, cutoff)
-                : concertRepository.findPastByCategories(categories, cutoff);
+                ? concertRepository.findUpcomingOrUndatedByCategories(categories, cutoff, pageable)
+                : concertRepository.findPastByCategories(categories, cutoff, pageable);
         return concerts.stream().map(ConcertSummaryDto::from).toList();
     }
 

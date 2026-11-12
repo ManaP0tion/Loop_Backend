@@ -76,7 +76,12 @@ public interface ConcertRepository extends JpaRepository<Concert, Long> {
             "AND (COALESCE(c.endDate, c.startDate) IS NULL OR COALESCE(c.endDate, c.startDate) >= :date) " +
             "ORDER BY CASE WHEN c.startDate IS NULL THEN 1 ELSE 0 END, c.startDate ASC")
     List<Concert> findUpcomingOrUndatedByCategories(@Param("categories") List<ConcertCategory> categories,
-                                                     @Param("date") LocalDate date);
+                                                     @Param("date") LocalDate date,
+                                                     Pageable pageable);
+
+    default List<Concert> findUpcomingOrUndatedByCategories(List<ConcertCategory> categories, LocalDate date) {
+        return findUpcomingOrUndatedByCategories(categories, date, Pageable.unpaged());
+    }
 
     // 지난 공연 상세의 "다가오는 공연" 미리보기용: 위와 같은 조건·정렬에서 공개 공연만, pageable 크기만큼.
     @Query("SELECT c FROM Concert c LEFT JOIN FETCH c.artist LEFT JOIN FETCH c.linkedVenue " +
@@ -94,7 +99,12 @@ public interface ConcertRepository extends JpaRepository<Concert, Long> {
             "AND COALESCE(c.endDate, c.startDate) < :date " +
             "ORDER BY COALESCE(c.endDate, c.startDate) DESC")
     List<Concert> findPastByCategories(@Param("categories") List<ConcertCategory> categories,
-                                       @Param("date") LocalDate date);
+                                       @Param("date") LocalDate date,
+                                       Pageable pageable);
+
+    default List<Concert> findPastByCategories(List<ConcertCategory> categories, LocalDate date) {
+        return findPastByCategories(categories, date, Pageable.unpaged());
+    }
 
     List<Concert> findByArtistId(Long artistId);
     Optional<Concert> findByTitle(String title);

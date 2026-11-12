@@ -12,6 +12,7 @@ import com.loop.loop_backend.User.domain.Gender;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -255,6 +256,37 @@ class ConcertRepositoryTest {
         assertThat(concertRepository.findPublishedUpcomingOrUndatedByCategories(
                 List.of(ConcertCategory.STAGE), today, PageRequest.of(0, 2)))
                 .extracting(Concert::getTitle).containsExactly("D+1", "D+3");
+    }
+
+    @Test
+    @DisplayName("예정 조회에 개수를 주면 정렬 순서대로 앞에서 그 개수만 가져온다")
+    void findUpcomingOrUndatedByCategories_WithPageable_ReturnsFirstNInOrder() {
+        LocalDate today = LocalDate.now();
+        persistConcert("날짜 미정", null, null);
+        persistConcert("3일 뒤", today.plusDays(3), null);
+        persistConcert("1일 뒤", today.plusDays(1), null);
+        persistConcert("2일 뒤", today.plusDays(2), null);
+        entityManager.flush();
+
+        List<Concert> result = concertRepository.findUpcomingOrUndatedByCategories(
+                List.of(ConcertCategory.STAGE), today, PageRequest.of(0, 2));
+
+        assertThat(result).extracting(Concert::getTitle).containsExactly("1일 뒤", "2일 뒤");
+    }
+
+    @Test
+    @DisplayName("지난 조회에 개수를 주면 최근 종료순으로 앞에서 그 개수만 가져온다")
+    void findPastByCategories_WithPageable_ReturnsFirstNInOrder() {
+        LocalDate today = LocalDate.now();
+        persistConcert("3일 전", today.minusDays(3), null);
+        persistConcert("1일 전", today.minusDays(1), null);
+        persistConcert("2일 전", today.minusDays(2), null);
+        entityManager.flush();
+
+        List<Concert> result = concertRepository.findPastByCategories(
+                List.of(ConcertCategory.STAGE), today, PageRequest.of(0, 2));
+
+        assertThat(result).extracting(Concert::getTitle).containsExactly("1일 전", "2일 전");
     }
 
     // ===== findPastByCategories (section 지난 공연 조회) =====

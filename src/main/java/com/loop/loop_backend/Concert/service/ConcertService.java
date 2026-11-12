@@ -33,5 +33,6 @@ public interface ConcertService {
     List<ConcertSummaryDto> getConcertsByArtist(Long artistId, Long userId);
 
     // 공연 탭: section(내한/페스티벌) + period(예정/지난)로 조회. 정렬은 서버가 period 기준으로 고정한다.
-    List<ConcertSummaryDto> getConcertsBySection(ConcertSection section, ConcertPeriod period, Long userId);
+    // size가 있으면 앞에서 size개만(홈 미리보기), null이면 전체.
+    List<ConcertSummaryDto> getConcertsBySection(ConcertSection section, ConcertPeriod period, Integer size, Long userId);
 }

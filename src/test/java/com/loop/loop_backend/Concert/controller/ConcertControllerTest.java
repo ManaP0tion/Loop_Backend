@@ -7,6 +7,7 @@ import com.loop.loop_backend.Concert.service.ConcertService;
 import com.loop.loop_backend.common.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -81,7 +82,7 @@ class ConcertControllerTest {
 
     @Test
     void 내한_예정_조회시_로그인한_사용자ID로_getConcertsBySection이_호출된다() throws Exception {
-        when(concertService.getConcertsBySection(ConcertSection.DOMESTIC_TOUR, ConcertPeriod.UPCOMING, USER_ID))
+        when(concertService.getConcertsBySection(ConcertSection.DOMESTIC_TOUR, ConcertPeriod.UPCOMING, null, USER_ID))
                 .thenReturn(List.of(summary(1L, "내한 예정 콘서트")));
 
         mockMvc.perform(get("/api/concerts")
@@ -90,12 +91,12 @@ class ConcertControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].title").value("내한 예정 콘서트"));
 
-        verify(concertService).getConcertsBySection(ConcertSection.DOMESTIC_TOUR, ConcertPeriod.UPCOMING, USER_ID);
+        verify(concertService).getConcertsBySection(ConcertSection.DOMESTIC_TOUR, ConcertPeriod.UPCOMING, null, USER_ID);
     }
 
     @Test
     void 페스티벌_지난공연_조회시_로그인한_사용자ID로_getConcertsBySection이_호출된다() throws Exception {
-        when(concertService.getConcertsBySection(ConcertSection.FESTIVAL, ConcertPeriod.PAST, USER_ID))
+        when(concertService.getConcertsBySection(ConcertSection.FESTIVAL, ConcertPeriod.PAST, null, USER_ID))
                 .thenReturn(List.of(summary(2L, "지난 페스티벌")));
 
         mockMvc.perform(get("/api/concerts")
@@ -104,13 +105,13 @@ class ConcertControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].title").value("지난 페스티벌"));
 
-        verify(concertService).getConcertsBySection(ConcertSection.FESTIVAL, ConcertPeriod.PAST, USER_ID);
+        verify(concertService).getConcertsBySection(ConcertSection.FESTIVAL, ConcertPeriod.PAST, null, USER_ID);
     }
 
     @Test
     void 콘서트_목록_조회는_비로그인이어도_userId_null로_서비스가_호출되고_200을_반환한다() throws Exception {
         SecurityContextHolder.clearContext();
-        when(concertService.getConcertsBySection(ConcertSection.DOMESTIC_TOUR, ConcertPeriod.UPCOMING, null))
+        when(concertService.getConcertsBySection(ConcertSection.DOMESTIC_TOUR, ConcertPeriod.UPCOMING, null, null))
                 .thenReturn(List.of(summary(1L, "내한 예정 콘서트")));
 
         mockMvc.perform(get("/api/concerts")
@@ -118,7 +119,22 @@ class ConcertControllerTest {
                         .param("period", "UPCOMING"))
                 .andExpect(status().isOk());
 
-        verify(concertService).getConcertsBySection(ConcertSection.DOMESTIC_TOUR, ConcertPeriod.UPCOMING, null);
+        verify(concertService).getConcertsBySection(ConcertSection.DOMESTIC_TOUR, ConcertPeriod.UPCOMING, null, null);
+    }
+
+    @Test
+    @DisplayName("size를 주면 그 값이 서비스로 전달된다(홈 미리보기)")
+    void getConcerts_WithSize_PassesSizeToService() throws Exception {
+        when(concertService.getConcertsBySection(ConcertSection.DOMESTIC_TOUR, ConcertPeriod.UPCOMING, 10, USER_ID))
+                .thenReturn(List.of(summary(1L, "내한 예정 콘서트")));
+
+        mockMvc.perform(get("/api/concerts")
+                        .param("section", "DOMESTIC_TOUR")
+                        .param("period", "UPCOMING")
+                        .param("size", "10"))
+                .andExpect(status().isOk());
+
+        verify(concertService).getConcertsBySection(ConcertSection.DOMESTIC_TOUR, ConcertPeriod.UPCOMING, 10, USER_ID);
     }
 
     // TODO: GlobalExceptionHandler가 MissingServletRequestParameterException 전용 핸들러가 없어서
@@ -127,7 +143,7 @@ class ConcertControllerTest {
         mockMvc.perform(get("/api/concerts").param("section", "DOMESTIC_TOUR"))
                 .andExpect(status().isBadRequest());
 
-        verify(concertService, never()).getConcertsBySection(any(), any(), any());
+        verify(concertService, never()).getConcertsBySection(any(), any(), any(), any());
     }
 
     @Test
