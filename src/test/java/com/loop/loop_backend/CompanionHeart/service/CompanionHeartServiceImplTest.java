@@ -8,6 +8,7 @@ import com.loop.loop_backend.CompanionHeart.repository.CompanionHeartRepository;
 import com.loop.loop_backend.CompanionPost.domain.CompanionActivity;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
+import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
@@ -297,7 +298,7 @@ class CompanionHeartServiceImplTest {
         CompanionPost postDay2 = testPost(12L, author, concert, WatchDay.DAY2);
 
         when(concertRepository.findById(100L)).thenReturn(Optional.of(concert));
-        when(companionHeartRepository.findAllByUser_IdAndCompanionPost_Concert_Id(VIEWER_ID, 100L))
+        when(companionHeartRepository.findAllByUser_IdAndCompanionPost_Concert_IdOrderByCreatedAtDesc(VIEWER_ID, 100L))
                 .thenReturn(List.of(
                         CompanionHeart.builder().user(viewer).companionPost(postDay1).build(),
                         CompanionHeart.builder().user(viewer).companionPost(postDay2).build()
@@ -308,6 +309,28 @@ class CompanionHeartServiceImplTest {
         assertThat(result.getConcertId()).isEqualTo(100L);
         assertThat(result.getDays()).containsOnlyKeys(WatchDay.DAY1, WatchDay.DAY2);
         assertThat(result.getDays().get(WatchDay.DAY1)).hasSize(1);
+    }
+
+    // 관심 프로필 전체보기 v2: day 구분 안에서 최근 하트한 순으로 보여준다(조회가 최근 하트순, 묶을 때 그 순서를 유지)
+    @Test
+    void 콘서트_상세_조회시_관람일_안에서_최근_하트한_순서를_유지한다() {
+        User viewer = testUser(VIEWER_ID);
+        User author = testUser(AUTHOR_ID);
+        Concert concert = testConcert(100L, "콘서트A");
+        CompanionPost recent = testPost(11L, author, concert, WatchDay.DAY1);
+        CompanionPost older = testPost(12L, author, concert, WatchDay.DAY1);
+
+        when(concertRepository.findById(100L)).thenReturn(Optional.of(concert));
+        when(companionHeartRepository.findAllByUser_IdAndCompanionPost_Concert_IdOrderByCreatedAtDesc(VIEWER_ID, 100L))
+                .thenReturn(List.of(
+                        CompanionHeart.builder().user(viewer).companionPost(recent).build(),
+                        CompanionHeart.builder().user(viewer).companionPost(older).build()
+                ));
+
+        HeartedConcertDetailDto result = companionHeartService.getMyHeartedCompanionsByConcert(VIEWER_ID, 100L);
+
+        assertThat(result.getDays().get(WatchDay.DAY1)).extracting(CompanionResponseDto::getCompanionId)
+                .containsExactly(11L, 12L);
     }
 
     @Test

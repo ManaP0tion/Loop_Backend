@@ -113,7 +113,7 @@ public class CompanionHeartServiceImpl implements CompanionHeartService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
 
         List<CompanionHeart> hearts = filterHiddenOrBlocked(userId,
-                companionHeartRepository.findAllByUser_IdAndCompanionPost_Concert_Id(userId, concertId));
+                companionHeartRepository.findAllByUser_IdAndCompanionPost_Concert_IdOrderByCreatedAtDesc(userId, concertId));
 
         Map<WatchDay, List<CompanionResponseDto>> days = new EnumMap<>(WatchDay.class);
         for (CompanionHeart heart : hearts) {
