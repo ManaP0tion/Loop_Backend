@@ -9,6 +9,7 @@ import com.loop.loop_backend.CompanionPost.domain.WatchStyle;
 import com.loop.loop_backend.CompanionPost.dto.CompanionDetailResponseDto;
 import com.loop.loop_backend.CompanionPost.dto.CompanionRequestDto;
 import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto;
+import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto.HashtagSummary;
 import com.loop.loop_backend.CompanionPost.event.CompanionCreatedEvent;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostSpecifications;
@@ -16,6 +17,7 @@ import com.loop.loop_backend.Concert.domain.CompanionStatus;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
+import com.loop.loop_backend.FavoriteArtist.repository.UserArtistId;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.User.domain.AgeGroup;
 import com.loop.loop_backend.User.domain.Gender;
@@ -44,6 +46,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -124,24 +127,7 @@ public class CompanionServiceImpl implements CompanionService {
                 CompanionPostSpecifications.ageGroupIn(ageGroups));
 
         List<CompanionPost> filtered = companionPostRepository.findAll(spec);
-
-        CompanionPost myPost = companionPostRepository
-                .findByUser_IdAndConcert_IdAndWatchDay(userId, concertId, watchDay)
-                .orElse(null);
-
-        Comparator<CompanionPost> comparator;
-        if (myPost != null && myPost.getActivities().contains(CompanionActivity.CONCERT)) {
-            WatchStyle myStyle = myPost.getWatchStyle();
-            Set<CompanionActivity> myActivities = myPost.getActivities();
-            comparator = Comparator
-                    .comparing((CompanionPost post) -> post.getWatchStyle() == myStyle ? 0 : 1)
-                    .thenComparing((CompanionPost post) -> -commonActivityCount(post.getActivities(), myActivities))
-                    .thenComparing(CompanionPost::getCreatedAt, Comparator.reverseOrder());
-        } else {
-            comparator = defaultComparator(myPost);
-        }
-
-        return paginate(userId, filtered, comparator, pageable);
+        return paginate(userId, filtered, matchComparator(userId, findMyPost(userId, concertId, watchDay), filtered), pageable);
     }
 
     @Override
@@ -160,12 +146,7 @@ public class CompanionServiceImpl implements CompanionService {
                 CompanionPostSpecifications.ageGroupIn(ageGroups));
 
         List<CompanionPost> filtered = companionPostRepository.findAll(spec);
-
-        CompanionPost myPost = companionPostRepository
-                .findByUser_IdAndConcert_IdAndWatchDay(userId, concertId, watchDay)
-                .orElse(null);
-
-        return paginate(userId, filtered, defaultComparator(myPost), pageable);
+        return paginate(userId, filtered, matchComparator(userId, findMyPost(userId, concertId, watchDay), filtered), pageable);
     }
 
     @Override
@@ -175,8 +156,7 @@ public class CompanionServiceImpl implements CompanionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
                 .getGender();
 
-        // 공연 관람 여부(hasActivity/doesNotHaveActivity) 구분 없이 전체 조회 - 아직 내 프로필을 등록하기 전에 보여주는 목록이라
-        // watching처럼 내 관람스타일 기준으로 정렬할 근거가 없으므로 등록일자 최신순 고정
+        // v2 동행 풀 목록: 작성자는 모두 공연을 보므로 공연 관람(CONCERT) 여부로 나누지 않는다
         Specification<CompanionPost> spec = Specification.allOf(
                 CompanionPostSpecifications.concertIdEquals(concertId),
                 CompanionPostSpecifications.watchDayEquals(watchDay),
@@ -185,8 +165,11 @@ public class CompanionServiceImpl implements CompanionService {
                 CompanionPostSpecifications.ageGroupIn(ageGroups));
 
         List<CompanionPost> filtered = companionPostRepository.findAll(spec);
+        return paginate(userId, filtered, matchComparator(userId, findMyPost(userId, concertId, watchDay), filtered), pageable);
+    }
 
-        return paginate(userId, filtered, Comparator.comparing(CompanionPost::getCreatedAt, Comparator.reverseOrder()), pageable);
+    private CompanionPost findMyPost(Long userId, Long concertId, WatchDay watchDay) {
+        return companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(userId, concertId, watchDay).orElse(null);
     }
 
     // 조회자가 대상 프로필을 볼 수 있는지를 결정하는 공통 신원 기반 필터 (매칭 목록 전용 - 본인 글은 매칭 상대가 아니므로 제외)
@@ -250,19 +233,49 @@ public class CompanionServiceImpl implements CompanionService {
                 CompanionPostSpecifications.watchDayNotExpired(ExpiryCutoff.cutoffDate()));
     }
 
-    // 관람 스타일 우선순위가 적용되지 않는 기본 정렬: 내 프로필이 있으면 공통 활동 많은 순, 없으면 등록일자 최신순
-    private Comparator<CompanionPost> defaultComparator(CompanionPost myPost) {
-        if (myPost != null) {
-            Set<CompanionActivity> myActivities = myPost.getActivities();
-            return Comparator
-                    .<CompanionPost>comparingInt(post -> -commonActivityCount(post.getActivities(), myActivities))
-                    .thenComparing(CompanionPost::getCreatedAt, Comparator.reverseOrder());
+    /**
+     * 동행 풀 정렬(v2, 관람·미관람·전체 공통). 내 프로필 기준으로
+     * 1) 함께 하고 싶은 것 공통 많은 순 2) 좋아하는 아티스트 공통 많은 순 3) 관람 스타일 같은 사람 먼저 4) 최신 등록순.
+     * 내 프로필이 없으면 비교할 기준이 없어 최신 등록순(v1과 동일).
+     * 페이지를 자르기 전 전체에 적용하므로, 관심 아티스트는 작성자 전체 것을 쿼리 한 번으로 가져온다.
+     */
+    private Comparator<CompanionPost> matchComparator(Long userId, CompanionPost myPost, List<CompanionPost> posts) {
+        Comparator<CompanionPost> latest = Comparator.comparing(CompanionPost::getCreatedAt, Comparator.reverseOrder());
+        if (myPost == null) {
+            return latest;
         }
-        return Comparator.comparing(CompanionPost::getCreatedAt, Comparator.reverseOrder());
+
+        Set<CompanionActivity> myActivities = myPost.getActivities();
+        Map<Long, Set<Long>> artistIdsByUser = favoriteArtistIdsByUser(userId, posts);
+        Set<Long> myArtistIds = artistIdsByUser.getOrDefault(userId, Set.of());
+        // 관람 스타일은 페스티벌만 쓴다(단독 공연은 좌석이 따로라 같이 볼 수 없어 없음). 목록은 한 공연의 프로필만 모으므로 유형이 모두 같다
+        boolean compareStyle = myPost.getConcert().isFestival();
+        WatchStyle myStyle = myPost.getWatchStyle();
+
+        return Comparator
+                .<CompanionPost>comparingInt(post -> -commonCount(post.getActivities(), myActivities))
+                .thenComparingInt(post -> -commonCount(
+                        artistIdsByUser.getOrDefault(post.getUser().getId(), Set.of()), myArtistIds))
+                .thenComparingInt(post -> compareStyle && sameStyle(post.getWatchStyle(), myStyle) ? 0 : 1)
+                .thenComparing(latest);
     }
 
+    /** 조회자와 작성자들의 관심 아티스트 ID를 사용자별로 묶는다. */
+    private Map<Long, Set<Long>> favoriteArtistIdsByUser(Long userId, List<CompanionPost> posts) {
+        Set<Long> userIds = posts.stream().map(post -> post.getUser().getId())
+                .collect(Collectors.toCollection(HashSet::new));
+        userIds.add(userId);
+        return favoriteArtistRepository.findArtistIdsByUserIdIn(userIds).stream()
+                .collect(Collectors.groupingBy(UserArtistId::userId,
+                        Collectors.mapping(UserArtistId::artistId, Collectors.toSet())));
+    }
 
-    private int commonActivityCount(Set<CompanionActivity> a, Set<CompanionActivity> b) {
+    // 둘 다 고른 경우만 같다고 본다 - 스타일이 없는 프로필끼리(null == null) 같은 스타일로 묶이면 안 된다
+    private boolean sameStyle(WatchStyle a, WatchStyle b) {
+        return a != null && a == b;
+    }
+
+    private <T> int commonCount(Set<T> a, Set<T> b) {
         return (int) a.stream().filter(b::contains).count();
     }
 
@@ -279,11 +292,23 @@ public class CompanionServiceImpl implements CompanionService {
                 ? Collections.emptySet()
                 : companionHeartRepository.findHeartedCompanionPostIds(userId, pageItemIds);
 
+        // 성격은 페이지에 나가는 작성자 것만 읽는다(정렬은 전체, 표시는 페이지)
+        Map<Long, List<HashtagSummary>> hashtags = hashtagsByAuthor(pageItems);
         List<CompanionResponseDto> content = pageItems.stream()
-                .map(post -> new CompanionResponseDto(post, heartedIds.contains(post.getId())))
+                .map(post -> new CompanionResponseDto(post, heartedIds.contains(post.getId()),
+                        hashtags.getOrDefault(post.getUser().getId(), List.of())))
                 .toList();
 
         return new PageResponseDto<>(content, sorted.size(), end < sorted.size());
+    }
+
+    // 작성자들의 성격을 쿼리 한 번으로 가져와 작성자별로 묶는다 - 프로필마다 조회하면 목록 길이만큼 쿼리가 늘어난다(N+1)
+    private Map<Long, List<HashtagSummary>> hashtagsByAuthor(List<CompanionPost> posts) {
+        if (posts.isEmpty()) {
+            return Map.of();
+        }
+        Set<Long> authorIds = posts.stream().map(post -> post.getUser().getId()).collect(Collectors.toSet());
+        return HashtagSummary.groupByUser(userHashtagRepository.findAllByUser_IdInOrderByIdAsc(authorIds));
     }
 
     @Override
@@ -310,9 +335,9 @@ public class CompanionServiceImpl implements CompanionService {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
-        List<CompanionDetailResponseDto.HashtagSummary> hashtags = userHashtagRepository.findAllByUser(post.getUser())
+        List<HashtagSummary> hashtags = userHashtagRepository.findAllByUser(post.getUser())
                 .stream()
-                .map(tag -> new CompanionDetailResponseDto.HashtagSummary(tag.getId(), tag.getTag()))
+                .map(tag -> new HashtagSummary(tag.getId(), tag.getTag()))
                 .toList();
 
         List<CompanionDetailResponseDto.PreferredArtist> preferredArtists = favoriteArtistRepository.findAllByUser(post.getUser())
@@ -340,7 +365,7 @@ public class CompanionServiceImpl implements CompanionService {
                 requestDto.isSameGenderOnly());
 
         // 본인 글이라 하트 자체가 불가능하므로 항상 false
-        return new CompanionResponseDto(post, false);
+        return new CompanionResponseDto(post, false, hashtagsByAuthor(List.of(post)).getOrDefault(userId, List.of()));
     }
 
     @Override
@@ -368,8 +393,9 @@ public class CompanionServiceImpl implements CompanionService {
 
         // 등록한 프로필이 없는 것도 정상 상태 - 목록 조회는 비어있어도 에러가 아니라 200 + 빈 배열이 REST 관례
         // 본인 글이라 하트 자체가 불가능하므로 항상 false
+        List<HashtagSummary> myHashtags = hashtagsByAuthor(posts).getOrDefault(userId, List.of());
         return posts.stream()
-                .map(post -> new CompanionResponseDto(post, false))
+                .map(post -> new CompanionResponseDto(post, false, myHashtags))
                 .toList();
     }
 
@@ -384,7 +410,7 @@ public class CompanionServiceImpl implements CompanionService {
         }
 
         // 본인 글이라 하트 자체가 불가능하므로 항상 false
-        return new CompanionResponseDto(post, false);
+        return new CompanionResponseDto(post, false, hashtagsByAuthor(List.of(post)).getOrDefault(userId, List.of()));
     }
 
     @Override

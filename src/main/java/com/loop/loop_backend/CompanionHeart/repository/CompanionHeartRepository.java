@@ -15,8 +15,8 @@ public interface CompanionHeartRepository extends JpaRepository<CompanionHeart, 
     // 하트 탭 메인화면: 콘서트별로 묶기 위해 전체를 최근 하트순으로 조회
     List<CompanionHeart> findAllByUser_IdOrderByCreatedAtDesc(Long userId);
 
-    // 하트 탭 상세화면: 특정 콘서트에서 내가 하트한 것만 조회 (day별로 묶어서 보여줌)
-    List<CompanionHeart> findAllByUser_IdAndCompanionPost_Concert_Id(Long userId, Long concertId);
+    // 하트 탭 상세화면: 특정 콘서트에서 내가 하트한 것만 최근 하트순으로 조회 (day별로 묶어도 day 안은 최근 하트순)
+    List<CompanionHeart> findAllByUser_IdAndCompanionPost_Concert_IdOrderByCreatedAtDesc(Long userId, Long concertId);
 
     boolean existsByUser_IdAndCompanionPost_Id(Long userId, Long companionPostId);
 
