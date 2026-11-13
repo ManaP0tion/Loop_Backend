@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Admin.controller;
 
 import com.loop.loop_backend.Admin.service.AdminAccessLogService;
+import com.loop.loop_backend.AiJob.domain.AiJobType;
 import com.loop.loop_backend.AiJob.dto.AdminAiJobCreateRequest;
 import com.loop.loop_backend.AiJob.dto.AdminAiJobCreateResponse;
 import com.loop.loop_backend.AiJob.dto.AdminAiJobResponse;
@@ -64,6 +65,25 @@ public class AdminAiJobController {
         accessLog.log(adminId, req, "CREATE_AI_JOB", "CONCERT", body.concertId(),
                 "AI 작업 요청: " + body.type() + " (jobId " + result.jobId() + ")");
         return ResponseEntity.ok(CommonResponse.success(result));
+    }
+
+    @GetMapping("/latest")
+    @Operation(summary = "공연·종류의 마지막 AI 작업",
+            description = "화면에 들어오면 먼저 부른다 - 새로고침했거나 다른 관리자가 찾은 결과도 다시 찾지 않고(유료 호출) 쓴다. " +
+                    "상태와 관계없이 가장 최근 작업 1건을 상태 조회와 같은 형식으로 준다. " +
+                    "DONE이면 result로 미리 채우고(finishedAt 시점의 결과), PENDING·RUNNING이면 그 jobId로 상태 조회를 이어 가고, " +
+                    "FAILED면 error를 보여 준다. 한 번도 찾은 적 없으면 204.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "가장 최근 작업"),
+            @ApiResponse(responseCode = "204", description = "이 공연·종류로 만든 작업이 없음"),
+            @ApiResponse(responseCode = "400", description = "concertId·type 누락 또는 없는 type")
+    })
+    public ResponseEntity<CommonResponse<AdminAiJobResponse>> latest(
+            @Parameter(description = "공연 ID") @RequestParam Long concertId,
+            @Parameter(description = "작업 종류") @RequestParam AiJobType type) {
+        return aiJobService.findLatest(concertId, type)
+                .map(job -> ResponseEntity.ok(CommonResponse.success(job)))
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @GetMapping("/{jobId}")

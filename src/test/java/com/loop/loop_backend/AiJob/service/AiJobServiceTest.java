@@ -427,6 +427,77 @@ class AiJobServiceTest {
     }
 
     @Nested
+    class 마지막_작업_조회 {
+
+        @Test
+        void 한_번도_찾은_적_없으면_빈_값() {
+            Concert concert = stage();
+
+            assertThat(service.findLatest(concert.getId(), AiJobType.CONCERT_ENRICH)).isEmpty();
+        }
+
+        @Test
+        void 끝난_작업의_결과를_다시_찾지_않고_볼_수_있다() throws Exception {
+            Concert concert = stage();
+            Long job = createJob(AiJobType.CONCERT_ENRICH, concert);
+            service.claim(A, ALL_TYPES);
+            service.report(job, done(A, 1, "{\"status\":\"FOUND\",\"presales\":[]}"));
+            em.flush();
+            em.clear();
+
+            AdminAiJobResponse latest = service.findLatest(concert.getId(), AiJobType.CONCERT_ENRICH).orElseThrow();
+
+            assertThat(latest.jobId()).isEqualTo(job);
+            assertThat(latest.status()).isEqualTo(AiJobStatus.DONE);
+            assertThat(latest.result().get("status").asText()).isEqualTo("FOUND");
+            assertThat(latest.finishedAt()).isNotNull();
+        }
+
+        @Test
+        void 상태와_관계없이_가장_나중에_만든_작업을_준다() throws Exception {
+            Concert concert = stage();
+            Long first = createJob(AiJobType.CONCERT_ENRICH, concert);
+            service.claim(A, ALL_TYPES);
+            service.report(first, done(A, 1, "{\"status\":\"FOUND\"}"));
+            Long second = createJob(AiJobType.CONCERT_ENRICH, concert);
+            service.claim(A, ALL_TYPES);
+            service.report(second, failed(A, 1, "SEARCH_FAILED", "검색에 실패했습니다.", true));
+
+            AdminAiJobResponse latest = service.findLatest(concert.getId(), AiJobType.CONCERT_ENRICH).orElseThrow();
+
+            assertThat(latest.jobId()).isEqualTo(second);
+            assertThat(latest.status()).isEqualTo(AiJobStatus.FAILED);
+            assertThat(latest.result()).isNull();
+            assertThat(latest.error().code()).isEqualTo("SEARCH_FAILED");
+            assertThat(latest.error().retryable()).isTrue();
+        }
+
+        @Test
+        void 진행_중인_작업이면_그_작업을_주어_이어서_조회하게_한다() {
+            Concert concert = stage();
+            Long job = createJob(AiJobType.CONCERT_ENRICH, concert);
+
+            AdminAiJobResponse latest = service.findLatest(concert.getId(), AiJobType.CONCERT_ENRICH).orElseThrow();
+
+            assertThat(latest.jobId()).isEqualTo(job);
+            assertThat(latest.status()).isEqualTo(AiJobStatus.PENDING);
+        }
+
+        @Test
+        void 다른_공연이나_다른_종류의_작업은_섞이지_않는다() {
+            Concert festival = festival(LocalDate.of(2026, 11, 20));
+            Concert other = stage();
+            Long enrich = createJob(AiJobType.CONCERT_ENRICH, festival);
+            createJob(AiJobType.FESTIVAL_LINEUP, festival);
+            createJob(AiJobType.CONCERT_ENRICH, other);
+
+            assertThat(service.findLatest(festival.getId(), AiJobType.CONCERT_ENRICH).orElseThrow().jobId())
+                    .isEqualTo(enrich);
+            assertThat(service.findLatest(other.getId(), AiJobType.FESTIVAL_LINEUP)).isEmpty();
+        }
+    }
+
+    @Nested
     class payload_만들기 {
 
         private JsonNode payloadOf(Long jobId) throws Exception {

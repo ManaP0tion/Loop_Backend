@@ -157,6 +157,20 @@ public class AiJobService {
     public AdminAiJobResponse get(Long jobId) {
         AiJob job = aiJobRepository.findById(jobId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.AI_JOB_NOT_FOUND));
+        return toAdminResponse(job);
+    }
+
+    /**
+     * 공연·종류의 가장 최근 작업(상태 무관). 없으면 빈 값(204).
+     * 새로고침·다른 관리자도 이미 찾은 결과를 다시 찾지 않고(유료 호출) 쓰고, 진행 중이면 이어서 조회하게 한다.
+     */
+    @Transactional(readOnly = true)
+    public Optional<AdminAiJobResponse> findLatest(Long concertId, AiJobType type) {
+        return aiJobRepository.findFirstByTypeAndConcertIdOrderByIdDesc(type, concertId)
+                .map(this::toAdminResponse);
+    }
+
+    private AdminAiJobResponse toAdminResponse(AiJob job) {
         JsonNode result = job.getResult() == null ? null : readJson(job.getResult());
         return AdminAiJobResponse.of(job, result);
     }

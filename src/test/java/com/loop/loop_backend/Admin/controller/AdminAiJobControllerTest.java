@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -123,6 +124,43 @@ class AdminAiJobControllerTest {
                 .andExpect(jsonPath("$.data.status").value("FAILED"))
                 .andExpect(jsonPath("$.data.error.code").value("LEASE_EXPIRED"))
                 .andExpect(jsonPath("$.data.error.retryable").value(true));
+    }
+
+    @Test
+    void 마지막_작업은_상태_조회와_같은_형식으로_준다() throws Exception {
+        when(aiJobService.findLatest(31L, AiJobType.FESTIVAL_LINEUP)).thenReturn(Optional.of(new AdminAiJobResponse(
+                125L, AiJobType.FESTIVAL_LINEUP, 31L, AiJobStatus.DONE,
+                mapper.readTree("{\"days\":[]}"), null, 1,
+                LocalDateTime.of(2026, 11, 20, 10, 0), LocalDateTime.of(2026, 11, 20, 10, 1))));
+
+        mockMvc.perform(get("/api/admin/ai-jobs/latest")
+                        .param("concertId", "31").param("type", "FESTIVAL_LINEUP"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.jobId").value(125))
+                .andExpect(jsonPath("$.data.status").value("DONE"))
+                .andExpect(jsonPath("$.data.result.days").isArray())
+                .andExpect(jsonPath("$.data.finishedAt").exists());
+    }
+
+    @Test
+    void 찾은_적_없으면_204() throws Exception {
+        when(aiJobService.findLatest(31L, AiJobType.CONCERT_ENRICH)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/admin/ai-jobs/latest")
+                        .param("concertId", "31").param("type", "CONCERT_ENRICH"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void 마지막_작업_조회에_공연이나_종류가_없거나_잘못되면_400() throws Exception {
+        mockMvc.perform(get("/api/admin/ai-jobs/latest").param("type", "CONCERT_ENRICH"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/admin/ai-jobs/latest").param("concertId", "31"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/admin/ai-jobs/latest").param("concertId", "31").param("type", "UNKNOWN"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(aiJobService);
     }
 
     @Test

@@ -43,6 +43,9 @@ public interface AiJobRepository extends JpaRepository<AiJob, Long> {
     Optional<AiJob> findFirstByTypeAndConcertIdAndStatusInOrderByIdDesc(
             AiJobType type, Long concertId, Collection<AiJobStatus> statuses);
 
+    /** 같은 대상의 가장 최근 작업(상태 무관). 어드민이 이미 찾은 결과를 다시 쓰기 위해. */
+    Optional<AiJob> findFirstByTypeAndConcertIdOrderByIdDesc(AiJobType type, Long concertId);
+
     /** lease가 지난 RUNNING 작업(만료 처리 대상). */
     @Query("select j.id from AiJob j where j.status = :running and j.leaseUntil < :now")
     List<Long> findLeaseOverIds(@Param("running") AiJobStatus running, @Param("now") LocalDateTime now);
