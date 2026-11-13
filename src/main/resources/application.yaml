@@ -86,6 +86,11 @@ cors:
 kopis:
   api-key: ${KOPIS_API_KEY}
 
+# AI 워커가 /api/internal/** 호출 시 X-API-Key 헤더로 보내는 값(워커의 AI_SERVER_API_KEY와 같은 값).
+# 비어 있으면 서버는 뜨지만 워커 API는 항상 401.
+ai-worker:
+  api-key: ${AI_WORKER_API_KEY:}
+
 report:
   admin-email: ${REPORT_ADMIN_EMAIL}
 

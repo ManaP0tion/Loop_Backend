@@ -65,5 +65,9 @@ frontend:
 kopis:
   api-key: YOUR_KOPIS_API_KEY_HERE
 
+# AI 워커의 AI_SERVER_API_KEY와 같은 값. 비우면 워커 API(/api/internal/**)는 항상 401
+ai-worker:
+  api-key: YOUR_AI_WORKER_API_KEY_HERE
+
 report:
   admin-email: your-admin-email@example.com
