@@ -90,6 +90,13 @@ public enum ErrorCode {
     SETLIST_VOTE_CLOSED(409, "예상 셋리스트 투표가 마감되었습니다."),
     SETLIST_VOTE_NOT_FOUND(404, "예상 셋리스트 투표 내역이 없습니다."),
 
+    // AiJob 도메인
+    AI_JOB_NOT_FOUND(404, "AI 작업을 찾을 수 없습니다."),
+    AI_JOB_NOT_ACCEPTED(409, "이 워커의 현재 작업이 아니거나 이미 끝난 작업입니다."),
+    AI_JOB_UNSUPPORTED_TYPE(400, "아직 지원하지 않는 AI 작업입니다."),
+    AI_JOB_FESTIVAL_ONLY(400, "페스티벌에만 요청할 수 있는 AI 작업입니다."),
+    AI_JOB_START_DATE_REQUIRED(400, "공연 시작일이 있어야 요청할 수 있는 AI 작업입니다."),
+
     // CompanionPost 도메인
     COMPANION_POST_NOT_FOUND(404, "동행 모집글을 찾을 수 없습니다."),
     COMPANION_POST_ALREADY_CLOSED(409, "이미 마감된 모집글입니다."),
