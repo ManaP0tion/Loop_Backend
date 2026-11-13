@@ -1,7 +1,7 @@
 package com.loop.loop_backend.ConcertScrap.controller;
 
 import com.loop.loop_backend.Concert.dto.ConcertPeriod;
-import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
+import com.loop.loop_backend.ConcertScrap.dto.ScrapConcertDto;
 import com.loop.loop_backend.ConcertScrap.service.ConcertScrapService;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -56,9 +56,11 @@ public class ConcertScrapController {
     @GetMapping
     @Operation(summary = "내 스크랩 목록 조회",
             description = "내가 스크랩한 콘서트를 period(예정/지난)별로 조회합니다. 예정/지난 판단과 정렬은 공연 목록 조회와 동일합니다 — " +
-                    "예정 공연은 가까운 날짜순(날짜 미정은 예정의 맨 뒤), 지난 공연은 최근 종료순.")
+                    "예정 공연은 가까운 날짜순(날짜 미정은 예정의 맨 뒤), 지난 공연은 최근 종료순.\n\n" +
+                    "항목은 공연 목록과 같은 필드에 `dday`(D-day), `alarmOn`(예매 알림 하나라도 켜짐)이 더해집니다 - " +
+                    "둘 다 공연 상세와 같은 규칙입니다. 지난 공연(PAST)은 둘 다 null.")
     @ApiResponse(responseCode = "200", description = "조회 성공")
-    public ResponseEntity<CommonResponse<List<ConcertSummaryDto>>> getMyScraps(
+    public ResponseEntity<CommonResponse<List<ScrapConcertDto>>> getMyScraps(
             @AuthenticationPrincipal Long userId,
             @Parameter(description = "조회 시점 (UPCOMING 예정 / PAST 지난)") @RequestParam ConcertPeriod period) {
         return ResponseEntity.ok(CommonResponse.success(concertScrapService.getMyScraps(userId, period)));

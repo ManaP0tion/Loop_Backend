@@ -350,6 +350,14 @@ public class Concert {
         return category == ConcertCategory.FESTIVAL;
     }
 
+    /**
+     * today 기준 시작일까지 남은 일수(D-day). 당일 0, 이미 시작한 공연은 음수, 날짜 미정이면 null.
+     * 공연 상세와 스크랩 목록이 같은 값을 보여주도록 한 곳에서 계산한다.
+     */
+    public Integer ddayFrom(LocalDate today) {
+        return startDate != null ? (int) ChronoUnit.DAYS.between(today, startDate) : null;
+    }
+
     private boolean isWithinPeriod(LocalDate date) {
         return startDate != null && endDate != null && !date.isBefore(startDate) && !date.isAfter(endDate);
     }

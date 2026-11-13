@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface TicketAlarmRepository extends JpaRepository<TicketAlarm, Long> {
@@ -18,6 +19,12 @@ public interface TicketAlarmRepository extends JpaRepository<TicketAlarm, Long> 
     // 공연 상세·토글 응답용: 이 공연에서 내가 켠 알림 종류
     @Query("SELECT a.type FROM TicketAlarm a WHERE a.user.id = :userId AND a.concert.id = :concertId")
     List<TicketAlarmType> findTypesByUserIdAndConcertId(@Param("userId") Long userId, @Param("concertId") Long concertId);
+
+    // 스크랩 목록용: 주어진 공연들에서 내가 켠 알림 종류 (목록을 쿼리 한 번으로 확인)
+    @Query("SELECT new com.loop.loop_backend.TicketAlarm.repository.ConcertAlarmType(a.concert.id, a.type) " +
+            "FROM TicketAlarm a WHERE a.user.id = :userId AND a.concert.id IN :concertIds")
+    List<ConcertAlarmType> findTypesByUserIdAndConcertIdIn(@Param("userId") Long userId,
+                                                           @Param("concertIds") Collection<Long> concertIds);
 
     // 회원탈퇴 정리용(UserServiceImpl.withdrawUser) - 탈퇴는 users 행을 지우지 않아 FK cascade가 동작하지 않는다
     void deleteAllByUser(User user);
