@@ -14,7 +14,6 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
 
@@ -137,11 +136,8 @@ public class ConcertUpcomingDetailDto {
                 .venue(ConcertVenueDto.of(concert))
                 .startDate(concert.getStartDate())
                 .endDate(concert.getEndDate())
-                // 시작일이 없는 공연(날짜 미정)은 D-day를 계산할 수 없어 null.
                 // 여러 날 공연이 이미 시작해 진행 중이면 음수가 나온다 - 표시 방식은 프론트가 정한다.
-                .dday(concert.getStartDate() != null
-                        ? (int) ChronoUnit.DAYS.between(today, concert.getStartDate())
-                        : null)
+                .dday(concert.ddayFrom(today))
                 .showtimes(ConcertShowtimeDto.byDay(concert))
                 .presales(ConcertTicketSaleDto.fromPresales(presales))
                 .generalSales(ConcertTicketSaleDto.fromGeneralSales(generalSales))

@@ -2,10 +2,11 @@ package com.loop.loop_backend.ConcertScrap.service;
 
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.dto.ConcertPeriod;
-import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.ConcertScrap.domain.ConcertScrap;
+import com.loop.loop_backend.ConcertScrap.dto.ScrapConcertDto;
 import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
+import com.loop.loop_backend.TicketAlarm.service.TicketAlarmService;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -16,16 +17,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ConcertScrapServiceImpl implements ConcertScrapService {
 
+    private static final ZoneId ZONE_KST = ZoneId.of("Asia/Seoul");
+
     private final ConcertScrapRepository concertScrapRepository;
     private final ConcertRepository concertRepository;
     private final UserRepository userRepository;
+    private final TicketAlarmService ticketAlarmService;
 
     @Override
     @Transactional
@@ -52,12 +58,23 @@ public class ConcertScrapServiceImpl implements ConcertScrapService {
     }
 
     @Override
-    public List<ConcertSummaryDto> getMyScraps(Long userId, ConcertPeriod period) {
+    public List<ScrapConcertDto> getMyScraps(Long userId, ConcertPeriod period) {
         // 공연 목록과 같은 만료 기준(오전 10시 리셋)을 써야 공연 탭과 스크랩 탭의 예정/지난 구분이 어긋나지 않는다.
         LocalDate cutoff = ExpiryCutoff.cutoffDate();
-        List<Concert> concerts = (period == ConcertPeriod.UPCOMING)
-                ? concertScrapRepository.findUpcomingOrUndatedScrappedConcerts(userId, cutoff)
-                : concertScrapRepository.findPastScrappedConcerts(userId, cutoff);
-        return concerts.stream().map(ConcertSummaryDto::from).toList();
+        if (period == ConcertPeriod.PAST) {
+            // 지난 공연은 D-day·알림을 쓰지 않아 조회하지 않는다
+            return concertScrapRepository.findPastScrappedConcerts(userId, cutoff).stream()
+                    .map(ScrapConcertDto::past)
+                    .toList();
+        }
+
+        List<Concert> concerts = concertScrapRepository.findUpcomingOrUndatedScrappedConcerts(userId, cutoff);
+        Set<Long> alarmOn = ticketAlarmService.concertIdsWithAlarmOn(userId,
+                concerts.stream().map(Concert::getId).toList());
+        // D-day는 공연 상세와 같이 KST 날짜 기준(예정/지난 구분의 오전 10시 기준과는 다르다 - 상세와 같은 값을 보여주기 위해)
+        LocalDate today = LocalDate.now(ZONE_KST);
+        return concerts.stream()
+                .map(concert -> ScrapConcertDto.upcoming(concert, today, alarmOn.contains(concert.getId())))
+                .toList();
     }
 }

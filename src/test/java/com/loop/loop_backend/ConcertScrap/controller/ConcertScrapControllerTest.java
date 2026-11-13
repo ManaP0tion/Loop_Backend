@@ -1,7 +1,9 @@
 package com.loop.loop_backend.ConcertScrap.controller;
 
+import com.loop.loop_backend.Concert.domain.Concert;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.dto.ConcertPeriod;
-import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
+import com.loop.loop_backend.ConcertScrap.dto.ScrapConcertDto;
 import com.loop.loop_backend.ConcertScrap.service.ConcertScrapService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
@@ -12,12 +14,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -84,26 +89,40 @@ class ConcertScrapControllerTest {
 
     // ── GET /api/users/me/scraps?period= ─────────────────────────────────
 
+    private static Concert concert(String title, LocalDate startDate) {
+        Concert concert = Concert.builder().title(title).category(ConcertCategory.STAGE)
+                .startDate(startDate).endDate(startDate).build();
+        ReflectionTestUtils.setField(concert, "id", CONCERT_ID);
+        return concert;
+    }
+
+    // 스크랩 항목은 공연 목록과 같은 키(concertId, title 등)를 그대로 두고 dday·alarmOn만 더한다(중첩 객체로 감싸지 않는다)
     @Test
-    void 예정_스크랩_목록을_조회하면_200과_목록을_반환한다() throws Exception {
+    void 예정_스크랩_목록을_조회하면_200과_공연_필드에_D_day와_알림_여부를_더해_반환한다() throws Exception {
+        LocalDate today = LocalDate.of(2026, 11, 13);
         when(concertScrapService.getMyScraps(USER_ID, ConcertPeriod.UPCOMING)).thenReturn(List.of(
-                ConcertSummaryDto.builder().concertId(CONCERT_ID).title("예정 공연").build()));
+                ScrapConcertDto.upcoming(concert("예정 공연", today.plusDays(5)), today, true)));
 
         mockMvc.perform(get("/api/users/me/scraps").param("period", "UPCOMING"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))
                 .andExpect(jsonPath("$.data[0].concertId").value(CONCERT_ID))
-                .andExpect(jsonPath("$.data[0].title").value("예정 공연"));
+                .andExpect(jsonPath("$.data[0].title").value("예정 공연"))
+                .andExpect(jsonPath("$.data[0].concert").doesNotExist())
+                .andExpect(jsonPath("$.data[0].dday").value(5))
+                .andExpect(jsonPath("$.data[0].alarmOn").value(true));
     }
 
     @Test
-    void 지난_스크랩_목록을_조회하면_200과_목록을_반환한다() throws Exception {
+    void 지난_스크랩_목록을_조회하면_200과_목록을_반환하고_D_day와_알림_여부는_null이다() throws Exception {
         when(concertScrapService.getMyScraps(USER_ID, ConcertPeriod.PAST)).thenReturn(List.of(
-                ConcertSummaryDto.builder().concertId(CONCERT_ID).title("지난 공연").build()));
+                ScrapConcertDto.past(concert("지난 공연", LocalDate.of(2026, 1, 1)))));
 
         mockMvc.perform(get("/api/users/me/scraps").param("period", "PAST"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].title").value("지난 공연"));
+                .andExpect(jsonPath("$.data[0].title").value("지난 공연"))
+                .andExpect(jsonPath("$.data[0].dday").value(nullValue()))
+                .andExpect(jsonPath("$.data[0].alarmOn").value(nullValue()));
     }
 
     @Test

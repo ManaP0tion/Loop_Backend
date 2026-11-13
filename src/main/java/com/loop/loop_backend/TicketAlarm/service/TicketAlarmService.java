@@ -7,6 +7,7 @@ import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
 import com.loop.loop_backend.TicketAlarm.domain.TicketAlarm;
 import com.loop.loop_backend.TicketAlarm.domain.TicketAlarmType;
 import com.loop.loop_backend.TicketAlarm.dto.TicketAlarmResponse;
+import com.loop.loop_backend.TicketAlarm.repository.ConcertAlarmType;
 import com.loop.loop_backend.TicketAlarm.repository.TicketAlarmRepository;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
@@ -18,7 +19,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -87,6 +91,24 @@ public class TicketAlarmService {
             if (hasSchedule(concertId, type)) types.add(type);
         }
         return types;
+    }
+
+    /**
+     * 스크랩 목록용: 주어진 공연 중 예매 알림이 하나라도 켜진 공연 ID. 판단 규칙은 typesOf와 같다(켜짐 + 그 유형의 일정 있음).
+     * 공연마다 확인하면 목록 길이만큼 쿼리가 늘어나서 알림·선예매·일반예매를 각각 한 번에 조회한다.
+     */
+    public Set<Long> concertIdsWithAlarmOn(Long userId, Collection<Long> concertIds) {
+        if (userId == null || concertIds.isEmpty()) return Set.of();
+        List<ConcertAlarmType> alarms = ticketAlarmRepository.findTypesByUserIdAndConcertIdIn(userId, concertIds);
+        if (alarms.isEmpty()) return Set.of();
+        Set<Long> presaleScheduled = new HashSet<>(presaleRepository.findConcertIdsWithOpensAt(concertIds));
+        Set<Long> generalSaleScheduled = new HashSet<>(generalSaleRepository.findConcertIdsWithOpensAt(concertIds));
+        Set<Long> result = new HashSet<>();
+        for (ConcertAlarmType alarm : alarms) {
+            Set<Long> scheduled = alarm.type() == TicketAlarmType.PRESALE ? presaleScheduled : generalSaleScheduled;
+            if (scheduled.contains(alarm.concertId())) result.add(alarm.concertId());
+        }
+        return result;
     }
 
     private TicketAlarmResponse status(Long userId, Long concertId) {

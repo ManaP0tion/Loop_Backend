@@ -285,4 +285,44 @@ class TicketAlarmServiceTest {
 
         assertThat(service.typesOf(null, concert.getId())).isEmpty();
     }
+
+    // ---------- 여러 공연의 알림 여부(스크랩 목록) ----------
+    // 스크랩 목록은 공연마다 '예매 알림이 하나라도 켜졌는지'를 보여준다. 켜짐 판단은 공연 상세와 같다(켜짐 + 그 유형의 일정 있음).
+
+    @Test
+    void 여러_공연_중_선예매나_일반예매_알림이_하나라도_켜진_공연만_알림_켜짐이다() {
+        Concert presaleOn = scheduledConcert();
+        Concert generalSaleOn = scheduledConcert();
+        Concert nothingOn = scheduledConcert();
+        service.turnOn(me.getId(), presaleOn.getId(), TicketAlarmType.PRESALE);
+        service.turnOn(me.getId(), generalSaleOn.getId(), TicketAlarmType.GENERAL_SALE);
+
+        assertThat(service.concertIdsWithAlarmOn(me.getId(),
+                List.of(presaleOn.getId(), generalSaleOn.getId(), nothingOn.getId())))
+                .containsExactlyInAnyOrder(presaleOn.getId(), generalSaleOn.getId());
+    }
+
+    @Test
+    void 알림을_켜_두었어도_그_유형의_예매_일정이_없어지면_알림_켜짐이_아니다() {
+        Concert concert = concert(true);
+        presale(concert, OPENS_AT);
+        service.turnOn(me.getId(), concert.getId(), TicketAlarmType.PRESALE);
+        presaleRepository.deleteAll(presaleRepository.findByConcert_Id(concert.getId()));
+        presale(concert, null); // 일시 미정 일정은 사용자에게 보이지 않아 없는 것으로 본다
+        em.flush();
+
+        assertThat(service.concertIdsWithAlarmOn(me.getId(), List.of(concert.getId()))).isEmpty();
+    }
+
+    @Test
+    void 다른_사용자가_켠_알림은_내_알림_켜짐에_들어가지_않는다() {
+        Concert concert = scheduledConcert();
+        User other = User.builder().authProvider(AuthProvider.KAKAO).providerId("other").status(Status.ACTIVE)
+                .onboardingCompleted(true).build();
+        other.completeOnboarding("other", LocalDate.now().minusYears(25), Gender.FEMALE);
+        userRepository.save(other);
+        service.turnOn(other.getId(), concert.getId(), TicketAlarmType.PRESALE);
+
+        assertThat(service.concertIdsWithAlarmOn(me.getId(), List.of(concert.getId()))).isEmpty();
+    }
 }
