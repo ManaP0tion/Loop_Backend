@@ -110,9 +110,11 @@ public class ConcertController {
             @RequestParam ConcertSection section,
             @Parameter(description = "조회 시점 (UPCOMING 예정 / PAST 지난)")
             @RequestParam ConcertPeriod period,
+            @Parameter(description = "앞에서부터 가져올 개수 (1~50). 홈 미리보기용, 생략하면 전체")
+            @RequestParam(required = false) Integer size,
             @AuthenticationPrincipal Long userId) {
         return ResponseEntity.ok(CommonResponse.success(
-                concertService.getConcertsBySection(section, period, userId)));
+                concertService.getConcertsBySection(section, period, size, userId)));
     }
 
     @GetMapping("/companion-open")

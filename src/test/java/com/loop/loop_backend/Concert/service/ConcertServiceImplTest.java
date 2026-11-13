@@ -280,5 +280,17 @@ class ConcertServiceImplTest {
 
         verify(s3StorageService, never()).uploadPublic(any(), any(), any());
     }
+
+    @Test
+    @DisplayName("공연 탭 목록 size가 1~50 밖이면 INVALID_INPUT 예외가 나고 DB를 조회하지 않는다")
+    void getConcertsBySection_WithSizeOutOfRange_ThrowsInvalidInput() {
+        for (int size : new int[]{0, 51}) {
+            assertThatThrownBy(() -> concertService.getConcertsBySection(
+                    ConcertSection.DOMESTIC_TOUR, ConcertPeriod.UPCOMING, size, 100L))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+        }
+        verifyNoInteractions(concertRepository);
+    }
 }
 

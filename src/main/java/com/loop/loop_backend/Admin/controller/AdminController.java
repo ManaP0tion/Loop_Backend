@@ -22,6 +22,7 @@ import com.loop.loop_backend.ConcertImport.kopis.KopisSyncService;
 import com.loop.loop_backend.ConcertImport.repository.ConcertImportRepository;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.ConcertImport.service.ConcertImportService;
+import com.loop.loop_backend.Config.RedisConfig;
 import com.loop.loop_backend.Inquiry.domain.Inquiry;
 import com.loop.loop_backend.Inquiry.domain.InquiryStatus;
 import com.loop.loop_backend.Inquiry.domain.InquiryType;
@@ -52,6 +53,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -583,6 +585,7 @@ public class AdminController {
 
     @DeleteMapping("/concerts/{id}")
     @Transactional
+    @CacheEvict(cacheNames = RedisConfig.CONCERT_LIST_CACHE, allEntries = true)
     public ResponseEntity<CommonResponse<Void>> deleteConcert(@PathVariable Long id) {
         if (!concertRepository.existsById(id)) throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
         // CompanionPost.concert ON DELETE CASCADE → 동행 프로필 함께 삭제. 채팅방은 ChatRoom.post SET_NULL 로 보존.
