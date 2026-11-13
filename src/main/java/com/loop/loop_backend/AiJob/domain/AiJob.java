@@ -52,8 +52,10 @@ public class AiJob {
     @Column(name = "concert_id", nullable = false)
     private Long concertId;
 
+    // LONGTEXT를 명시한다 - @Lob만 두면 Hibernate 6 MySQL 방언이 기본 길이(255)로 tinytext를 만들어
+    // 255바이트를 넘는 JSON(공연 정보 payload, AI 결과)이 "Data too long"으로 저장되지 않는다. H2는 clob 별칭으로 받는다.
     @Lob
-    @Column(name = "payload", nullable = false)
+    @Column(name = "payload", nullable = false, columnDefinition = "LONGTEXT")
     private String payload;
 
     @Enumerated(EnumType.STRING)
@@ -61,7 +63,7 @@ public class AiJob {
     private AiJobStatus status;
 
     @Lob
-    @Column(name = "result")
+    @Column(name = "result", columnDefinition = "LONGTEXT")
     private String result;
 
     // 워커가 새 코드를 추가해도 Backend를 고치지 않도록 enum이 아닌 문자열로 둔다
