@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Concert.controller;
 
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.Concert.dto.CompanionConcertListDto;
 import com.loop.loop_backend.Concert.dto.ConcertCategoryDto;
 import com.loop.loop_backend.Concert.dto.ConcertPastDetailDto;
 import com.loop.loop_backend.Concert.dto.ConcertPeriod;
@@ -112,6 +113,26 @@ public class ConcertController {
             @AuthenticationPrincipal Long userId) {
         return ResponseEntity.ok(CommonResponse.success(
                 concertService.getConcertsBySection(section, period, userId)));
+    }
+
+    @GetMapping("/companion-open")
+    @Operation(summary = "동행 모집 공연 목록",
+            description = "동행을 연 공연 목록입니다. 비로그인으로도 호출할 수 있습니다.\n\n" +
+                    "- 대상: 지나지 않은 공연 중 동행이 모집 중(OPEN)이거나 마감(CLOSED)인 공연. 미오픈(NOT_OPENED)은 제외. " +
+                    "단독 공연·페스티벌 구분 없이 함께 내려간다\n" +
+                    "- 비공개로 바뀐 공연은 동행 OFF와 같이 CLOSED로 내려간다 (다시 공개하면 원래 상태로 돌아온다)\n" +
+                    "- 정렬: OPEN이 위, CLOSED가 아래. 각각 공연일 가까운 순, 날짜 미정은 맨 뒤\n" +
+                    "- totalCount: 모집 중(OPEN)인 공연 수. CLOSED는 세지 않고 size와도 상관없다\n" +
+                    "- myProfileRegistered: 로그인하면 공연마다 관람일이 지나지 않은 내 동행 프로필이 있는지, 비로그인이면 null")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "400", description = "size가 1보다 작음")
+    })
+    public ResponseEntity<CommonResponse<CompanionConcertListDto>> getCompanionOpenConcerts(
+            @Parameter(description = "가져올 개수(미리보기용). 생략하면 전체")
+            @RequestParam(required = false) Integer size,
+            @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.getCompanionOpenConcerts(size, userId)));
     }
 
     @GetMapping("/categories")

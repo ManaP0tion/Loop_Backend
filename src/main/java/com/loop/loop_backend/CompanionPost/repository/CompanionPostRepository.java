@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,6 +21,10 @@ public interface CompanionPostRepository extends JpaRepository<CompanionPost, Lo
     List<CompanionPost> findAllByUser(User user);
 
     Optional<CompanionPost> findByUser_IdAndConcert_IdAndWatchDay(Long userId, Long concertId, WatchDay watchDay);
+
+    // 동행 모집 중인 공연 목록의 '내 프로필 등록 여부': 여러 공연의 내 프로필을 한 번에. 관람일 만료 판단에 공연이 필요해 함께 로딩
+    @EntityGraph(attributePaths = "concert")
+    List<CompanionPost> findAllByUser_IdAndConcert_IdIn(Long userId, Collection<Long> concertIds);
 
     void deleteAllByUser(User user);
 

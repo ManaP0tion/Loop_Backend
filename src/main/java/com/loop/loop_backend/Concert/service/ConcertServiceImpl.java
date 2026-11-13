@@ -4,6 +4,8 @@ import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.Concert.dto.CompanionConcertDto;
+import com.loop.loop_backend.Concert.dto.CompanionConcertListDto;
 import com.loop.loop_backend.Concert.dto.ConcertPastDetailDto;
 import com.loop.loop_backend.Concert.dto.ConcertPeriod;
 import com.loop.loop_backend.Concert.dto.ConcertPeriodDto;
@@ -32,14 +34,17 @@ import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.common.time.ExpiryCutoff;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -232,6 +237,36 @@ public class ConcertServiceImpl implements ConcertService {
                 ? concertRepository.findUpcomingOrUndatedByCategories(categories, cutoff)
                 : concertRepository.findPastByCategories(categories, cutoff);
         return concerts.stream().map(ConcertSummaryDto::from).toList();
+    }
+
+    @Override
+    public CompanionConcertListDto getCompanionOpenConcerts(Integer size, Long userId) {
+        if (size != null && size < 1) {
+            throw new IllegalArgumentException("size는 1 이상이어야 한다");
+        }
+        LocalDate cutoff = ExpiryCutoff.cutoffDate();
+        List<Concert> concerts = concertRepository.findCompanionConcerts(cutoff,
+                size == null ? Pageable.unpaged() : PageRequest.of(0, size));
+        long totalCount = concertRepository.countCompanionOpen(cutoff);
+
+        Set<Long> registered = userId == null ? Set.of() : concertIdsWithMyProfile(userId, concerts);
+        return new CompanionConcertListDto(totalCount, concerts.stream()
+                .map(concert -> CompanionConcertDto.of(concert,
+                        userId == null ? null : registered.contains(concert.getId())))
+                .toList());
+    }
+
+    // 주어진 공연 중 관람일이 지나지 않은 내 동행 프로필이 있는 공연(DAY 무관, 비공개 포함). 공연마다 조회하지 않고 한 번에
+    private Set<Long> concertIdsWithMyProfile(Long userId, List<Concert> concerts) {
+        if (concerts.isEmpty()) {
+            return Set.of();
+        }
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        return companionPostRepository.findAllByUser_IdAndConcert_IdIn(userId,
+                        concerts.stream().map(Concert::getId).toList()).stream()
+                .filter(post -> !post.isExpired(now))
+                .map(post -> post.getConcert().getId())
+                .collect(Collectors.toSet());
     }
 
     // 콘서트별 동행 프로필 수를 한 번에 조회한다. 콘서트마다 count 쿼리를 날리면 목록 길이에
