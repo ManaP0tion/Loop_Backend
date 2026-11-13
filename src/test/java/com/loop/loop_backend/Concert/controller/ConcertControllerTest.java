@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Concert.controller;
 
+import com.loop.loop_backend.Concert.dto.CompanionConcertListDto;
 import com.loop.loop_backend.Concert.dto.ConcertPeriod;
 import com.loop.loop_backend.Concert.dto.ConcertSection;
 import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
@@ -194,5 +195,40 @@ class ConcertControllerTest {
                 .andExpect(jsonPath("$.data[0].title").value("아티스트 콘서트"));
 
         verify(concertService).getConcertsByArtist(7L, USER_ID);
+    }
+
+    // ===== 동행 모집 공연 목록 =====
+
+    @Test
+    void 동행_모집_공연_목록은_로그인한_사용자ID와_size가_서비스로_전달된다() throws Exception {
+        when(concertService.getCompanionOpenConcerts(3, USER_ID))
+                .thenReturn(new CompanionConcertListDto(7, List.of()));
+
+        mockMvc.perform(get("/api/concerts/companion-open").param("size", "3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalCount").value(7));
+
+        verify(concertService).getCompanionOpenConcerts(3, USER_ID);
+    }
+
+    @Test
+    void 동행_모집_공연_목록은_비로그인이고_size가_없으면_둘다_null로_호출되고_200이다() throws Exception {
+        SecurityContextHolder.clearContext();
+        when(concertService.getCompanionOpenConcerts(null, null))
+                .thenReturn(new CompanionConcertListDto(0, List.of()));
+
+        mockMvc.perform(get("/api/concerts/companion-open"))
+                .andExpect(status().isOk());
+
+        verify(concertService).getCompanionOpenConcerts(null, null);
+    }
+
+    @Test
+    void 동행_모집_공연_목록의_size가_1보다_작으면_400이다() throws Exception {
+        when(concertService.getCompanionOpenConcerts(0, USER_ID))
+                .thenThrow(new IllegalArgumentException("size는 1 이상이어야 한다"));
+
+        mockMvc.perform(get("/api/concerts/companion-open").param("size", "0"))
+                .andExpect(status().isBadRequest());
     }
 }

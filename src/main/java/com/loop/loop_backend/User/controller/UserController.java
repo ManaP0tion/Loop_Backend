@@ -147,7 +147,7 @@ public class UserController {
     }
 
     @PatchMapping("/me/notifications")
-    @Operation(summary = "이메일 알림 설정", description = "공연 하루전 리마인더 / 미확인 채팅 다이제스트 이메일 수신 여부를 on/off 합니다. null 필드는 변경되지 않습니다.")
+    @Operation(summary = "이메일 알림 설정", description = "공연 하루전 리마인더 / 미확인 채팅 다이제스트 / 예상 셋리스트 결과 / 새 공연 알림 이메일 수신 여부를 on/off 합니다. null 필드는 변경되지 않습니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "설정 변경 성공"),
             @ApiResponse(responseCode = "404", description = "사용자 없음",

@@ -9,11 +9,35 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 public interface ConcertRepository extends JpaRepository<Concert, Long> {
+
+    // 동행 모집 공연 목록의 조건. 사용자에게 보이는 동행 상태(Concert.companionStatusForUsers)를 SQL로 옮긴 것이라 그 규칙이 바뀌면 함께 바꾼다.
+    // - 사용자에게 모집 중 = 공개 + 저장 상태 OPEN
+    // - 사용자에게 마감 = 저장 상태 CLOSED, 또는 비공개 + 저장 상태 OPEN
+    // - 미오픈(NOT_OPENED)은 공개 여부와 상관없이 미오픈
+    // 지난 공연 제외(날짜 미정은 포함)는 공연 탭 예정 목록과 같다.
+    String NOT_PAST_CONDITION =
+            "(COALESCE(c.endDate, c.startDate) IS NULL OR COALESCE(c.endDate, c.startDate) >= :date)";
+    String COMPANION_OPEN_FOR_USERS = "(c.published = true " +
+            "AND c.companionStatus = com.loop.loop_backend.Concert.domain.CompanionStatus.OPEN)";
+
+    // 동행 모집 공연 목록: 미오픈 제외. 모집 중이 위, 마감이 아래이고 각각 공연일 가까운 순(날짜 미정은 맨 뒤), 같은 날이면 id 순.
+    // pageable 크기만큼(미리보기)
+    @Query("SELECT c FROM Concert c WHERE " +
+            "c.companionStatus <> com.loop.loop_backend.Concert.domain.CompanionStatus.NOT_OPENED " +
+            "AND " + NOT_PAST_CONDITION +
+            " ORDER BY CASE WHEN " + COMPANION_OPEN_FOR_USERS + " THEN 0 ELSE 1 END, " +
+            "CASE WHEN c.startDate IS NULL THEN 1 ELSE 0 END, c.startDate ASC, c.id ASC")
+    List<Concert> findCompanionConcerts(@Param("date") LocalDate date, Pageable pageable);
+
+    // 위 목록 중 사용자에게 모집 중인 공연 수(마감 제외)
+    @Query("SELECT COUNT(c) FROM Concert c WHERE " + COMPANION_OPEN_FOR_USERS + " AND " + NOT_PAST_CONDITION)
+    long countCompanionOpen(@Param("date") LocalDate date);
 
     // KOPIS 직접 등록: 아티스트와 상관없이 이 KOPIS 공연으로 만든 공연이 있는지 / 검색 결과의 등록 상태 계산
     boolean existsByKopisId(String kopisId);
@@ -108,4 +132,16 @@ public interface ConcertRepository extends JpaRepository<Concert, Long> {
 
     List<Concert> findByArtistId(Long artistId);
     Optional<Concert> findByTitle(String title);
+
+    // 새 공연 알림(NO.47) 대상: 지금 공개 상태 + 마지막 공개 시각이 [publishedFrom, publishedTo] + 아직 알리지 않음 + 끝나지 않음.
+    // 공개 상태면 종료일이 반드시 있다(Concert.validateState). 메일에 공연장 이름을 쓰므로 함께 가져온다.
+    @Query("SELECT c FROM Concert c LEFT JOIN FETCH c.linkedVenue " +
+            "WHERE c.published = true " +
+            "AND c.publishedAt >= :publishedFrom AND c.publishedAt <= :publishedTo " +
+            "AND c.newConcertNotifiedAt IS NULL " +
+            "AND c.endDate >= :today " +
+            "ORDER BY c.startDate ASC, c.id ASC")
+    List<Concert> findNewConcertNotificationTargets(@Param("publishedFrom") LocalDateTime publishedFrom,
+                                                    @Param("publishedTo") LocalDateTime publishedTo,
+                                                    @Param("today") LocalDate today);
 }

@@ -2,6 +2,7 @@ package com.loop.loop_backend.Concert.dto;
 
 import com.loop.loop_backend.Artist.dto.ArtistProductDto;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.loop.loop_backend.Concert.domain.CompanionStatus;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse;
@@ -13,7 +14,6 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
 
@@ -43,6 +43,10 @@ public class ConcertUpcomingDetailDto {
     @Schema(description = "공연 유형. STAGE(단독 공연) / FESTIVAL(페스티벌)", example = "FESTIVAL",
             requiredMode = Schema.RequiredMode.REQUIRED)
     private final ConcertCategory category;
+
+    @Schema(description = "동행 기능 상태. NOT_OPENED 미오픈 / OPEN 모집 중(동행 진입 경로 노출) / CLOSED 종료. " +
+            "비공개 공연은 열린 적이 있으면 CLOSED", example = "OPEN", requiredMode = Schema.RequiredMode.REQUIRED)
+    private final CompanionStatus companionStatus;
 
     @Schema(description = "포스터 이미지 URL", types = {"string", "null"})
     private final String posterUrl;
@@ -127,15 +131,13 @@ public class ConcertUpcomingDetailDto {
                 .artists(ConcertArtistDto.listOf(concert))
                 .title(concert.getTitle())
                 .category(concert.getCategory())
+                .companionStatus(concert.companionStatusForUsers())
                 .posterUrl(concert.getPosterUrl())
                 .venue(ConcertVenueDto.of(concert))
                 .startDate(concert.getStartDate())
                 .endDate(concert.getEndDate())
-                // 시작일이 없는 공연(날짜 미정)은 D-day를 계산할 수 없어 null.
                 // 여러 날 공연이 이미 시작해 진행 중이면 음수가 나온다 - 표시 방식은 프론트가 정한다.
-                .dday(concert.getStartDate() != null
-                        ? (int) ChronoUnit.DAYS.between(today, concert.getStartDate())
-                        : null)
+                .dday(concert.ddayFrom(today))
                 .showtimes(ConcertShowtimeDto.byDay(concert))
                 .presales(ConcertTicketSaleDto.fromPresales(presales))
                 .generalSales(ConcertTicketSaleDto.fromGeneralSales(generalSales))

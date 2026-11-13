@@ -49,4 +49,15 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByStatusAndSuspendedUntilBefore(Status status, LocalDateTime cutoff);
 
     long countByCreatedAtAfter(LocalDateTime cutoff); // 대시보드: 주간 신규회원
+
+    // 새 공연 알림(NO.47) 수신자: 설정 ON + 이메일 인증(email 존재) + 활동 중. 정지·탈퇴 계정은 받지 않는다.
+    @Query("""
+        select new com.loop.loop_backend.User.repository.MailRecipient(u.email, u.nickname)
+        from User u
+        where u.newConcertEmail = true
+          and u.email is not null
+          and u.status = :status
+        order by u.id
+        """)
+    List<MailRecipient> findNewConcertMailRecipients(@Param("status") Status status);
 }

@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Concert.service;
 
+import com.loop.loop_backend.Concert.dto.CompanionConcertListDto;
 import com.loop.loop_backend.Concert.dto.ConcertPastDetailDto;
 import com.loop.loop_backend.Concert.dto.ConcertPeriod;
 import com.loop.loop_backend.Concert.dto.ConcertPeriodDto;
@@ -35,4 +36,8 @@ public interface ConcertService {
     // 공연 탭: section(내한/페스티벌) + period(예정/지난)로 조회. 정렬은 서버가 period 기준으로 고정한다.
     // size가 있으면 앞에서 size개만(홈 미리보기), null이면 전체.
     List<ConcertSummaryDto> getConcertsBySection(ConcertSection section, ConcertPeriod period, Integer size, Long userId);
+
+    // 동행 모집 공연 목록(비로그인 가능): 모집 중 위, 마감 아래, 미오픈 제외. totalCount는 모집 중만 센다.
+    // size가 null이면 전체, 로그인했으면 공연마다 내 프로필 등록 여부를 함께 준다.
+    CompanionConcertListDto getCompanionOpenConcerts(Integer size, Long userId);
 }

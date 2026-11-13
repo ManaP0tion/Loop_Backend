@@ -1,7 +1,7 @@
 package com.loop.loop_backend.ConcertScrap.service;
 
 import com.loop.loop_backend.Concert.dto.ConcertPeriod;
-import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
+import com.loop.loop_backend.ConcertScrap.dto.ScrapConcertDto;
 
 import java.util.List;
 
@@ -11,5 +11,5 @@ public interface ConcertScrapService {
 
     void unscrap(Long userId, Long concertId);
 
-    List<ConcertSummaryDto> getMyScraps(Long userId, ConcertPeriod period);
+    List<ScrapConcertDto> getMyScraps(Long userId, ConcertPeriod period);
 }

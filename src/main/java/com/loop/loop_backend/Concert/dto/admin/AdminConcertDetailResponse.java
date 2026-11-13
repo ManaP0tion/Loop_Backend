@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Concert.dto.admin;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.loop.loop_backend.Concert.domain.CompanionStatus;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.domain.ConcertShowtime;
@@ -61,6 +62,11 @@ public record AdminConcertDetailResponse(
         @Schema(description = "마지막으로 공개로 바뀐 시각", types = {"string", "null"})
         LocalDateTime publishedAt,
 
+        @Schema(description = "동행 기능 상태(저장값). NOT_OPENED 미오픈 / OPEN 모집 중 / CLOSED 종료. " +
+                "비공개 공연은 사용자에게 닫힌 것처럼 보이지만 여기서는 저장값을 그대로 보여준다",
+                requiredMode = Schema.RequiredMode.REQUIRED)
+        CompanionStatus companionStatus,
+
         @Schema(description = "예상 곡 수(단독 공연의 출연 정보 값). 페스티벌은 헤드라이너별로 라인업에서 정하므로 null", types = {"integer", "null"})
         Integer expectedSongCount,
 
@@ -116,7 +122,7 @@ public record AdminConcertDetailResponse(
                 c.getLinkedVenue() == null ? null : new VenueSummary(
                         c.getLinkedVenue().getId(), c.getLinkedVenue().getName(), c.getLinkedVenue().getAddress()),
                 c.getArtist() == null ? List.of() : List.of(new ArtistSummary(c.getArtist().getId(), c.getArtist().getName())),
-                c.isPublished(), c.getPublishedAt(),
+                c.isPublished(), c.getPublishedAt(), c.getCompanionStatus(),
                 solo == null ? null : solo.getExpectedSongCount(), solo == null ? null : solo.getId(),
                 c.getLinkedVenue() != null && c.getLinkedVenue().isLodgingVisible(),
                 c.getLinkedVenue() == null ? null : c.getLinkedVenue().getLodgingUrl(),

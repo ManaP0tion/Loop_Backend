@@ -53,7 +53,8 @@ public class UserResponseDto {
     @Schema(description = "관심 아티스트 목록")
     private final List<ArtistSummary> favoriteArtists;
 
-    @Schema(description = "공연 하루전 리마인더 이메일 수신 여부", example = "true")
+    @Schema(description = "공연 하루전 리마인더 이메일 수신 여부. 현재 미사용 - 리마인더 메일은 발송하지 않는다(예매 알림으로 대체 예정)",
+            example = "true")
     private final boolean concertReminderEmail;
 
     @Schema(description = "미확인 채팅 일일 다이제스트 이메일 수신 여부", example = "true")
@@ -61,6 +62,9 @@ public class UserResponseDto {
 
     @Schema(description = "예상 셋리스트 결과 이메일 수신 여부(기본 true)", example = "true")
     private final boolean setlistResultEmail;
+
+    @Schema(description = "새 공연 알림 이메일 수신 여부(기본 false)", example = "false")
+    private final boolean newConcertEmail;
 
     @Schema(description = "생성일시")
     private final LocalDateTime createdAt;
@@ -85,6 +89,7 @@ public class UserResponseDto {
         this.concertReminderEmail = user.isConcertReminderEmail();
         this.chatNotificationEmail = user.isChatNotificationEmail();
         this.setlistResultEmail = user.isSetlistResultEmail();
+        this.newConcertEmail = user.isNewConcertEmail();
         this.createdAt = user.getCreatedAt();
         this.updatedAt = user.getUpdatedAt();
     }
