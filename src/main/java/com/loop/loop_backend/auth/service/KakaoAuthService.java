@@ -5,6 +5,7 @@ import com.loop.loop_backend.User.domain.Role;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
+import com.loop.loop_backend.User.service.NicknameGenerator;
 import com.loop.loop_backend.auth.dto.KakaoLoginResult;
 import com.loop.loop_backend.auth.dto.KakaoTokenResponseDto;
 import com.loop.loop_backend.auth.dto.KakaoUserInfoDto;
@@ -34,6 +35,7 @@ public class KakaoAuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
     private final AdminTwoFactorService adminTwoFactorService;
+    private final NicknameGenerator nicknameGenerator;
 
     @Value("${kakao.client-id}")
     private String clientId;
@@ -82,6 +84,9 @@ public class KakaoAuthService {
         if (user.getStatus() == Status.WITHDRAWN) {
             user.reactivate();
         }
+
+        // 3-2. 첫 로그인·재가입처럼 닉네임·이메일이 비어 있으면 채운다 (이미 있는 값은 건드리지 않는다)
+        fillMissingProfile(user, userInfo);
 
         // 이용정지된 계정은 로그인 차단. 기간 만료 시 즉시 해제.
         if (user.getStatus() == Status.SUSPENDED) {
@@ -176,6 +181,21 @@ public class KakaoAuthService {
         );
 
         return response.getBody();
+    }
+
+    /**
+     * 닉네임: 비어 있으면 랜덤 닉네임(온보딩·프로필 수정에서 바꿀 수 있다).
+     * 이메일: 카카오가 인증해 준 이메일만, 비어 있을 때만. 다른 계정이 이미 쓰는 이메일이면 저장하지 않고 로그인은 그대로 진행한다
+     *        (이메일 인증 API와 같은 중복 규칙 - 이메일 때문에 로그인이 막히면 안 된다).
+     */
+    private void fillMissingProfile(User user, KakaoUserInfoDto userInfo) {
+        if (user.getNickname() == null) {
+            user.assignNickname(nicknameGenerator.generateUnique());
+        }
+        String email = userInfo.getVerifiedEmail();
+        if (email != null && user.getEmail() == null && !userRepository.existsByEmail(email)) {
+            user.linkKakaoEmail(email);
+        }
     }
 
     private User registerKakaoUser(KakaoUserInfoDto userInfo) {

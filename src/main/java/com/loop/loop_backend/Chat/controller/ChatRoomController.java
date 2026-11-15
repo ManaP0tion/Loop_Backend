@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Chat.controller;
 
+import com.loop.loop_backend.Chat.dto.ChatMessageDto;
 import com.loop.loop_backend.Chat.dto.ChatMessagesResponseDto;
 import com.loop.loop_backend.Chat.dto.ChatRoomResponseDto;
 import com.loop.loop_backend.Chat.dto.CreateChatRoomRequestDto;
@@ -57,6 +58,14 @@ public class ChatRoomController {
         return ResponseEntity.ok(CommonResponse.success(chatService.getMyRooms(userId)));
     }
 
+    @GetMapping("/unread-count")
+    @Operation(summary = "안읽은 채팅 수 조회",
+            description = "채팅 탭 뱃지용. ACTIVE 상태인 내 채팅방의 안읽은 메시지 수 합계를 반환합니다(내 채팅방 목록의 unreadCount 합과 같음). 폴링용.")
+    public ResponseEntity<CommonResponse<Long>> getUnreadCount(
+            @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(chatService.getUnreadCount(userId)));
+    }
+
     @PatchMapping("/rooms/{roomId}/read")
     @Operation(summary = "메시지 읽음 처리", description = "해당 채팅방의 안읽은 메시지를 모두 읽음으로 처리합니다.")
     public ResponseEntity<CommonResponse<Void>> markAsRead(
@@ -73,6 +82,16 @@ public class ChatRoomController {
             @PathVariable Long roomId) {
         chatService.leaveRoom(roomId, userId);
         return ResponseEntity.ok(CommonResponse.success(null));
+    }
+
+    @PostMapping(value = "/rooms/{roomId}/images", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "채팅 이미지 전송",
+            description = "이미지를 비공개 버킷에 업로드하고 IMAGE 메시지로 저장한 뒤, 해당 방 구독자에게 실시간 브로드캐스트합니다. 참여자만 조회 가능한 presigned URL로 응답.")
+    public ResponseEntity<CommonResponse<ChatMessageDto>> sendImage(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long roomId,
+            @RequestPart("image") org.springframework.web.multipart.MultipartFile image) {
+        return ResponseEntity.ok(CommonResponse.success(chatService.saveImageMessage(roomId, userId, image)));
     }
 
     @GetMapping("/rooms/{roomId}/messages")

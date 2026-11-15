@@ -7,6 +7,7 @@ import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.common.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -18,6 +19,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.util.Collections;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -155,5 +157,44 @@ class FavoriteArtistControllerTest {
         mockMvc.perform(delete("/api/users/me/artists/{id}", 999L))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404));
+    }
+
+    // ── PUT /me/artists ──────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("관심 아티스트 일괄 교체 시 200과 교체된 목록을 반환한다")
+    void replaceFavoriteArtists_WithValidIds_Returns200AndList() throws Exception {
+        when(favoriteArtistService.replaceFavoriteArtists(USER_ID, List.of(1L, 2L))).thenReturn(List.of(
+                FavoriteArtistResponseDto.builder().id(1L).artistId(1L).artistName("A1").build(),
+                FavoriteArtistResponseDto.builder().id(2L).artistId(2L).artistName("A2").build()
+        ));
+
+        mockMvc.perform(put("/api/users/me/artists")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"artistIds\":[1,2]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2));
+    }
+
+    @Test
+    @DisplayName("artistIds가 비어 있으면 400을 반환하고 서비스는 호출되지 않는다")
+    void replaceFavoriteArtists_WithEmptyIds_Returns400() throws Exception {
+        mockMvc.perform(put("/api/users/me/artists")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"artistIds\":[]}"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(favoriteArtistService);
+    }
+
+    @Test
+    @DisplayName("artistIds가 5개를 초과하면 400을 반환하고 서비스는 호출되지 않는다")
+    void replaceFavoriteArtists_WithMoreThanFiveIds_Returns400() throws Exception {
+        mockMvc.perform(put("/api/users/me/artists")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"artistIds\":[1,2,3,4,5,6]}"))
+                .andExpect(status().isBadRequest());
+
+        verify(favoriteArtistService, never()).replaceFavoriteArtists(any(), any());
     }
 }
