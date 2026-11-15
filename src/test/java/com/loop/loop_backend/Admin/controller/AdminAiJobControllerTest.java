@@ -103,7 +103,7 @@ class AdminAiJobControllerTest {
     @Test
     void 끝난_작업은_결과를_JSON_객체_그대로_준다() throws Exception {
         when(aiJobService.get(123L)).thenReturn(new AdminAiJobResponse(
-                123L, AiJobType.CONCERT_ENRICH, 31L, AiJobStatus.DONE,
+                123L, AiJobType.CONCERT_ENRICH, 31L, null, AiJobStatus.DONE,
                 mapper.readTree("{\"status\":\"FOUND\",\"presales\":[]}"), null, 1,
                 LocalDateTime.of(2026, 11, 20, 10, 0), LocalDateTime.of(2026, 11, 20, 10, 1)));
 
@@ -118,7 +118,7 @@ class AdminAiJobControllerTest {
     @Test
     void 실패한_작업은_코드_문구_다시_시도_가능_여부를_준다() throws Exception {
         when(aiJobService.get(124L)).thenReturn(new AdminAiJobResponse(
-                124L, AiJobType.CONCERT_ENRICH, 31L, AiJobStatus.FAILED, null,
+                124L, AiJobType.CONCERT_ENRICH, 31L, null, AiJobStatus.FAILED, null,
                 new AdminAiJobResponse.Error("LEASE_EXPIRED", "AI 워커가 시간 안에 결과를 보내지 않았습니다.", true), 2,
                 LocalDateTime.of(2026, 11, 20, 10, 0), LocalDateTime.of(2026, 11, 20, 10, 21)));
 
@@ -131,8 +131,8 @@ class AdminAiJobControllerTest {
 
     @Test
     void 마지막_작업은_상태_조회와_같은_형식으로_준다() throws Exception {
-        when(aiJobService.findLatest(31L, AiJobType.FESTIVAL_LINEUP)).thenReturn(Optional.of(new AdminAiJobResponse(
-                125L, AiJobType.FESTIVAL_LINEUP, 31L, AiJobStatus.DONE,
+        when(aiJobService.findLatest(31L, AiJobType.FESTIVAL_LINEUP, null)).thenReturn(Optional.of(new AdminAiJobResponse(
+                125L, AiJobType.FESTIVAL_LINEUP, 31L, null, AiJobStatus.DONE,
                 mapper.readTree("{\"days\":[]}"), null, 1,
                 LocalDateTime.of(2026, 11, 20, 10, 0), LocalDateTime.of(2026, 11, 20, 10, 1))));
 
@@ -147,11 +147,36 @@ class AdminAiJobControllerTest {
 
     @Test
     void 찾은_적_없으면_204() throws Exception {
-        when(aiJobService.findLatest(31L, AiJobType.CONCERT_ENRICH)).thenReturn(Optional.empty());
+        when(aiJobService.findLatest(31L, AiJobType.CONCERT_ENRICH, null)).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/admin/ai-jobs/latest")
                         .param("concertId", "31").param("type", "CONCERT_ENRICH"))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void 셋리스트의_마지막_작업은_출연_정보로_조회한다() throws Exception {
+        when(aiJobService.findLatest(31L, AiJobType.SETLIST_ACTUAL, 101L)).thenReturn(Optional.of(new AdminAiJobResponse(
+                126L, AiJobType.SETLIST_ACTUAL, 31L, 101L, AiJobStatus.DONE,
+                mapper.readTree("{\"status\":\"PARTIAL\",\"songs\":[]}"), null, 1,
+                LocalDateTime.of(2026, 11, 20, 10, 0), LocalDateTime.of(2026, 11, 20, 10, 1))));
+
+        mockMvc.perform(get("/api/admin/ai-jobs/latest")
+                        .param("concertId", "31").param("type", "SETLIST_ACTUAL").param("performanceId", "101"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.performanceId").value(101))
+                .andExpect(jsonPath("$.data.result.songs").isArray());
+    }
+
+    @Test
+    void 셋리스트_작업은_출연_정보와_함께_만든다() throws Exception {
+        when(aiJobService.create(any(), eq(new AdminAiJobCreateRequest(AiJobType.SETLIST_ACTUAL, 31L, 101L))))
+                .thenReturn(new AdminAiJobCreateResponse(127L));
+
+        mockMvc.perform(post("/api/admin/ai-jobs").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"SETLIST_ACTUAL\",\"concertId\":31,\"performanceId\":101}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.jobId").value(127));
     }
 
     @Test
@@ -169,7 +194,7 @@ class AdminAiJobControllerTest {
     @Test
     void 작업을_취소하면_CANCELED_상태를_받고_접근_로그를_남긴다() throws Exception {
         when(aiJobService.cancel(any(), eq(123L))).thenReturn(new AdminAiJobResponse(
-                123L, AiJobType.CONCERT_ENRICH, 31L, AiJobStatus.CANCELED, null, null, 0,
+                123L, AiJobType.CONCERT_ENRICH, 31L, null, AiJobStatus.CANCELED, null, null, 0,
                 LocalDateTime.of(2026, 11, 20, 10, 0), LocalDateTime.of(2026, 11, 20, 10, 5)));
 
         mockMvc.perform(post("/api/admin/ai-jobs/{jobId}/cancel", 123L))

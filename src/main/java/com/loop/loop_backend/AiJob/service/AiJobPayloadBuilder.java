@@ -3,14 +3,17 @@ package com.loop.loop_backend.AiJob.service;
 import com.loop.loop_backend.AiJob.domain.AiJobType;
 import com.loop.loop_backend.AiJob.dto.payload.AiArtistPayload;
 import com.loop.loop_backend.AiJob.dto.payload.ConcertEnrichPayload;
+import com.loop.loop_backend.AiJob.dto.payload.AiSongPayload;
 import com.loop.loop_backend.AiJob.dto.payload.FestivalLineupPayload;
+import com.loop.loop_backend.AiJob.dto.payload.SetlistActualPayload;
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
-import com.loop.loop_backend.common.exception.BusinessException;
-import com.loop.loop_backend.common.exception.ErrorCode;
+import com.loop.loop_backend.Performance.domain.Performance;
+import com.loop.loop_backend.Song.domain.Song;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -26,8 +29,36 @@ public class AiJobPayloadBuilder {
         return switch (type) {
             case CONCERT_ENRICH -> concertEnrich(concert);
             case FESTIVAL_LINEUP -> festivalLineup(concert);
-            case SETLIST_ACTUAL -> throw new BusinessException(ErrorCode.AI_JOB_UNSUPPORTED_TYPE);
+            // 셋리스트는 출연 정보와 곡 목록이 필요해 setlistActual로 만든다
+            case SETLIST_ACTUAL -> throw new IllegalArgumentException("셋리스트 payload는 setlistActual로 만든다");
         };
+    }
+
+    /**
+     * 셋리스트 payload. 출연 정보 하나(= 아티스트 한 명)의 셋리스트를 찾는다.
+     * 날짜: 단독 공연은 공연 기간, 페스티벌은 그 출연 정보의 DAY(DAY 1 = 시작일)를 날짜로 바꾼 첫날 ~ 마지막 날.
+     */
+    public SetlistActualPayload setlistActual(Concert concert, Performance performance, List<Song> songs) {
+        LocalDate startDate = concert.getStartDate();
+        LocalDate endDate = concert.getEndDate();
+        if (concert.isFestival() && startDate != null && !performance.getDays().isEmpty()) {
+            LocalDate day1 = startDate;
+            startDate = day1.plusDays(performance.getDays().first() - 1L);
+            endDate = day1.plusDays(performance.getDays().last() - 1L);
+        }
+        return new SetlistActualPayload(
+                concert.getId(),
+                concert.getCategory(),
+                concert.getTitle(),
+                artist(performance.getArtist()),
+                startDate,
+                endDate,
+                venueName(concert),
+                performance.getExpectedSongCount(),
+                songs == null ? List.of() : songs.stream()
+                        .map(song -> new AiSongPayload(song.getId(), song.getTitleOriginal(),
+                                song.getTitleRomanized(), song.getTitleKo()))
+                        .toList());
     }
 
     private ConcertEnrichPayload concertEnrich(Concert concert) {
@@ -74,7 +105,11 @@ public class AiJobPayloadBuilder {
     // 공연에는 대표 아티스트가 한 명만 있다. 아티스트가 없는 페스티벌은 빈 목록(공연명으로 검색한다).
     private static List<AiArtistPayload> artists(Artist artist) {
         if (artist == null) return List.of();
-        return List.of(new AiArtistPayload(artist.getName(), artist.getBaseName(), artist.getNameKo(), artist.getNameAlias()));
+        return List.of(artist(artist));
+    }
+
+    private static AiArtistPayload artist(Artist artist) {
+        return new AiArtistPayload(artist.getName(), artist.getBaseName(), artist.getNameKo(), artist.getNameAlias());
     }
 
     // 공연장 관리에 연결된 공연장 이름을 먼저, 없으면 KOPIS에서 받은 공연장 문자열

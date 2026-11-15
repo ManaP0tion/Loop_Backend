@@ -15,6 +15,9 @@ import com.loop.loop_backend.AiJob.repository.AiJobRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
+import com.loop.loop_backend.Performance.domain.Performance;
+import com.loop.loop_backend.Performance.repository.PerformanceRepository;
+import com.loop.loop_backend.Song.Repository.SongRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +54,8 @@ public class AiJobService {
 
     private final AiJobRepository aiJobRepository;
     private final ConcertRepository concertRepository;
+    private final PerformanceRepository performanceRepository;
+    private final SongRepository songRepository;
     private final AiJobPayloadBuilder payloadBuilder;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
@@ -137,25 +142,47 @@ public class AiJobService {
 
     /**
      * 어드민 작업 생성. payload는 공연 DB 값으로 만든다.
-     * 같은 공연·종류의 작업이 대기 중이거나 처리 중이면 새로 만들지 않고 그 작업의 ID를 돌려준다(유료 호출 중복 방지).
+     * 같은 대상(종류·공연, 셋리스트는 출연 정보까지)의 작업이 대기 중이거나 처리 중이면 새로 만들지 않고
+     * 그 작업의 ID를 돌려준다(유료 호출 중복 방지).
      */
     @Transactional
     public AdminAiJobCreateResponse create(Long adminId, AdminAiJobCreateRequest request) {
         AiJobType type = request.type();
         Concert concert = concertRepository.findById(request.concertId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
+        // 셋리스트만 출연 정보 단위다. 다른 종류는 performanceId를 보내도 무시한다
+        Performance performance = type == AiJobType.SETLIST_ACTUAL
+                ? setlistTarget(concert, request.performanceId()) : null;
         validateTarget(type, concert);
+        Long performanceId = performance == null ? null : performance.getId();
 
-        Optional<AiJob> inProgress = aiJobRepository.findFirstByTypeAndConcertIdAndStatusInOrderByIdDesc(
-                type, concert.getId(), IN_PROGRESS);
+        Optional<AiJob> inProgress = aiJobRepository.findFirstByTypeAndConcertIdAndPerformanceIdAndStatusInOrderByIdDesc(
+                type, concert.getId(), performanceId, IN_PROGRESS);
         if (inProgress.isPresent()) {
             return new AdminAiJobCreateResponse(inProgress.get().getId());
         }
 
-        String payload = writeJson(payloadBuilder.build(type, concert));
-        AiJob job = aiJobRepository.save(AiJob.create(type, concert.getId(), payload, adminId));
-        log.info("[AiJob] 생성 jobId={} type={} concertId={} admin={}", job.getId(), type, concert.getId(), adminId);
+        Object payload = performance == null
+                ? payloadBuilder.build(type, concert)
+                : payloadBuilder.setlistActual(concert, performance,
+                        songRepository.findAllByArtistIdOrderBySortOrderAsc(performance.getArtist().getId()));
+        AiJob job = aiJobRepository.save(AiJob.create(type, concert.getId(), performanceId, writeJson(payload), adminId));
+        log.info("[AiJob] 생성 jobId={} type={} concertId={} performanceId={} admin={}",
+                job.getId(), type, concert.getId(), performanceId, adminId);
         return new AdminAiJobCreateResponse(job.getId());
+    }
+
+    // 셋리스트 대상 출연 정보: 이 공연 소속이어야 하고, 페스티벌은 헤드라이너만(셋리스트·투표 대상과 같은 기준)
+    private Performance setlistTarget(Concert concert, Long performanceId) {
+        if (performanceId == null) {
+            throw new BusinessException(ErrorCode.AI_JOB_PERFORMANCE_REQUIRED);
+        }
+        Performance performance = performanceRepository.findByIdAndConcertId(performanceId, concert.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.AI_JOB_PERFORMANCE_NOT_IN_CONCERT));
+        if (!performance.isSetlistTarget()) {
+            throw new BusinessException(ErrorCode.AI_JOB_HEADLINER_ONLY);
+        }
+        return performance;
     }
 
     /**
@@ -193,12 +220,17 @@ public class AiJobService {
     }
 
     /**
-     * 공연·종류의 가장 최근 작업(상태 무관). 없으면 빈 값(204).
+     * 같은 대상의 가장 최근 작업(상태 무관). 없으면 빈 값(204).
      * 새로고침·다른 관리자도 이미 찾은 결과를 다시 찾지 않고(유료 호출) 쓰고, 진행 중이면 이어서 조회하게 한다.
+     * 셋리스트는 출연 정보별로 보므로 performanceId가 필요하고, 다른 종류는 performanceId를 무시한다.
      */
     @Transactional(readOnly = true)
-    public Optional<AdminAiJobResponse> findLatest(Long concertId, AiJobType type) {
-        return aiJobRepository.findFirstByTypeAndConcertIdOrderByIdDesc(type, concertId)
+    public Optional<AdminAiJobResponse> findLatest(Long concertId, AiJobType type, Long performanceId) {
+        if (type == AiJobType.SETLIST_ACTUAL && performanceId == null) {
+            throw new BusinessException(ErrorCode.AI_JOB_PERFORMANCE_REQUIRED);
+        }
+        Long target = type == AiJobType.SETLIST_ACTUAL ? performanceId : null;
+        return aiJobRepository.findFirstByTypeAndConcertIdAndPerformanceIdOrderByIdDesc(type, concertId, target)
                 .map(this::toAdminResponse);
     }
 
@@ -212,14 +244,12 @@ public class AiJobService {
         if (!type.isAdminCreatable()) {
             throw new BusinessException(ErrorCode.AI_JOB_UNSUPPORTED_TYPE);
         }
-        if (type == AiJobType.FESTIVAL_LINEUP) {
-            if (concert.getCategory() != ConcertCategory.FESTIVAL) {
-                throw new BusinessException(ErrorCode.AI_JOB_FESTIVAL_ONLY);
-            }
-            // 라인업은 시작일을 DAY 1로 날짜 → DAY 번호를 계산한다
-            if (concert.getStartDate() == null) {
-                throw new BusinessException(ErrorCode.AI_JOB_START_DATE_REQUIRED);
-            }
+        if (type == AiJobType.FESTIVAL_LINEUP && concert.getCategory() != ConcertCategory.FESTIVAL) {
+            throw new BusinessException(ErrorCode.AI_JOB_FESTIVAL_ONLY);
+        }
+        // 라인업은 시작일을 DAY 1로 날짜 → DAY 번호를 계산하고, 셋리스트는 공연 날짜로 검색한다
+        if ((type == AiJobType.FESTIVAL_LINEUP || type == AiJobType.SETLIST_ACTUAL) && concert.getStartDate() == null) {
+            throw new BusinessException(ErrorCode.AI_JOB_START_DATE_REQUIRED);
         }
     }
 

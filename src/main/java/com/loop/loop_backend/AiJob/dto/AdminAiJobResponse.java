@@ -24,7 +24,10 @@ public record AdminAiJobResponse(
         @Schema(description = "대상 공연 PK", example = "31")
         Long concertId,
 
-        @Schema(description = "PENDING(대기) / RUNNING(처리 중) / DONE(결과 있음) / FAILED(실패)", example = "DONE")
+        @Schema(description = "출연 정보 PK(SETLIST_ACTUAL만, 다른 종류는 null)", example = "101", types = {"integer", "null"})
+        Long performanceId,
+
+        @Schema(description = "PENDING(대기) / RUNNING(처리 중) / DONE(결과 있음) / FAILED(실패) / CANCELED(취소)", example = "DONE")
         AiJobStatus status,
 
         @Schema(description = "DONE일 때: AI 결과(JSON 그대로). 화면을 미리 채우는 데 쓰고, 저장은 관리자 확인 후 기존 API로 한다",
@@ -61,7 +64,7 @@ public record AdminAiJobResponse(
         Error error = job.getErrorCode() == null ? null
                 : new Error(job.getErrorCode(), job.getErrorMessage(), Boolean.TRUE.equals(job.getErrorRetryable()));
         return new AdminAiJobResponse(
-                job.getId(), job.getType(), job.getConcertId(), job.getStatus(),
+                job.getId(), job.getType(), job.getConcertId(), job.getPerformanceId(), job.getStatus(),
                 result, error, job.getAttempt(), job.getCreatedAt(), job.getFinishedAt());
     }
 }
