@@ -25,9 +25,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -43,6 +45,8 @@ public class AiJobService {
     /** 한 번에 살펴볼 배정 후보 수. 다른 워커가 먼저 가져간 후보는 건너뛴다. */
     private static final int CLAIM_CANDIDATES = 5;
     private static final int ERROR_MESSAGE_MAX_LENGTH = 500;
+    /** 분석 정보(meta) 최대 크기. 넘으면 버린다 - 잘라 저장하면 JSON이 깨져 분석(JSON_EXTRACT)할 수 없다. */
+    static final int META_MAX_BYTES = 64 * 1024;
     private static final Set<AiJobStatus> IN_PROGRESS = EnumSet.of(AiJobStatus.PENDING, AiJobStatus.RUNNING);
 
     private final AiJobRepository aiJobRepository;
@@ -82,15 +86,16 @@ public class AiJobService {
      */
     public void report(Long jobId, AiJobResultRequest request) {
         String resultJson = request.status() == AiJobResultRequest.Outcome.DONE ? writeJson(request.result()) : null;
+        String metaJson = metaJson(jobId, request.meta());
         try {
-            transactionTemplate.executeWithoutResult(status -> applyReport(jobId, request, resultJson));
+            transactionTemplate.executeWithoutResult(status -> applyReport(jobId, request, resultJson, metaJson));
         } catch (OptimisticLockingFailureException e) {
             log.info("[AiJob] 결과 보고 중 동시 변경 - 다시 판단 jobId={}", jobId);
-            transactionTemplate.executeWithoutResult(status -> applyReport(jobId, request, resultJson));
+            transactionTemplate.executeWithoutResult(status -> applyReport(jobId, request, resultJson, metaJson));
         }
     }
 
-    private void applyReport(Long jobId, AiJobResultRequest request, String resultJson) {
+    private void applyReport(Long jobId, AiJobResultRequest request, String resultJson, String metaJson) {
         AiJob job = aiJobRepository.findById(jobId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.AI_JOB_NOT_FOUND));
         if (!job.canAcceptResult(request.workerId(), request.attempt())) {
@@ -105,6 +110,7 @@ public class AiJobService {
             AiJobResultRequest.Error error = request.error();
             job.fail(error.code(), truncate(error.message()), error.retryable(), now);
         }
+        job.recordMeta(metaJson);
         log.info("[AiJob] 결과 저장 jobId={} status={}", jobId, job.getStatus());
     }
 
@@ -150,6 +156,32 @@ public class AiJobService {
         AiJob job = aiJobRepository.save(AiJob.create(type, concert.getId(), payload, adminId));
         log.info("[AiJob] 생성 jobId={} type={} concertId={} admin={}", job.getId(), type, concert.getId(), adminId);
         return new AdminAiJobCreateResponse(job.getId());
+    }
+
+    /**
+     * 관리자 취소. 없으면 AI_JOB_NOT_FOUND(404), 이미 끝났으면 AI_JOB_ALREADY_FINISHED(409).
+     * 같은 순간 claim·결과 보고·시간 초과 정리가 이 작업을 바꿔 version이 충돌하면 새로 읽어 한 번 더 판단한다
+     * - claim과 겹쳤으면 RUNNING이라 그대로 취소되고, 결과 보고와 겹쳤으면 DONE이라 409.
+     */
+    public AdminAiJobResponse cancel(Long adminId, Long jobId) {
+        try {
+            return transactionTemplate.execute(status -> applyCancel(adminId, jobId));
+        } catch (OptimisticLockingFailureException e) {
+            log.info("[AiJob] 취소 중 동시 변경 - 다시 판단 jobId={}", jobId);
+            return transactionTemplate.execute(status -> applyCancel(adminId, jobId));
+        }
+    }
+
+    private AdminAiJobResponse applyCancel(Long adminId, Long jobId) {
+        AiJob job = aiJobRepository.findById(jobId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.AI_JOB_NOT_FOUND));
+        if (!job.isInProgress()) {
+            throw new BusinessException(ErrorCode.AI_JOB_ALREADY_FINISHED);
+        }
+        AiJobStatus before = job.getStatus();
+        job.cancel(adminId, now());
+        log.info("[AiJob] 취소 jobId={} {} -> CANCELED admin={}", jobId, before, adminId);
+        return toAdminResponse(job);
     }
 
     /** 어드민 상태 조회. 없으면 AI_JOB_NOT_FOUND(404). */
@@ -208,6 +240,28 @@ public class AiJobService {
 
     private static String truncate(String message) {
         return message.length() <= ERROR_MESSAGE_MAX_LENGTH ? message : message.substring(0, ERROR_MESSAGE_MAX_LENGTH);
+    }
+
+    /**
+     * 분석 정보는 결과 보고를 실패시키지 않는다 - 없거나 JSON null이면 저장하지 않고,
+     * 너무 크면 버리되 버렸다는 표시(크기)는 남긴다.
+     */
+    private String metaJson(Long jobId, JsonNode meta) {
+        if (meta == null || meta.isNull() || meta.isMissingNode()) {
+            return null;
+        }
+        try {
+            String json = objectMapper.writeValueAsString(meta);
+            int bytes = json.getBytes(StandardCharsets.UTF_8).length;
+            if (bytes <= META_MAX_BYTES) {
+                return json;
+            }
+            log.warn("[AiJob] 분석 정보가 너무 커서 버림 jobId={} bytes={}", jobId, bytes);
+            return objectMapper.writeValueAsString(Map.of("dropped", "TOO_LARGE", "bytes", bytes));
+        } catch (JsonProcessingException e) {
+            log.warn("[AiJob] 분석 정보 직렬화 실패 - 버림 jobId={}", jobId, e);
+            return null;
+        }
     }
 
     private String writeJson(Object value) {

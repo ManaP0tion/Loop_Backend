@@ -93,6 +93,7 @@ public enum ErrorCode {
     // AiJob 도메인
     AI_JOB_NOT_FOUND(404, "AI 작업을 찾을 수 없습니다."),
     AI_JOB_NOT_ACCEPTED(409, "이 워커의 현재 작업이 아니거나 이미 끝난 작업입니다."),
+    AI_JOB_ALREADY_FINISHED(409, "이미 끝난 작업입니다."),
     AI_JOB_UNSUPPORTED_TYPE(400, "아직 지원하지 않는 AI 작업입니다."),
     AI_JOB_FESTIVAL_ONLY(400, "페스티벌에만 요청할 수 있는 AI 작업입니다."),
     AI_JOB_START_DATE_REQUIRED(400, "공연 시작일이 있어야 요청할 수 있는 AI 작업입니다."),

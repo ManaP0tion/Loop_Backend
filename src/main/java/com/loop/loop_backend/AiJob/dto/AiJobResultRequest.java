@@ -35,7 +35,12 @@ public record AiJobResultRequest(
 
         @Valid
         @Schema(description = "FAILED일 때: 실패 정보")
-        Error error
+        Error error,
+
+        // 형식을 검사하지 않는다 - 분석 정보 때문에 결과 보고가 실패하면 안 된다(너무 크면 서비스가 버린다)
+        @Schema(description = "선택. 분석 정보(출처·토큰·소요 시간·실패 원인 등) JSON. DONE·FAILED 모두 보낼 수 있다. " +
+                "64KB를 넘으면 저장하지 않는다(결과는 저장)")
+        JsonNode meta
 ) {
 
     /** 워커가 보고할 수 있는 상태. PENDING·RUNNING은 보고 대상이 아니라 받지 않는다. */

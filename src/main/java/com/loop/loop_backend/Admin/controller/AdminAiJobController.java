@@ -37,6 +37,8 @@ public class AdminAiJobController {
             "{\"success\":false,\"message\":\"아직 지원하지 않는 AI 작업입니다.\",\"code\":400}";
     private static final String NOT_FOUND_EXAMPLE =
             "{\"success\":false,\"message\":\"AI 작업을 찾을 수 없습니다.\",\"code\":404}";
+    private static final String ALREADY_FINISHED_EXAMPLE =
+            "{\"success\":false,\"message\":\"이미 끝난 작업입니다.\",\"code\":409}";
 
     private final AiJobService aiJobService;
     private final AdminAccessLogService accessLog;
@@ -64,6 +66,27 @@ public class AdminAiJobController {
         AdminAiJobCreateResponse result = aiJobService.create(adminId, body);
         accessLog.log(adminId, req, "CREATE_AI_JOB", "CONCERT", body.concertId(),
                 "AI 작업 요청: " + body.type() + " (jobId " + result.jobId() + ")");
+        return ResponseEntity.ok(CommonResponse.success(result));
+    }
+
+    @PostMapping("/{jobId}/cancel")
+    @Operation(summary = "AI 작업 취소",
+            description = "대기(PENDING)·처리 중(RUNNING) 작업만 취소한다. 워커가 꺼져 있어 계속 대기 중이거나 잘못 만든 작업을 끝낼 때 쓴다. " +
+                    "처리 중이던 작업은 워커가 이미 AI를 호출했을 수 있고(비용 발생), 그 뒤 도착한 결과는 받지 않는다. " +
+                    "취소 후 같은 공연·종류로 새 작업을 만들 수 있다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "취소됨(status: CANCELED)"),
+            @ApiResponse(responseCode = "404", description = "없는 작업",
+                    content = @Content(examples = @ExampleObject(value = NOT_FOUND_EXAMPLE))),
+            @ApiResponse(responseCode = "409", description = "이미 끝난 작업(DONE·FAILED·CANCELED)",
+                    content = @Content(examples = @ExampleObject(value = ALREADY_FINISHED_EXAMPLE)))
+    })
+    public ResponseEntity<CommonResponse<AdminAiJobResponse>> cancel(
+            @AuthenticationPrincipal Long adminId, HttpServletRequest req,
+            @Parameter(description = "작업 ID") @PathVariable Long jobId) {
+        AdminAiJobResponse result = aiJobService.cancel(adminId, jobId);
+        accessLog.log(adminId, req, "CANCEL_AI_JOB", "CONCERT", result.concertId(),
+                "AI 작업 취소: " + result.type() + " (jobId " + jobId + ")");
         return ResponseEntity.ok(CommonResponse.success(result));
     }
 

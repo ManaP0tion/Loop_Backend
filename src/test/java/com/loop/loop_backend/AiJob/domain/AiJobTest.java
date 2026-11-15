@@ -233,5 +233,66 @@ class AiJobTest {
 
             assertThat(job.getStatus()).isEqualTo(AiJobStatus.DONE);
         }
+
+        @Test
+        void 취소된_작업은_건드리지_않는다() {
+            AiJob job = claimedByAAt10();
+            job.cancel(1L, T10_00.plusMinutes(1));
+
+            job.expireLease(T10_00.plusMinutes(30));
+
+            assertThat(job.getStatus()).isEqualTo(AiJobStatus.CANCELED);
+        }
+    }
+
+    /** 후속 작업 1절: 워커가 없거나 잘못 만든 작업을 관리자가 끝낸다. PENDING·RUNNING만 취소한다. */
+    @Nested
+    class 관리자_취소 {
+
+        @Test
+        void 대기_중인_작업은_취소할_수_있고_취소한_관리자와_시각을_남긴다() {
+            AiJob job = newJob();
+            assertThat(job.isInProgress()).isTrue();
+
+            job.cancel(7L, T10_00);
+
+            assertThat(job.getStatus()).isEqualTo(AiJobStatus.CANCELED);
+            assertThat(job.getCanceledBy()).isEqualTo(7L);
+            assertThat(job.getFinishedAt()).isEqualTo(T10_00);
+        }
+
+        @Test
+        void 처리_중인_작업을_취소하면_그_뒤_도착한_담당_워커의_결과는_받지_않는다() {
+            AiJob job = claimedByAAt10();
+            assertThat(job.isInProgress()).isTrue();
+
+            job.cancel(7L, T10_00.plusMinutes(1));
+
+            assertThat(job.canAcceptResult(A, 1)).isFalse();
+            assertThat(job.getLeaseUntil()).isNull();
+        }
+
+        @Test
+        void 취소된_작업은_진행_중이_아니다_같은_대상에_새_작업을_만들_수_있다() {
+            AiJob job = newJob();
+
+            job.cancel(7L, T10_00);
+
+            assertThat(job.isInProgress()).isFalse();
+        }
+
+        @Test
+        void 끝난_작업은_취소_대상이_아니다() {
+            AiJob done = claimedByAAt10();
+            done.complete("{\"status\":\"FOUND\"}", T10_00.plusMinutes(1));
+            AiJob failed = claimedByAAt10();
+            failed.fail("LLM_TIMEOUT", "AI 분석 시간이 초과됐습니다.", true, T10_00.plusMinutes(1));
+            AiJob canceled = newJob();
+            canceled.cancel(7L, T10_00);
+
+            assertThat(done.isInProgress()).isFalse();
+            assertThat(failed.isInProgress()).isFalse();
+            assertThat(canceled.isInProgress()).isFalse();
+        }
     }
 }

@@ -47,4 +47,16 @@ class AiJobColumnTypeTest {
     void AI_결과는_MySQL에서_LONGTEXT로_저장된다() {
         assertThat(mysqlColumnType("result")).isEqualTo("longtext");
     }
+
+    @Test
+    void 분석_정보는_MySQL에서_LONGTEXT로_저장된다() {
+        assertThat(mysqlColumnType("meta")).isEqualTo("longtext");
+    }
+
+    // 상태·종류는 값이 늘어난다(예: CANCELED). MySQL 네이티브 enum이면 기존 테이블에 새 값을 저장할 수 없다
+    @Test
+    void 상태와_종류는_MySQL에서_값을_늘려도_저장되는_varchar다() {
+        assertThat(mysqlColumnType("status")).startsWith("varchar");
+        assertThat(mysqlColumnType("type")).startsWith("varchar");
+    }
 }

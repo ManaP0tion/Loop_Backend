@@ -114,12 +114,12 @@ class AiJobServiceTest {
     }
 
     private AiJobResultRequest done(String workerId, int attempt, String resultJson) throws Exception {
-        return new AiJobResultRequest(workerId, attempt, AiJobResultRequest.Outcome.DONE, mapper.readTree(resultJson), null);
+        return new AiJobResultRequest(workerId, attempt, AiJobResultRequest.Outcome.DONE, mapper.readTree(resultJson), null, null);
     }
 
     private AiJobResultRequest failed(String workerId, int attempt, String code, String message, boolean retryable) {
         return new AiJobResultRequest(workerId, attempt, AiJobResultRequest.Outcome.FAILED, null,
-                new AiJobResultRequest.Error(code, message, retryable));
+                new AiJobResultRequest.Error(code, message, retryable), null);
     }
 
     @Nested
@@ -494,6 +494,185 @@ class AiJobServiceTest {
             assertThat(service.findLatest(festival.getId(), AiJobType.CONCERT_ENRICH).orElseThrow().jobId())
                     .isEqualTo(enrich);
             assertThat(service.findLatest(other.getId(), AiJobType.FESTIVAL_LINEUP)).isEmpty();
+        }
+    }
+
+    /** 후속 작업 1절: 관리자 취소. PENDING·RUNNING만 취소하고, 취소한 작업은 다시 처리되거나 결과를 받지 않는다. */
+    @Nested
+    class 작업_취소 {
+
+        @Test
+        void 대기_중인_작업을_취소하면_워커가_가져가지_않는다() {
+            Long job = createJob(AiJobType.CONCERT_ENRICH, stage());
+
+            AdminAiJobResponse canceled = service.cancel(ADMIN, job);
+
+            assertThat(canceled.status()).isEqualTo(AiJobStatus.CANCELED);
+            assertThat(canceled.finishedAt()).isNotNull();
+            assertThat(reload(job).getCanceledBy()).isEqualTo(ADMIN);
+            assertThat(service.claim(A, ALL_TYPES)).isEmpty();
+        }
+
+        @Test
+        void 처리_중인_작업을_취소하면_그_뒤_도착한_결과는_409이고_취소가_유지된다() throws Exception {
+            Long job = createJob(AiJobType.CONCERT_ENRICH, stage());
+            service.claim(A, ALL_TYPES);
+
+            service.cancel(ADMIN, job);
+            AiJobResultRequest late = done(A, 1, "{\"status\":\"FOUND\"}");
+
+            assertErrorCode(() -> service.report(job, late), ErrorCode.AI_JOB_NOT_ACCEPTED);
+            AiJob reloaded = reload(job);
+            assertThat(reloaded.getStatus()).isEqualTo(AiJobStatus.CANCELED);
+            assertThat(reloaded.getResult()).isNull();
+        }
+
+        @Test
+        void 취소된_작업은_시간_초과_정리_대상이_아니다() {
+            Long job = createJob(AiJobType.CONCERT_ENRICH, stage());
+            service.claim(A, ALL_TYPES);
+            service.cancel(ADMIN, job);
+            leasePassed(job);
+
+            service.expireLeases();
+
+            assertThat(reload(job).getStatus()).isEqualTo(AiJobStatus.CANCELED);
+        }
+
+        @Test
+        void 끝난_작업은_취소할_수_없다() throws Exception {
+            Long done = createJob(AiJobType.CONCERT_ENRICH, stage());
+            service.claim(A, ALL_TYPES);
+            service.report(done, done(A, 1, "{\"status\":\"FOUND\"}"));
+
+            Long failed = createJob(AiJobType.CONCERT_ENRICH, stage());
+            service.claim(A, ALL_TYPES);
+            service.report(failed, failed(A, 1, "SEARCH_FAILED", "검색에 실패했습니다.", true));
+
+            Long canceled = createJob(AiJobType.CONCERT_ENRICH, stage());
+            service.cancel(ADMIN, canceled);
+
+            assertErrorCode(() -> service.cancel(ADMIN, done), ErrorCode.AI_JOB_ALREADY_FINISHED);
+            assertErrorCode(() -> service.cancel(ADMIN, failed), ErrorCode.AI_JOB_ALREADY_FINISHED);
+            assertErrorCode(() -> service.cancel(ADMIN, canceled), ErrorCode.AI_JOB_ALREADY_FINISHED);
+            assertThat(reload(done).getStatus()).isEqualTo(AiJobStatus.DONE);
+        }
+
+        @Test
+        void 없는_작업을_취소하면_404() {
+            assertErrorCode(() -> service.cancel(ADMIN, 999L), ErrorCode.AI_JOB_NOT_FOUND);
+        }
+
+        @Test
+        void 취소한_뒤_같은_공연_종류로_새_작업을_만들_수_있다() {
+            Concert concert = stage();
+            Long first = createJob(AiJobType.CONCERT_ENRICH, concert);
+            service.cancel(ADMIN, first);
+
+            assertThat(createJob(AiJobType.CONCERT_ENRICH, concert)).isNotEqualTo(first);
+        }
+
+        @Test
+        void 마지막_작업_조회는_취소된_작업도_그대로_준다() {
+            Concert concert = stage();
+            Long job = createJob(AiJobType.CONCERT_ENRICH, concert);
+            service.cancel(ADMIN, job);
+
+            AdminAiJobResponse latest = service.findLatest(concert.getId(), AiJobType.CONCERT_ENRICH).orElseThrow();
+
+            assertThat(latest.jobId()).isEqualTo(job);
+            assertThat(latest.status()).isEqualTo(AiJobStatus.CANCELED);
+        }
+    }
+
+    /** 후속 작업 3절: 결과와 함께 온 분석 정보(meta)를 남긴다. meta 때문에 결과 보고가 실패하면 안 된다. */
+    @Nested
+    class 분석_정보 {
+
+        private static final String META = """
+                {"model":"claude-haiku-5-5","llmCalls":[{"purpose":"extract","outputTokens":4951}],
+                 "timings":{"totalMs":25300}}""";
+
+        private AiJobResultRequest doneWithMeta(int attempt, JsonNode meta) throws Exception {
+            return new AiJobResultRequest(A, attempt, AiJobResultRequest.Outcome.DONE,
+                    mapper.readTree("{\"status\":\"FOUND\"}"), null, meta);
+        }
+
+        private Long claimedJob() {
+            Long job = createJob(AiJobType.CONCERT_ENRICH, stage());
+            service.claim(A, ALL_TYPES);
+            return job;
+        }
+
+        @Test
+        void 성공_결과와_함께_온_분석_정보를_남긴다() throws Exception {
+            Long job = claimedJob();
+
+            service.report(job, doneWithMeta(1, mapper.readTree(META)));
+
+            AiJob reloaded = reload(job);
+            assertThat(reloaded.getStatus()).isEqualTo(AiJobStatus.DONE);
+            assertThat(mapper.readTree(reloaded.getMeta())).isEqualTo(mapper.readTree(META));
+        }
+
+        @Test
+        void 실패_보고와_함께_온_분석_정보도_남긴다() throws Exception {
+            Long job = claimedJob();
+
+            service.report(job, new AiJobResultRequest(A, 1, AiJobResultRequest.Outcome.FAILED, null,
+                    new AiJobResultRequest.Error("LLM_FAILED", "AI 분석에 실패했습니다.", true),
+                    mapper.readTree("{\"errorDetail\":\"LLM 응답 오류: HTTP 401\"}")));
+
+            AiJob reloaded = reload(job);
+            assertThat(reloaded.getStatus()).isEqualTo(AiJobStatus.FAILED);
+            assertThat(mapper.readTree(reloaded.getMeta()).get("errorDetail").asText()).isEqualTo("LLM 응답 오류: HTTP 401");
+        }
+
+        @Test
+        void 분석_정보가_없어도_결과는_저장된다() throws Exception {
+            Long job = claimedJob();
+
+            service.report(job, doneWithMeta(1, null));
+
+            AiJob reloaded = reload(job);
+            assertThat(reloaded.getStatus()).isEqualTo(AiJobStatus.DONE);
+            assertThat(reloaded.getMeta()).isNull();
+        }
+
+        @Test
+        void 너무_큰_분석_정보는_버리고_버렸다는_표시만_남기며_결과는_저장된다() throws Exception {
+            Long job = claimedJob();
+            String big = "x".repeat(64 * 1024 + 1);
+
+            service.report(job, doneWithMeta(1, mapper.createObjectNode().put("warnings", big)));
+
+            AiJob reloaded = reload(job);
+            assertThat(reloaded.getStatus()).isEqualTo(AiJobStatus.DONE);
+            assertThat(reloaded.getResult()).isNotNull();
+            JsonNode meta = mapper.readTree(reloaded.getMeta());
+            assertThat(meta.get("dropped").asText()).isEqualTo("TOO_LARGE");
+            assertThat(meta.get("bytes").asInt()).isGreaterThan(64 * 1024);
+        }
+
+        @Test
+        void 받지_않은_보고의_분석_정보는_남기지_않는다() throws Exception {
+            Long job = claimedJob();
+            AiJobResultRequest notAssigned = new AiJobResultRequest(B, 1, AiJobResultRequest.Outcome.DONE,
+                    mapper.readTree("{}"), null, mapper.readTree(META));
+
+            assertErrorCode(() -> service.report(job, notAssigned), ErrorCode.AI_JOB_NOT_ACCEPTED);
+            assertThat(reload(job).getMeta()).isNull();
+        }
+
+        @Test
+        void 어드민_조회에는_분석_정보를_내보내지_않는다() throws Exception {
+            Long job = claimedJob();
+            service.report(job, doneWithMeta(1, mapper.readTree(META)));
+
+            JsonNode response = mapper.valueToTree(service.get(job));
+
+            assertThat(response.has("meta")).isFalse();
+            assertThat(response.toString()).doesNotContain("claude-haiku-5-5");
         }
     }
 
