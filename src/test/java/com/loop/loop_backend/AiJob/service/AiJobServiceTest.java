@@ -754,6 +754,23 @@ class AiJobServiceTest {
         }
 
         @Test
+        void 한글_별칭이_앞에_오는_공연_별칭을_담는다() throws Exception {
+            Artist artist = yuuri();
+            Concert concert = concertRepository.save(Concert.builder()
+                    .title("YUURI LIVE 2026 IN SEOUL").category(ConcertCategory.STAGE)
+                    .startDate(LocalDate.of(2026, 12, 5))
+                    .titleAliases(new ArrayList<>(List.of("YUURI LIVE", "유우리 내한", "Yuuri Seoul", "유우리 콘서트")))
+                    .build());
+            Performance performance = solo(concert, artist);
+
+            JsonNode aliases = payloadOf(createSetlist(concert, performance.getId())).get("titleAliases");
+
+            List<String> values = new ArrayList<>();
+            aliases.forEach(node -> values.add(node.asText()));
+            assertThat(values).containsExactly("유우리 내한", "유우리 콘서트", "YUURI LIVE", "Yuuri Seoul");
+        }
+
+        @Test
         void 삭제된_곡은_곡_목록에서_빠지고_곡이_없으면_빈_목록이다() throws Exception {
             Artist artist = yuuri();
             Concert concert = stage();
@@ -767,6 +784,8 @@ class AiJobServiceTest {
 
             assertThat(payload.get("songs").isArray()).isTrue();
             assertThat(payload.get("songs")).isEmpty();
+            assertThat(payload.get("titleAliases").isArray()).isTrue();
+            assertThat(payload.get("titleAliases")).isEmpty();
             assertThat(payload.get("expectedSongCount").isNull()).isTrue();
         }
 

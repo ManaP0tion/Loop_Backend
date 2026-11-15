@@ -50,6 +50,7 @@ public class AiJobPayloadBuilder {
                 concert.getId(),
                 concert.getCategory(),
                 concert.getTitle(),
+                koreanFirst(concert.getTitleAliases()),
                 artist(performance.getArtist()),
                 startDate,
                 endDate,

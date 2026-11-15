@@ -15,6 +15,7 @@ public record SetlistActualPayload(
         Long concertId,
         ConcertCategory category,
         String title,                  // 페스티벌이면 페스티벌명
+        List<String> titleAliases,     // 한글 별칭이 앞에 오도록 정렬된 목록. AI가 첫 값을 한국어 공연명으로 검색어에 쓴다
         AiArtistPayload artist,        // 그 출연 정보의 아티스트(페스티벌이면 헤드라이너)
         @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd") LocalDate startDate,
         @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd") LocalDate endDate,
@@ -23,6 +24,7 @@ public record SetlistActualPayload(
         List<AiSongPayload> songs      // 그 아티스트의 곡 전체(삭제된 곡 제외). 비어 있으면 AI는 제목만 준다
 ) {
     public SetlistActualPayload {
+        titleAliases = titleAliases == null ? List.of() : List.copyOf(titleAliases);
         songs = songs == null ? List.of() : List.copyOf(songs);
     }
 }
