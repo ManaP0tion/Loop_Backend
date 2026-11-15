@@ -4,11 +4,7 @@ import com.loop.loop_backend.Admin.domain.AdminAccessLog;
 import com.loop.loop_backend.Admin.repository.AdminAccessLogRepository;
 import com.loop.loop_backend.Admin.service.AdminAccessLogService;
 import com.loop.loop_backend.Artist.domain.Artist;
-import com.loop.loop_backend.Artist.domain.Nationality;
-import com.loop.loop_backend.Artist.dto.ArtistProductDto;
-import com.loop.loop_backend.Artist.dto.ArtistProductRequest;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
-import com.loop.loop_backend.Artist.service.ArtistImageCopyService;
 import com.loop.loop_backend.Chat.domain.Message;
 import com.loop.loop_backend.Chat.repository.ChatRoomRepository;
 import com.loop.loop_backend.Chat.repository.MessageRepository;
@@ -16,13 +12,8 @@ import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
-import com.loop.loop_backend.ConcertImport.domain.ConcertImport;
-import com.loop.loop_backend.ConcertImport.domain.ImportStatus;
-import com.loop.loop_backend.ConcertImport.kopis.KopisSyncService;
-import com.loop.loop_backend.ConcertImport.repository.ConcertImportRepository;
+import com.loop.loop_backend.Concert.kopis.KopisSyncService;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
-import com.loop.loop_backend.ConcertImport.service.ConcertImportService;
-import com.loop.loop_backend.Config.RedisConfig;
 import com.loop.loop_backend.Inquiry.domain.Inquiry;
 import com.loop.loop_backend.Inquiry.domain.InquiryStatus;
 import com.loop.loop_backend.Inquiry.domain.InquiryType;
@@ -47,19 +38,13 @@ import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import com.loop.loop_backend.common.exception.ErrorCode;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -67,20 +52,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.loop.loop_backend.common.util.WebUrls;
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVPrinter;
-import org.apache.commons.csv.CSVRecord;
-import org.apache.commons.io.input.BOMInputStream;
-
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.io.StringWriter;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -113,9 +84,6 @@ public class AdminController {
     private final AdminAccessLogService accessLog;
     private final S3StorageService s3StorageService;
     private final KopisSyncService kopisSyncService;
-    private final ArtistImageCopyService artistImageCopyService;
-    private final ConcertImportRepository concertImportRepository;
-    private final ConcertImportService concertImportService;
 
     // ================= DASHBOARD =================
 
@@ -371,10 +339,9 @@ public class AdminController {
                 .nameKo(body.nameKo())
                 .nameAlias(body.nameAlias())
                 .imageUrl(body.imageUrl())
-                .nationality(body.nationality())
+                .category(body.category())
                 .autoFetchConcerts(false)
                 .build());
-        a.changeLinks(body.instagramUrl(), body.xUrl(), body.homepageUrl());
         return ResponseEntity.ok(CommonResponse.success(ArtistRow.of(a)));
     }
 
@@ -382,44 +349,8 @@ public class AdminController {
     @Transactional
     public ResponseEntity<CommonResponse<ArtistRow>> updateArtist(@PathVariable Long id, @RequestBody ArtistReq body) {
         Artist a = artistRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
-        a.update(body.name(), body.baseName(), body.nameKo(), body.nameAlias(), body.imageUrl(), body.nationality());
-        a.changeLinks(body.instagramUrl(), body.xUrl(), body.homepageUrl());
+        a.update(body.name(), body.baseName(), body.nameKo(), body.nameAlias(), body.imageUrl(), body.category());
         return ResponseEntity.ok(CommonResponse.success(ArtistRow.of(a)));
-    }
-
-    // 관련 상품은 아티스트 수정(PUT)과 분리 - PUT은 통째로 교체라 상품 없이 보내면 상품이 지워지고, 목록 API에 붙이면 아티스트 수만큼 쿼리가 늘어난다.
-    @GetMapping("/artists/{id}/products")
-    @Operation(summary = "아티스트 관련 상품 조회", description = "입력한 순서대로. 이 아티스트의 공연 상세에 같은 목록이 나간다")
-    @Transactional(readOnly = true)
-    public ResponseEntity<CommonResponse<List<ArtistProductDto>>> getArtistProducts(@PathVariable Long id) {
-        Artist a = artistRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
-        return ResponseEntity.ok(CommonResponse.success(ArtistProductDto.listOf(a)));
-    }
-
-    @PostMapping("/artists/{id}/products")
-    @Operation(summary = "아티스트 관련 상품 추가(HTML)",
-            description = "CDJapan 어필리에이트 HTML 전문을 보내면 링크·이미지·상품명을 꺼내 **맨 뒤에** 추가한다. 응답은 전체 목록.\n\n" +
-                    "HTML에 링크·이미지가 없거나, 링크·이미지가 http/https 주소가 아니면 400")
-    @Transactional
-    public ResponseEntity<CommonResponse<List<ArtistProductDto>>> addArtistProduct(
-            @PathVariable Long id, @RequestBody ArtistProductRequest body) {
-        Artist a = artistRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
-        a.addProduct(body.toDomain());
-        return ResponseEntity.ok(CommonResponse.success(ArtistProductDto.listOf(a)));
-    }
-
-    @PutMapping("/artists/{id}/products")
-    @Operation(summary = "아티스트 관련 상품 목록 저장(수정·삭제·순서 변경)",
-            description = "조회로 받은 목록을 고쳐 통째로 보낸다 - 보낸 목록으로 교체하고 보낸 순서대로 노출한다. 빠진 상품은 삭제, []는 모두 비움.\n\n" +
-                    "상품마다 `{ title, linkUrl, imageUrl }`. 링크·이미지는 필수(http/https만), 상품명은 선택. " +
-                    "새 상품 추가는 POST(HTML)로 한다.\n\n" +
-                    "하나라도 잘못되면 400이고 아무것도 바뀌지 않는다")
-    @Transactional
-    public ResponseEntity<CommonResponse<List<ArtistProductDto>>> replaceArtistProducts(
-            @PathVariable Long id, @RequestBody List<ArtistProductDto> body) {
-        Artist a = artistRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
-        a.replaceProducts(ArtistProductDto.toDomain(body));
-        return ResponseEntity.ok(CommonResponse.success(ArtistProductDto.listOf(a)));
     }
 
     @DeleteMapping("/artists/{id}")
@@ -438,139 +369,57 @@ public class AdminController {
             @PathVariable Long id, @RequestPart("image") MultipartFile image) {
         Artist a = artistRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
         String url = s3StorageService.uploadPublic("artists", id, image);
-        a.update(a.getName(), a.getBaseName(), a.getNameKo(), a.getNameAlias(), url, a.getNationality());
+        a.update(a.getName(), a.getBaseName(), a.getNameKo(), a.getNameAlias(), url, a.getCategory());
         return ResponseEntity.ok(CommonResponse.success(Map.of("imageUrl", url)));
-    }
-
-    // 외부 imageUrl(CSV·수기 입력)을 S3로 복사. 몇 분 걸릴 수 있어 백그라운드로 시작만 하고 바로 응답한다.
-    @PostMapping("/artists/images/copy-to-s3")
-    @Operation(summary = "아티스트 외부 이미지 S3로 옮기기",
-            description = "S3가 아닌 imageUrl을 내려받아 S3에 올리고 주소를 교체. 실행 중이면 409. 결과는 GET 같은 경로로 확인")
-    public ResponseEntity<CommonResponse<String>> copyArtistImagesToS3(
-            @AuthenticationPrincipal Long adminId, HttpServletRequest req) {
-        if (artistImageCopyService.isRunning()) {
-            throw new BusinessException(ErrorCode.IMAGE_COPY_ALREADY_RUNNING);
-        }
-        artistImageCopyService.copyAllAsync();
-        accessLog.log(adminId, req, "COPY_ARTIST_IMAGES", "ARTIST", null, "아티스트 외부 이미지 S3 복사 시작");
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(CommonResponse.success("이미지 복사를 시작했습니다."));
-    }
-
-    @GetMapping("/artists/images/copy-to-s3")
-    @Operation(summary = "아티스트 이미지 S3 복사 상태", description = "running=true면 진행 중. result는 마지막 실행 결과(서버 재시작 시 사라짐, 없으면 null)")
-    public ResponseEntity<CommonResponse<Map<String, Object>>> artistImageCopyStatus() {
-        Map<String, Object> body = new java.util.HashMap<>();
-        body.put("running", artistImageCopyService.isRunning());
-        body.put("result", artistImageCopyService.getLastResult());
-        return ResponseEntity.ok(CommonResponse.success(body));
-    }
-
-    // 수정 폼의 전체 항목. 업로드와 같은 헤더라 받은 파일을 고쳐 그대로 다시 올리면 된다. UTF-8 BOM(엑셀 한글 깨짐 방지).
-    @GetMapping("/artists/links/csv")
-    @Operation(summary = "아티스트 CSV 다운로드",
-            description = "헤더: id, name, baseName, nameKo, nameAlias, imageUrl, nationality, instagramUrl, xUrl, homepageUrl")
-    public ResponseEntity<byte[]> exportArtistLinksCsv() throws IOException {
-        StringWriter out = new StringWriter();
-        out.write('\uFEFF');
-        try (CSVPrinter printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder().setHeader(ARTIST_CSV_HEADER).build())) {
-            for (Artist a : artistRepository.findAll(Sort.by("id"))) {
-                printer.printRecord(a.getId(), a.getName(), a.getBaseName(), a.getNameKo(), a.getNameAlias(),
-                        a.getImageUrl(), a.getNationality(), a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
-            }
-        }
-        return ResponseEntity.ok()
-                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"artists.csv\"")
-                .body(out.toString().getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static final String[] ARTIST_CSV_HEADER = {"id", "name", "baseName", "nameKo", "nameAlias",
-            "imageUrl", "nationality", "instagramUrl", "xUrl", "homepageUrl"};
-
-    // 아티스트 일괄 수정. id(없으면 name)로 매칭, 빈 칸은 기존 값 유지(CSV로 값을 지우지는 못함). 없는 열도 유지.
-    // name은 id로 매칭한 행에서만 바뀐다. 못 찾은 행·잘못된 값(URL·국적·길이) 행은 건너뛰고 행 번호로 알려준다.
-    @PostMapping(value = "/artists/links/csv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "아티스트 CSV 업로드",
-            description = "UTF-8(BOM 허용). 헤더: id, name, baseName, nameKo, nameAlias, imageUrl, nationality(JP/KR), instagramUrl, xUrl, homepageUrl. "
-                    + "id가 비면 name으로 매칭. 빈 칸은 기존 값 유지. imageUrl·링크는 http/https만")
-    @Transactional
-    public ResponseEntity<CommonResponse<ArtistLinkCsvResult>> importArtistLinksCsv(
-            @RequestPart("file") MultipartFile file) throws IOException {
-        if (file.isEmpty()) throw new BusinessException(ErrorCode.EMPTY_FILE);
-        int updated = 0, unchanged = 0;
-        List<Long> failedRows = new ArrayList<>();
-        CSVFormat format = CSVFormat.DEFAULT.builder()
-                .setHeader().setSkipHeaderRecord(true).setTrim(true).setIgnoreEmptyLines(true).build();
-        try (Reader reader = new InputStreamReader(
-                BOMInputStream.builder().setInputStream(file.getInputStream()).get(), StandardCharsets.UTF_8)) {
-            for (CSVRecord r : format.parse(reader)) {
-                String id = csvColumn(r, "id"), name = csvColumn(r, "name");
-                Artist a = findArtistForCsv(id, name);
-                if (a == null) {
-                    failedRows.add(r.getRecordNumber());
-                    continue;
-                }
-                try {
-                    // 먼저 전부 검증해 한 칸만 잘못돼도 행 전체를 건너뛴다(일부만 반영되지 않게)
-                    String nName = id.isEmpty() ? a.getName() : csvText(name, a.getName(), 100);
-                    String nBase = csvText(csvColumn(r, "baseName"), a.getBaseName(), 100);
-                    String nKo = csvText(csvColumn(r, "nameKo"), a.getNameKo(), 200);
-                    String nAlias = csvText(csvColumn(r, "nameAlias"), a.getNameAlias(), 200);
-                    String nImage = csvUrl(csvColumn(r, "imageUrl"), a.getImageUrl());
-                    String nat = csvColumn(r, "nationality");
-                    Nationality nNat = nat.isEmpty() ? a.getNationality() : Nationality.valueOf(nat);
-                    String nIg = csvUrl(csvColumn(r, "instagramUrl"), a.getInstagramUrl());
-                    String nX = csvUrl(csvColumn(r, "xUrl"), a.getXUrl());
-                    String nHome = csvUrl(csvColumn(r, "homepageUrl"), a.getHomepageUrl());
-                    List<Object> before = Arrays.asList(a.getName(), a.getBaseName(), a.getNameKo(), a.getNameAlias(),
-                            a.getImageUrl(), a.getNationality(), a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
-                    if (before.equals(Arrays.asList(nName, nBase, nKo, nAlias, nImage, nNat, nIg, nX, nHome))) {
-                        unchanged++;
-                    } else {
-                        a.update(nName, nBase, nKo, nAlias, nImage, nNat);
-                        a.changeLinks(nIg, nX, nHome);
-                        updated++;
-                    }
-                } catch (IllegalArgumentException e) {
-                    failedRows.add(r.getRecordNumber());
-                }
-            }
-        } catch (IllegalArgumentException | IllegalStateException | UncheckedIOException e) {
-            // 깨진 CSV(따옴표 짝 안 맞음, 헤더 중복 등)
-            throw new BusinessException(ErrorCode.INVALID_REQUEST_FORMAT);
-        }
-        return ResponseEntity.ok(CommonResponse.success(new ArtistLinkCsvResult(updated, unchanged, failedRows)));
-    }
-
-    // 빈 칸이면 기존 값. 컬럼 길이를 넘으면 DB 오류(업로드 전체 롤백) 대신 그 행만 실패
-    private static String csvText(String value, String current, int maxLength) {
-        if (value.isEmpty()) return current;
-        if (value.length() > maxLength) throw new IllegalArgumentException("too long");
-        return value;
-    }
-
-    private static String csvUrl(String value, String current) {
-        return value.isEmpty() ? current : WebUrls.normalize(value);
-    }
-
-    private Artist findArtistForCsv(String id, String name) {
-        if (!id.isEmpty()) {
-            try {
-                return artistRepository.findById(Long.valueOf(id)).orElse(null);
-            } catch (NumberFormatException e) {
-                return null;
-            }
-        }
-        return name.isEmpty() ? null : artistRepository.findByName(name).orElse(null);
-    }
-
-    private static String csvColumn(CSVRecord r, String name) {
-        return r.isMapped(name) && r.isSet(name) ? r.get(name) : "";
     }
 
     // ================= CONCERTS =================
 
-    // 공연 목록·등록(POST)·수정(PATCH)·상세는 AdminConcertController로 옮겼다.
+    @GetMapping("/concerts")
+    @Transactional(readOnly = true)
+    public ResponseEntity<CommonResponse<PageResp<ConcertRow>>> listConcerts(
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q) {
+        String query = (q == null || q.isBlank()) ? null : q.trim();
+        Page<Concert> p = concertRepository.searchForAdmin(query, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id")));
+        return ResponseEntity.ok(CommonResponse.success(PageResp.from(p.map(ConcertRow::of))));
+    }
+
+    @PostMapping("/concerts")
+    @Transactional
+    public ResponseEntity<CommonResponse<ConcertRow>> createConcert(@RequestBody ConcertReq body) {
+        Artist artist = body.artistId() == null ? null
+                : artistRepository.findById(body.artistId())
+                        .orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
+        ConcertCategory category = body.category() != null ? body.category()
+                : (artist != null ? artist.getCategory() : null);
+        if (category == null) throw new BusinessException(ErrorCode.INVALID_INPUT);
+        Concert c = Concert.builder()
+                .artist(artist)
+                .title(body.title())
+                .posterUrl(body.posterUrl())
+                .venue(body.venue())
+                .startDate(body.startDate())
+                .endDate(body.endDate())
+                .category(category)
+                .build();
+        return ResponseEntity.ok(CommonResponse.success(ConcertRow.of(concertRepository.save(c))));
+    }
+
+    @PutMapping("/concerts/{id}")
+    @Transactional
+    public ResponseEntity<CommonResponse<ConcertRow>> updateConcert(@PathVariable Long id, @RequestBody ConcertReq body) {
+        Concert c = concertRepository.findById(id).orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
+        Artist artist = body.artistId() == null ? null
+                : artistRepository.findById(body.artistId())
+                        .orElseThrow(() -> new BusinessException(ErrorCode.ARTIST_NOT_FOUND));
+        ConcertCategory category = body.category() != null ? body.category()
+                : (artist != null ? artist.getCategory() : null);
+        if (category == null) throw new BusinessException(ErrorCode.INVALID_INPUT);
+        c.update(artist, body.title(), body.posterUrl(), body.venue(),
+                body.startDate(), body.endDate(), category);
+        return ResponseEntity.ok(CommonResponse.success(ConcertRow.of(c)));
+    }
 
     // S3 공개 버킷 업로드 후 콘서트의 posterUrl 갱신. 프론트는 JSON 저장 뒤 별도로 호출.
     @PostMapping(value = "/concerts/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -585,14 +434,12 @@ public class AdminController {
 
     @DeleteMapping("/concerts/{id}")
     @Transactional
-    @CacheEvict(cacheNames = RedisConfig.CONCERT_LIST_CACHE, allEntries = true)
     public ResponseEntity<CommonResponse<Void>> deleteConcert(@PathVariable Long id) {
         if (!concertRepository.existsById(id)) throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
         // CompanionPost.concert ON DELETE CASCADE → 동행 프로필 함께 삭제. 채팅방은 ChatRoom.post SET_NULL 로 보존.
         // ChatRoom.concertId는 post와 별개로 저장된 스냅샷이라 DB 캐스케이드가 안 닿으므로, 여기서 직접 정리해서
         // 삭제된 공연 id를 계속 들고 있는 유령 참조가 안 남게 한다.
         chatRoomRepository.clearConcertId(id);
-        concertImportService.markDeletedByConcert(id);
         concertRepository.deleteById(id);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
@@ -600,78 +447,9 @@ public class AdminController {
     @PostMapping("/concerts/sync")
     public ResponseEntity<CommonResponse<String>> syncKopis(
             @AuthenticationPrincipal Long adminId, HttpServletRequest req) {
-        // 싱크가 몇 분 걸려 프록시 타임아웃이 나므로, 백그라운드로 시작만 하고 바로 응답한다.
-        // 이미 돌고 있으면 새로 시작하지 않고 409로 알린다.
-        if (kopisSyncService.isRunning()) {
-            throw new BusinessException(ErrorCode.KOPIS_SYNC_ALREADY_RUNNING);
-        }
-        kopisSyncService.syncAllAsync();
-        accessLog.log(adminId, req, "SYNC_KOPIS", "CONCERT", null, "KOPIS 공연 정보 수동 동기화 시작");
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(CommonResponse.success(
-                "KOPIS 동기화를 시작했습니다. 끝나면 검토 대기 목록에 적재되며, 진행 상황은 서버 로그에서 확인하세요."));
-    }
-
-    // ================= CONCERT IMPORTS (KOPIS 수집 → 검토 대기) =================
-
-    /** 검토 큐. status 미지정 시 전체. 기본 PENDING만 보고 싶으면 ?status=PENDING. */
-    @GetMapping("/concert-imports")
-    @Transactional(readOnly = true)
-    public ResponseEntity<CommonResponse<PageResp<ImportRow>>> listImports(
-            @RequestParam(required = false) ImportStatus status,
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
-        Page<ConcertImport> p = (status == null)
-                ? concertImportRepository.findAll(pageable)
-                : concertImportRepository.findByStatus(status, pageable);
-        return ResponseEntity.ok(CommonResponse.success(PageResp.from(p.map(ImportRow::of))));
-    }
-
-    /** 승인 → KOPIS 기본값으로 비공개 공연 생성. 관리자는 이후 공연 수정 API로 고치고 공개한다. */
-    @PostMapping("/concert-imports/{id}/approve")
-    @Transactional
-    @Operation(summary = "검토 대기 공연 승인",
-            description = "검토 큐(concert_imports)의 공연을 승인해 공연(concerts)을 **비공개로** 새로 만든다. 요청 본문은 없다.\n\n" +
-                    "**KOPIS 값을 기본값으로 채운다** (관리자는 이후 PATCH /api/admin/concerts/{concertId}로 고치고 공개한다):\n" +
-                    "- 공연명, 포스터, 기간, 유형\n" +
-                    "- 공연장: KOPIS 시설·홀로 공연장 관리의 공연장을 연결하거나 새로 만든다(venueId)\n" +
-                    "- 일반예매 1건: KOPIS 예매처 전부(놀유니버스 → NOL, 나머지는 이름 그대로). 예매 일시는 KOPIS에 없어 비어 있다\n" +
-                    "- DAY별 공연 시각: KOPIS 공연 시간 안내(예: 토요일(17:00), 일요일(16:00))를 날짜의 요일에 맞춰 채운다. " +
-                    "여러 회차이거나 못 읽으면 그 DAY는 비운다\n\n" +
-                    "**경로의 id는 검토 큐 id**(GET /api/admin/concert-imports 목록의 id)이고, " +
-                    "**응답의 concertId는 새로 만들어진 공연 id**라 서로 다른 값이다.")
-    public ResponseEntity<CommonResponse<ImportApproveResp>> approveImport(
-            @AuthenticationPrincipal Long adminId, HttpServletRequest req,
-            @Parameter(description = "검토 큐 id (GET /api/admin/concert-imports 목록의 id)") @PathVariable Long id) {
-        Concert c = concertImportService.approve(id);
-        accessLog.log(adminId, req, "APPROVE_IMPORT", "CONCERT", c.getId(),
-                "수집 공연 #" + id + " 승인 → 콘서트 #" + c.getId() + " 생성");
-        return ResponseEntity.ok(CommonResponse.success(ImportApproveResp.of(id, c)));
-    }
-
-    @PostMapping("/concert-imports/{id}/reject")
-    @Transactional
-    public ResponseEntity<CommonResponse<Void>> rejectImport(
-            @AuthenticationPrincipal Long adminId, HttpServletRequest req,
-            @PathVariable Long id, @RequestBody(required = false) Map<String, String> body) {
-        String reason = body != null ? body.getOrDefault("reason", "") : "";
-        concertImportService.reject(id, reason);
-        accessLog.log(adminId, req, "REJECT_IMPORT", "CONCERT", id, "수집 공연 거절 · 사유: " + reason);
-        return ResponseEntity.ok(CommonResponse.success(null));
-    }
-
-    @PostMapping("/concert-imports/{id}/restore")
-    @Transactional
-    @Operation(summary = "삭제된 공연 복원",
-            description = "삭제된 공연의 검토 큐 행(GET /api/admin/concert-imports?status=DELETED)을 검토 대기로 되돌린다. 요청 본문은 없다.\n\n" +
-                    "다시 승인하면 **새 공연 id**로 만들어진다. 관리자가 고친 공연 정보, 동행 프로필, 셋리스트·투표는 돌아오지 않는다.\n\n" +
-                    "- 삭제 상태가 아니면 409\n" +
-                    "- 같은 KOPIS 공연으로 만든 공연이 이미 있으면 409")
-    public ResponseEntity<CommonResponse<Void>> restoreImport(
-            @AuthenticationPrincipal Long adminId, HttpServletRequest req,
-            @Parameter(description = "검토 큐 id") @PathVariable Long id) {
-        concertImportService.restore(id);
-        accessLog.log(adminId, req, "RESTORE_IMPORT", "CONCERT", id, "삭제된 수집 공연 복원");
-        return ResponseEntity.ok(CommonResponse.success(null));
+        kopisSyncService.syncAll();
+        accessLog.log(adminId, req, "SYNC_KOPIS", "CONCERT", null, "KOPIS 공연 정보 수동 동기화");
+        return ResponseEntity.ok(CommonResponse.success("KOPIS 동기화 완료"));
     }
 
     // ================= COMPANION POSTS =================
@@ -844,72 +622,27 @@ public class AdminController {
     public record InquiryStatusReq(InquiryStatus status) {}
 
     public record ArtistRow(Long id, String name, String baseName, String nameKo, String nameAlias,
-                            String imageUrl, Nationality nationality, Long itunesArtistId,
-                            String artistViewUrl, String itunesArtistName, boolean itunesAutoLinked,
-                            String instagramUrl, String xUrl, String homepageUrl) {
+                            String imageUrl, ConcertCategory category) {
         static ArtistRow of(Artist a) {
             return new ArtistRow(a.getId(), a.getName(), a.getBaseName(), a.getNameKo(),
-                    a.getNameAlias(), a.getImageUrl(), a.getNationality(), a.getItunesArtistId(),
-                    a.getArtistViewUrl(), a.getItunesArtistName(), a.isItunesAutoLinked(),
-                    a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
+                    a.getNameAlias(), a.getImageUrl(), a.getCategory());
         }
     }
-    /** updated = 반영, unchanged = 바뀐 값 없음, failedRows = 아티스트를 못 찾았거나 값이 잘못된 행 번호(헤더 제외 1부터) */
-    public record ArtistLinkCsvResult(int updated, int unchanged, List<Long> failedRows) {}
-
-    // PUT이라 공식 링크(instagramUrl·xUrl·homepageUrl)도 통째로 교체된다 - 보내지 않으면 비워진다. http/https 주소만(아니면 400).
     public record ArtistReq(String name, String baseName, String nameKo, String nameAlias,
-                            String imageUrl,
-                            @Schema(description = "국적(JP 일본, KR 국내). 비우거나 보내지 않으면 null(PUT이라 기존 값도 지워진다)",
-                                    example = "JP", types = {"string", "null"})
-                            Nationality nationality,
-                            @Schema(description = "공식 인스타그램 URL. 비우거나 보내지 않으면 삭제",
-                                    example = "https://www.instagram.com/yuuri_official", types = {"string", "null"})
-                            String instagramUrl,
-                            @Schema(description = "공식 X URL. 비우거나 보내지 않으면 삭제",
-                                    example = "https://x.com/yuuri_official", types = {"string", "null"})
-                            String xUrl,
-                            @Schema(description = "공식 홈페이지 URL. 비우거나 보내지 않으면 삭제",
-                                    example = "https://yuuri.jp", types = {"string", "null"})
-                            String homepageUrl) {}
+                            String imageUrl, ConcertCategory category) {}
 
-
-    /**
-     * 승인 결과. 경로의 id(검토 큐)와 새로 만들어진 공연의 id가 다른 테이블 값이라, 이름으로 구분해 돌려준다.
-     * 승인 이후 공연 수정·포스터 업로드는 concertId로 한다.
-     */
-    @Schema(description = "검토 대기 공연 승인 결과")
-    public record ImportApproveResp(
-            @Schema(description = "승인한 검토 큐 id (요청 경로의 id와 같음)", requiredMode = Schema.RequiredMode.REQUIRED)
-            Long importId,
-            @Schema(description = "승인으로 새로 만들어진 공연 id. 이후 공연 수정·포스터 업로드에 쓴다",
-                    requiredMode = Schema.RequiredMode.REQUIRED)
-            Long concertId,
-            @Schema(description = "공연에 연결된 공연장 id(공연장 관리). KOPIS 조회 실패로 공연장을 정하지 못했으면 null",
-                    types = {"integer", "null"})
-            Long venueId) {
-        static ImportApproveResp of(Long importId, Concert c) {
-            return new ImportApproveResp(importId, c.getId(),
-                    c.getLinkedVenue() != null ? c.getLinkedVenue().getId() : null);
+    public record ConcertRow(Long id, Long artistId, String artistName, String title, String posterUrl,
+                             String venue, LocalDate startDate, LocalDate endDate, ConcertCategory category) {
+        static ConcertRow of(Concert c) {
+            return new ConcertRow(c.getId(),
+                    c.getArtist() != null ? c.getArtist().getId() : null,
+                    c.getArtist() != null ? c.getArtist().getName() : null,
+                    c.getTitle(), c.getPosterUrl(), c.getVenue(),
+                    c.getStartDate(), c.getEndDate(), c.getCategory());
         }
     }
-
-    public record ImportRow(Long id, String kopisId, String title, String posterUrl, String venue,
-                            LocalDate startDate, LocalDate endDate,
-                            Long matchedArtistId, String matchedArtistName,
-                            ConcertCategory suggestedCategory, String matchReason,
-                            ImportStatus status, Long publishedConcertId, String rejectReason,
-                            LocalDateTime collectedAt, LocalDateTime reviewedAt) {
-        static ImportRow of(ConcertImport i) {
-            return new ImportRow(i.getId(), i.getKopisId(), i.getTitle(), i.getPosterUrl(), i.getVenue(),
-                    i.getStartDate(), i.getEndDate(),
-                    i.getMatchedArtist() != null ? i.getMatchedArtist().getId() : null,
-                    i.getMatchedArtist() != null ? i.getMatchedArtist().getName() : null,
-                    i.getSuggestedCategory(), i.getMatchReason(),
-                    i.getStatus(), i.getPublishedConcertId(), i.getRejectReason(),
-                    i.getCollectedAt(), i.getReviewedAt());
-        }
-    }
+    public record ConcertReq(Long artistId, String title, String posterUrl, String venue,
+                             LocalDate startDate, LocalDate endDate, ConcertCategory category) {}
 
     public record CompanionRow(Long id, Long userId, String userNickname, Long concertId, String concertTitle,
                                String messageToCompanion, boolean visible, boolean sameGenderOnly, LocalDateTime createdAt) {
