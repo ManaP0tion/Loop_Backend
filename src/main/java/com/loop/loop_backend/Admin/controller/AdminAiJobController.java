@@ -49,14 +49,16 @@ public class AdminAiJobController {
                     "|---|---|---|\n" +
                     "| `CONCERT_ENRICH` | 모든 공연 | 티켓 정보(선예매·일반 예매 등) |\n" +
                     "| `FESTIVAL_LINEUP` | 페스티벌, 시작일 있음 | DAY별 라인업 |\n" +
-                    "| `SETLIST_ACTUAL` | 아직 지원하지 않음(400) | |\n\n" +
-                    "같은 공연·종류의 작업이 대기 중이거나 처리 중이면 새로 만들지 않고 그 작업 ID를 돌려준다(유료 호출 중복 방지). " +
+                    "| `SETLIST_ACTUAL` | 출연 정보 1개(`performanceId` 필수). 페스티벌은 헤드라이너만, 시작일 있음 | 실제 셋리스트(곡 순서, Loop 곡이면 songId) |\n\n" +
+                    "같은 공연·종류(셋리스트는 출연 정보까지)의 작업이 대기 중이거나 처리 중이면 새로 만들지 않고 그 작업 ID를 돌려준다(유료 호출 중복 방지). " +
+                    "셋리스트 결과는 자동 저장하지 않는다 - 첫 저장 때 결과 메일이 나가므로 관리자가 확인 후 기존 셋리스트 저장 API로 저장한다. " +
                     "실패 후 다시 시도하려면 이 API를 다시 부른다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "생성(또는 진행 중인 작업) ID"),
             @ApiResponse(responseCode = "400",
-                    description = "AI_JOB_UNSUPPORTED_TYPE(SETLIST_ACTUAL), AI_JOB_FESTIVAL_ONLY(단독 공연에 라인업), " +
-                            "AI_JOB_START_DATE_REQUIRED(시작일 없는 페스티벌에 라인업)",
+                    description = "AI_JOB_FESTIVAL_ONLY(단독 공연에 라인업), AI_JOB_START_DATE_REQUIRED(라인업·셋리스트인데 시작일 없음), " +
+                            "AI_JOB_PERFORMANCE_REQUIRED(셋리스트인데 performanceId 없음), " +
+                            "AI_JOB_PERFORMANCE_NOT_IN_CONCERT(그 공연의 출연 정보가 아님), AI_JOB_HEADLINER_ONLY(페스티벌 헤드라이너가 아님)",
                     content = @Content(examples = @ExampleObject(value = UNSUPPORTED_EXAMPLE))),
             @ApiResponse(responseCode = "404", description = "공연 없음")
     })
@@ -65,7 +67,7 @@ public class AdminAiJobController {
             @Valid @RequestBody AdminAiJobCreateRequest body) {
         AdminAiJobCreateResponse result = aiJobService.create(adminId, body);
         accessLog.log(adminId, req, "CREATE_AI_JOB", "CONCERT", body.concertId(),
-                "AI 작업 요청: " + body.type() + " (jobId " + result.jobId() + ")");
+                "AI 작업 요청: " + body.type() + performanceLabel(body.performanceId()) + " (jobId " + result.jobId() + ")");
         return ResponseEntity.ok(CommonResponse.success(result));
     }
 
@@ -86,25 +88,28 @@ public class AdminAiJobController {
             @Parameter(description = "작업 ID") @PathVariable Long jobId) {
         AdminAiJobResponse result = aiJobService.cancel(adminId, jobId);
         accessLog.log(adminId, req, "CANCEL_AI_JOB", "CONCERT", result.concertId(),
-                "AI 작업 취소: " + result.type() + " (jobId " + jobId + ")");
+                "AI 작업 취소: " + result.type() + performanceLabel(result.performanceId()) + " (jobId " + jobId + ")");
         return ResponseEntity.ok(CommonResponse.success(result));
     }
 
     @GetMapping("/latest")
     @Operation(summary = "공연·종류의 마지막 AI 작업",
             description = "화면에 들어오면 먼저 부른다 - 새로고침했거나 다른 관리자가 찾은 결과도 다시 찾지 않고(유료 호출) 쓴다. " +
-                    "상태와 관계없이 가장 최근 작업 1건을 상태 조회와 같은 형식으로 준다. " +
+                    "상태와 관계없이 가장 최근 작업 1건을 상태 조회와 같은 형식으로 준다(셋리스트는 출연 정보별로 따로). " +
                     "DONE이면 result로 미리 채우고(finishedAt 시점의 결과), PENDING·RUNNING이면 그 jobId로 상태 조회를 이어 가고, " +
                     "FAILED면 error를 보여 준다. 한 번도 찾은 적 없으면 204.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "가장 최근 작업"),
             @ApiResponse(responseCode = "204", description = "이 공연·종류로 만든 작업이 없음"),
-            @ApiResponse(responseCode = "400", description = "concertId·type 누락 또는 없는 type")
+            @ApiResponse(responseCode = "400", description = "concertId·type 누락, 없는 type, " +
+                    "SETLIST_ACTUAL인데 performanceId 없음(AI_JOB_PERFORMANCE_REQUIRED)")
     })
     public ResponseEntity<CommonResponse<AdminAiJobResponse>> latest(
             @Parameter(description = "공연 ID") @RequestParam Long concertId,
-            @Parameter(description = "작업 종류") @RequestParam AiJobType type) {
-        return aiJobService.findLatest(concertId, type)
+            @Parameter(description = "작업 종류") @RequestParam AiJobType type,
+            @Parameter(description = "출연 정보 ID. SETLIST_ACTUAL에서 필수, 다른 종류는 무시")
+            @RequestParam(required = false) Long performanceId) {
+        return aiJobService.findLatest(concertId, type, performanceId)
                 .map(job -> ResponseEntity.ok(CommonResponse.success(job)))
                 .orElseGet(() -> ResponseEntity.noContent().build());
     }
@@ -122,5 +127,9 @@ public class AdminAiJobController {
     public ResponseEntity<CommonResponse<AdminAiJobResponse>> get(
             @Parameter(description = "작업 ID") @PathVariable Long jobId) {
         return ResponseEntity.ok(CommonResponse.success(aiJobService.get(jobId)));
+    }
+
+    private static String performanceLabel(Long performanceId) {
+        return performanceId == null ? "" : " performanceId " + performanceId;
     }
 }

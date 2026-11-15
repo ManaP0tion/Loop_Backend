@@ -39,12 +39,15 @@ public interface AiJobRepository extends JpaRepository<AiJob, Long> {
               @Param("pending") AiJobStatus pending,
               @Param("running") AiJobStatus running);
 
-    /** 같은 대상의 진행 중인 작업(버튼 연타 방지). */
-    Optional<AiJob> findFirstByTypeAndConcertIdAndStatusInOrderByIdDesc(
-            AiJobType type, Long concertId, Collection<AiJobStatus> statuses);
+    /**
+     * 같은 대상의 진행 중인 작업(버튼 연타 방지). 대상 = (종류, 공연, 출연 정보).
+     * 셋리스트가 아닌 종류는 performanceId가 null이고, 메서드 이름 쿼리는 null을 "IS NULL"로 비교한다.
+     */
+    Optional<AiJob> findFirstByTypeAndConcertIdAndPerformanceIdAndStatusInOrderByIdDesc(
+            AiJobType type, Long concertId, Long performanceId, Collection<AiJobStatus> statuses);
 
-    /** 같은 대상의 가장 최근 작업(상태 무관). 어드민이 이미 찾은 결과를 다시 쓰기 위해. */
-    Optional<AiJob> findFirstByTypeAndConcertIdOrderByIdDesc(AiJobType type, Long concertId);
+    /** 같은 대상의 가장 최근 작업(상태 무관). 어드민이 이미 찾은 결과를 다시 쓰기 위해. performanceId null은 "IS NULL". */
+    Optional<AiJob> findFirstByTypeAndConcertIdAndPerformanceIdOrderByIdDesc(AiJobType type, Long concertId, Long performanceId);
 
     /** lease가 지난 RUNNING 작업(만료 처리 대상). */
     @Query("select j.id from AiJob j where j.status = :running and j.leaseUntil < :now")

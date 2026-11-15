@@ -2,8 +2,11 @@ package com.loop.loop_backend.AiJob.dto;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loop.loop_backend.AiJob.dto.payload.AiArtistPayload;
+import com.loop.loop_backend.AiJob.dto.payload.AiSongPayload;
 import com.loop.loop_backend.AiJob.dto.payload.ConcertEnrichPayload;
 import com.loop.loop_backend.AiJob.dto.payload.FestivalLineupPayload;
+import com.loop.loop_backend.AiJob.dto.payload.SetlistActualPayload;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -178,6 +181,38 @@ class AiJobDtoTest {
 
             assertThat(json.get("titleAliases").isArray()).isTrue();
             assertThat(json.get("titleAliases")).isEmpty();
+        }
+
+        @Test
+        void 셋리스트_payload는_아티스트_한_명과_곡_목록을_담고_곡이_없으면_빈_목록이다() {
+            SetlistActualPayload payload = new SetlistActualPayload(
+                    31L, ConcertCategory.STAGE, "YUURI LIVE 2026 IN SEOUL",
+                    new AiArtistPayload("Yuuri", null, "유우리", "優里"),
+                    LocalDate.of(2026, 12, 5), LocalDate.of(2026, 12, 6), "인스파이어 아레나", null, null);
+
+            JsonNode json = mapper.valueToTree(payload);
+
+            assertThat(json.get("artist").get("name").asText()).isEqualTo("Yuuri");
+            assertThat(json.get("startDate").asText()).isEqualTo("2026-12-05");
+            assertThat(json.get("songs").isArray()).isTrue();
+            assertThat(json.get("songs")).isEmpty();
+            assertThat(json.has("expectedSongCount")).isTrue();
+            assertThat(json.get("expectedSongCount").isNull()).isTrue();
+        }
+
+        @Test
+        void 셋리스트_payload의_곡은_AI가_돌려줄_id와_세_가지_제목을_담는다() {
+            SetlistActualPayload payload = new SetlistActualPayload(
+                    31L, ConcertCategory.STAGE, "YUURI LIVE 2026 IN SEOUL",
+                    new AiArtistPayload("Yuuri", null, "유우리", "優里"), LocalDate.of(2026, 12, 5), null, null, 22,
+                    java.util.List.of(new AiSongPayload(1L, "ドライフラワー", "Dry Flower", "드라이플라워")));
+
+            JsonNode song = mapper.valueToTree(payload).get("songs").get(0);
+
+            assertThat(song.get("id").asLong()).isEqualTo(1L);
+            assertThat(song.get("titleOriginal").asText()).isEqualTo("ドライフラワー");
+            assertThat(song.get("titleRomanized").asText()).isEqualTo("Dry Flower");
+            assertThat(song.get("titleKo").asText()).isEqualTo("드라이플라워");
         }
 
         @Test

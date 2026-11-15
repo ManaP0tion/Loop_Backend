@@ -20,7 +20,7 @@ import java.time.LocalDateTime;
  * <p>claim(PENDING → RUNNING)은 두 워커에 같은 작업을 주지 않도록 리포지토리의 조건부 UPDATE로 한다(엔티티 메서드 없음).
  * 그 UPDATE도 version을 올려, 같은 행을 엔티티로 고치던 쪽(결과 보고·만료 처리)이 충돌을 알아차리게 한다.
  *
- * <p>concert_id에 FK를 걸지 않는다 - 공연 삭제를 막지 않고, 작업 기록은 이력으로 남긴다.
+ * <p>concert_id·performance_id에 FK를 걸지 않는다 - 공연·출연 정보 삭제를 막지 않고, 작업 기록은 이력으로 남긴다.
  * payload·result는 Backend가 해석하지 않는 JSON 문자열이다(형식은 AI 서버 API가 정한다).
  */
 @Entity
@@ -54,6 +54,11 @@ public class AiJob {
 
     @Column(name = "concert_id", nullable = false)
     private Long concertId;
+
+    // 셋리스트(SETLIST_ACTUAL)만 쓴다 - 셋리스트는 출연 정보 단위라 페스티벌은 헤드라이너마다 작업이 따로 있다. 다른 종류는 null.
+    // 인덱스는 (type, concert_id, ...)로 찾고 같은 공연의 작업은 몇 건뿐이라 이 컬럼은 그 안에서 거른다.
+    @Column(name = "performance_id")
+    private Long performanceId;
 
     // LONGTEXT를 명시한다 - @Lob만 두면 Hibernate 6 MySQL 방언이 기본 길이(255)로 tinytext를 만들어
     // 255바이트를 넘는 JSON(공연 정보 payload, AI 결과)이 "Data too long"으로 저장되지 않는다. H2는 clob 별칭으로 받는다.
@@ -118,17 +123,19 @@ public class AiJob {
     @Column(name = "finished_at")
     private LocalDateTime finishedAt;
 
-    private AiJob(AiJobType type, Long concertId, String payload, Long createdBy) {
+    private AiJob(AiJobType type, Long concertId, Long performanceId, String payload, Long createdBy) {
         this.type = type;
         this.concertId = concertId;
+        this.performanceId = performanceId;
         this.payload = payload;
         this.createdBy = createdBy;
         this.status = AiJobStatus.PENDING;
         this.attempt = 0;
     }
 
-    public static AiJob create(AiJobType type, Long concertId, String payload, Long createdBy) {
-        return new AiJob(type, concertId, payload, createdBy);
+    /** performanceId는 셋리스트만 쓰고 다른 종류는 null. */
+    public static AiJob create(AiJobType type, Long concertId, Long performanceId, String payload, Long createdBy) {
+        return new AiJob(type, concertId, performanceId, payload, createdBy);
     }
 
     /**

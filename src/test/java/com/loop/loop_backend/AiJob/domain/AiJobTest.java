@@ -19,7 +19,7 @@ class AiJobTest {
     private static final LocalDateTime T10_00 = LocalDateTime.of(2026, 11, 20, 10, 0);
 
     private AiJob newJob() {
-        return AiJob.create(AiJobType.CONCERT_ENRICH, 31L, "{\"concertId\":31}", 1L);
+        return AiJob.create(AiJobType.CONCERT_ENRICH, 31L, null, "{\"concertId\":31}", 1L);
     }
 
     /**
