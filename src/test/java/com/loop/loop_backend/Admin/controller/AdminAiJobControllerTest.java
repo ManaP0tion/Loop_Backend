@@ -7,6 +7,7 @@ import com.loop.loop_backend.AiJob.domain.AiJobType;
 import com.loop.loop_backend.AiJob.dto.AdminAiJobCreateRequest;
 import com.loop.loop_backend.AiJob.dto.AdminAiJobCreateResponse;
 import com.loop.loop_backend.AiJob.dto.AdminAiJobResponse;
+import com.loop.loop_backend.AiJob.service.AiJobFeedbackService;
 import com.loop.loop_backend.AiJob.service.AiJobService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
@@ -44,6 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AdminAiJobControllerTest {
 
     @Mock AiJobService aiJobService;
+    @Mock AiJobFeedbackService aiJobFeedbackService;
     @Mock AdminAccessLogService accessLog;
     @InjectMocks AdminAiJobController controller;
 
@@ -220,6 +222,49 @@ class AdminAiJobControllerTest {
         mockMvc.perform(post("/api/admin/ai-jobs/{jobId}/cancel", 124L))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value(ErrorCode.AI_JOB_ALREADY_FINISHED.getMessage()));
+        verifyNoInteractions(accessLog);
+    }
+
+    @Test
+    void 처리_결과를_보내면_저장하고_접근_로그를_남긴다() throws Exception {
+        when(aiJobFeedbackService.replace(any(), eq(123L), any())).thenReturn(2);
+
+        mockMvc.perform(post("/api/admin/ai-jobs/{jobId}/feedback", 123L).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"items":[{"key":"generalSales.0.opens","outcome":"APPLIED"},
+                                          {"key":"showtime.2026-12-05","outcome":"EDITED","finalValue":"18:00"}]}"""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(accessLog).log(any(), any(), eq("AI_JOB_FEEDBACK"), eq("AI_JOB"), eq(123L), anyString());
+    }
+
+    @Test
+    void 처리_결과_형식이_틀리면_400이고_저장하지_않는다() throws Exception {
+        mockMvc.perform(post("/api/admin/ai-jobs/{jobId}/feedback", 123L).contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/admin/ai-jobs/{jobId}/feedback", 123L).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"items":[{"key":"d1-0","outcome":"IGNORED"}]}"""))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/admin/ai-jobs/{jobId}/feedback", 123L).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"items":[{"key":"d1-0","outcome":"APPLIED"},{"key":"d1-0","outcome":"NOT_APPLIED"}]}"""))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(aiJobFeedbackService);
+    }
+
+    @Test
+    void 결과가_없는_작업에_처리_결과를_보내면_409() throws Exception {
+        when(aiJobFeedbackService.replace(any(), eq(124L), any()))
+                .thenThrow(new BusinessException(ErrorCode.AI_JOB_FEEDBACK_NOT_DONE));
+
+        mockMvc.perform(post("/api/admin/ai-jobs/{jobId}/feedback", 124L).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"items":[]}"""))
+                .andExpect(status().isConflict());
         verifyNoInteractions(accessLog);
     }
 

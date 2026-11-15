@@ -28,12 +28,16 @@ class AiJobColumnTypeTest {
     }
 
     private String mysqlColumnType(String property) {
+        return mysqlColumnType(AiJob.class, property);
+    }
+
+    private String mysqlColumnType(Class<?> entityClass, String property) {
         registry = new StandardServiceRegistryBuilder()
                 .applySetting("hibernate.dialect", "org.hibernate.dialect.MySQLDialect")
                 .applySetting("hibernate.boot.allow_jdbc_metadata_access", "false")
                 .build();
-        Metadata metadata = new MetadataSources(registry).addAnnotatedClass(AiJob.class).buildMetadata();
-        PersistentClass entity = metadata.getEntityBinding(AiJob.class.getName());
+        Metadata metadata = new MetadataSources(registry).addAnnotatedClass(entityClass).buildMetadata();
+        PersistentClass entity = metadata.getEntityBinding(entityClass.getName());
         Column column = (Column) entity.getProperty(property).getColumns().get(0);
         return column.getSqlType(metadata).toLowerCase();
     }
@@ -58,5 +62,11 @@ class AiJobColumnTypeTest {
     void 상태와_종류는_MySQL에서_값을_늘려도_저장되는_varchar다() {
         assertThat(mysqlColumnType("status")).startsWith("varchar");
         assertThat(mysqlColumnType("type")).startsWith("varchar");
+    }
+
+    // 처리 결과 종류도 늘어날 수 있다 - 네이티브 enum이면 기존 테이블에 새 값을 저장할 수 없다
+    @Test
+    void 피드백_처리_결과는_MySQL에서_varchar다() {
+        assertThat(mysqlColumnType(AiJobFeedback.class, "outcome")).startsWith("varchar");
     }
 }

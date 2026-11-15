@@ -217,6 +217,11 @@ public class AiJob {
         fail(LEASE_EXPIRED, LEASE_EXPIRED_MESSAGE, true, now);
     }
 
+    /** 관리자 처리 결과(피드백)를 받을지. AI 결과가 있는 작업만 - 결과를 어떻게 썼는지에 대한 기록이므로. */
+    public boolean canReceiveFeedback() {
+        return status == AiJobStatus.DONE;
+    }
+
     public boolean isLeaseExpired() {
         return status == AiJobStatus.FAILED && LEASE_EXPIRED.equals(errorCode);
     }
