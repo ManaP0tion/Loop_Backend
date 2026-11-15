@@ -5,12 +5,14 @@ import com.loop.loop_backend.User.domain.Role;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
+import com.loop.loop_backend.User.service.NicknameGenerator;
 import com.loop.loop_backend.auth.dto.KakaoLoginResult;
 import com.loop.loop_backend.auth.dto.KakaoTokenResponseDto;
 import com.loop.loop_backend.auth.dto.KakaoUserInfoDto;
 import com.loop.loop_backend.auth.dto.TokenResponseDto;
 import com.loop.loop_backend.common.jwt.JwtTokenProvider;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -41,11 +43,15 @@ class KakaoAuthServiceTest {
     @Mock JwtTokenProvider jwtTokenProvider;
     @Mock RefreshTokenService refreshTokenService;
     @Mock AdminTwoFactorService adminTwoFactorService;
+    @Mock NicknameGenerator nicknameGenerator;
     @Mock RestTemplate restTemplate;
     @InjectMocks KakaoAuthService kakaoAuthService;
 
     private static final String REDIRECT_URI = "https://loop.io.kr/oauth/callback";
     private static final String KAKAO_PROVIDER_ID = "99";
+    private static final String RANDOM_NICKNAME = "달빛군청";
+
+    private KakaoUserInfoDto userInfo;
 
     @BeforeEach
     void setUp() {
@@ -58,8 +64,9 @@ class KakaoAuthServiceTest {
         KakaoTokenResponseDto tokenResponse = new KakaoTokenResponseDto();
         ReflectionTestUtils.setField(tokenResponse, "accessToken", "kakao-access-token");
 
-        KakaoUserInfoDto userInfo = new KakaoUserInfoDto();
+        userInfo = new KakaoUserInfoDto();
         ReflectionTestUtils.setField(userInfo, "id", Long.valueOf(KAKAO_PROVIDER_ID));
+        when(nicknameGenerator.generateUnique()).thenReturn(RANDOM_NICKNAME);
 
         when(restTemplate.postForEntity(eq("https://kauth.kakao.com/oauth/token"), any(HttpEntity.class), eq(KakaoTokenResponseDto.class)))
                 .thenReturn(ResponseEntity.ok(tokenResponse));
@@ -179,6 +186,137 @@ class KakaoAuthServiceTest {
         assertThat(result.twoFactorRequired()).isFalse();
         assertThat(result.tokens()).isNotNull();
         verify(adminTwoFactorService, never()).startChallenge(any(), any());
+    }
+
+    // ---------- 카카오 첫 로그인 때 비어 있는 닉네임·이메일 채우기 ----------
+    // 요구사항:
+    // - 닉네임: 비어 있으면(신규 가입, 탈퇴 후 재가입) 랜덤 닉네임을 저장한다. 이미 있으면 바꾸지 않는다.
+    // - 이메일: 카카오가 유효·인증 완료라고 준 이메일만, 비어 있을 때만 저장한다.
+    //   다른 계정이 이미 쓰는 이메일이면 저장하지 않고 로그인은 그대로 된다.
+
+    /** 카카오 사용자 정보 응답의 kakao_account를 흉내낸다. */
+    private void givenKakaoEmail(String email, boolean valid, boolean verified) {
+        KakaoUserInfoDto.KakaoAccount account = new KakaoUserInfoDto.KakaoAccount();
+        ReflectionTestUtils.setField(account, "email", email);
+        ReflectionTestUtils.setField(account, "emailValid", valid);
+        ReflectionTestUtils.setField(account, "emailVerified", verified);
+        ReflectionTestUtils.setField(userInfo, "kakaoAccount", account);
+    }
+
+    private User givenNewUser() {
+        when(userRepository.findByAuthProviderAndProviderId(AuthProvider.KAKAO, KAKAO_PROVIDER_ID))
+                .thenReturn(Optional.empty());
+        User[] saved = new User[1];
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            saved[0] = invocation.getArgument(0);
+            ReflectionTestUtils.setField(saved[0], "id", 2L);
+            return saved[0];
+        });
+        kakaoAuthService.login("auth-code", REDIRECT_URI);
+        return saved[0];
+    }
+
+    @Test
+    @DisplayName("카카오로 처음 가입하면 랜덤 닉네임이 저장된다")
+    void login_NewUser_AssignsRandomNickname() {
+        // when
+        User user = givenNewUser();
+
+        // then
+        assertThat(user.getNickname()).isEqualTo(RANDOM_NICKNAME);
+    }
+
+    @Test
+    @DisplayName("탈퇴 후 다시 가입하면 랜덤 닉네임을 새로 받는다")
+    void login_Reactivated_AssignsRandomNickname() {
+        // given
+        User withdrawn = existingUserWith(false, true, 1L);
+        withdrawn.withdraw();
+        when(userRepository.findByAuthProviderAndProviderId(AuthProvider.KAKAO, KAKAO_PROVIDER_ID))
+                .thenReturn(Optional.of(withdrawn));
+
+        // when
+        kakaoAuthService.login("auth-code", REDIRECT_URI);
+
+        // then
+        assertThat(withdrawn.getNickname()).isEqualTo(RANDOM_NICKNAME);
+    }
+
+    @Test
+    @DisplayName("이미 닉네임이 있는 회원은 다시 로그인해도 닉네임이 바뀌지 않는다")
+    void login_WithNickname_KeepsNickname() {
+        // given
+        User existing = existingUserWith(false, true, 1L);
+        existing.assignNickname("유우리팬");
+        when(userRepository.findByAuthProviderAndProviderId(AuthProvider.KAKAO, KAKAO_PROVIDER_ID))
+                .thenReturn(Optional.of(existing));
+
+        // when
+        kakaoAuthService.login("auth-code", REDIRECT_URI);
+
+        // then
+        assertThat(existing.getNickname()).isEqualTo("유우리팬");
+        verify(nicknameGenerator, never()).generateUnique();
+    }
+
+    @Test
+    @DisplayName("카카오가 인증한 이메일은 가입할 때 저장된다")
+    void login_NewUserWithVerifiedEmail_SavesEmail() {
+        // given
+        givenKakaoEmail("fan@kakao.com", true, true);
+
+        // when
+        User user = givenNewUser();
+
+        // then
+        assertThat(user.getEmail()).isEqualTo("fan@kakao.com");
+    }
+
+    @Test
+    @DisplayName("카카오가 인증하지 않았거나 유효하지 않은 이메일은 저장하지 않는다")
+    void login_UnverifiedEmail_DoesNotSave() {
+        // given
+        givenKakaoEmail("fan@kakao.com", true, false);
+
+        // when
+        User user = givenNewUser();
+
+        // then
+        assertThat(user.getEmail()).isNull();
+    }
+
+    @Test
+    @DisplayName("이메일을 이미 인증한 회원은 카카오 이메일로 덮어쓰지 않는다")
+    void login_WithEmail_KeepsEmail() {
+        // given
+        givenKakaoEmail("fan@kakao.com", true, true);
+        User existing = existingUserWith(true, true, 1L);
+        when(userRepository.findByAuthProviderAndProviderId(AuthProvider.KAKAO, KAKAO_PROVIDER_ID))
+                .thenReturn(Optional.of(existing));
+
+        // when
+        kakaoAuthService.login("auth-code", REDIRECT_URI);
+
+        // then
+        assertThat(existing.getEmail()).isEqualTo("user@example.com");
+    }
+
+    @Test
+    @DisplayName("다른 계정이 이미 쓰는 이메일이면 저장하지 않고 로그인은 성공한다")
+    void login_EmailUsedByOther_SkipsEmailAndLogsIn() {
+        // given
+        givenKakaoEmail("fan@kakao.com", true, true);
+        when(userRepository.existsByEmail("fan@kakao.com")).thenReturn(true);
+        User existing = existingUserWith(false, true, 1L);
+        when(userRepository.findByAuthProviderAndProviderId(AuthProvider.KAKAO, KAKAO_PROVIDER_ID))
+                .thenReturn(Optional.of(existing));
+
+        // when
+        KakaoLoginResult result = kakaoAuthService.login("auth-code", REDIRECT_URI);
+
+        // then
+        assertThat(existing.getEmail()).isNull();
+        assertThat(result.tokens().getAccessToken()).isEqualTo("access-token");
     }
 
     private User adminUserWith(long id, String email) {

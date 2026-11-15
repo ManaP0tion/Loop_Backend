@@ -3,6 +3,7 @@ package com.loop.loop_backend.CompanionHeart.controller;
 import com.loop.loop_backend.CompanionHeart.dto.HeartedConcertDetailDto;
 import com.loop.loop_backend.CompanionHeart.dto.HeartedConcertSummaryDto;
 import com.loop.loop_backend.CompanionHeart.service.CompanionHeartService;
+import com.loop.loop_backend.Concert.domain.CompanionStatus;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
@@ -86,14 +87,16 @@ class CompanionHeartControllerTest {
     @Test
     void 하트탭_메인_조회시_200과_콘서트별_요약을_반환한다() throws Exception {
         when(companionHeartService.getMyHeartedConcerts(USER_ID)).thenReturn(List.of(
-                new HeartedConcertSummaryDto(1L, "콘서트1", 5L, "아이유", null, null, "잠실종합운동장", 3, List.of())
+                new HeartedConcertSummaryDto(1L, "콘서트1", 5L, "아이유", null, null, "잠실종합운동장", 3, List.of(),
+                        CompanionStatus.CLOSED)
         ));
 
         mockMvc.perform(get("/api/companions/me/hearts"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))
                 .andExpect(jsonPath("$.data[0].concertTitle").value("콘서트1"))
-                .andExpect(jsonPath("$.data[0].venue").value("잠실종합운동장"));
+                .andExpect(jsonPath("$.data[0].venue").value("잠실종합운동장"))
+                .andExpect(jsonPath("$.data[0].companionStatus").value("CLOSED"));
     }
 
     // ── GET /me/hearts/{concertId} ───────────────────────────────────────
@@ -102,11 +105,12 @@ class CompanionHeartControllerTest {
     void 하트탭_콘서트_상세_조회시_200과_day별_그룹을_반환한다() throws Exception {
         when(companionHeartService.getMyHeartedCompanionsByConcert(USER_ID, 1L))
                 .thenReturn(new HeartedConcertDetailDto(1L, "콘서트1", 5L, "아이유", null, null,
-                        Map.of(WatchDay.DAY1, List.of())));
+                        Map.of(WatchDay.DAY1, List.of()), CompanionStatus.OPEN));
 
         mockMvc.perform(get("/api/companions/me/hearts/{concertId}", 1L))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.concertTitle").value("콘서트1"));
+                .andExpect(jsonPath("$.data.concertTitle").value("콘서트1"))
+                .andExpect(jsonPath("$.data.companionStatus").value("OPEN"));
     }
 
     @Test
