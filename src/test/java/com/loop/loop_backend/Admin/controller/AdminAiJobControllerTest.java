@@ -26,6 +26,9 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -161,6 +164,38 @@ class AdminAiJobControllerTest {
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(aiJobService);
+    }
+
+    @Test
+    void 작업을_취소하면_CANCELED_상태를_받고_접근_로그를_남긴다() throws Exception {
+        when(aiJobService.cancel(any(), eq(123L))).thenReturn(new AdminAiJobResponse(
+                123L, AiJobType.CONCERT_ENRICH, 31L, AiJobStatus.CANCELED, null, null, 0,
+                LocalDateTime.of(2026, 11, 20, 10, 0), LocalDateTime.of(2026, 11, 20, 10, 5)));
+
+        mockMvc.perform(post("/api/admin/ai-jobs/{jobId}/cancel", 123L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.jobId").value(123))
+                .andExpect(jsonPath("$.data.status").value("CANCELED"));
+
+        verify(accessLog).log(any(), any(), eq("CANCEL_AI_JOB"), eq("CONCERT"), eq(31L), anyString());
+    }
+
+    @Test
+    void 없는_작업을_취소하면_404() throws Exception {
+        when(aiJobService.cancel(any(), eq(999L))).thenThrow(new BusinessException(ErrorCode.AI_JOB_NOT_FOUND));
+
+        mockMvc.perform(post("/api/admin/ai-jobs/{jobId}/cancel", 999L))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void 이미_끝난_작업을_취소하면_409() throws Exception {
+        when(aiJobService.cancel(any(), eq(124L))).thenThrow(new BusinessException(ErrorCode.AI_JOB_ALREADY_FINISHED));
+
+        mockMvc.perform(post("/api/admin/ai-jobs/{jobId}/cancel", 124L))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(ErrorCode.AI_JOB_ALREADY_FINISHED.getMessage()));
+        verifyNoInteractions(accessLog);
     }
 
     @Test

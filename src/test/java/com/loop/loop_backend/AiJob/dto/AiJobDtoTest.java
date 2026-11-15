@@ -88,6 +88,21 @@ class AiJobDtoTest {
         }
 
         @Test
+        void 분석_정보는_없어도_되고_어떤_형식이어도_결과_보고를_막지_않는다() throws Exception {
+            assertThat(validResult("""
+                    {"workerId":"pm-macbook","attempt":1,"status":"DONE","result":{}}""")).isTrue();
+            assertThat(validResult("""
+                    {"workerId":"pm-macbook","attempt":1,"status":"DONE","result":{},
+                     "meta":{"model":"claude-haiku-5-5","llmCalls":[{"inputTokens":6855}]}}""")).isTrue();
+            assertThat(validResult("""
+                    {"workerId":"pm-macbook","attempt":1,"status":"FAILED",
+                     "error":{"code":"LLM_FAILED","message":"실패","retryable":true},
+                     "meta":"LLM 응답 오류: HTTP 401"}""")).isTrue();
+            assertThat(validResult("""
+                    {"workerId":"pm-macbook","attempt":1,"status":"DONE","result":{},"meta":null}""")).isTrue();
+        }
+
+        @Test
         void 워커_식별자와_시도_번호는_필수다() throws Exception {
             assertThat(validResult("""
                     {"attempt":1,"status":"DONE","result":{}}""")).isFalse();

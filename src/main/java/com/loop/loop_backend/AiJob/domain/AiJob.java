@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
  *
  * <p>상태 흐름: PENDING → (claim) RUNNING → (결과 보고) DONE / FAILED.
  * RUNNING인데 lease가 지나면 시도 횟수에 따라 PENDING으로 되돌리거나 FAILED(LEASE_EXPIRED)로 끝낸다.
+ * 관리자는 PENDING·RUNNING 작업을 취소(CANCELED)할 수 있다.
  *
  * <p>claim(PENDING → RUNNING)은 두 워커에 같은 작업을 주지 않도록 리포지토리의 조건부 UPDATE로 한다(엔티티 메서드 없음).
  * 그 UPDATE도 version을 올려, 같은 행을 엔티티로 고치던 쪽(결과 보고·만료 처리)이 충돌을 알아차리게 한다.
@@ -45,8 +46,10 @@ public class AiJob {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // enum 컬럼은 varchar를 명시한다 - 그대로 두면 Hibernate 6 MySQL 방언이 네이티브 enum('A','B')을 만들고,
+    // ddl-auto: update는 기존 컬럼을 바꾸지 않아 값을 추가하면(예: CANCELED) 저장할 때 "Data truncated"가 난다.
     @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false, length = 30)
+    @Column(name = "type", nullable = false, columnDefinition = "varchar(30)")
     private AiJobType type;
 
     @Column(name = "concert_id", nullable = false)
@@ -59,12 +62,17 @@ public class AiJob {
     private String payload;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
+    @Column(name = "status", nullable = false, columnDefinition = "varchar(20)")
     private AiJobStatus status;
 
     @Lob
     @Column(name = "result", columnDefinition = "LONGTEXT")
     private String result;
+
+    // 워커의 분석 정보(출처·토큰·소요 시간·실패 원인 등) JSON. 내부 추적용이라 어드민 응답에는 내보내지 않는다
+    @Lob
+    @Column(name = "meta", columnDefinition = "LONGTEXT")
+    private String meta;
 
     // 워커가 새 코드를 추가해도 Backend를 고치지 않도록 enum이 아닌 문자열로 둔다
     @Column(name = "error_code", length = 50)
@@ -95,6 +103,10 @@ public class AiJob {
     // 작업을 만든 관리자 ID
     @Column(name = "created_by", nullable = false)
     private Long createdBy;
+
+    // 작업을 취소한 관리자 ID
+    @Column(name = "canceled_by")
+    private Long canceledBy;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -139,7 +151,7 @@ public class AiJob {
         return switch (status) {
             case RUNNING, PENDING -> true;
             case FAILED -> isLeaseExpired();
-            case DONE -> false;
+            case DONE, CANCELED -> false;
         };
     }
 
@@ -159,6 +171,22 @@ public class AiJob {
         this.errorMessage = errorMessage;
         this.errorRetryable = retryable;
         finish(now);
+    }
+
+    /**
+     * 관리자 취소. 취소할 수 있는지는 isInProgress로 먼저 확인한다.
+     * 처리 중(RUNNING)이었다면 워커는 계속 처리하지만, 그 결과는 받지 않는다(canAcceptResult).
+     * worker_id·attempt는 기록으로 남긴다.
+     */
+    public void cancel(Long adminId, LocalDateTime now) {
+        this.status = AiJobStatus.CANCELED;
+        this.canceledBy = adminId;
+        finish(now);
+    }
+
+    /** 결과와 함께 온 분석 정보. 받은 결과에만 붙인다(거절한 보고의 정보는 남기지 않는다). */
+    public void recordMeta(String meta) {
+        this.meta = meta;
     }
 
     public boolean isLeaseOver(LocalDateTime now) {
@@ -186,7 +214,10 @@ public class AiJob {
         return status == AiJobStatus.FAILED && LEASE_EXPIRED.equals(errorCode);
     }
 
-    /** 같은 대상에 새 작업을 만들지 말고 이 작업을 돌려줄지(버튼 연타로 같은 유료 호출이 여러 번 나가는 것 방지). */
+    /**
+     * 같은 대상에 새 작업을 만들지 말고 이 작업을 돌려줄지(버튼 연타로 같은 유료 호출이 여러 번 나가는 것 방지).
+     * 관리자가 취소할 수 있는 작업도 이것뿐이다.
+     */
     public boolean isInProgress() {
         return status == AiJobStatus.PENDING || status == AiJobStatus.RUNNING;
     }
