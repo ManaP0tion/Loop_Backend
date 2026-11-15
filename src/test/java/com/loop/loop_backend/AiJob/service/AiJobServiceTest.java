@@ -17,6 +17,10 @@ import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
+import com.loop.loop_backend.Performance.domain.Performance;
+import com.loop.loop_backend.Performance.repository.PerformanceRepository;
+import com.loop.loop_backend.Song.Repository.SongRepository;
+import com.loop.loop_backend.Song.domain.Song;
 import com.loop.loop_backend.Venue.domain.Venue;
 import com.loop.loop_backend.Venue.repository.VenueRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -62,6 +66,8 @@ class AiJobServiceTest {
     @Autowired private ConcertRepository concertRepository;
     @Autowired private ArtistRepository artistRepository;
     @Autowired private VenueRepository venueRepository;
+    @Autowired private PerformanceRepository performanceRepository;
+    @Autowired private SongRepository songRepository;
     @Autowired private PlatformTransactionManager transactionManager;
     @Autowired private EntityManager em;
 
@@ -70,7 +76,8 @@ class AiJobServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AiJobService(aiJobRepository, concertRepository, new AiJobPayloadBuilder(),
+        service = new AiJobService(aiJobRepository, concertRepository, performanceRepository, songRepository,
+                new AiJobPayloadBuilder(),
                 mapper, new TransactionTemplate(transactionManager));
     }
 
@@ -94,7 +101,7 @@ class AiJobServiceTest {
     }
 
     private Long createJob(AiJobType type, Concert concert) {
-        return service.create(ADMIN, new AdminAiJobCreateRequest(type, concert.getId())).jobId();
+        return service.create(ADMIN, new AdminAiJobCreateRequest(type, concert.getId(), null)).jobId();
     }
 
     private AiJob reload(Long jobId) {
@@ -353,14 +360,8 @@ class AiJobServiceTest {
 
         @Test
         void 없는_공연이면_404() {
-            assertErrorCode(() -> service.create(ADMIN, new AdminAiJobCreateRequest(AiJobType.CONCERT_ENRICH, 999L)),
+            assertErrorCode(() -> service.create(ADMIN, new AdminAiJobCreateRequest(AiJobType.CONCERT_ENRICH, 999L, null)),
                     ErrorCode.CONCERT_NOT_FOUND);
-        }
-
-        @Test
-        void 셋리스트는_아직_지원하지_않는다() {
-            Concert concert = stage();
-            assertErrorCode(() -> createJob(AiJobType.SETLIST_ACTUAL, concert), ErrorCode.AI_JOB_UNSUPPORTED_TYPE);
         }
 
         @Test
@@ -433,7 +434,7 @@ class AiJobServiceTest {
         void 한_번도_찾은_적_없으면_빈_값() {
             Concert concert = stage();
 
-            assertThat(service.findLatest(concert.getId(), AiJobType.CONCERT_ENRICH)).isEmpty();
+            assertThat(service.findLatest(concert.getId(), AiJobType.CONCERT_ENRICH, null)).isEmpty();
         }
 
         @Test
@@ -445,7 +446,7 @@ class AiJobServiceTest {
             em.flush();
             em.clear();
 
-            AdminAiJobResponse latest = service.findLatest(concert.getId(), AiJobType.CONCERT_ENRICH).orElseThrow();
+            AdminAiJobResponse latest = service.findLatest(concert.getId(), AiJobType.CONCERT_ENRICH, null).orElseThrow();
 
             assertThat(latest.jobId()).isEqualTo(job);
             assertThat(latest.status()).isEqualTo(AiJobStatus.DONE);
@@ -463,7 +464,7 @@ class AiJobServiceTest {
             service.claim(A, ALL_TYPES);
             service.report(second, failed(A, 1, "SEARCH_FAILED", "검색에 실패했습니다.", true));
 
-            AdminAiJobResponse latest = service.findLatest(concert.getId(), AiJobType.CONCERT_ENRICH).orElseThrow();
+            AdminAiJobResponse latest = service.findLatest(concert.getId(), AiJobType.CONCERT_ENRICH, null).orElseThrow();
 
             assertThat(latest.jobId()).isEqualTo(second);
             assertThat(latest.status()).isEqualTo(AiJobStatus.FAILED);
@@ -477,7 +478,7 @@ class AiJobServiceTest {
             Concert concert = stage();
             Long job = createJob(AiJobType.CONCERT_ENRICH, concert);
 
-            AdminAiJobResponse latest = service.findLatest(concert.getId(), AiJobType.CONCERT_ENRICH).orElseThrow();
+            AdminAiJobResponse latest = service.findLatest(concert.getId(), AiJobType.CONCERT_ENRICH, null).orElseThrow();
 
             assertThat(latest.jobId()).isEqualTo(job);
             assertThat(latest.status()).isEqualTo(AiJobStatus.PENDING);
@@ -491,9 +492,9 @@ class AiJobServiceTest {
             createJob(AiJobType.FESTIVAL_LINEUP, festival);
             createJob(AiJobType.CONCERT_ENRICH, other);
 
-            assertThat(service.findLatest(festival.getId(), AiJobType.CONCERT_ENRICH).orElseThrow().jobId())
+            assertThat(service.findLatest(festival.getId(), AiJobType.CONCERT_ENRICH, null).orElseThrow().jobId())
                     .isEqualTo(enrich);
-            assertThat(service.findLatest(other.getId(), AiJobType.FESTIVAL_LINEUP)).isEmpty();
+            assertThat(service.findLatest(other.getId(), AiJobType.FESTIVAL_LINEUP, null)).isEmpty();
         }
     }
 
@@ -578,7 +579,7 @@ class AiJobServiceTest {
             Long job = createJob(AiJobType.CONCERT_ENRICH, concert);
             service.cancel(ADMIN, job);
 
-            AdminAiJobResponse latest = service.findLatest(concert.getId(), AiJobType.CONCERT_ENRICH).orElseThrow();
+            AdminAiJobResponse latest = service.findLatest(concert.getId(), AiJobType.CONCERT_ENRICH, null).orElseThrow();
 
             assertThat(latest.jobId()).isEqualTo(job);
             assertThat(latest.status()).isEqualTo(AiJobStatus.CANCELED);
@@ -673,6 +674,221 @@ class AiJobServiceTest {
 
             assertThat(response.has("meta")).isFalse();
             assertThat(response.toString()).doesNotContain("claude-haiku-5-5");
+        }
+    }
+
+    /**
+     * 후속 작업 2절: 셋리스트는 출연 정보(performance) 단위다. 단독 공연은 출연 정보 1개, 페스티벌은 헤드라이너마다.
+     * payload는 그 출연 정보의 아티스트 한 명과 그 아티스트의 곡 목록(AI가 songId로 맞춘다)을 담는다.
+     */
+    @Nested
+    class 셋리스트_작업 {
+
+        private Artist yuuri() {
+            return artistRepository.save(Artist.builder().name("Yuuri").nameKo("유우리").nameAlias("優里")
+                    .nationality(Nationality.JP).build());
+        }
+
+        private Performance solo(Concert concert, Artist artist) {
+            return performanceRepository.save(Performance.solo(concert, artist));
+        }
+
+        private Performance lineup(Concert festival, Artist artist, boolean headliner, int... days) {
+            Performance performance = Performance.builder().concert(festival).artist(artist)
+                    .day(days[0]).displayOrder(1).build();
+            for (int i = 1; i < days.length; i++) {
+                performance.addDay(days[i]);
+            }
+            performance.changeHeadliner(headliner);
+            return performanceRepository.save(performance);
+        }
+
+        private Song song(Artist artist, String original, String romanized, String ko, int order) {
+            return songRepository.save(Song.builder().artist(artist).titleOriginal(original)
+                    .titleRomanized(romanized).titleKo(ko).sortOrder(order).build());
+        }
+
+        private Long createSetlist(Concert concert, Long performanceId) {
+            return service.create(ADMIN, new AdminAiJobCreateRequest(AiJobType.SETLIST_ACTUAL, concert.getId(), performanceId))
+                    .jobId();
+        }
+
+        private JsonNode payloadOf(Long jobId) throws Exception {
+            return mapper.readTree(reload(jobId).getPayload());
+        }
+
+        @Test
+        void 단독_공연_셋리스트는_아티스트와_곡_목록과_예상_곡_수와_공연_기간을_담는다() throws Exception {
+            Artist artist = yuuri();
+            Concert concert = concertRepository.save(Concert.builder()
+                    .title("YUURI LIVE 2026 IN SEOUL").category(ConcertCategory.STAGE).artist(artist)
+                    .startDate(LocalDate.of(2026, 12, 5)).endDate(LocalDate.of(2026, 12, 6))
+                    .venue("인스파이어 아레나").build());
+            Performance performance = solo(concert, artist);
+            performance.changeExpectedSongCount(22);
+            Song dry = song(artist, "ドライフラワー", "Dry Flower", "드라이플라워", 1);
+            Song kakurenbo = song(artist, "かくれんぼ", "Kakurenbo", "숨바꼭질", 2);
+
+            Long job = createSetlist(concert, performance.getId());
+
+            AiJob saved = reload(job);
+            assertThat(saved.getType()).isEqualTo(AiJobType.SETLIST_ACTUAL);
+            assertThat(saved.getPerformanceId()).isEqualTo(performance.getId());
+            JsonNode payload = payloadOf(job);
+            assertThat(payload.get("concertId").asLong()).isEqualTo(concert.getId());
+            assertThat(payload.get("category").asText()).isEqualTo("STAGE");
+            assertThat(payload.get("title").asText()).isEqualTo("YUURI LIVE 2026 IN SEOUL");
+            assertThat(payload.get("artist").get("name").asText()).isEqualTo("Yuuri");
+            assertThat(payload.get("artist").get("nameKo").asText()).isEqualTo("유우리");
+            assertThat(payload.get("artist").get("nameAlias").asText()).isEqualTo("優里");
+            assertThat(payload.get("startDate").asText()).isEqualTo("2026-12-05");
+            assertThat(payload.get("endDate").asText()).isEqualTo("2026-12-06");
+            assertThat(payload.get("venueName").asText()).isEqualTo("인스파이어 아레나");
+            assertThat(payload.get("expectedSongCount").asInt()).isEqualTo(22);
+            assertThat(payload.get("songs")).hasSize(2);
+            assertThat(payload.get("songs").get(0).get("id").asLong()).isEqualTo(dry.getId());
+            assertThat(payload.get("songs").get(0).get("titleOriginal").asText()).isEqualTo("ドライフラワー");
+            assertThat(payload.get("songs").get(0).get("titleRomanized").asText()).isEqualTo("Dry Flower");
+            assertThat(payload.get("songs").get(0).get("titleKo").asText()).isEqualTo("드라이플라워");
+            assertThat(payload.get("songs").get(1).get("id").asLong()).isEqualTo(kakurenbo.getId());
+        }
+
+        @Test
+        void 삭제된_곡은_곡_목록에서_빠지고_곡이_없으면_빈_목록이다() throws Exception {
+            Artist artist = yuuri();
+            Concert concert = stage();
+            Performance performance = solo(concert, artist);
+            Song deleted = song(artist, "旧曲", null, null, 1);
+            songRepository.delete(deleted);
+            em.flush();
+            em.clear();
+
+            JsonNode payload = payloadOf(createSetlist(concert, performance.getId()));
+
+            assertThat(payload.get("songs").isArray()).isTrue();
+            assertThat(payload.get("songs")).isEmpty();
+            assertThat(payload.get("expectedSongCount").isNull()).isTrue();
+        }
+
+        @Test
+        void 페스티벌_헤드라이너는_그_아티스트가_출연하는_DAY의_날짜로_찾는다() throws Exception {
+            Artist artist = yuuri();
+            Concert festival = festival(LocalDate.of(2026, 11, 20));
+            Performance headliner = lineup(festival, artist, true, 2, 3);
+
+            JsonNode payload = payloadOf(createSetlist(festival, headliner.getId()));
+
+            assertThat(payload.get("category").asText()).isEqualTo("FESTIVAL");
+            assertThat(payload.get("title").asText()).isEqualTo("WONDERLIVET 2026");
+            assertThat(payload.get("artist").get("name").asText()).isEqualTo("Yuuri");
+            assertThat(payload.get("startDate").asText()).isEqualTo("2026-11-21");
+            assertThat(payload.get("endDate").asText()).isEqualTo("2026-11-22");
+        }
+
+        @Test
+        void 출연_정보를_지정하지_않으면_400() {
+            Concert concert = stage();
+            solo(concert, yuuri());
+
+            assertErrorCode(() -> createSetlist(concert, null), ErrorCode.AI_JOB_PERFORMANCE_REQUIRED);
+        }
+
+        @Test
+        void 다른_공연의_출연_정보이거나_없는_출연_정보면_400() {
+            Concert concert = stage();
+            Concert other = stage();
+            Performance othersPerformance = solo(other, yuuri());
+
+            assertErrorCode(() -> createSetlist(concert, othersPerformance.getId()), ErrorCode.AI_JOB_PERFORMANCE_NOT_IN_CONCERT);
+            assertErrorCode(() -> createSetlist(concert, 999L), ErrorCode.AI_JOB_PERFORMANCE_NOT_IN_CONCERT);
+        }
+
+        @Test
+        void 페스티벌은_헤드라이너가_아니면_400() {
+            Concert festival = festival(LocalDate.of(2026, 11, 20));
+            Performance notHeadliner = lineup(festival, yuuri(), false, 1);
+
+            assertErrorCode(() -> createSetlist(festival, notHeadliner.getId()), ErrorCode.AI_JOB_HEADLINER_ONLY);
+        }
+
+        @Test
+        void 공연_시작일이_없으면_400() {
+            Concert concert = concertRepository.save(Concert.builder()
+                    .title("YUURI LIVE").category(ConcertCategory.STAGE).build());
+            Performance performance = solo(concert, yuuri());
+
+            assertErrorCode(() -> createSetlist(concert, performance.getId()), ErrorCode.AI_JOB_START_DATE_REQUIRED);
+        }
+
+        @Test
+        void 같은_출연_정보는_진행_중인_작업을_돌려주고_다른_헤드라이너는_새로_만든다() {
+            Concert festival = festival(LocalDate.of(2026, 11, 20));
+            Performance first = lineup(festival, yuuri(), true, 1);
+            Performance second = lineup(festival, artistRepository.save(Artist.builder().name("Vaundy")
+                    .nationality(Nationality.JP).build()), true, 2);
+            Long firstJob = createSetlist(festival, first.getId());
+
+            assertThat(createSetlist(festival, first.getId())).isEqualTo(firstJob);
+            assertThat(createSetlist(festival, second.getId())).isNotEqualTo(firstJob);
+        }
+
+        @Test
+        void 셋리스트가_아닌_작업은_출연_정보를_보내도_무시하고_공연_단위로_본다() {
+            Concert concert = stage();
+            Performance performance = solo(concert, yuuri());
+            Long enrich = createJob(AiJobType.CONCERT_ENRICH, concert);
+
+            Long again = service.create(ADMIN,
+                    new AdminAiJobCreateRequest(AiJobType.CONCERT_ENRICH, concert.getId(), performance.getId())).jobId();
+
+            assertThat(again).isEqualTo(enrich);
+            assertThat(reload(enrich).getPerformanceId()).isNull();
+        }
+
+        @Test
+        void 마지막_작업_조회는_출연_정보별로_따로_준다() {
+            Concert festival = festival(LocalDate.of(2026, 11, 20));
+            Performance first = lineup(festival, yuuri(), true, 1);
+            Performance second = lineup(festival, artistRepository.save(Artist.builder().name("Vaundy")
+                    .nationality(Nationality.JP).build()), true, 2);
+            Long firstJob = createSetlist(festival, first.getId());
+
+            AdminAiJobResponse latest = service.findLatest(festival.getId(), AiJobType.SETLIST_ACTUAL, first.getId())
+                    .orElseThrow();
+            assertThat(latest.jobId()).isEqualTo(firstJob);
+            assertThat(latest.performanceId()).isEqualTo(first.getId());
+            assertThat(service.findLatest(festival.getId(), AiJobType.SETLIST_ACTUAL, second.getId())).isEmpty();
+        }
+
+        @Test
+        void 셋리스트의_마지막_작업_조회는_출연_정보가_없으면_400() {
+            Concert concert = stage();
+
+            assertErrorCode(() -> service.findLatest(concert.getId(), AiJobType.SETLIST_ACTUAL, null),
+                    ErrorCode.AI_JOB_PERFORMANCE_REQUIRED);
+        }
+
+        @Test
+        void 다른_종류의_마지막_작업_조회는_출연_정보를_보내도_무시한다() {
+            Concert concert = stage();
+            Performance performance = solo(concert, yuuri());
+            Long enrich = createJob(AiJobType.CONCERT_ENRICH, concert);
+
+            assertThat(service.findLatest(concert.getId(), AiJobType.CONCERT_ENRICH, performance.getId())
+                    .orElseThrow().jobId()).isEqualTo(enrich);
+        }
+
+        @Test
+        void 셋리스트_작업이_있어도_같은_공연의_다른_종류_작업과_섞이지_않는다() {
+            Concert concert = stage();
+            Performance performance = solo(concert, yuuri());
+            Long setlist = createSetlist(concert, performance.getId());
+
+            Long enrich = createJob(AiJobType.CONCERT_ENRICH, concert);
+
+            assertThat(enrich).isNotEqualTo(setlist);
+            assertThat(service.findLatest(concert.getId(), AiJobType.CONCERT_ENRICH, null).orElseThrow().jobId())
+                    .isEqualTo(enrich);
         }
     }
 

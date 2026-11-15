@@ -4,17 +4,22 @@ import com.loop.loop_backend.AiJob.domain.AiJobType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 
-/** 어드민 "AI로 찾기". payload는 Backend가 DB에서 만든다 - 어드민은 종류와 공연만 보낸다. */
+/** 어드민 "AI로 찾기". payload는 Backend가 DB에서 만든다 - 어드민은 종류와 공연(셋리스트는 출연 정보까지)만 보낸다. */
 @Schema(description = "AI 작업 만들기 요청")
 public record AdminAiJobCreateRequest(
 
         @NotNull
-        @Schema(description = "작업 종류. CONCERT_ENRICH(티켓 정보), FESTIVAL_LINEUP(페스티벌 라인업). SETLIST_ACTUAL은 아직 지원하지 않는다",
+        @Schema(description = "작업 종류. CONCERT_ENRICH(티켓 정보), FESTIVAL_LINEUP(페스티벌 라인업), SETLIST_ACTUAL(실제 셋리스트)",
                 example = "CONCERT_ENRICH", requiredMode = Schema.RequiredMode.REQUIRED)
         AiJobType type,
 
         @NotNull
         @Schema(description = "대상 공연 PK", example = "31", requiredMode = Schema.RequiredMode.REQUIRED)
-        Long concertId
+        Long concertId,
+
+        // 필수 여부가 종류에 따라 달라 서비스가 판단한다(셋리스트에서 없으면 400)
+        @Schema(description = "출연 정보 PK(공연 상세의 performanceId). SETLIST_ACTUAL에서 필수, 다른 종류는 무시",
+                example = "101", types = {"integer", "null"})
+        Long performanceId
 ) {
 }
