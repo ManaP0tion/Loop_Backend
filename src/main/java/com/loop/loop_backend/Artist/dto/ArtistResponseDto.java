@@ -1,7 +1,7 @@
 package com.loop.loop_backend.Artist.dto;
 
 import com.loop.loop_backend.Artist.domain.Artist;
-import com.loop.loop_backend.Artist.domain.Nationality;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -17,26 +17,18 @@ public class ArtistResponseDto {
     private final String nameKo;
     private final String nameAlias;
     private final String imageUrl;
-    private final Nationality nationality;
-    private final Long itunesArtistId;
-    private final String artistViewUrl;
-    private final String itunesArtistName;
-    private final boolean itunesAutoLinked;
+    private final ConcertCategory category;
     private final LocalDateTime createdAt;
 
     public static ArtistResponseDto from(Artist artist) {
         return ArtistResponseDto.builder()
-                .itunesArtistId(artist.getItunesArtistId())
-                .artistViewUrl(artist.getArtistViewUrl())
-                .itunesArtistName(artist.getItunesArtistName())
-                .itunesAutoLinked(artist.isItunesAutoLinked())
                 .id(artist.getId())
                 .name(artist.getName())
                 .baseName(artist.getBaseName())
                 .nameKo(artist.getNameKo())
                 .nameAlias(artist.getNameAlias())
                 .imageUrl(artist.getImageUrl())
-                .nationality(artist.getNationality())
+                .category(artist.getCategory())
                 .createdAt(artist.getCreatedAt())
                 .build();
     }

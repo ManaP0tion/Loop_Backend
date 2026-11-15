@@ -50,22 +50,7 @@ public class S3StorageService {
 
     // 공개 버킷에 업로드 후 바로 접근 가능한 public URL을 반환 (프로필/콘서트 이미지)
     public String uploadPublic(String prefix, Long ownerId, MultipartFile file) {
-        return publicUrl(upload(publicBucket, prefix, ownerId, file));
-    }
-
-    // 서버가 직접 받은 이미지(외부 URL 복사)를 공개 버킷에 올린다. 형식·크기 검증은 호출한 쪽에서 끝낸 상태여야 한다.
-    public String uploadPublicBytes(String prefix, Long ownerId, byte[] bytes, String contentType, String extension) {
-        String key = "%s/%d/%s.%s".formatted(prefix, ownerId, UUID.randomUUID(), extension);
-        put(publicBucket, key, bytes, contentType);
-        return publicUrl(key);
-    }
-
-    // 이미 우리 공개 버킷에 있는 이미지인지
-    public boolean isPublicUrl(String url) {
-        return url != null && url.startsWith(publicUrl(""));
-    }
-
-    private String publicUrl(String key) {
+        String key = upload(publicBucket, prefix, ownerId, file);
         return "https://%s.s3.%s.amazonaws.com/%s".formatted(publicBucket, region, key);
     }
 
@@ -112,18 +97,12 @@ public class S3StorageService {
                 extension = extractExtension(file.getOriginalFilename());
             }
         } catch (IOException e) {
-            log.error("업로드 파일 읽기/변환 실패 (prefix={}, ownerId={}, file={})", prefix, ownerId, file.getOriginalFilename(), e);
             throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED);
         }
 
         validateFormat(contentType, extension);
 
         String key = "%s/%d/%s.%s".formatted(prefix, ownerId, UUID.randomUUID(), extension);
-        put(bucket, key, bytes, contentType);
-        return key;
-    }
-
-    private void put(String bucket, String key, byte[] bytes, String contentType) {
         try {
             s3Client.putObject(
                     PutObjectRequest.builder()
@@ -133,10 +112,10 @@ public class S3StorageService {
                             .build(),
                     RequestBody.fromBytes(bytes));
         } catch (S3Exception e) {
-            // AccessDenied(IAM/버킷 정책), NoSuchBucket 등 원인이 응답에선 가려지므로 로그로 남긴다
-            log.error("S3 putObject 실패 (bucket={}, key={}, status={})", bucket, key, e.statusCode(), e);
             throw new BusinessException(ErrorCode.FILE_UPLOAD_FAILED);
         }
+
+        return key;
     }
 
     private boolean isHeic(MultipartFile file) {

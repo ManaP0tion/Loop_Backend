@@ -4,75 +4,35 @@ import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
-import com.loop.loop_backend.Concert.dto.CompanionConcertDto;
-import com.loop.loop_backend.Concert.dto.CompanionConcertListDto;
-import com.loop.loop_backend.Concert.dto.ConcertPastDetailDto;
-import com.loop.loop_backend.Concert.dto.ConcertPeriod;
-import com.loop.loop_backend.Concert.dto.ConcertPeriodDto;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
-import com.loop.loop_backend.Concert.dto.ConcertSection;
-import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
-import com.loop.loop_backend.Concert.dto.ConcertUpcomingDetailDto;
+import com.loop.loop_backend.Concert.dto.ConcertSort;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
-import com.loop.loop_backend.Concert.repository.ticket.ConcertGeneralSaleRepository;
-import com.loop.loop_backend.Concert.repository.ticket.ConcertPresaleRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
-import com.loop.loop_backend.Config.RedisConfig;
-import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
-import com.loop.loop_backend.Performance.domain.Performance;
-import com.loop.loop_backend.Performance.repository.PerformanceRepository;
-import com.loop.loop_backend.Performance.service.PerformanceSync;
-import com.loop.loop_backend.Setlist.dto.SetlistRankingResponse;
-import com.loop.loop_backend.Setlist.dto.SetlistResultResponse;
-import com.loop.loop_backend.Setlist.service.SetlistResultService;
-import com.loop.loop_backend.Setlist.service.SetlistVoteService;
 import com.loop.loop_backend.Storage.service.S3StorageService;
-import com.loop.loop_backend.TicketAlarm.service.TicketAlarmService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.common.time.ExpiryCutoff;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ConcertServiceImpl implements ConcertService {
 
-    private static final int UPCOMING_PREVIEW_SIZE = 4;
-    private static final int MAX_SECTION_SIZE = 50;
-
     private final ConcertRepository concertRepository;
     private final ArtistRepository artistRepository;
     private final CompanionPostRepository companionPostRepository;
-    // 지금 조회 계열은 안 쓰지만, 동행 인원수까지 보여줄 화면(예: 페스티벌 목록)이 생기면
-    // toResponseDtos()에서 다시 쓸 예정이라 필드/메서드 그대로 남겨둠.
     private final CompanionService companionService;
     private final S3StorageService s3StorageService;
-    private final ConcertScrapRepository concertScrapRepository;
-    private final ConcertPresaleRepository presaleRepository;
-    private final ConcertGeneralSaleRepository generalSaleRepository;
-    private final TicketAlarmService ticketAlarmService;
-    private final SetlistVoteService setlistVoteService;
-    private final SetlistResultService setlistResultService;
-    private final PerformanceRepository performanceRepository;
-    private final PerformanceSync performanceSync;
 
     @Override
     @Transactional
@@ -84,14 +44,10 @@ public class ConcertServiceImpl implements ConcertService {
                 .venue(requestDto.getVenue())
                 .startDate(requestDto.getStartDate())
                 .endDate(requestDto.getEndDate())
-                .price(requestDto.getPrice())
-                .ticketUrl(requestDto.getTicketUrl())
-                .showtime(requestDto.getShowtime())
                 .category(requestDto.getCategory())
                 .build();
         // IDENTITY 전략이라 save() 시점에 즉시 ID가 확정됨 -> 그 ID를 S3 키로 써서 바로 업로드 가능
         concertRepository.save(concert);
-        performanceSync.sync(concert, false, null);
 
         String posterUrl = resolvePosterUrl(concert.getId(), image, null);
         if (posterUrl != null) {
@@ -107,12 +63,9 @@ public class ConcertServiceImpl implements ConcertService {
         Artist artist = resolveArtist(requestDto.getArtistId());
         // 새 이미지가 없으면 기존 posterUrl을 그대로 유지 (수정 시 이미지 없이 다른 필드만 바꾸는 경우 대비)
         String posterUrl = resolvePosterUrl(id, image, concert.getPosterUrl());
-        ConcertCategory before = concert.getCategory();
         concert.update(artist, requestDto.getTitle(), posterUrl,
                 requestDto.getVenue(), requestDto.getStartDate(), requestDto.getEndDate(),
-                requestDto.getCategory(), requestDto.getPrice(), requestDto.getTicketUrl(),
-                requestDto.getShowtime());
-        performanceSync.sync(concert, concert.getCategory() != before, null);
+                requestDto.getCategory());
         return ConcertResponseDto.from(concert, companionPostRepository.countByConcert_Id(concert.getId()));
     }
 
@@ -131,153 +84,46 @@ public class ConcertServiceImpl implements ConcertService {
     }
 
     @Override
-    public ConcertSummaryDto getConcertById(Long id, Long userId) {
-        return ConcertSummaryDto.from(findConcertOrThrow(id));
-    }
-
-    @Override
-    public ConcertUpcomingDetailDto getUpcomingDetail(Long id, Long userId) {
-        Concert concert = findOpenConcertOrThrow(id);
-        // 이미 지난 공연이면 예정 공연 상세로 보여주지 않는다 - 잘못된 엔드포인트 호출을 404로 처리(getPastDetail과 대칭).
-        // 날짜 미정 공연은 isPast가 false라서 예정으로 취급된다.
-        if (concert.isPast(ExpiryCutoff.cutoffDate())) {
-            throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
-        }
-        Long performanceId = soloPerformanceId(concert);
-        SetlistRankingResponse preview = performanceId == null ? SetlistRankingResponse.none()
-                : setlistVoteService.rankingPreview(id, performanceId, userId);
-        // D-day는 노출 만료 기준(오전 10시 리셋)과 별개로 한국 날짜 기준 남은 일수다.
-        return ConcertUpcomingDetailDto.from(concert, LocalDate.now(ZoneId.of("Asia/Seoul")),
-                presaleRepository.findByConcert_Id(id), generalSaleRepository.findByConcert_Id(id),
-                isScrapped(userId, id), ticketAlarmService.typesOf(userId, id),
-                performanceId, preview);
-    }
-
-    @Override
-    public ConcertPastDetailDto getPastDetail(Long id, Long userId) {
-        Concert concert = findOpenConcertOrThrow(id);
-        if (!concert.isPast(ExpiryCutoff.cutoffDate())) {
-            // id는 존재하지만 지난 공연이 아님(예정 공연) - 잘못된 엔드포인트 호출을 404로 처리
-            throw new BusinessException(ErrorCode.CONCERT_NOT_FOUND);
-        }
-        Long performanceId = soloPerformanceId(concert);
-        SetlistResultResponse result = performanceId == null ? SetlistResultResponse.waiting(0)
-                : setlistResultService.result(id, performanceId, userId);
-        return ConcertPastDetailDto.from(concert, isScrapped(userId, id), performanceId, result,
-                upcomingDomesticTourPreview());
-    }
-
-    /** 단독 공연의 출연 정보 PK. 페스티벌(헤드라이너가 여럿)이나 아티스트 미지정이면 null. */
-    private Long soloPerformanceId(Concert concert) {
-        if (concert.isFestival()) return null;
-        return performanceRepository.findFirstByConcertId(concert.getId()).map(Performance::getId).orElse(null);
-    }
-
-    // 지난 공연 상세 하단의 "다가오는 J-POP 내한 공연". 누르면 상세로 가야 하므로 비공개(오픈 예정) 공연은 뺀다.
-    private List<ConcertSummaryDto> upcomingDomesticTourPreview() {
-        return concertRepository.findPublishedUpcomingOrUndatedByCategories(
-                        ConcertSection.DOMESTIC_TOUR.getCategories(), ExpiryCutoff.cutoffDate(),
-                        PageRequest.of(0, UPCOMING_PREVIEW_SIZE)).stream()
-                .map(ConcertSummaryDto::from)
-                .toList();
-    }
-
-    // 상세는 비로그인도 조회 가능하다(GET /api/concerts/** permitAll) - 비로그인이면 스크랩 여부는 항상 false.
-    private boolean isScrapped(Long userId, Long concertId) {
-        return userId != null && concertScrapRepository.existsByUser_IdAndConcert_Id(userId, concertId);
-    }
-
-    @Override
-    public ConcertPeriodDto getPeriod(Long id) {
-        // 딥링크 등 목록을 안 거친 진입 경로용 힌트 조회 - 여기서는 예외 없이 판정 결과만 그대로 돌려준다.
-        // period 불일치 검증은 실제 데이터를 주는 getUpcomingDetail/getPastDetail이 각자 책임진다.
+    public ConcertResponseDto getConcertById(Long id, Long userId) {
         Concert concert = findConcertOrThrow(id);
-        ConcertPeriod period = concert.isPast(ExpiryCutoff.cutoffDate()) ? ConcertPeriod.PAST : ConcertPeriod.UPCOMING;
-        return new ConcertPeriodDto(period);
+
+        return ConcertResponseDto.from(concert, companionService.countVisibleCompanions(concert.getId(), userId));
+
+    }
+
+    // 호출하는 곳이 없어 주석 처리 (필요해지면 userId 파라미터 추가해서 복구)
+    // @Override
+    // public ConcertResponseDto getConcertByTitle(String title) {
+    //     Concert concert = concertRepository.findByTitle(title)
+    //             .orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
+    //     return ConcertResponseDto.from(concert, companionPostRepository.countByConcert_Id(concert.getId()));
+    // }
+
+    @Override
+    public List<ConcertResponseDto> searchConcertsByTitle(String title, Long userId) {
+        return toResponseDtos(
+                concertRepository.searchUpcomingOrUndatedByTitle(title, ExpiryCutoff.cutoffDate()), userId);
     }
 
     @Override
-    public List<ConcertSummaryDto> searchConcertsByTitle(String title, ConcertSection section, ConcertPeriod period, Long userId) {
-        List<ConcertCategory> categories = (section != null)
-                ? section.getCategories()
-                : List.of(ConcertCategory.values());
-        LocalDate cutoff = ExpiryCutoff.cutoffDate();
-
-        if (period == ConcertPeriod.UPCOMING) {
-            return concertRepository.searchUpcomingOrUndatedByTitleAndCategories(title, categories, cutoff).stream()
-                    .map(ConcertSummaryDto::from)
-                    .toList();
-        }
-        if (period == ConcertPeriod.PAST) {
-            return concertRepository.searchPastByTitleAndCategories(title, categories, cutoff).stream()
-                    .map(ConcertSummaryDto::from)
-                    .toList();
-        }
-        // 전체검색(period 미지정): 예정 목록 뒤에 지난 목록을 그대로 이어붙인다.
-        List<ConcertSummaryDto> upcoming = concertRepository
-                .searchUpcomingOrUndatedByTitleAndCategories(title, categories, cutoff).stream()
-                .map(ConcertSummaryDto::from)
-                .toList();
-        List<ConcertSummaryDto> past = concertRepository
-                .searchPastByTitleAndCategories(title, categories, cutoff).stream()
-                .map(ConcertSummaryDto::from)
-                .toList();
-        return Stream.concat(upcoming.stream(), past.stream()).toList();
+    public List<ConcertResponseDto> getAllConcerts(Long userId, ConcertSort sort) {
+        return toResponseDtos(concertRepository.findUpcomingOrUndated(ExpiryCutoff.cutoffDate()), userId).stream()
+                .sorted(sort.comparator())
+                .collect(Collectors.toList());
     }
 
     @Override
-    public List<ConcertSummaryDto> getConcertsByArtist(Long artistId, Long userId) {
-        return concertRepository.findUpcomingOrUndatedByArtistId(artistId, ExpiryCutoff.cutoffDate()).stream()
-                .map(ConcertSummaryDto::from)
-                .toList();
-    }
-
-    // userId는 결과에 쓰지 않는다 - 모든 사용자가 같은 캐시를 본다. userId를 쓰게 되면 캐시를 빼거나 키에 넣을 것.
-    @Override
-    // size는 캐시 키에 들어간다 - 상한(MAX_SECTION_SIZE)으로 키 개수를 묶는다.
-    @Cacheable(cacheNames = RedisConfig.CONCERT_LIST_CACHE,
-            key = "#section.name() + ':' + #period.name() + ':' + (#size ?: 'all')")
-    public List<ConcertSummaryDto> getConcertsBySection(ConcertSection section, ConcertPeriod period, Integer size, Long userId) {
-        if (size != null && (size < 1 || size > MAX_SECTION_SIZE)) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT);
-        }
-        List<ConcertCategory> categories = section.getCategories();
-        LocalDate cutoff = ExpiryCutoff.cutoffDate();
-        Pageable pageable = (size == null) ? Pageable.unpaged() : PageRequest.of(0, size);
-        List<Concert> concerts = (period == ConcertPeriod.UPCOMING)
-                ? concertRepository.findUpcomingOrUndatedByCategories(categories, cutoff, pageable)
-                : concertRepository.findPastByCategories(categories, cutoff, pageable);
-        return concerts.stream().map(ConcertSummaryDto::from).toList();
+    public List<ConcertResponseDto> getConcertsByCategory(ConcertCategory category, Long userId, ConcertSort sort) {
+        return toResponseDtos(
+                concertRepository.findUpcomingOrUndatedByCategory(category, ExpiryCutoff.cutoffDate()), userId).stream()
+                .sorted(sort.comparator())
+                .collect(Collectors.toList());
     }
 
     @Override
-    public CompanionConcertListDto getCompanionOpenConcerts(Integer size, Long userId) {
-        if (size != null && size < 1) {
-            throw new IllegalArgumentException("size는 1 이상이어야 한다");
-        }
-        LocalDate cutoff = ExpiryCutoff.cutoffDate();
-        List<Concert> concerts = concertRepository.findCompanionConcerts(cutoff,
-                size == null ? Pageable.unpaged() : PageRequest.of(0, size));
-        long totalCount = concertRepository.countCompanionOpen(cutoff);
-
-        Set<Long> registered = userId == null ? Set.of() : concertIdsWithMyProfile(userId, concerts);
-        return new CompanionConcertListDto(totalCount, concerts.stream()
-                .map(concert -> CompanionConcertDto.of(concert,
-                        userId == null ? null : registered.contains(concert.getId())))
-                .toList());
-    }
-
-    // 주어진 공연 중 관람일이 지나지 않은 내 동행 프로필이 있는 공연(DAY 무관, 비공개 포함). 공연마다 조회하지 않고 한 번에
-    private Set<Long> concertIdsWithMyProfile(Long userId, List<Concert> concerts) {
-        if (concerts.isEmpty()) {
-            return Set.of();
-        }
-        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
-        return companionPostRepository.findAllByUser_IdAndConcert_IdIn(userId,
-                        concerts.stream().map(Concert::getId).toList()).stream()
-                .filter(post -> !post.isExpired(now))
-                .map(post -> post.getConcert().getId())
-                .collect(Collectors.toSet());
+    public List<ConcertResponseDto> getConcertsByArtist(Long artistId, Long userId) {
+        return toResponseDtos(
+                concertRepository.findUpcomingOrUndatedByArtistId(artistId, ExpiryCutoff.cutoffDate()), userId);
     }
 
     // 콘서트별 동행 프로필 수를 한 번에 조회한다. 콘서트마다 count 쿼리를 날리면 목록 길이에
@@ -296,15 +142,6 @@ public class ConcertServiceImpl implements ConcertService {
     private Concert findConcertOrThrow(Long id) {
         return concertRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
-    }
-
-    // 상세 화면용: 비공개 공연은 목록에 "오픈 예정"으로만 보이고 상세에는 들어올 수 없다(명세).
-    private Concert findOpenConcertOrThrow(Long id) {
-        Concert concert = findConcertOrThrow(id);
-        if (!concert.isPublished()) {
-            throw new BusinessException(ErrorCode.CONCERT_NOT_OPEN);
-        }
-        return concert;
     }
 
     private Artist resolveArtist(Long artistId) {

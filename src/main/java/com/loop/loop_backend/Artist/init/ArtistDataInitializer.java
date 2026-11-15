@@ -1,8 +1,8 @@
 package com.loop.loop_backend.Artist.init;
 
 import com.loop.loop_backend.Artist.domain.Artist;
-import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -156,20 +156,20 @@ public class ArtistDataInitializer implements ApplicationRunner {
     }
 
     private Artist jpop(String name, String nameKo, String nameAlias, boolean autoFetchConcerts) {
-        return build(name, nameKo, nameAlias, autoFetchConcerts, Nationality.JP);
+        return build(name, nameKo, nameAlias, autoFetchConcerts, ConcertCategory.J_POP_ARTIST);
     }
 
     private Artist domestic(String name, String nameKo, String nameAlias) {
-        return build(name, nameKo, nameAlias, true, Nationality.KR);
+        return build(name, nameKo, nameAlias, true, ConcertCategory.DOMESTIC_ARTIST);
     }
 
-    private Artist build(String name, String nameKo, String nameAlias, boolean autoFetchConcerts, Nationality nationality) {
+    private Artist build(String name, String nameKo, String nameAlias, boolean autoFetchConcerts, ConcertCategory category) {
         return Artist.builder()
                 .name(name)
                 .nameKo(nameKo)
                 .nameAlias(nameAlias)
                 .autoFetchConcerts(autoFetchConcerts)
-                .nationality(nationality)
+                .category(category)
                 .build();
     }
 }
