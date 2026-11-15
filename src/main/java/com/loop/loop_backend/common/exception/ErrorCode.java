@@ -100,6 +100,7 @@ public enum ErrorCode {
     AI_JOB_PERFORMANCE_REQUIRED(400, "셋리스트는 출연 정보(performanceId)를 지정해야 합니다."),
     AI_JOB_PERFORMANCE_NOT_IN_CONCERT(400, "이 공연의 출연 정보가 아닙니다."),
     AI_JOB_HEADLINER_ONLY(400, "페스티벌 셋리스트는 헤드라이너에만 요청할 수 있습니다."),
+    AI_JOB_FEEDBACK_NOT_DONE(409, "결과가 있는(DONE) 작업에만 처리 결과를 남길 수 있습니다."),
 
     // CompanionPost 도메인
     COMPANION_POST_NOT_FOUND(404, "동행 모집글을 찾을 수 없습니다."),

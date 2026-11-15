@@ -186,7 +186,7 @@ class AiJobDtoTest {
         @Test
         void 셋리스트_payload는_아티스트_한_명과_곡_목록을_담고_곡이_없으면_빈_목록이다() {
             SetlistActualPayload payload = new SetlistActualPayload(
-                    31L, ConcertCategory.STAGE, "YUURI LIVE 2026 IN SEOUL",
+                    31L, ConcertCategory.STAGE, "YUURI LIVE 2026 IN SEOUL", null,
                     new AiArtistPayload("Yuuri", null, "유우리", "優里"),
                     LocalDate.of(2026, 12, 5), LocalDate.of(2026, 12, 6), "인스파이어 아레나", null, null);
 
@@ -196,6 +196,8 @@ class AiJobDtoTest {
             assertThat(json.get("startDate").asText()).isEqualTo("2026-12-05");
             assertThat(json.get("songs").isArray()).isTrue();
             assertThat(json.get("songs")).isEmpty();
+            assertThat(json.get("titleAliases").isArray()).isTrue();
+            assertThat(json.get("titleAliases")).isEmpty();
             assertThat(json.has("expectedSongCount")).isTrue();
             assertThat(json.get("expectedSongCount").isNull()).isTrue();
         }
@@ -203,7 +205,7 @@ class AiJobDtoTest {
         @Test
         void 셋리스트_payload의_곡은_AI가_돌려줄_id와_세_가지_제목을_담는다() {
             SetlistActualPayload payload = new SetlistActualPayload(
-                    31L, ConcertCategory.STAGE, "YUURI LIVE 2026 IN SEOUL",
+                    31L, ConcertCategory.STAGE, "YUURI LIVE 2026 IN SEOUL", null,
                     new AiArtistPayload("Yuuri", null, "유우리", "優里"), LocalDate.of(2026, 12, 5), null, null, 22,
                     java.util.List.of(new AiSongPayload(1L, "ドライフラワー", "Dry Flower", "드라이플라워")));
 

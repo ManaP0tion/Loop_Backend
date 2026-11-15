@@ -4,7 +4,9 @@ import com.loop.loop_backend.AiJob.domain.AiJob;
 import com.loop.loop_backend.AiJob.domain.AiJobStatus;
 import com.loop.loop_backend.AiJob.domain.AiJobType;
 import org.springframework.data.domain.Pageable;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -48,6 +50,11 @@ public interface AiJobRepository extends JpaRepository<AiJob, Long> {
 
     /** 같은 대상의 가장 최근 작업(상태 무관). 어드민이 이미 찾은 결과를 다시 쓰기 위해. performanceId null은 "IS NULL". */
     Optional<AiJob> findFirstByTypeAndConcertIdAndPerformanceIdOrderByIdDesc(AiJobType type, Long concertId, Long performanceId);
+
+    /** 작업 행을 잠그고 읽는다(SELECT ... FOR UPDATE). 피드백 교체를 차례로 처리하기 위해. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select j from AiJob j where j.id = :id")
+    Optional<AiJob> findByIdForUpdate(@Param("id") Long id);
 
     /** lease가 지난 RUNNING 작업(만료 처리 대상). */
     @Query("select j.id from AiJob j where j.status = :running and j.leaseUntil < :now")

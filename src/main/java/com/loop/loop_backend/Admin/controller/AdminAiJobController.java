@@ -4,7 +4,9 @@ import com.loop.loop_backend.Admin.service.AdminAccessLogService;
 import com.loop.loop_backend.AiJob.domain.AiJobType;
 import com.loop.loop_backend.AiJob.dto.AdminAiJobCreateRequest;
 import com.loop.loop_backend.AiJob.dto.AdminAiJobCreateResponse;
+import com.loop.loop_backend.AiJob.dto.AdminAiJobFeedbackRequest;
 import com.loop.loop_backend.AiJob.dto.AdminAiJobResponse;
+import com.loop.loop_backend.AiJob.service.AiJobFeedbackService;
 import com.loop.loop_backend.AiJob.service.AiJobService;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -41,6 +43,7 @@ public class AdminAiJobController {
             "{\"success\":false,\"message\":\"이미 끝난 작업입니다.\",\"code\":409}";
 
     private final AiJobService aiJobService;
+    private final AiJobFeedbackService aiJobFeedbackService;
     private final AdminAccessLogService accessLog;
 
     @PostMapping
@@ -90,6 +93,33 @@ public class AdminAiJobController {
         accessLog.log(adminId, req, "CANCEL_AI_JOB", "CONCERT", result.concertId(),
                 "AI 작업 취소: " + result.type() + performanceLabel(result.performanceId()) + " (jobId " + jobId + ")");
         return ResponseEntity.ok(CommonResponse.success(result));
+    }
+
+    @PostMapping("/{jobId}/feedback")
+    @Operation(summary = "AI 결과 처리 결과(피드백) 저장",
+            description = "AI 결과로 채운 화면을 **저장에 성공한 직후** 한 번 보낸다(닫기·취소 때는 보내지 않는다). " +
+                    "다시 저장하면 다시 보내고, 그 작업의 피드백을 통째로 바꾼다. 결과가 있는(DONE) 작업만 받는다.\n\n" +
+                    "| outcome | 뜻 |\n|---|---|\n" +
+                    "| `MATCHED` | AI 값이 기존 값과 같음 |\n" +
+                    "| `APPLIED` | AI 값을 그대로 적용해 저장 |\n" +
+                    "| `EDITED` | 적용 후 고쳐서 저장(finalValue에 최종값, 선택) |\n" +
+                    "| `NOT_APPLIED` | 채울 수 있었지만 적용하지 않음 |\n" +
+                    "| `KEPT_EXISTING` | 기존(KOPIS) 값과 달라 기존 값 유지 |\n\n" +
+                    "이 요청이 실패해도 공연·라인업·셋리스트 저장은 이미 끝난 상태다 - 화면은 실패를 무시해도 된다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "저장(교체)됨"),
+            @ApiResponse(responseCode = "400", description = "items 없음, key 없음·100자 초과·중복, 정해지지 않은 outcome"),
+            @ApiResponse(responseCode = "404", description = "없는 작업",
+                    content = @Content(examples = @ExampleObject(value = NOT_FOUND_EXAMPLE))),
+            @ApiResponse(responseCode = "409", description = "결과가 없는 작업(DONE이 아님)")
+    })
+    public ResponseEntity<CommonResponse<Void>> feedback(
+            @AuthenticationPrincipal Long adminId, HttpServletRequest req,
+            @Parameter(description = "작업 ID") @PathVariable Long jobId,
+            @Valid @RequestBody AdminAiJobFeedbackRequest body) {
+        int saved = aiJobFeedbackService.replace(adminId, jobId, body);
+        accessLog.log(adminId, req, "AI_JOB_FEEDBACK", "AI_JOB", jobId, "AI 결과 처리 결과 " + saved + "건 저장");
+        return ResponseEntity.ok(CommonResponse.success(null));
     }
 
     @GetMapping("/latest")
