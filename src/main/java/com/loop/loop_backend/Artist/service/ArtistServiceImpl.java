@@ -1,14 +1,12 @@
 package com.loop.loop_backend.Artist.service;
 
 import com.loop.loop_backend.Artist.domain.Artist;
-import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.dto.ArtistRequestDto;
 import com.loop.loop_backend.Artist.dto.ArtistResponseDto;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
+import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
-import com.loop.loop_backend.infra.itunes.ItunesArtist;
-import com.loop.loop_backend.infra.itunes.ItunesClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +20,6 @@ import java.util.stream.Collectors;
 public class ArtistServiceImpl implements ArtistService {
 
     private final ArtistRepository artistRepository;
-    private final ItunesClient itunesClient;
 
     @Override
     @Transactional
@@ -33,7 +30,7 @@ public class ArtistServiceImpl implements ArtistService {
                 .nameKo(requestDto.getNameKo())
                 .nameAlias(requestDto.getNameAlias())
                 .imageUrl(requestDto.getImageUrl())
-                .nationality(requestDto.getNationality())
+                .category(requestDto.getCategory() != null ? requestDto.getCategory() : ConcertCategory.J_POP_ARTIST)
                 .build();
         return ArtistResponseDto.from(artistRepository.save(artist));
     }
@@ -43,7 +40,7 @@ public class ArtistServiceImpl implements ArtistService {
     public ArtistResponseDto updateArtist(Long id, ArtistRequestDto requestDto) {
         Artist artist = findArtistOrThrow(id);
         artist.update(requestDto.getName(), requestDto.getBaseName(), requestDto.getNameKo(),
-                requestDto.getNameAlias(), requestDto.getImageUrl(), requestDto.getNationality());
+                requestDto.getNameAlias(), requestDto.getImageUrl(), requestDto.getCategory());
         return ArtistResponseDto.from(artist);
     }
 
@@ -73,21 +70,10 @@ public class ArtistServiceImpl implements ArtistService {
     }
 
     @Override
-    public List<ArtistResponseDto> searchArtists(String query, Nationality nationality) {
-        // 빈 검색어는 '이름 조건 없음'으로 본다 (LIKE '%%'가 우연히 전체를 돌려주는 데 기대지 않는다)
-        String q = query == null || query.isBlank() ? null : query.trim();
-        return artistRepository.search(q, nationality).stream()
+    public List<ArtistResponseDto> searchArtists(String query) {
+        return artistRepository.searchByAllNames(query).stream()
                 .map(ArtistResponseDto::from)
                 .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional
-    public ArtistResponseDto linkItunes(Long id, Long itunesArtistId) {
-        Artist artist = findArtistOrThrow(id);
-        ItunesArtist itunesArtist = itunesClient.lookupArtist(itunesArtistId);
-        artist.linkItunes(itunesArtist.artistId(), itunesArtist.artistLinkUrl(), itunesArtist.artistName());
-        return ArtistResponseDto.from(artist);
     }
 
     private Artist findArtistOrThrow(Long id) {

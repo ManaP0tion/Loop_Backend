@@ -15,7 +15,7 @@ class CompanionPostTest {
     private CompanionPost postFor(LocalDate concertStartDate, WatchDay watchDay) {
         Concert concert = Concert.builder()
                 .title("테스트 콘서트")
-                .category(ConcertCategory.STAGE)
+                .category(ConcertCategory.DOMESTIC_ARTIST)
                 .startDate(concertStartDate)
                 .build();
         return CompanionPost.builder()

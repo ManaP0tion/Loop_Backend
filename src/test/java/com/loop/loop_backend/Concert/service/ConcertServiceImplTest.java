@@ -3,21 +3,14 @@ package com.loop.loop_backend.Concert.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
-import com.loop.loop_backend.Concert.domain.ConcertCategory;
-import com.loop.loop_backend.Concert.dto.ConcertPeriod;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
-import com.loop.loop_backend.Concert.dto.ConcertSection;
-import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.CompanionPost.service.CompanionService;
-import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
-import com.loop.loop_backend.Performance.service.PerformanceSync;
 import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -54,8 +47,6 @@ class ConcertServiceImplTest {
     @Mock CompanionPostRepository companionPostRepository;
     @Mock CompanionService companionService;
     @Mock S3StorageService s3StorageService;
-    @Mock ConcertScrapRepository concertScrapRepository;
-    @Mock PerformanceSync performanceSync;
     @InjectMocks ConcertServiceImpl concertService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -64,7 +55,7 @@ class ConcertServiceImplTest {
         String json = """
                 {
                     "title": "%s",
-                    "category": "STAGE"
+                    "category": "DOMESTIC_ARTIST"
                 }
                 """.formatted(title);
         return objectMapper.readValue(json, ConcertRequestDto.class);
@@ -132,140 +123,61 @@ class ConcertServiceImplTest {
     }
 
     @Test
-    @DisplayName("예전 API로 공연을 등록하면 출연 정보 동기화를 유형 변경 없이 호출한다")
-    void createConcert_SyncsPerformanceAfterSave() throws Exception {
-        // given
-        stubSaveAssignsId(3L);
-
-        // when
-        concertService.createConcert(requestDto("동기화 콘서트"), null);
-
-        // then
-        verify(performanceSync).sync(any(Concert.class), eq(false), eq(null));
-    }
-
-    @Test
-    @DisplayName("예전 API로 공연 유형을 바꾸면 유형 변경으로 출연 정보 동기화를 호출한다")
-    void updateConcert_WhenCategoryChanged_SyncsWithCategoryChanged() throws Exception {
-        // given - 요청 유형은 STAGE
-        Concert existing = Concert.builder().title("페스티벌").category(ConcertCategory.FESTIVAL).build();
-        ReflectionTestUtils.setField(existing, "id", 10L);
-        when(concertRepository.findById(10L)).thenReturn(Optional.of(existing));
-
-        // when
-        concertService.updateConcert(10L, requestDto("단독으로 변경"), null);
-
-        // then
-        verify(performanceSync).sync(existing, true, null);
-    }
-
-    @Test
-    @DisplayName("예전 API로 유형을 그대로 두고 수정하면 유형 변경 없이 출연 정보 동기화를 호출한다")
-    void updateConcert_WhenCategoryUnchanged_SyncsWithoutCategoryChanged() throws Exception {
-        // given
-        Concert existing = Concert.builder().title("기존").category(ConcertCategory.STAGE).build();
-        ReflectionTestUtils.setField(existing, "id", 10L);
-        when(concertRepository.findById(10L)).thenReturn(Optional.of(existing));
-
-        // when
-        concertService.updateConcert(10L, requestDto("제목 수정"), null);
-
-        // then
-        verify(performanceSync).sync(existing, false, null);
-    }
-
-    // companionCount가 ConcertSummaryDto로 옮겨가며 빠졌다 - 콘서트 단건 조회는 이제
-    // 동행 도메인과 무관하게 콘서트 정보만 반환하고, 비로그인(userId == null)이어도 동작해야 한다.
-    @Test
-    void 콘서트_단건_조회시_id로_찾은_콘서트_정보가_반환된다() {
-        Concert existing = Concert.builder().title("아이유 콘서트").build();
+    void 콘서트_단건_조회시_조회자가_볼_수_있는_동행프로필_수가_반환된다() {
+        Concert existing = Concert.builder().title("기존 제목").build();
         ReflectionTestUtils.setField(existing, "id", 20L);
         when(concertRepository.findById(20L)).thenReturn(Optional.of(existing));
+        when(companionService.countVisibleCompanions(20L, 100L)).thenReturn(3L);
 
-        ConcertSummaryDto result = concertService.getConcertById(20L, 100L);
+        ConcertResponseDto result = concertService.getConcertById(20L, 100L);
 
-        assertThat(result.getConcertId()).isEqualTo(20L);
-        assertThat(result.getTitle()).isEqualTo("아이유 콘서트");
+        assertThat(result.getCompanionCount()).isEqualTo(3L);
     }
 
     @Test
-    void 콘서트_단건_조회는_비로그인_조회자여도_동행_도메인을_거치지_않고_동작한다() {
-        Concert existing = Concert.builder().title("아이유 콘서트").build();
+    void 콘서트_단건_조회시_조회자마다_다른_동행프로필_수가_반환된다() {
+        Concert existing = Concert.builder().title("기존 제목").build();
         ReflectionTestUtils.setField(existing, "id", 20L);
         when(concertRepository.findById(20L)).thenReturn(Optional.of(existing));
+        when(companionService.countVisibleCompanions(20L, 100L)).thenReturn(3L);
+        when(companionService.countVisibleCompanions(20L, 200L)).thenReturn(1L);
 
-        ConcertSummaryDto result = concertService.getConcertById(20L, null);
-
-        assertThat(result.getConcertId()).isEqualTo(20L);
-        verifyNoInteractions(companionService);
+        assertThat(concertService.getConcertById(20L, 100L).getCompanionCount()).isEqualTo(3L);
+        assertThat(concertService.getConcertById(20L, 200L).getCompanionCount()).isEqualTo(1L);
     }
 
     @Test
-    void 존재하지_않는_콘서트_단건_조회시_예외가_발생한다() {
-        when(concertRepository.findById(999L)).thenReturn(Optional.empty());
+    void 콘서트_전체_목록조회시_각_콘서트별로_조회자가_볼_수_있는_동행프로필_수가_반환된다() {
+        Concert concert1 = Concert.builder().title("콘서트1").build();
+        ReflectionTestUtils.setField(concert1, "id", 1L);
+        Concert concert2 = Concert.builder().title("콘서트2").build();
+        ReflectionTestUtils.setField(concert2, "id", 2L);
 
-        assertThatThrownBy(() -> concertService.getConcertById(999L, 100L))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.CONCERT_NOT_FOUND);
-    }
+        when(concertRepository.findUpcomingOrUndated(any())).thenReturn(List.of(concert1, concert2));
+        when(companionService.countVisibleCompanionsByConcert(List.of(1L, 2L), 100L))
+                .thenReturn(Map.of(1L, 5L, 2L, 0L));
 
-    // ===== searchConcertsByTitle (검색 스코프) =====
+        List<ConcertResponseDto> result = concertService.getAllConcerts(100L, com.loop.loop_backend.Concert.dto.ConcertSort.IMMINENT);
 
-    private Concert concertNamed(long id, String title) {
-        Concert concert = Concert.builder().title(title).build();
-        ReflectionTestUtils.setField(concert, "id", id);
-        return concert;
-    }
-
-    @Test
-    void 검색시_section을_지정하지_않으면_전체_카테고리로_조회한다() {
-        when(concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
-                eq("공연"), eq(List.of(ConcertCategory.values())), any()))
-                .thenReturn(List.of(concertNamed(1L, "전체 카테고리 결과")));
-        when(concertRepository.searchPastByTitleAndCategories(any(), any(), any()))
-                .thenReturn(List.of());
-
-        List<ConcertSummaryDto> result = concertService.searchConcertsByTitle("공연", null, ConcertPeriod.UPCOMING, 100L);
-
-        assertThat(result).extracting(ConcertSummaryDto::getTitle).containsExactly("전체 카테고리 결과");
+        assertThat(result).extracting(ConcertResponseDto::getCompanionCount).containsExactly(5L, 0L);
     }
 
     @Test
-    void 검색시_section을_지정하면_해당_섹션의_카테고리로만_조회한다() {
-        when(concertRepository.searchUpcomingOrUndatedByTitleAndCategories(
-                eq("공연"), eq(ConcertSection.FESTIVAL.getCategories()), any()))
-                .thenReturn(List.of(concertNamed(1L, "페스티벌 결과")));
+    void 동행프로필이_0건인_콘서트도_목록에서_빠지지_않고_카운트_0으로_반환된다() {
+        Concert concert1 = Concert.builder().title("콘서트1").build();
+        ReflectionTestUtils.setField(concert1, "id", 1L);
+        Concert concert2 = Concert.builder().title("콘서트2").build();
+        ReflectionTestUtils.setField(concert2, "id", 2L);
 
-        List<ConcertSummaryDto> result = concertService.searchConcertsByTitle(
-                "공연", ConcertSection.FESTIVAL, ConcertPeriod.UPCOMING, 100L);
+        when(concertRepository.findUpcomingOrUndated(any())).thenReturn(List.of(concert1, concert2));
+        // GROUP BY 결과에는 동행 프로필이 있는 콘서트만 담긴다 - 2번은 아예 키가 없다.
+        when(companionService.countVisibleCompanionsByConcert(List.of(1L, 2L), 100L))
+                .thenReturn(Map.of(1L, 5L));
 
-        assertThat(result).extracting(ConcertSummaryDto::getTitle).containsExactly("페스티벌 결과");
-    }
+        List<ConcertResponseDto> result = concertService.getAllConcerts(100L, com.loop.loop_backend.Concert.dto.ConcertSort.IMMINENT);
 
-    @Test
-    void 검색시_period가_PAST면_지난_공연만_조회한다() {
-        when(concertRepository.searchPastByTitleAndCategories(eq("공연"), any(), any()))
-                .thenReturn(List.of(concertNamed(1L, "지난 공연 결과")));
-
-        List<ConcertSummaryDto> result = concertService.searchConcertsByTitle(
-                "공연", ConcertSection.DOMESTIC_TOUR, ConcertPeriod.PAST, 100L);
-
-        assertThat(result).extracting(ConcertSummaryDto::getTitle).containsExactly("지난 공연 결과");
-        verify(concertRepository, never()).searchUpcomingOrUndatedByTitleAndCategories(any(), any(), any());
-    }
-
-    @Test
-    void 검색시_period를_지정하지_않으면_전체검색으로_예정_목록_뒤에_지난_목록을_이어붙인다() {
-        when(concertRepository.searchUpcomingOrUndatedByTitleAndCategories(eq("공연"), any(), any()))
-                .thenReturn(List.of(concertNamed(1L, "예정1"), concertNamed(2L, "예정2")));
-        when(concertRepository.searchPastByTitleAndCategories(eq("공연"), any(), any()))
-                .thenReturn(List.of(concertNamed(3L, "지난1")));
-
-        List<ConcertSummaryDto> result = concertService.searchConcertsByTitle("공연", null, null, 100L);
-
-        assertThat(result).extracting(ConcertSummaryDto::getTitle)
-                .containsExactly("예정1", "예정2", "지난1");
+        assertThat(result).hasSize(2);
+        assertThat(result).extracting(ConcertResponseDto::getCompanionCount).containsExactly(5L, 0L);
     }
 
     @Test
@@ -279,18 +191,6 @@ class ConcertServiceImplTest {
                 .isEqualTo(ErrorCode.CONCERT_NOT_FOUND);
 
         verify(s3StorageService, never()).uploadPublic(any(), any(), any());
-    }
-
-    @Test
-    @DisplayName("공연 탭 목록 size가 1~50 밖이면 INVALID_INPUT 예외가 나고 DB를 조회하지 않는다")
-    void getConcertsBySection_WithSizeOutOfRange_ThrowsInvalidInput() {
-        for (int size : new int[]{0, 51}) {
-            assertThatThrownBy(() -> concertService.getConcertsBySection(
-                    ConcertSection.DOMESTIC_TOUR, ConcertPeriod.UPCOMING, size, 100L))
-                    .isInstanceOf(BusinessException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
-        }
-        verifyNoInteractions(concertRepository);
     }
 }
 

@@ -13,12 +13,9 @@ import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Concert.domain.Concert;
-import com.loop.loop_backend.Concert.domain.ConcertCategory;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
 import com.loop.loop_backend.FavoriteArtist.domain.FavoriteArtist;
 import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
-import com.loop.loop_backend.FavoriteArtist.repository.UserArtistId;
-import com.loop.loop_backend.HashTag.domain.UserHashtag;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
@@ -31,9 +28,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.springframework.context.ApplicationEventPublisher;
-import com.loop.loop_backend.CompanionPost.event.CompanionCreatedEvent;
-import com.loop.loop_backend.Concert.domain.CompanionStatus;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -52,10 +46,8 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
@@ -70,7 +62,6 @@ class CompanionServiceImplTest {
     @Mock FavoriteArtistRepository favoriteArtistRepository;
     @Mock BlockRepository blockRepository;
     @Mock CompanionHeartRepository companionHeartRepository;
-    @Mock ApplicationEventPublisher eventPublisher;
     @InjectMocks CompanionServiceImpl companionService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -99,9 +90,8 @@ class CompanionServiceImplTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
-    // 동행 모집 중인 공개 공연 (등록 가능)
     private Concert stubConcert(long id) {
-        Concert c = Concert.builder().title("테스트 콘서트").published(true).companionStatus(CompanionStatus.OPEN).build();
+        Concert c = Concert.builder().title("테스트 콘서트").build();
         ReflectionTestUtils.setField(c, "id", id);
         return c;
     }
@@ -130,8 +120,7 @@ class CompanionServiceImplTest {
     }
 
     private Concert stubConcert(long id, LocalDate startDate) {
-        Concert c = Concert.builder().title("테스트 콘서트").startDate(startDate)
-                .published(true).companionStatus(CompanionStatus.OPEN).build();
+        Concert c = Concert.builder().title("테스트 콘서트").startDate(startDate).build();
         ReflectionTestUtils.setField(c, "id", id);
         return c;
     }
@@ -196,70 +185,6 @@ class CompanionServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.COMPANION_POST_ALREADY_EXISTS);
-    }
-
-    // 공연별 동행 ON/OFF: 동행 모집 중인 공개 공연에만 동행 프로필을 등록할 수 있다.
-    // 미오픈·종료 공연, 비공개 공연(저장 상태가 모집 중이어도)은 409이고 아무것도 저장·알림하지 않는다.
-    @Test
-    void 미오픈_종료_비공개_공연에는_동행_프로필을_등록할_수_없다() {
-        Concert notOpened = Concert.builder().title("미오픈").published(true)
-                .companionStatus(CompanionStatus.NOT_OPENED).build();
-        Concert closed = Concert.builder().title("종료").published(true)
-                .companionStatus(CompanionStatus.CLOSED).build();
-        Concert unpublished = Concert.builder().title("비공개").published(false)
-                .companionStatus(CompanionStatus.OPEN).build();
-
-        for (Concert notOpen : List.of(notOpened, closed, unpublished)) {
-            when(concertRepository.findById(10L)).thenReturn(Optional.of(notOpen));
-
-            assertThatThrownBy(() -> companionService.createCompanion(1L, requestDto(10L)))
-                    .isInstanceOf(BusinessException.class)
-                    .extracting(e -> ((BusinessException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.COMPANION_NOT_OPEN);
-        }
-        verify(companionPostRepository, never()).saveAndFlush(any(CompanionPost.class));
-        verify(eventPublisher, never()).publishEvent(any(Object.class));
-    }
-
-    // 동행 프로필 생성 디스코드 알림: 생성에 성공하면 공연명·관람일·작성자 닉네임·하고 싶은 말을 담아 한 번 알린다.
-    // 생성이 실패(중복 등)하면 알리지 않는다.
-    @Test
-    void 생성에_성공하면_공연명_관람일_닉네임_하고싶은말을_담은_알림_이벤트를_한번_발행한다() throws Exception {
-        Concert dated = stubConcert(10L, LocalDate.of(2026, 11, 3));
-        when(concertRepository.findById(10L)).thenReturn(Optional.of(dated));
-        user.assignNickname("새벽베텔기우스");
-
-        companionService.createCompanion(1L, requestDto(10L));
-
-        ArgumentCaptor<CompanionCreatedEvent> captor = ArgumentCaptor.forClass(CompanionCreatedEvent.class);
-        verify(eventPublisher).publishEvent(captor.capture());
-        CompanionCreatedEvent event = captor.getValue();
-        assertThat(event.concertTitle()).isEqualTo("테스트 콘서트");
-        assertThat(event.watchDay()).isEqualTo(WatchDay.DAY1);
-        assertThat(event.watchDate()).isEqualTo(LocalDate.of(2026, 11, 3));
-        assertThat(event.authorNickname()).isEqualTo("새벽베텔기우스");
-        assertThat(event.messageToCompanion()).isEqualTo("같이 즐겁게 봐요!");
-    }
-
-    @Test
-    void 이미_프로필이_있어_생성이_실패하면_알림_이벤트를_발행하지_않는다() {
-        when(companionPostRepository.existsByUserAndConcert_IdAndWatchDay(any(), any(), any()))
-                .thenReturn(true);
-
-        assertThatThrownBy(() -> companionService.createCompanion(1L, requestDto(10L)))
-                .isInstanceOf(BusinessException.class);
-        // any()만 쓰면 publishEvent(ApplicationEvent) 오버로드로 묶여 검증이 항상 통과하므로 Object 쪽을 지정한다
-        verify(eventPublisher, never()).publishEvent(any(Object.class));
-    }
-
-    @Test
-    void 저장_시점_중복으로_생성이_실패해도_알림_이벤트를_발행하지_않는다() {
-        when(companionPostRepository.saveAndFlush(any(CompanionPost.class)))
-                .thenThrow(new DataIntegrityViolationException("duplicate"));
-
-        assertThatThrownBy(() -> companionService.createCompanion(1L, requestDto(10L)))
-                .isInstanceOf(BusinessException.class);
-        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
     // ── getWatchingCompanions ─────────────────────────────────────────────────
@@ -330,6 +255,31 @@ class CompanionServiceImplTest {
                 .containsExactly(3L, 2L);
     }
 
+    @Test
+    void 내_프로필이_있고_공연관람_선택이면_관람스타일_동일_우선_공통활동_많은순으로_정렬된다() {
+        CompanionPost myPost = buildWatchingPost(user,
+                Set.of(CompanionActivity.CONCERT, CompanionActivity.MEAL), WatchStyle.QUIET, LocalDateTime.now());
+
+        // 스타일은 다르지만 공통 활동이 더 많음
+        CompanionPost differentStyleMoreCommon = buildWatchingPost(buildUser(2L, "kakao-2"),
+                Set.of(CompanionActivity.CONCERT, CompanionActivity.MEAL, CompanionActivity.PHOTO),
+                WatchStyle.NORMAL, LocalDateTime.now());
+        // 스타일은 같지만 공통 활동이 더 적음
+        CompanionPost sameStyleLessCommon = buildWatchingPost(buildUser(3L, "kakao-3"),
+                Set.of(CompanionActivity.CONCERT), WatchStyle.QUIET, LocalDateTime.now());
+
+        when(companionPostRepository.findAll(any(Specification.class)))
+                .thenReturn(List.of(differentStyleMoreCommon, sameStyleLessCommon));
+        when(companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(1L, 10L, WatchDay.DAY1))
+                .thenReturn(Optional.of(myPost));
+
+        PageResponseDto<CompanionResponseDto> result = companionService.getWatchingCompanions(
+                1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
+
+        assertThat(result.getContent()).extracting(CompanionResponseDto::getUserId)
+                .containsExactly(3L, 2L);
+    }
+
     // gender/ageGroup 필터링은 CompanionPostSpecifications를 통해 쿼리 조건으로 내려가므로
     // 실제 필터링 동작 검증은 CompanionPostRepositoryTest(@DataJpaTest)에서 확인한다.
 
@@ -377,88 +327,6 @@ class CompanionServiceImplTest {
                 .containsExactly(3L, 2L);
     }
 
-    // ── 목록 성격(해시태그) ───────────────────────────────────────────────────
-    // 동행 프로필 목록·내 프로필 카드에 작성자 성격을 보여준다. 성격은 작성자(사용자)에 붙어 있고, 없으면 빈 목록.
-    // 목록은 작성자들 성격을 한 번에 조회한다(프로필 수만큼 조회하지 않는다). 상세는 그대로.
-
-    private UserHashtag hashtag(long id, User owner, String tag) {
-        UserHashtag h = UserHashtag.builder().user(owner).tag(tag).build();
-        ReflectionTestUtils.setField(h, "id", id);
-        return h;
-    }
-
-    @Test
-    void 동행_풀_목록의_프로필마다_그_작성자의_성격이_붙고_없으면_빈_목록이다() {
-        User tagged = buildUser(2L, "k2");
-        User untagged = buildUser(3L, "k3");
-        Concert fes = festival();
-        givenPool(null,
-                post(tagged, fes, Set.of(CompanionActivity.MEAL), null, NOW),
-                post(untagged, fes, Set.of(CompanionActivity.MEAL), null, NOW.minusDays(1)));
-        when(userHashtagRepository.findAllByUser_IdInOrderByIdAsc(any()))
-                .thenReturn(List.of(hashtag(1L, tagged, "낯가림"), hashtag(2L, tagged, "계획형")));
-
-        List<CompanionResponseDto> content = companionService.getAllCompanions(
-                1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20)).getContent();
-
-        assertThat(content.get(0).getHashtags()).extracting(CompanionResponseDto.HashtagSummary::getTag)
-                .containsExactly("낯가림", "계획형");
-        assertThat(content.get(1).getHashtags()).isEmpty();
-    }
-
-    @Test
-    void 동행_풀_목록은_작성자들의_성격을_한_번에_조회한다() {
-        Concert fes = festival();
-        givenPool(null,
-                post(buildUser(2L, "k2"), fes, Set.of(CompanionActivity.MEAL), null, NOW),
-                post(buildUser(3L, "k3"), fes, Set.of(CompanionActivity.MEAL), null, NOW),
-                post(buildUser(4L, "k4"), fes, Set.of(CompanionActivity.MEAL), null, NOW));
-
-        companionService.getAllCompanions(1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
-
-        verify(userHashtagRepository, times(1)).findAllByUser_IdInOrderByIdAsc(Set.of(2L, 3L, 4L));
-    }
-
-    @Test
-    void 동행_풀_목록은_현재_페이지에_나가는_작성자의_성격만_조회한다() {
-        Concert fes = festival();
-        givenPool(null,
-                post(buildUser(2L, "k2"), fes, Set.of(CompanionActivity.MEAL), null, NOW),
-                post(buildUser(3L, "k3"), fes, Set.of(CompanionActivity.MEAL), null, NOW.minusDays(1)));
-
-        companionService.getAllCompanions(1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 1));
-
-        verify(userHashtagRepository).findAllByUser_IdInOrderByIdAsc(Set.of(2L));
-    }
-
-    @Test
-    void 내_동행_프로필에도_내_성격이_붙는다() {
-        ReflectionTestUtils.setField(user, "id", 1L);
-        CompanionPost mine = post(user, festival(), Set.of(CompanionActivity.MEAL), null, NOW.plusDays(30));
-        when(companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(1L, 10L, WatchDay.DAY1))
-                .thenReturn(Optional.of(mine));
-        when(userHashtagRepository.findAllByUser_IdInOrderByIdAsc(any()))
-                .thenReturn(List.of(hashtag(1L, user, "낯가림")));
-
-        CompanionResponseDto result = companionService.getMyCompanion(1L, 10L, WatchDay.DAY1);
-
-        assertThat(result.getHashtags()).extracting(CompanionResponseDto.HashtagSummary::getTag)
-                .containsExactly("낯가림");
-    }
-
-    @Test
-    void 상세의_성격은_그대로_작성자_성격이다() {
-        ReflectionTestUtils.setField(user, "id", 1L);
-        when(companionPostRepository.findById(1L)).thenReturn(Optional.of(buildPost(user, 10L)));
-        when(userHashtagRepository.findAllByUser(user)).thenReturn(List.of(hashtag(7L, user, "계획형")));
-
-        CompanionDetailResponseDto dto = companionService.getCompanion(999L, 1L);
-
-        assertThat(dto.getHashtags()).extracting(CompanionResponseDto.HashtagSummary::getId,
-                        CompanionResponseDto.HashtagSummary::getTag)
-                .containsExactly(tuple(7L, "계획형"));
-    }
-
     // ── getAllCompanions ──────────────────────────────────────────────────────
 
     @Test
@@ -478,159 +346,24 @@ class CompanionServiceImplTest {
                 .containsExactly(3L, 2L);
     }
 
-    // ── 동행 풀 정렬 v2 (관람·미관람·전체 공통) ─────────────────────────────────
-    // 내 동행 프로필이 있으면 ① 함께 하고 싶은 것 공통 많은 순 ② 좋아하는 아티스트 공통 많은 순
-    // ③ 관람 스타일 같은 사람 먼저 ④ 최신 등록순. 관람 스타일은 페스티벌만 쓰고(단독 공연은 없음), 둘 다 고른 경우만 같다고 본다.
-    // 내 프로필이 없으면 최신 등록순.
-
-    private static final LocalDateTime NOW = LocalDateTime.of(2026, 11, 12, 12, 0);
-
-    private Concert festival() {
-        Concert c = Concert.builder().title("페스티벌").category(ConcertCategory.FESTIVAL)
-                .published(true).companionStatus(CompanionStatus.OPEN).build();
-        ReflectionTestUtils.setField(c, "id", 10L);
-        return c;
-    }
-
-    private Concert stage() {
-        Concert c = Concert.builder().title("단독 공연").category(ConcertCategory.STAGE)
-                .published(true).companionStatus(CompanionStatus.OPEN).build();
-        ReflectionTestUtils.setField(c, "id", 10L);
-        return c;
-    }
-
-    private CompanionPost post(User owner, Concert concert, Set<CompanionActivity> activities, WatchStyle style,
-                               LocalDateTime createdAt) {
-        CompanionPost post = CompanionPost.builder()
-                .user(owner).concert(concert).watchDay(WatchDay.DAY1)
-                .activities(activities).watchStyle(style).build();
-        ReflectionTestUtils.setField(post, "createdAt", createdAt);
-        return post;
-    }
-
-    private void givenPool(CompanionPost myPost, CompanionPost... others) {
-        when(companionPostRepository.findAll(any(Specification.class))).thenReturn(List.of(others));
-        when(companionPostRepository.findByUser_IdAndConcert_IdAndWatchDay(1L, 10L, WatchDay.DAY1))
-                .thenReturn(Optional.ofNullable(myPost));
-    }
-
-    private void givenFavoriteArtists(UserArtistId... rows) {
-        when(favoriteArtistRepository.findArtistIdsByUserIdIn(any())).thenReturn(List.of(rows));
-    }
-
-    private List<Long> allOrder() {
-        return companionService.getAllCompanions(1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20))
-                .getContent().stream().map(CompanionResponseDto::getUserId).toList();
-    }
-
     @Test
-    void 함께_하고_싶은_것_공통이_많으면_아티스트_공통과_관람스타일보다_먼저_온다() {
-        Concert fes = festival();
-        givenPool(post(user, fes, Set.of(CompanionActivity.MEAL, CompanionActivity.PHOTO), WatchStyle.QUIET, NOW),
-                // 활동 공통 1, 아티스트 공통 1, 스타일 같음
-                post(buildUser(2L, "k2"), fes, Set.of(CompanionActivity.MEAL), WatchStyle.QUIET, NOW),
-                // 활동 공통 2, 아티스트 공통 0, 스타일 다름
-                post(buildUser(3L, "k3"), fes, Set.of(CompanionActivity.MEAL, CompanionActivity.PHOTO), WatchStyle.NORMAL, NOW));
-        givenFavoriteArtists(new UserArtistId(1L, 100L), new UserArtistId(2L, 100L));
+    void 전체_조회는_내_프로필이_있어도_공통활동_기준으로_정렬되지_않는다() {
+        CompanionPost myPost = buildWatchingPost(user,
+                Set.of(CompanionActivity.MEAL, CompanionActivity.PHOTO), null, LocalDateTime.now());
+        CompanionPost highMatchButOlder = buildWatchingPost(buildUser(2L, "kakao-2"),
+                Set.of(CompanionActivity.MEAL, CompanionActivity.PHOTO), null, LocalDateTime.now().minusDays(1));
+        CompanionPost lowMatchButNewer = buildWatchingPost(buildUser(3L, "kakao-3"),
+                Set.of(CompanionActivity.CONCERT), WatchStyle.NORMAL, LocalDateTime.now());
 
-        assertThat(allOrder()).containsExactly(3L, 2L);
-    }
+        when(companionPostRepository.findAll(any(Specification.class)))
+                .thenReturn(List.of(highMatchButOlder, lowMatchButNewer));
 
-    @Test
-    void 함께_하고_싶은_것_공통이_같으면_좋아하는_아티스트_공통이_많은_사람이_먼저_온다() {
-        Concert fes = festival();
-        givenPool(post(user, fes, Set.of(CompanionActivity.MEAL), WatchStyle.QUIET, NOW),
-                // 아티스트 공통 1, 스타일 같음
-                post(buildUser(2L, "k2"), fes, Set.of(CompanionActivity.MEAL), WatchStyle.QUIET, NOW),
-                // 아티스트 공통 2, 스타일 다름
-                post(buildUser(3L, "k3"), fes, Set.of(CompanionActivity.MEAL), WatchStyle.NORMAL, NOW));
-        givenFavoriteArtists(new UserArtistId(1L, 100L), new UserArtistId(1L, 200L),
-                new UserArtistId(2L, 100L),
-                new UserArtistId(3L, 100L), new UserArtistId(3L, 200L), new UserArtistId(3L, 300L));
+        PageResponseDto<CompanionResponseDto> result = companionService.getAllCompanions(
+                1L, 10L, WatchDay.DAY1, null, null, PageRequest.of(0, 20));
 
-        assertThat(allOrder()).containsExactly(3L, 2L);
-    }
-
-    @Test
-    void 페스티벌은_활동과_아티스트_공통이_같으면_관람스타일이_같은_사람이_먼저_온다() {
-        Concert fes = festival();
-        givenPool(post(user, fes, Set.of(CompanionActivity.MEAL), WatchStyle.QUIET, NOW),
-                post(buildUser(2L, "k2"), fes, Set.of(CompanionActivity.MEAL), WatchStyle.NORMAL, NOW),
-                post(buildUser(3L, "k3"), fes, Set.of(CompanionActivity.MEAL), WatchStyle.QUIET, NOW.minusDays(1)));
-
-        assertThat(allOrder()).containsExactly(3L, 2L);
-    }
-
-    @Test
-    void 페스티벌의_관람스타일_비교는_내가_공연_관람을_고르지_않아도_적용된다() {
-        Concert fes = festival();
-        // 함께 하고 싶은 것에 CONCERT가 없어도 페스티벌이면 관람 스타일이 있다
-        givenPool(post(user, fes, Set.of(CompanionActivity.GOODS), WatchStyle.QUIET, NOW),
-                post(buildUser(2L, "k2"), fes, Set.of(CompanionActivity.GOODS), WatchStyle.NORMAL, NOW),
-                post(buildUser(3L, "k3"), fes, Set.of(CompanionActivity.GOODS), WatchStyle.QUIET, NOW.minusDays(1)));
-
-        assertThat(allOrder()).containsExactly(3L, 2L);
-    }
-
-    @Test
-    void 단독_공연은_관람스타일_값이_있어도_정렬에_쓰지_않고_최신순으로_넘어간다() {
-        Concert stage = stage();
-        givenPool(post(user, stage, Set.of(CompanionActivity.MEAL), WatchStyle.QUIET, NOW),
-                post(buildUser(2L, "k2"), stage, Set.of(CompanionActivity.MEAL), WatchStyle.NORMAL, NOW),
-                post(buildUser(3L, "k3"), stage, Set.of(CompanionActivity.MEAL), WatchStyle.QUIET, NOW.minusDays(1)));
-
-        assertThat(allOrder()).containsExactly(2L, 3L);
-    }
-
-    @Test
-    void 관람스타일이_둘_다_없으면_같은_스타일로_보지_않는다() {
-        Concert fes = festival();
-        // 내 스타일이 없을 때, 스타일 없는 사람이 '같은 스타일'로 앞서면 안 된다
-        givenPool(post(user, fes, Set.of(CompanionActivity.MEAL), null, NOW),
-                post(buildUser(2L, "k2"), fes, Set.of(CompanionActivity.MEAL), WatchStyle.NORMAL, NOW),
-                post(buildUser(3L, "k3"), fes, Set.of(CompanionActivity.MEAL), null, NOW.minusDays(1)));
-
-        assertThat(allOrder()).containsExactly(2L, 3L);
-    }
-
-    @Test
-    void 모든_기준이_같으면_최신_등록순이다() {
-        Concert fes = festival();
-        givenPool(post(user, fes, Set.of(CompanionActivity.MEAL), WatchStyle.QUIET, NOW),
-                post(buildUser(2L, "k2"), fes, Set.of(CompanionActivity.MEAL), WatchStyle.QUIET, NOW.minusDays(1)),
-                post(buildUser(3L, "k3"), fes, Set.of(CompanionActivity.MEAL), WatchStyle.QUIET, NOW));
-
-        assertThat(allOrder()).containsExactly(3L, 2L);
-    }
-
-    @Test
-    void 전체_목록에서_내_프로필이_없으면_공통_기준_없이_최신_등록순이다() {
-        Concert fes = festival();
-        givenPool(null,
-                post(buildUser(2L, "k2"), fes, Set.of(CompanionActivity.MEAL), WatchStyle.QUIET, NOW.minusDays(1)),
-                post(buildUser(3L, "k3"), fes, Set.of(CompanionActivity.GOODS), WatchStyle.NORMAL, NOW));
-        givenFavoriteArtists(new UserArtistId(1L, 100L), new UserArtistId(2L, 100L));
-
-        assertThat(allOrder()).containsExactly(3L, 2L);
-    }
-
-    @Test
-    void 관람_미관람_전체_목록은_같은_정렬_규칙을_따른다() {
-        Concert fes = festival();
-        givenPool(post(user, fes, Set.of(CompanionActivity.MEAL), WatchStyle.QUIET, NOW),
-                post(buildUser(2L, "k2"), fes, Set.of(CompanionActivity.MEAL), WatchStyle.NORMAL, NOW),
-                post(buildUser(3L, "k3"), fes, Set.of(CompanionActivity.MEAL), WatchStyle.QUIET, NOW.minusDays(1)));
-        givenFavoriteArtists(new UserArtistId(1L, 100L), new UserArtistId(2L, 100L));
-
-        List<Long> watching = companionService.getWatchingCompanions(1L, 10L, WatchDay.DAY1, null, null,
-                PageRequest.of(0, 20)).getContent().stream().map(CompanionResponseDto::getUserId).toList();
-        List<Long> notWatching = companionService.getNotWatchingCompanions(1L, 10L, WatchDay.DAY1, null, null,
-                PageRequest.of(0, 20)).getContent().stream().map(CompanionResponseDto::getUserId).toList();
-
-        // 아티스트 공통(2번)이 스타일(3번)보다 먼저
-        assertThat(allOrder()).containsExactly(2L, 3L);
-        assertThat(watching).containsExactly(2L, 3L);
-        assertThat(notWatching).containsExactly(2L, 3L);
+        // 공통 활동이 더 많은 highMatchButOlder가 아니라, 등록일자가 최신인 lowMatchButNewer가 먼저 나온다
+        assertThat(result.getContent()).extracting(CompanionResponseDto::getUserId)
+                .containsExactly(3L, 2L);
     }
 
     @Test
@@ -671,34 +404,6 @@ class CompanionServiceImplTest {
         assertThat(dto.getPreferredArtistNames()).containsExactly("아이유");
     }
 
-    // 동행 프로필에 관심 아티스트 이미지를 보여준다: 아티스트마다 PK·이름·이미지를 함께 주고, 이미지가 없으면 null.
-    // 구버전 앱용 이름 목록(preferredArtistNames)도 같은 순서로 계속 내려준다.
-    @Test
-    void 상세조회시_작성자의_관심_아티스트_이미지가_이름과_함께_내려간다() {
-        ReflectionTestUtils.setField(user, "id", 1L);
-        CompanionPost post = buildPost(user, 10L);
-        when(companionPostRepository.findById(1L)).thenReturn(Optional.of(post));
-
-        Artist withImage = Artist.builder().name("YOASOBI").imageUrl("https://img.example/yoasobi.jpg").build();
-        ReflectionTestUtils.setField(withImage, "id", 3L);
-        Artist withoutImage = Artist.builder().name("Vaundy").build();
-        ReflectionTestUtils.setField(withoutImage, "id", 7L);
-        when(favoriteArtistRepository.findAllByUser(user)).thenReturn(List.of(
-                FavoriteArtist.builder().user(user).artist(withImage).build(),
-                FavoriteArtist.builder().user(user).artist(withoutImage).build()));
-
-        CompanionDetailResponseDto dto = (CompanionDetailResponseDto) companionService.getCompanion(999L, 1L);
-
-        assertThat(dto.getPreferredArtists())
-                .extracting(CompanionDetailResponseDto.PreferredArtist::getArtistId,
-                        CompanionDetailResponseDto.PreferredArtist::getName,
-                        CompanionDetailResponseDto.PreferredArtist::getImageUrl)
-                .containsExactly(
-                        tuple(3L, "YOASOBI", "https://img.example/yoasobi.jpg"),
-                        tuple(7L, "Vaundy", null));
-        assertThat(dto.getPreferredArtistNames()).containsExactly("YOASOBI", "Vaundy");
-    }
-
     @Test
     void 관심_아티스트가_없으면_빈_목록을_반환한다() {
         ReflectionTestUtils.setField(user, "id", 1L);
@@ -709,7 +414,6 @@ class CompanionServiceImplTest {
         CompanionDetailResponseDto dto = (CompanionDetailResponseDto) companionService.getCompanion(999L, 1L);
 
         assertThat(dto.getPreferredArtistNames()).isEmpty();
-        assertThat(dto.getPreferredArtists()).isEmpty();
     }
 
     @Test

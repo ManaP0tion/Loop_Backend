@@ -1,10 +1,9 @@
-# ⚠️ 이 워크플로우는 devtemp 브랜치(임시 DEV EC2) 전용입니다.
 name: Deploy to DEV EC2
 
 on:
   push:
     branches:
-      - devtemp
+      - dev
 
 jobs:
   deploy:
@@ -43,5 +42,5 @@ jobs:
           script: |
             cd ~/Loop_Backend
             mkdir -p build/libs
-            git pull upstream devtemp
+            git pull upstream dev
             docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build

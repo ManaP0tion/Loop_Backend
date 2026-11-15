@@ -1,7 +1,6 @@
 package com.loop.loop_backend.CompanionHeart.dto;
 
 import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto;
-import com.loop.loop_backend.Concert.domain.CompanionStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 
@@ -39,14 +38,9 @@ public class HeartedConcertSummaryDto {
     @Schema(description = "최근 하트한 순 미리보기 (최대 2개, 목록 조회와 동일한 동행 프로필 정보)")
     private final List<CompanionResponseDto> companions;
 
-    @Schema(description = "동행 기능 상태. CLOSED면 섹션을 맨 아래로 내리고 프로필 대신 종료 안내를 보여준다" +
-            "(비공개 공연도 열린 적이 있으면 CLOSED)", example = "OPEN")
-    private final CompanionStatus companionStatus;
-
     public HeartedConcertSummaryDto(Long concertId, String concertTitle, Long artistId, String artistName,
                                      LocalDate startDate, LocalDate endDate, String venue,
-                                     long heartCount, List<CompanionResponseDto> companions,
-                                     CompanionStatus companionStatus) {
+                                     long heartCount, List<CompanionResponseDto> companions) {
         this.concertId = concertId;
         this.concertTitle = concertTitle;
         this.artistId = artistId;
@@ -56,6 +50,5 @@ public class HeartedConcertSummaryDto {
         this.venue = venue;
         this.heartCount = heartCount;
         this.companions = companions;
-        this.companionStatus = companionStatus;
     }
 }

@@ -9,5 +9,4 @@ public interface FavoriteArtistService {
     List<FavoriteArtistResponseDto> getFavoriteArtists(Long userId);
     FavoriteArtistResponseDto addFavoriteArtist(Long userId, Long artistId);
     void deleteFavoriteArtist(Long userId, Long favoriteArtistId);
-    List<FavoriteArtistResponseDto> replaceFavoriteArtists(Long userId, List<Long> artistIds);
 }

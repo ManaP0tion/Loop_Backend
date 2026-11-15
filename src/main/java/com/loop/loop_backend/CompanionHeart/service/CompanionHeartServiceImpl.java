@@ -8,11 +8,9 @@ import com.loop.loop_backend.CompanionHeart.repository.CompanionHeartRepository;
 import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.domain.WatchDay;
 import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto;
-import com.loop.loop_backend.CompanionPost.dto.CompanionResponseDto.HashtagSummary;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.Concert.domain.Concert;
 import com.loop.loop_backend.Concert.repository.ConcertRepository;
-import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
@@ -31,7 +29,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -39,14 +36,12 @@ import java.util.stream.Collectors;
 public class CompanionHeartServiceImpl implements CompanionHeartService {
 
     private static final ZoneId ZONE_KST = ZoneId.of("Asia/Seoul");
-    private static final int PREVIEW_SIZE = 2;
 
     private final CompanionHeartRepository companionHeartRepository;
     private final CompanionPostRepository companionPostRepository;
     private final ConcertRepository concertRepository;
     private final UserRepository userRepository;
     private final BlockRepository blockRepository;
-    private final UserHashtagRepository userHashtagRepository;
 
     @Override
     @Transactional
@@ -87,21 +82,16 @@ public class CompanionHeartServiceImpl implements CompanionHeartService {
             byConcert.computeIfAbsent(concertId, k -> new ArrayList<>()).add(heart);
         }
 
-        // 성격은 화면에 나가는 미리보기(공연마다 최대 2개)의 작성자 것만 한 번에 읽는다
-        Map<Long, List<HashtagSummary>> hashtags = hashtagsByAuthor(byConcert.values().stream()
-                .flatMap(group -> group.stream().limit(PREVIEW_SIZE))
-                .toList());
-
         return byConcert.values().stream()
-                .map(group -> toSummaryDto(group, hashtags))
+                .map(this::toSummaryDto)
                 .toList();
     }
 
-    private HeartedConcertSummaryDto toSummaryDto(List<CompanionHeart> group, Map<Long, List<HashtagSummary>> hashtags) {
+    private HeartedConcertSummaryDto toSummaryDto(List<CompanionHeart> group) {
         Concert concert = group.get(0).getCompanionPost().getConcert();
         List<CompanionResponseDto> preview = group.stream()
-                .limit(PREVIEW_SIZE)
-                .map(heart -> toResponse(heart, hashtags))
+                .limit(2)
+                .map(heart -> new CompanionResponseDto(heart.getCompanionPost(), true))
                 .toList();
 
         return new HeartedConcertSummaryDto(
@@ -113,8 +103,7 @@ public class CompanionHeartServiceImpl implements CompanionHeartService {
                 concert.getEndDate(),
                 concert.getVenue(),
                 group.size(),
-                preview,
-                concert.companionStatusForUsers());
+                preview);
     }
 
     @Override
@@ -123,13 +112,12 @@ public class CompanionHeartServiceImpl implements CompanionHeartService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
 
         List<CompanionHeart> hearts = filterHiddenOrBlocked(userId,
-                companionHeartRepository.findAllByUser_IdAndCompanionPost_Concert_IdOrderByCreatedAtDesc(userId, concertId));
+                companionHeartRepository.findAllByUser_IdAndCompanionPost_Concert_Id(userId, concertId));
 
-        Map<Long, List<HashtagSummary>> hashtags = hashtagsByAuthor(hearts);
         Map<WatchDay, List<CompanionResponseDto>> days = new EnumMap<>(WatchDay.class);
         for (CompanionHeart heart : hearts) {
             days.computeIfAbsent(heart.getCompanionPost().getWatchDay(), k -> new ArrayList<>())
-                    .add(toResponse(heart, hashtags));
+                    .add(new CompanionResponseDto(heart.getCompanionPost(), true));
         }
 
         return new HeartedConcertDetailDto(
@@ -139,25 +127,7 @@ public class CompanionHeartServiceImpl implements CompanionHeartService {
                 concert.getArtist() != null ? concert.getArtist().getName() : null,
                 concert.getStartDate(),
                 concert.getEndDate(),
-                days,
-                concert.companionStatusForUsers());
-    }
-
-    // 하트 탭은 내가 하트한 프로필만 보여주므로 hearted는 항상 true
-    private CompanionResponseDto toResponse(CompanionHeart heart, Map<Long, List<HashtagSummary>> hashtags) {
-        CompanionPost post = heart.getCompanionPost();
-        return new CompanionResponseDto(post, true, hashtags.getOrDefault(post.getUser().getId(), List.of()));
-    }
-
-    // 작성자들의 성격을 쿼리 한 번으로 가져와 작성자별로 묶는다 - 프로필마다 조회하면 N+1
-    private Map<Long, List<HashtagSummary>> hashtagsByAuthor(List<CompanionHeart> hearts) {
-        if (hearts.isEmpty()) {
-            return Map.of();
-        }
-        Set<Long> authorIds = hearts.stream()
-                .map(heart -> heart.getCompanionPost().getUser().getId())
-                .collect(Collectors.toSet());
-        return HashtagSummary.groupByUser(userHashtagRepository.findAllByUser_IdInOrderByIdAsc(authorIds));
+                days);
     }
 
     // 하트한 뒤에 작성자가 비공개로 돌렸거나, 나와 작성자 사이에 차단 관계가 생겼거나, 작성자가 탈퇴했거나,
