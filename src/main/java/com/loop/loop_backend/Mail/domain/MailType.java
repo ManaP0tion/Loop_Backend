@@ -10,5 +10,6 @@ public enum MailType {
     CONCERT_REMINDER,
     NEW_CHAT,          // 신규 채팅 알림 (→ 유저)
     SETLIST_RESULT,    // 예상 셋리스트 결과 (→ 유저)
-    NEW_CONCERT        // 새 공연 알림 (→ 유저)
+    NEW_CONCERT,       // 새 공연 알림 (→ 유저)
+    TICKET_ALARM       // 예매 알림 - 예매 하루 전 오후 9시·시작 30분 전 (→ 유저)
 }
