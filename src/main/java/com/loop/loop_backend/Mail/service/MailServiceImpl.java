@@ -2,7 +2,10 @@ package com.loop.loop_backend.Mail.service;
 
 import com.loop.loop_backend.Mail.domain.MailLog;
 import com.loop.loop_backend.Mail.domain.MailType;
+import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
 import com.loop.loop_backend.Mail.dto.NewConcertSummary;
+import com.loop.loop_backend.Mail.dto.TicketAlarmMail;
+import com.loop.loop_backend.Mail.dto.TicketAlarmTiming;
 import com.loop.loop_backend.Mail.dto.UnreadChatRoomSummary;
 import com.loop.loop_backend.Mail.repository.MailLogRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -208,6 +211,27 @@ public class MailServiceImpl implements MailService {
         dispatch(sesMailSender, MailType.NEW_CONCERT, toEmail, subject, html);
     }
 
+    // 동기 발송 - 발송 시점을 고르는 쪽(스케줄러)이 수신자마다 순서대로 부른다
+    // 하루 전·30분 전 메일은 템플릿 하나에 문구만 다르게 넣는다
+    @Override
+    public void sendTicketAlarmNotification(String toEmail, String recipientNickname, TicketAlarmMail mail,
+                                            TicketAlarmTiming timing, String unsubscribeUrl) {
+        if (toEmail == null || toEmail.isBlank()) {
+            return;
+        }
+
+        Context context = new Context();
+        context.setVariable("recipientNickname", recipientNickname);
+        context.setVariable("headline", timing.headline(mail));
+        context.setVariable("intro", timing.intro(mail));
+        context.setVariable("mail", mail);
+        context.setVariable("unsubscribeUrl", unsubscribeUrl);
+        context.setVariable("frontendUrl", frontendUrl);
+
+        String html = templateEngine.process("mail/ticket-alarm-notification", context);
+        dispatch(sesMailSender, MailType.TICKET_ALARM, toEmail, timing.subject(mail), html);
+    }
+
     @Override
     public void sendTest(MailType type, String toEmail) {
         switch (type) {
@@ -242,6 +266,13 @@ public class MailServiceImpl implements MailService {
             case NEW_CONCERT -> sendNewConcertNotification(toEmail, "테스터", List.of(
                     new NewConcertSummary(0L, "테스트 콘서트", "단독 공연", "2026.12.24", "테스트 공연장"),
                     new NewConcertSummary(0L, "테스트 페스티벌", "페스티벌", "2026.12.30 ~ 2026.12.31", "테스트 공연장")));
+            // 수신거부 링크 방식이 정해지기 전이라 알림 설정 화면으로 둔다
+            case TICKET_ALARM -> sendTicketAlarmNotification(toEmail, "테스터",
+                    new TicketAlarmMail(0L, "테스트 콘서트", "선예매", "12월 2일 (화) 오후 8:00", "오후 8:00",
+                            "2026.12.24", "테스트 공연장", List.of(
+                            new TicketVendorInfo("NOL 티켓", frontendUrl),
+                            new TicketVendorInfo("공식 팬클럽 안내", null))),
+                    TicketAlarmTiming.DAY_BEFORE, frontendUrl + "/settings/notifications");
         }
     }
 }

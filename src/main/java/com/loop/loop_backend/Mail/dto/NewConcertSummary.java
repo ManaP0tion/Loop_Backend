@@ -20,12 +20,17 @@ public record NewConcertSummary(
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy.MM.dd");
 
     public static NewConcertSummary of(Concert concert) {
-        String venueName = concert.getLinkedVenue() != null ? concert.getLinkedVenue().getName() : concert.getVenue();
         return new NewConcertSummary(concert.getId(), concert.getTitle(), concert.getCategory().getDisplayName(),
-                period(concert.getStartDate(), concert.getEndDate()), venueName);
+                period(concert.getStartDate(), concert.getEndDate()), venueName(concert));
     }
 
-    private static String period(LocalDate start, LocalDate end) {
+    // 공연 메일(새 공연·예매 알림)이 같은 형식으로 쓴다
+    static String venueName(Concert concert) {
+        return concert.getLinkedVenue() != null ? concert.getLinkedVenue().getName() : concert.getVenue();
+    }
+
+    static String period(LocalDate start, LocalDate end) {
+        if (start == null) return "날짜 미정";
         if (end == null || end.equals(start)) return start.format(DATE);
         return start.format(DATE) + " ~ " + end.format(DATE);
     }
