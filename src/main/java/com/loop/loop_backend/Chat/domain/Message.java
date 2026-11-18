@@ -35,6 +35,10 @@ public class Message {
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    // 한 번에 보낸 이미지 묶음(최대 5장)을 프론트가 묶어 보여줄 수 있도록 같은 값을 넣는다. 이미지 외 메시지와 기존 이미지는 null
+    @Column(name = "image_group_id", length = 36)
+    private String imageGroupId;
+
     @Builder.Default
     @Column(name = "is_read", nullable = false)
     private boolean isRead = false;

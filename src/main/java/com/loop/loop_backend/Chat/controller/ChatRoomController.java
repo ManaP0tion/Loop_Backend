@@ -86,12 +86,16 @@ public class ChatRoomController {
 
     @PostMapping(value = "/rooms/{roomId}/images", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "채팅 이미지 전송",
-            description = "이미지를 비공개 버킷에 업로드하고 IMAGE 메시지로 저장한 뒤, 해당 방 구독자에게 실시간 브로드캐스트합니다. 참여자만 조회 가능한 presigned URL로 응답.")
-    public ResponseEntity<CommonResponse<ChatMessageDto>> sendImage(
+            description = "이미지 1~5장(images)을 비공개 버킷에 업로드하고 장마다 IMAGE 메시지로 저장한 뒤, 해당 방 구독자에게 보낸 순서대로 실시간 브로드캐스트합니다.\n\n" +
+                    "- 한 번에 보낸 메시지들은 같은 imageGroupId를 가진다. 연달아 있는 같은 값끼리 묶어서 보여준다\n" +
+                    "- 한 장당 5MB 이하. 0장이거나 6장 이상이면 400\n" +
+                    "- 한 장이라도 실패하면 전체 실패(메시지가 저장·전송되지 않음)\n" +
+                    "- 응답은 보낸 순서대로의 메시지 목록. content는 참여자만 조회 가능한 presigned URL")
+    public ResponseEntity<CommonResponse<List<ChatMessageDto>>> sendImages(
             @AuthenticationPrincipal Long userId,
             @PathVariable Long roomId,
-            @RequestPart("image") org.springframework.web.multipart.MultipartFile image) {
-        return ResponseEntity.ok(CommonResponse.success(chatService.saveImageMessage(roomId, userId, image)));
+            @RequestPart("images") List<org.springframework.web.multipart.MultipartFile> images) {
+        return ResponseEntity.ok(CommonResponse.success(chatService.saveImageMessages(roomId, userId, images)));
     }
 
     @GetMapping("/rooms/{roomId}/messages")
