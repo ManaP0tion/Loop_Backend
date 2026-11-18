@@ -429,9 +429,16 @@ public class ChatServiceImpl implements ChatService {
                 .build();
     }
 
+    private static final int MAX_IMAGES_PER_SEND = 5;
+
     @Override
     @Transactional
-    public ChatMessageDto saveImageMessage(Long roomId, Long senderId, org.springframework.web.multipart.MultipartFile image) {
+    public List<ChatMessageDto> saveImageMessages(Long roomId, Long senderId,
+                                                  List<org.springframework.web.multipart.MultipartFile> images) {
+        // 장수는 업로드 전에 막는다 - 6장째를 보고 나서 거절하면 앞의 5장이 S3에 헛되이 올라간다
+        if (images == null || images.isEmpty() || images.size() > MAX_IMAGES_PER_SEND) {
+            throw new BusinessException(ErrorCode.CHAT_IMAGE_COUNT_INVALID);
+        }
         assertActiveParticipant(roomId, senderId);
         assertNotBlockedInRoom(roomId, senderId);
         assertOtherParticipantNotWithdrawn(roomId, senderId);
@@ -440,20 +447,28 @@ public class ChatServiceImpl implements ChatService {
         // 1:1 비공개 채팅이라 private 버킷에 올리고 content엔 S3 key만 저장한다.
         // 조회 시 toDto가 참여자에게만 presigned URL을 발급하므로 제3자는 접근 불가.
         // S3StorageService가 포맷/용량/HEIC 변환을 모두 검증·처리한다.
-        String key = s3StorageService.uploadPrivate("chat/" + roomId, senderId, image);
+        // 한 장이라도 실패하면 예외로 전체 롤백 - 이미 올라간 앞쪽 파일은 S3에 남지만 어떤 메시지에도 연결되지 않는다.
+        List<String> keys = images.stream()
+                .map(image -> s3StorageService.uploadPrivate("chat/" + roomId, senderId, image))
+                .toList();
 
         ChatRoom chatRoom = em.getReference(ChatRoom.class, roomId);
         User sender = em.getReference(User.class, senderId);
-        Message saved = messageRepository.save(Message.builder()
-                .chatRoom(chatRoom)
-                .sender(sender)
-                .type(MessageType.IMAGE)
-                .content(key)
-                .build());
+        String imageGroupId = java.util.UUID.randomUUID().toString();
+        List<ChatMessageDto> dtos = keys.stream()
+                .map(key -> messageRepository.save(Message.builder()
+                        .chatRoom(chatRoom)
+                        .sender(sender)
+                        .type(MessageType.IMAGE)
+                        .content(key)
+                        .imageGroupId(imageGroupId)
+                        .build()))
+                .map(this::toDto)
+                .toList();
 
-        ChatMessageDto dto = toDto(saved);
-        messagingTemplate.convertAndSend("/sub/chat/room/" + roomId, dto);
-        return dto;
+        // 전부 저장한 뒤에 보낸다 - 중간에 실패했는데 앞쪽 사진만 상대 화면에 뜨는 일이 없게
+        dtos.forEach(dto -> messagingTemplate.convertAndSend("/sub/chat/room/" + roomId, dto));
+        return dtos;
     }
 
     @Override
@@ -521,6 +536,7 @@ public class ChatServiceImpl implements ChatService {
                 .content(content)
                 .createdAt(m.getCreatedAt())
                 .isRead(m.isRead())
+                .imageGroupId(m.getImageGroupId())
                 .build();
     }
 

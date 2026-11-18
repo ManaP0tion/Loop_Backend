@@ -18,7 +18,8 @@ server {
     ssl_certificate /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem;
 
-    client_max_body_size 10M;
+    # 채팅 이미지 최대 5장(장당 5MB). spring.servlet.multipart.max-request-size와 같이 맞춘다
+    client_max_body_size 30M;
 
     location / {
         proxy_pass http://spring:8080;

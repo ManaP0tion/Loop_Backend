@@ -27,7 +27,8 @@ spring:
   servlet:
     multipart:
       max-file-size: 5MB
-      max-request-size: 5MB
+      # 채팅 이미지를 한 번에 최대 5장(장당 5MB) 받는다. nginx client_max_body_size도 같이 맞춘다
+      max-request-size: 30MB
 
 logging:
   level:
