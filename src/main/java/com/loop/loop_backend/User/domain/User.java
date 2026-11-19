@@ -77,11 +77,22 @@ public class User {
     private Long blockedUserId;
 
     // 가입 시점엔 이메일이 없어서(온보딩에 이메일 입력이 없음) 기본 OFF - 이메일 등록 후 알림 설정에서 직접 켜야 함
+    // 현재 미사용: 동행 기반 공연 리마인더 메일을 없앴다. 예매 알림 작업에서 재활용할지 정할 때까지 설정값만 남긴다
     @Column(name = "concert_reminder_email", nullable = false)
     private boolean concertReminderEmail = false;
 
     @Column(name = "chat_notification_email", nullable = false)
     private boolean chatNotificationEmail = false;
+
+    // 셋리스트 결과 메일(NO.69). 기본 ON(PRD 5-7) - 실제 발송은 투표 후 수신 동의 + 이메일 인증까지 해야 된다
+    // columnDefinition: 기존 행이 있는 테이블에 컬럼을 추가할 때 true로 채우려고(ddl-auto update)
+    @Column(name = "setlist_result_email", nullable = false, columnDefinition = "boolean default true")
+    private boolean setlistResultEmail = true;
+
+    // 새 공연 알림 메일(NO.47). 모든 사용자에게 가는 홍보성 알림이라 기본 OFF - 사용자가 직접 켜야 받는다
+    // columnDefinition: 기존 행이 있는 테이블에 컬럼을 추가할 때 false로 채우려고(ddl-auto update)
+    @Column(name = "new_concert_email", nullable = false, columnDefinition = "boolean default false")
+    private boolean newConcertEmail = false;
 
     // 약관 동의 (첫 로그인 시 저장) - 나이/이용약관/개인정보 수집은 필수, 프로필 정보 수집은 선택
     @Column(name = "age19_agreed", nullable = false)
@@ -123,17 +134,40 @@ public class User {
     }
 
     public void completeOnboarding(String nickname, LocalDate birthDate, Gender gender) {
-        this.nickname = nickname;
+        completeOnboarding(nickname, birthDate, gender, null);
+    }
+
+    /**
+     * 온보딩 완료. nickname이 null이면 가입 때 받은 랜덤 닉네임을 그대로 쓴다.
+     * 프로필 이미지는 업로드 API가 준 URL을 그대로 받는다(빈 값이면 없음).
+     */
+    public void completeOnboarding(String nickname, LocalDate birthDate, Gender gender, String profileImageUrl) {
+        if (nickname != null) this.nickname = nickname;
+        if (this.nickname == null) {
+            throw new IllegalArgumentException("닉네임 없이 온보딩을 완료할 수 없다");
+        }
         this.birthDate = birthDate;
         this.gender = gender;
+        this.profileImageUrl = profileImageUrl == null || profileImageUrl.isBlank() ? null : profileImageUrl;
         this.onboardingCompleted = true;
+    }
+
+    /** 카카오 첫 로그인(재가입 포함) 때 받은 랜덤 닉네임. 온보딩·프로필 수정에서 바꿀 수 있다. */
+    public void assignNickname(String nickname) {
+        this.nickname = nickname;
     }
 
     public void verifyEmail(String email) {
         this.email = email;
     }
 
-    // 이메일 인증 완료 여부를 별도 플래그 없이 email 존재 여부로 판단 (verifyEmail()에서만 email이 세팅됨)
+    /** 카카오가 인증해 준 이메일. 사용자가 직접 인증한 이메일이 있으면 덮어쓰지 않는다. */
+    public void linkKakaoEmail(String email) {
+        if (this.email == null) this.email = email;
+    }
+
+    // 이메일 인증 완료 여부를 별도 플래그 없이 email 존재 여부로 판단
+    // (email은 인증 코드 확인(verifyEmail) 또는 카카오가 인증한 이메일(linkKakaoEmail)로만 세팅됨)
     public boolean isEmailVerified() {
         return email != null;
     }
@@ -195,9 +229,12 @@ public class User {
         this.agreedAt = null;
     }
 
-    public void updateNotificationSettings(Boolean concertReminderEmail, Boolean chatNotificationEmail) {
+    public void updateNotificationSettings(Boolean concertReminderEmail, Boolean chatNotificationEmail,
+                                           Boolean setlistResultEmail, Boolean newConcertEmail) {
         if (concertReminderEmail != null) this.concertReminderEmail = concertReminderEmail;
         if (chatNotificationEmail != null) this.chatNotificationEmail = chatNotificationEmail;
+        if (setlistResultEmail != null) this.setlistResultEmail = setlistResultEmail;
+        if (newConcertEmail != null) this.newConcertEmail = newConcertEmail;
     }
 
     // 관리자 조작

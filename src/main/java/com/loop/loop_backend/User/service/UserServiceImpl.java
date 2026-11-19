@@ -3,10 +3,13 @@ package com.loop.loop_backend.User.service;
 import com.loop.loop_backend.Chat.service.ChatService;
 import com.loop.loop_backend.CompanionHeart.repository.CompanionHeartRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
+import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
 import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
+import com.loop.loop_backend.Setlist.repository.SetlistVoteRepository;
 import com.loop.loop_backend.Storage.dto.ImageUploadResponseDto;
 import com.loop.loop_backend.Storage.service.S3StorageService;
+import com.loop.loop_backend.TicketAlarm.repository.TicketAlarmRepository;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
@@ -34,6 +37,9 @@ public class UserServiceImpl implements UserService {
     private final FavoriteArtistRepository favoriteArtistRepository;
     private final CompanionPostRepository companionPostRepository;
     private final CompanionHeartRepository companionHeartRepository;
+    private final ConcertScrapRepository concertScrapRepository;
+    private final SetlistVoteRepository setlistVoteRepository;
+    private final TicketAlarmRepository ticketAlarmRepository;
     private final PasswordEncoder passwordEncoder;
     private final S3StorageService s3StorageService;
     private final ChatService chatService;
@@ -96,8 +102,12 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(ErrorCode.ONBOARDING_ALREADY_COMPLETED);
         }
 
-        checkNicknameAvailable(user, requestDto.getNickname());
-        user.completeOnboarding(requestDto.getNickname(), requestDto.getBirthDate(), requestDto.getGender());
+        // 닉네임을 보내지 않으면 가입 때 받은 랜덤 닉네임을 그대로 쓴다
+        if (requestDto.getNickname() != null) {
+            checkNicknameAvailable(user, requestDto.getNickname());
+        }
+        user.completeOnboarding(requestDto.getNickname(), requestDto.getBirthDate(), requestDto.getGender(),
+                requestDto.getProfileImageUrl());
         return toResponseDto(user);
     }
 
@@ -135,7 +145,8 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserResponseDto updateNotificationSettings(Long id, NotificationSettingsRequestDto requestDto) {
         User user = findUserOrThrow(id);
-        user.updateNotificationSettings(requestDto.getConcertReminderEmail(), requestDto.getChatNotificationEmail());
+        user.updateNotificationSettings(requestDto.getConcertReminderEmail(), requestDto.getChatNotificationEmail(),
+                requestDto.getSetlistResultEmail(), requestDto.getNewConcertEmail());
         return toResponseDto(user);
     }
 
@@ -186,6 +197,9 @@ public class UserServiceImpl implements UserService {
         companionPostRepository.deleteAllByUser(user);
         userHashtagRepository.deleteAllByUser(user);
         favoriteArtistRepository.deleteAllByUser(user);
+        concertScrapRepository.deleteAllByUser(user);
+        setlistVoteRepository.deleteAllByUser(user);
+        ticketAlarmRepository.deleteAllByUser(user);
 
         user.withdraw();
         refreshTokenService.delete(id);

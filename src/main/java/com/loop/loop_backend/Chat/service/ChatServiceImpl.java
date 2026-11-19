@@ -58,6 +58,7 @@ public class ChatServiceImpl implements ChatService {
     private final UserRepository userRepository;
     private final CompanionPostRepository companionPostRepository;
     private final MailService mailService;
+    private final com.loop.loop_backend.Storage.service.S3StorageService s3StorageService;
     private final EntityManager em;
     private final SimpMessagingTemplate messagingTemplate;
     private final TransactionTemplate transactionTemplate;
@@ -316,6 +317,11 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
+    public long getUnreadCount(Long userId) {
+        return messageRepository.countUnreadForUser(userId);
+    }
+
+    @Override
     public ChatMessagesResponseDto getMessages(Long roomId, Long userId, Pageable pageable) {
         // boolean 존재 체크(assertActiveParticipant) 대신 참여자 엔티티를 직접 가져온다.
         // messageVisibleFrom 커트라인을 읽어야 하기 때문. 검증 조건(ACTIVE 아니면 거부)은 동일하다.
@@ -423,6 +429,48 @@ public class ChatServiceImpl implements ChatService {
                 .build();
     }
 
+    private static final int MAX_IMAGES_PER_SEND = 5;
+
+    @Override
+    @Transactional
+    public List<ChatMessageDto> saveImageMessages(Long roomId, Long senderId,
+                                                  List<org.springframework.web.multipart.MultipartFile> images) {
+        // 장수는 업로드 전에 막는다 - 6장째를 보고 나서 거절하면 앞의 5장이 S3에 헛되이 올라간다
+        if (images == null || images.isEmpty() || images.size() > MAX_IMAGES_PER_SEND) {
+            throw new BusinessException(ErrorCode.CHAT_IMAGE_COUNT_INVALID);
+        }
+        assertActiveParticipant(roomId, senderId);
+        assertNotBlockedInRoom(roomId, senderId);
+        assertOtherParticipantNotWithdrawn(roomId, senderId);
+        assertOtherParticipantActive(roomId, senderId);
+
+        // 1:1 비공개 채팅이라 private 버킷에 올리고 content엔 S3 key만 저장한다.
+        // 조회 시 toDto가 참여자에게만 presigned URL을 발급하므로 제3자는 접근 불가.
+        // S3StorageService가 포맷/용량/HEIC 변환을 모두 검증·처리한다.
+        // 한 장이라도 실패하면 예외로 전체 롤백 - 이미 올라간 앞쪽 파일은 S3에 남지만 어떤 메시지에도 연결되지 않는다.
+        List<String> keys = images.stream()
+                .map(image -> s3StorageService.uploadPrivate("chat/" + roomId, senderId, image))
+                .toList();
+
+        ChatRoom chatRoom = em.getReference(ChatRoom.class, roomId);
+        User sender = em.getReference(User.class, senderId);
+        String imageGroupId = java.util.UUID.randomUUID().toString();
+        List<ChatMessageDto> dtos = keys.stream()
+                .map(key -> messageRepository.save(Message.builder()
+                        .chatRoom(chatRoom)
+                        .sender(sender)
+                        .type(MessageType.IMAGE)
+                        .content(key)
+                        .imageGroupId(imageGroupId)
+                        .build()))
+                .map(this::toDto)
+                .toList();
+
+        // 전부 저장한 뒤에 보낸다 - 중간에 실패했는데 앞쪽 사진만 상대 화면에 뜨는 일이 없게
+        dtos.forEach(dto -> messagingTemplate.convertAndSend("/sub/chat/room/" + roomId, dto));
+        return dtos;
+    }
+
     @Override
     @Transactional
     public void hideDirectRoomForUser(Long actorUserId, Long otherUserId) {
@@ -474,14 +522,21 @@ public class ChatServiceImpl implements ChatService {
         return saved;
     }
 
+    // 이미지 메시지는 content에 private S3 key가 저장돼 있으므로, 조회 시점에 임시 presigned GET URL로 바꿔 내려준다.
+    private static final java.time.Duration CHAT_IMAGE_URL_TTL = java.time.Duration.ofHours(1);
+
     private ChatMessageDto toDto(Message m) {
+        String content = m.getType() == MessageType.IMAGE
+                ? s3StorageService.generatePresignedGetUrl(m.getContent(), CHAT_IMAGE_URL_TTL)
+                : m.getContent();
         return ChatMessageDto.builder()
                 .type(mapType(m.getType()))
                 .roomId(m.getChatRoom().getId())
                 .senderId(m.getSender() != null ? m.getSender().getId() : null)
-                .content(m.getContent())
+                .content(content)
                 .createdAt(m.getCreatedAt())
                 .isRead(m.isRead())
+                .imageGroupId(m.getImageGroupId())
                 .build();
     }
 
@@ -489,6 +544,7 @@ public class ChatServiceImpl implements ChatService {
         if (type == null) return ChatMessageDto.MessageType.TALK;
         return switch (type) {
             case USER -> ChatMessageDto.MessageType.TALK;
+            case IMAGE -> ChatMessageDto.MessageType.IMAGE;
             case SYSTEM_LEAVE -> ChatMessageDto.MessageType.SYSTEM_LEAVE;
             case SYSTEM_WITHDRAWN -> ChatMessageDto.MessageType.SYSTEM_WITHDRAWN;
             case SYSTEM_REJOIN -> ChatMessageDto.MessageType.SYSTEM_REJOIN;

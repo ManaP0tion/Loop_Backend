@@ -1,11 +1,16 @@
 package com.loop.loop_backend.Concert.controller;
 
 import com.loop.loop_backend.Concert.domain.ConcertCategory;
+import com.loop.loop_backend.Concert.dto.CompanionConcertListDto;
 import com.loop.loop_backend.Concert.dto.ConcertCategoryDto;
+import com.loop.loop_backend.Concert.dto.ConcertPastDetailDto;
+import com.loop.loop_backend.Concert.dto.ConcertPeriod;
+import com.loop.loop_backend.Concert.dto.ConcertPeriodDto;
 import com.loop.loop_backend.Concert.dto.ConcertRequestDto;
 import com.loop.loop_backend.Concert.dto.ConcertResponseDto;
-import com.loop.loop_backend.Concert.dto.ConcertSort;
-import com.loop.loop_backend.Concert.kopis.KopisSyncService;
+import com.loop.loop_backend.Concert.dto.ConcertSection;
+import com.loop.loop_backend.Concert.dto.ConcertSummaryDto;
+import com.loop.loop_backend.Concert.dto.ConcertUpcomingDetailDto;
 import com.loop.loop_backend.Concert.service.ConcertService;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,8 +40,11 @@ import java.util.stream.Collectors;
 public class ConcertController {
 
     private final ConcertService concertService;
-    private final KopisSyncService kopisSyncService;
 
+    // 공연 등록·수정·삭제는 일단 막아 둔다(주석 처리). 관리자 공연 API(/api/admin/concerts, AdminConcertController)가
+    // 생기면서 같은 일을 하는 경로가 둘이 됐고, 이 API는 그쪽의 검증 규칙·공연장 연결·예매 정보를 거치지 않는다.
+    // 프론트 사용 여부를 확인한 뒤 삭제하거나 되살린다. ConcertService의 create/update/deleteConcert는 그대로 둔다.
+    /*
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "콘서트 등록", description = "새 콘서트를 등록합니다. 포스터 이미지 파일을 함께 보내면 " +
             "공개 버킷에 업로드 후 URL이 바로 반영됩니다 (이미지는 선택).")
@@ -83,21 +91,50 @@ public class ConcertController {
         concertService.deleteConcert(id);
         return ResponseEntity.noContent().build();
     }
+    */
 
     @GetMapping
-    @Operation(summary = "콘서트 목록 조회", description = "카테고리 파라미터가 있으면 카테고리로 필터링, 없으면 전체를 반환합니다. " +
-            "sort로 정렬 기준을 지정합니다 (IMMINENT 임박순 / POPULAR 인기순, 기본값 IMMINENT)")
+    @Operation(summary = "콘서트 목록 조회",
+            description = "section(대분류)과 period(예정/지난)로 조회합니다. 정렬은 서버가 고정합니다 — " +
+                    "예정 공연은 가까운 날짜순, 지난 공연은 최근 종료순 (클라이언트가 정렬을 고를 수 없음).\n\n" +
+                    "조합별 용도:\n" +
+                    "- `section=DOMESTIC_TOUR&period=UPCOMING` : 내한 탭 - 예정 공연 목록 " +
+                    "(홈 화면 내한 미리보기도 동일 호출을 재사용)\n" +
+                    "- `section=DOMESTIC_TOUR&period=PAST` : 내한 탭 - 지난 공연 목록\n" +
+                    "- `section=FESTIVAL&period=UPCOMING` : 페스티벌 탭 - 예정 공연 목록 " +
+                    "(홈 화면 페스티벌 미리보기도 동일 호출을 재사용)\n" +
+                    "- `section=FESTIVAL&period=PAST` : 페스티벌 탭 - 지난 공연 목록")
     @ApiResponse(responseCode = "200", description = "조회 성공")
-    public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> getConcerts(
-            @Parameter(description = "콘서트 카테고리 (J_POP_ARTIST / DOMESTIC_ARTIST / JAPAN_FESTIVAL / DOMESTIC_FESTIVAL)")
-            @RequestParam(required = false) ConcertCategory category,
-            @Parameter(description = "정렬 기준 (IMMINENT 임박순 / POPULAR 인기순)")
-            @RequestParam(required = false, defaultValue = "IMMINENT") ConcertSort sort,
+    public ResponseEntity<CommonResponse<List<ConcertSummaryDto>>> getConcerts(
+            @Parameter(description = "공연 탭 대분류 (DOMESTIC_TOUR 내한 / FESTIVAL 페스티벌)")
+            @RequestParam ConcertSection section,
+            @Parameter(description = "조회 시점 (UPCOMING 예정 / PAST 지난)")
+            @RequestParam ConcertPeriod period,
+            @Parameter(description = "앞에서부터 가져올 개수 (1~50). 홈 미리보기용, 생략하면 전체")
+            @RequestParam(required = false) Integer size,
             @AuthenticationPrincipal Long userId) {
-        List<ConcertResponseDto> concerts = (category != null)
-                ? concertService.getConcertsByCategory(category, userId, sort)
-                : concertService.getAllConcerts(userId, sort);
-        return ResponseEntity.ok(CommonResponse.success(concerts));
+        return ResponseEntity.ok(CommonResponse.success(
+                concertService.getConcertsBySection(section, period, size, userId)));
+    }
+
+    @GetMapping("/companion-open")
+    @Operation(summary = "동행 모집 공연 목록",
+            description = "동행을 연 공연 목록입니다. 비로그인으로도 호출할 수 있습니다.\n\n" +
+                    "- 대상: 지나지 않은 공연 중 동행이 모집 중(OPEN)이거나 마감(CLOSED)인 공연. 미오픈(NOT_OPENED)은 제외. " +
+                    "단독 공연·페스티벌 구분 없이 함께 내려간다\n" +
+                    "- 비공개로 바뀐 공연은 동행 OFF와 같이 CLOSED로 내려간다 (다시 공개하면 원래 상태로 돌아온다)\n" +
+                    "- 정렬: OPEN이 위, CLOSED가 아래. 각각 공연일 가까운 순, 날짜 미정은 맨 뒤\n" +
+                    "- totalCount: 모집 중(OPEN)인 공연 수. CLOSED는 세지 않고 size와도 상관없다\n" +
+                    "- myProfileRegistered: 로그인하면 공연마다 관람일이 지나지 않은 내 동행 프로필이 있는지, 비로그인이면 null")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "400", description = "size가 1보다 작음")
+    })
+    public ResponseEntity<CommonResponse<CompanionConcertListDto>> getCompanionOpenConcerts(
+            @Parameter(description = "가져올 개수(미리보기용). 생략하면 전체")
+            @RequestParam(required = false) Integer size,
+            @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.getCompanionOpenConcerts(size, userId)));
     }
 
     @GetMapping("/categories")
@@ -116,21 +153,81 @@ public class ConcertController {
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "404", description = "콘서트 없음")
     })
-    public ResponseEntity<CommonResponse<ConcertResponseDto>> getConcertById(
+    public ResponseEntity<CommonResponse<ConcertSummaryDto>> getConcertById(
             @Parameter(description = "콘서트 PK") @PathVariable Long id,
         @AuthenticationPrincipal Long userId) {
         return ResponseEntity.ok(CommonResponse.success(concertService.getConcertById(id, userId)));
     }
 
+    @GetMapping("/{id}/period")
+    @Operation(summary = "콘서트 period 조회",
+            description = "URL 직접 접근(딥링크)처럼 프론트가 목록을 안 거쳐서 startDate/endDate를 안 들고 있을 때, " +
+                    "id만으로 upcoming-detail/past-detail 중 뭘 호출할지 판단하기 위한 가벼운 조회.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "404", description = "콘서트 없음")
+    })
+    public ResponseEntity<CommonResponse<ConcertPeriodDto>> getPeriod(
+            @Parameter(description = "콘서트 PK") @PathVariable Long id) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.getPeriod(id)));
+    }
+
+    @GetMapping("/{id}/upcoming-detail")
+    @Operation(summary = "예정 공연 상세 조회",
+            description = "공연 정보와 D-day, 공연장, DAY별 공연 시각, 선예매·일반예매, 숙소 딥링크, 관련 상품 코드를 포함한 상세 응답.\n\n" +
+                    "- 공연장: 공연장 관리의 공연장. 연결 전에 승인된 공연은 KOPIS 장소 정보로 채워지고 링크(좌석 시야·지도)는 null\n" +
+                    "- 공연 시각: 기간의 모든 DAY가 순서대로, 미정인 DAY는 startTime null. 시각이 입력되지 않은 이전 공연은 KOPIS 공연 시간 안내로 채움\n" +
+                    "- 예매: 예매 일시가 정해진 블록만 일시 순으로 내려간다\n" +
+                    "- 숙소: 공연장 단위로 관리한다. 공연장의 숙소 노출이 꺼져 있거나 공연장이 연결되지 않은 공연은 lodgingUrl null\n\n" +
+                    "비공개(오픈 예정) 공연이면 403, id가 가리키는 공연이 실제로 예정 공연이 아니면(이미 지난 공연) 404.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "403", description = "오픈 예정(비공개) 공연 - CONCERT_NOT_OPEN"),
+            @ApiResponse(responseCode = "404", description = "콘서트 없음 또는 예정 공연이 아님")
+    })
+    public ResponseEntity<CommonResponse<ConcertUpcomingDetailDto>> getUpcomingDetail(
+            @Parameter(description = "콘서트 PK") @PathVariable Long id,
+            @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.getUpcomingDetail(id, userId)));
+    }
+
+    @GetMapping("/{id}/past-detail")
+    @Operation(summary = "지난 공연 상세 조회",
+            description = "공연명/아티스트/공연장/날짜/DAY별 공연 시각만 포함하는 간단한 응답 " +
+                    "(예매정보는 지난 공연이라 의미 없음). 공연장·공연 시각은 예정 공연 상세와 같은 형태와 규칙이다. " +
+                    "비공개(오픈 예정) 공연이면 403, id가 가리키는 공연이 실제로 지난 공연이 아니면(예정 공연) 404.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "403", description = "오픈 예정(비공개) 공연 - CONCERT_NOT_OPEN"),
+            @ApiResponse(responseCode = "404", description = "콘서트 없음 또는 지난 공연이 아님")
+    })
+    public ResponseEntity<CommonResponse<ConcertPastDetailDto>> getPastDetail(
+            @Parameter(description = "콘서트 PK") @PathVariable Long id,
+            @AuthenticationPrincipal Long userId) {
+        return ResponseEntity.ok(CommonResponse.success(concertService.getPastDetail(id, userId)));
+    }
+
     @GetMapping("/search")
     @Operation(summary = "콘서트 검색",
-            description = "키워드로 콘서트를 검색합니다. 콘서트 제목뿐 아니라 아티스트의 원어명/기본명/한글명/별칭도 함께 매칭됩니다. " +
-                    "예) 'King Gnu' 공연은 '킹누'로도 검색 가능")
+            description = "키워드로 콘서트를 검색합니다. 콘서트 제목뿐 아니라 공연명 별칭(관리자 입력, 예: '히게단'), " +
+                    "아티스트의 원어명/기본명/한글명/별칭도 함께 매칭됩니다. " +
+                    "예) 'King Gnu' 공연은 '킹누'로도 검색 가능\n\n" +
+                    "section/period로 검색 범위를 좁힐 수 있습니다 (목록 조회와 동일한 파라미터, 둘 다 생략 가능):\n" +
+                    "- 둘 다 생략 : 전체검색 - 카테고리 무관, 예정 목록 뒤에 지난 목록을 이어붙여 반환\n" +
+                    "- `section=DOMESTIC_TOUR&period=PAST` : 내한 + 지난\n" +
+                    "- `section=DOMESTIC_TOUR&period=UPCOMING` : 내한 + 예정\n" +
+                    "- `section=FESTIVAL&period=PAST` : 페스티벌 + 지난\n" +
+                    "- `section=FESTIVAL&period=UPCOMING` : 페스티벌 + 예정")
     @ApiResponse(responseCode = "200", description = "조회 성공")
-    public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> searchConcerts(
+    public ResponseEntity<CommonResponse<List<ConcertSummaryDto>>> searchConcerts(
             @Parameter(description = "검색 키워드 (콘서트 제목 또는 아티스트명)") @RequestParam String title,
+            @Parameter(description = "공연 탭 대분류 (DOMESTIC_TOUR 내한 / FESTIVAL 페스티벌, 생략 시 전체)")
+            @RequestParam(required = false) ConcertSection section,
+            @Parameter(description = "조회 시점 (UPCOMING 예정 / PAST 지난, 생략 시 전체)")
+            @RequestParam(required = false) ConcertPeriod period,
             @AuthenticationPrincipal Long userId) {
-        return ResponseEntity.ok(CommonResponse.success(concertService.searchConcertsByTitle(title, userId)));
+        return ResponseEntity.ok(CommonResponse.success(
+                concertService.searchConcertsByTitle(title, section, period, userId)));
     }
 
     @GetMapping("/artist/{artistId}")
@@ -139,17 +236,10 @@ public class ConcertController {
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "404", description = "아티스트 없음")
     })
-    public ResponseEntity<CommonResponse<List<ConcertResponseDto>>> getConcertsByArtist(
+    public ResponseEntity<CommonResponse<List<ConcertSummaryDto>>> getConcertsByArtist(
             @Parameter(description = "아티스트 PK") @PathVariable Long artistId,
             @AuthenticationPrincipal Long userId) {
         return ResponseEntity.ok(CommonResponse.success(concertService.getConcertsByArtist(artistId, userId)));
     }
 
-    @PostMapping("/sync")
-    @Operation(summary = "KOPIS 동기화 수동 트리거", description = "DB의 모든 아티스트를 대상으로 KOPIS 공연 정보를 즉시 동기화합니다")
-    @ApiResponse(responseCode = "200", description = "동기화 완료")
-    public ResponseEntity<CommonResponse<String>> syncFromKopis() {
-        kopisSyncService.syncAll();
-        return ResponseEntity.ok(CommonResponse.success("KOPIS 동기화 완료"));
-    }
 }

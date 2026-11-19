@@ -1,5 +1,6 @@
 package com.loop.loop_backend.Artist.controller;
 
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.dto.ArtistRequestDto;
 import com.loop.loop_backend.Artist.dto.ArtistResponseDto;
 import com.loop.loop_backend.Artist.service.ArtistService;
@@ -80,10 +81,17 @@ public class ArtistController {
     }
 
     @GetMapping("/search")
-    @Operation(summary = "아티스트 검색", description = "이름(서비스명/기본명칭/한국어/별칭) 통합 검색")
-    @ApiResponse(responseCode = "200", description = "검색 성공")
+    @Operation(summary = "아티스트 검색",
+            description = "이름(서비스명/기본명칭/한국어/별칭) 통합 검색 + 국적 필터. 둘 다 선택이고, 둘 다 없으면 전체 아티스트.\n\n" +
+                    "- query: 비우거나 생략하면 이름 조건 없이 조회\n" +
+                    "- nationality: JP(일본) / KR(국내). 지정하면 국적 미입력 아티스트는 빠진다")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "검색 성공"),
+            @ApiResponse(responseCode = "400", description = "nationality가 JP/KR이 아님")
+    })
     public ResponseEntity<CommonResponse<List<ArtistResponseDto>>> searchArtists(
-            @Parameter(description = "검색어") @RequestParam String query) {
-        return ResponseEntity.ok(CommonResponse.success(artistService.searchArtists(query)));
+            @Parameter(description = "검색어(선택)", example = "요아소비") @RequestParam(required = false) String query,
+            @Parameter(description = "국적 필터(선택)", example = "JP") @RequestParam(required = false) Nationality nationality) {
+        return ResponseEntity.ok(CommonResponse.success(artistService.searchArtists(query, nationality)));
     }
 }

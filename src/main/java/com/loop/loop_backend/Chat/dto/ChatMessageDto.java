@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 public class ChatMessageDto {
 
     public enum MessageType {
-        ENTER, TALK, LEAVE, SYSTEM_LEAVE, SYSTEM_WITHDRAWN, SYSTEM_REJOIN
+        ENTER, TALK, IMAGE, LEAVE, SYSTEM_LEAVE, SYSTEM_WITHDRAWN, SYSTEM_REJOIN
     }
 
     @NotNull
@@ -37,4 +37,8 @@ public class ChatMessageDto {
 
     @JsonProperty(value = "isRead", access = JsonProperty.Access.READ_ONLY)
     private final Boolean isRead;
+
+    // 한 번에 보낸 이미지 묶음 id. 같은 값끼리 묶어서 보여준다. 서버만 채운다(클라이언트가 보낸 값은 무시)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private final String imageGroupId;
 }

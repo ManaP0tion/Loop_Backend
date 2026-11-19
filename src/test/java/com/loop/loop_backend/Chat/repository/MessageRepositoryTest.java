@@ -11,6 +11,7 @@ import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -141,6 +142,46 @@ class MessageRepositoryTest {
                 room.getId(), a.getId(), cutoffMessage.getCreatedAt());
 
         assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("채팅 탭 뱃지 안읽음 수는 ACTIVE 방에서 상대가 보낸 커트라인 이후 안읽은 메시지만 합산한다")
+    void countUnreadForUser_AcrossRooms_CountsOnlyVisibleUnreadFromOthers() {
+        User me = persistUser("badgeMe");
+        User b = persistUser("badgeB");
+        User c = persistUser("badgeC");
+        User d = persistUser("badgeD");
+        LocalDateTime base = LocalDateTime.of(2026, 1, 1, 0, 0, 0);
+
+        // 방1: 상대 안읽음 2건(집계), 내가 보낸 1건(제외), 읽은 1건(제외)
+        ChatRoom room1 = persistDirectRoom(me, b);
+        persistMessageAt(room1, b, "안읽음1", base);
+        persistMessageAt(room1, b, "안읽음2", base.plusMinutes(1));
+        persistMessageAt(room1, me, "내메시지", base.plusMinutes(2));
+        Message read = persistMessageAt(room1, b, "읽음", base.plusMinutes(3));
+        entityManager.createNativeQuery("UPDATE messages SET is_read = true WHERE id = :id")
+                .setParameter("id", read.getId()).executeUpdate();
+
+        // 방2: 커트라인 이전 1건(제외), 이후 1건(집계)
+        ChatRoom room2 = persistDirectRoom(me, c);
+        persistMessageAt(room2, c, "커트라인전", base.minusMinutes(5));
+        persistMessageAt(room2, c, "커트라인후", base.plusMinutes(5));
+        entityManager.createQuery("SELECT cp FROM ChatParticipant cp WHERE cp.chatRoom = :room AND cp.user = :me",
+                        ChatParticipant.class)
+                .setParameter("room", room2).setParameter("me", me)
+                .getSingleResult().hideMessagesBefore(base);
+
+        // 방3: 내가 나간 방(LEFT)의 안읽음은 제외
+        ChatRoom room3 = persistDirectRoom(me, d);
+        persistMessageAt(room3, d, "나간방", base);
+        entityManager.createQuery("SELECT cp FROM ChatParticipant cp WHERE cp.chatRoom = :room AND cp.user = :me",
+                        ChatParticipant.class)
+                .setParameter("room", room3).setParameter("me", me)
+                .getSingleResult().leave();
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(messageRepository.countUnreadForUser(me.getId())).isEqualTo(3);
     }
 
     @Test

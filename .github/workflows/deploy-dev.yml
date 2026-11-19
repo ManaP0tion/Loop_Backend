@@ -1,3 +1,4 @@
+# dev 브랜치 → 개발 서버 배포용
 name: Deploy to DEV EC2
 
 on:
@@ -26,9 +27,9 @@ jobs:
       - name: Copy jar to DEV EC2
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.LOOP_EC2_DEV_HOST }}
-          username: ubuntu
-          key: ${{ secrets.LOOP_EC2_DEV_SSH_KEY }}
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USERNAME }}
+          key: ${{ secrets.DEV_EC2_SSH_KEY }}
           source: "build/libs/*.jar"
           target: "~/Loop_Backend/build/libs/"
           strip_components: 2
@@ -36,12 +37,11 @@ jobs:
       - name: Deploy to DEV EC2 via SSH
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.LOOP_EC2_DEV_HOST }}
-          username: ubuntu
-          key: ${{ secrets.LOOP_EC2_DEV_SSH_KEY }}
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USERNAME }}
+          key: ${{ secrets.DEV_EC2_SSH_KEY }}
           script: |
             cd ~/Loop_Backend
             mkdir -p build/libs
             git pull upstream dev
-            docker rm -f loop-spring-dev || true
             docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build

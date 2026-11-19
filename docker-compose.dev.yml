@@ -1,22 +1,18 @@
+# 개발 서버(dev 브랜치) 전용 오버라이드. 서버 안 MySQL 컨테이너를 함께 띄운다 (base 파일에서는 prod 프로필로 꺼져 있음)
 services:
   spring:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    container_name: loop-spring-dev
-    environment:
-      SPRING_PROFILES_ACTIVE: dev
-      LOOP_DB_DEV_URL: ${LOOP_DB_DEV_URL}
-      LOOP_DB_DEV_USERNAME: ${LOOP_DB_DEV_USERNAME}
-      LOOP_DB_DEV_PASSWORD: ${LOOP_DB_DEV_PASSWORD}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
-  redis:
-    container_name: loop-redis-dev
+  mysql:
+    profiles: []
 
   nginx:
-    container_name: loop-nginx-dev
-    environment:
-      DOMAIN_NAME: dev-api.loop.io.kr
     volumes:
-      - ./nginx/templates:/etc/nginx/templates
-      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /etc/letsencrypt:/etc/letsencrypt

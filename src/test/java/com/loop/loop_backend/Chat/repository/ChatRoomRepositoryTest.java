@@ -56,7 +56,7 @@ class ChatRoomRepositoryTest {
         // given: 동행글과 그 동행글로 만들어진 GROUP 채팅방
         Concert concert = Concert.builder()
                 .title("테스트 콘서트")
-                .category(ConcertCategory.DOMESTIC_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .build();
         entityManager.persist(concert);
 
@@ -100,7 +100,7 @@ class ChatRoomRepositoryTest {
         // 공연 얘기였는지"는 concertId 스냅샷 덕분에 계속 남아있어야 한다(상대방이 계속 봐야 하므로).
         Concert concert = Concert.builder()
                 .title("테스트 콘서트")
-                .category(ConcertCategory.DOMESTIC_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .build();
         entityManager.persist(concert);
 
@@ -136,7 +136,7 @@ class ChatRoomRepositoryTest {
     void 요약_조회는_동행글과_공연_id까지_한번에_가져온다() {
         Concert concert = Concert.builder()
                 .title("테스트 콘서트")
-                .category(ConcertCategory.DOMESTIC_ARTIST)
+                .category(ConcertCategory.STAGE)
                 .build();
         entityManager.persist(concert);
 
