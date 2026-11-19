@@ -10,6 +10,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -28,7 +29,9 @@ public class DiscordNotificationService {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, String>> request = new HttpEntity<>(Map.of("content", content), headers);
+        // 사용자 입력(신고 상세, 동행에게 하고 싶은 말 등)의 @everyone·@here·유저 멘션이 실제로 울리지 않게 멘션을 모두 끈다
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(
+                Map.of("content", content, "allowed_mentions", Map.of("parse", List.of())), headers);
 
         try {
             restTemplate.postForEntity(webhookUrl, request, Void.class);

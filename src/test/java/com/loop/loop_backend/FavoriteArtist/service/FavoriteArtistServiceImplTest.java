@@ -11,6 +11,7 @@ import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -25,6 +26,9 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -123,12 +127,12 @@ class FavoriteArtistServiceImplTest {
     }
 
     @Test
-    void 이미_3개_등록된_경우_LIMIT_FAVORITE_ARTIST_예외를_던지고_저장하지_않는다() {
+    void 이미_5개_등록된_경우_LIMIT_FAVORITE_ARTIST_예외를_던지고_저장하지_않는다() {
         User user = testUser();
         Artist artist = testArtist(ARTIST_ID, "아이유");
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         when(artistRepository.findById(ARTIST_ID)).thenReturn(Optional.of(artist));
-        when(favoriteArtistRepository.countByUser(user)).thenReturn(3);
+        when(favoriteArtistRepository.countByUser(user)).thenReturn(5);
 
         assertThatThrownBy(() -> favoriteArtistService.addFavoriteArtist(USER_ID, ARTIST_ID))
                 .isInstanceOf(BusinessException.class)
@@ -219,5 +223,80 @@ class FavoriteArtistServiceImplTest {
                 .isEqualTo(ErrorCode.USER_NOT_FOUND);
 
         verify(favoriteArtistRepository, never()).delete(any());
+    }
+
+    // ── replaceFavoriteArtists ────────────────────────────────────────────
+
+    private FavoriteArtist favorite(User user, Artist artist) {
+        return FavoriteArtist.builder().user(user).artist(artist).build();
+    }
+
+    @Test
+    @DisplayName("일괄 교체 시 목록에 없는 기존 아티스트는 삭제하고 새 아티스트만 추가한다")
+    void replaceFavoriteArtists_WithDiff_DeletesRemovedAndSavesOnlyNew() {
+        User user = testUser();
+        Artist a1 = testArtist(1L, "A1");
+        Artist a2 = testArtist(2L, "A2");
+        Artist a3 = testArtist(3L, "A3");
+        FavoriteArtist fa1 = favorite(user, a1);
+        FavoriteArtist fa2 = favorite(user, a2);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(artistRepository.findAllById(anyCollection())).thenReturn(List.of(a2, a3));
+        when(favoriteArtistRepository.findAllByUser(user))
+                .thenReturn(List.of(fa1, fa2))
+                .thenReturn(List.of(fa2, favorite(user, a3)));
+
+        List<FavoriteArtistResponseDto> result = favoriteArtistService.replaceFavoriteArtists(USER_ID, List.of(2L, 3L));
+
+        verify(favoriteArtistRepository).delete(fa1);
+        verify(favoriteArtistRepository, never()).delete(fa2);
+        verify(favoriteArtistRepository).saveAll(argThat(saved -> {
+            List<FavoriteArtist> list = (List<FavoriteArtist>) saved;
+            return list.size() == 1 && list.get(0).getArtist() == a3;
+        }));
+        assertThat(result).extracting(FavoriteArtistResponseDto::getArtistId).containsExactly(2L, 3L);
+    }
+
+    @Test
+    @DisplayName("중복 id가 섞여 있으면 하나로 처리하여 5개 제한을 판단한다")
+    void replaceFavoriteArtists_WithDuplicateIds_DeduplicatesBeforeLimitCheck() {
+        User user = testUser();
+        Artist a1 = testArtist(1L, "A1");
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(artistRepository.findAllById(anyCollection())).thenReturn(List.of(a1));
+        when(favoriteArtistRepository.findAllByUser(user)).thenReturn(List.of());
+
+        favoriteArtistService.replaceFavoriteArtists(USER_ID, List.of(1L, 1L, 1L, 1L, 1L, 1L));
+
+        verify(favoriteArtistRepository).saveAll(argThat(saved -> ((List<?>) saved).size() == 1));
+    }
+
+    @Test
+    @DisplayName("서로 다른 아티스트가 5개를 초과하면 LIMIT_FAVORITE_ARTIST 예외를 던지고 변경하지 않는다")
+    void replaceFavoriteArtists_WithMoreThanFive_ThrowsLimit() {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser()));
+
+        assertThatThrownBy(() -> favoriteArtistService.replaceFavoriteArtists(USER_ID, List.of(1L, 2L, 3L, 4L, 5L, 6L)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.LIMIT_FAVORITE_ARTIST);
+
+        verify(favoriteArtistRepository, never()).delete(any());
+        verify(favoriteArtistRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 아티스트가 포함되면 ARTIST_NOT_FOUND 예외를 던지고 변경하지 않는다")
+    void replaceFavoriteArtists_WithUnknownArtist_ThrowsArtistNotFound() {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser()));
+        when(artistRepository.findAllById(anyCollection())).thenReturn(List.of(testArtist(1L, "A1")));
+
+        assertThatThrownBy(() -> favoriteArtistService.replaceFavoriteArtists(USER_ID, List.of(1L, 999L)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.ARTIST_NOT_FOUND);
+
+        verify(favoriteArtistRepository, never()).delete(any());
+        verify(favoriteArtistRepository, never()).saveAll(anyList());
     }
 }

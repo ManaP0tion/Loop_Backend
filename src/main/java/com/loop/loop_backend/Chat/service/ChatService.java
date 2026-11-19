@@ -21,9 +21,14 @@ public interface ChatService {
 
     List<ChatRoomResponseDto> getMyRooms(Long userId);
 
+    long getUnreadCount(Long userId);
+
     ChatMessagesResponseDto getMessages(Long roomId, Long userId, Pageable pageable);
 
     ChatMessageDto saveMessage(Long roomId, Long senderId, String rawContent);
+
+    // 이미지 1~5장을 장마다 IMAGE 메시지로 저장한다. 한 번에 보낸 메시지는 같은 imageGroupId를 가진다
+    List<ChatMessageDto> saveImageMessages(Long roomId, Long senderId, List<org.springframework.web.multipart.MultipartFile> images);
 
     void markAsRead(Long roomId, Long userId);
 

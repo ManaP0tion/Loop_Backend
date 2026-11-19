@@ -2,7 +2,10 @@ package com.loop.loop_backend.Mail.service;
 
 import com.loop.loop_backend.Mail.domain.MailLog;
 import com.loop.loop_backend.Mail.domain.MailType;
-import com.loop.loop_backend.Mail.dto.ConcertReminderSummary;
+import com.loop.loop_backend.Concert.domain.TicketVendorInfo;
+import com.loop.loop_backend.Mail.dto.NewConcertSummary;
+import com.loop.loop_backend.Mail.dto.TicketAlarmMail;
+import com.loop.loop_backend.Mail.dto.TicketAlarmTiming;
 import com.loop.loop_backend.Mail.dto.UnreadChatRoomSummary;
 import com.loop.loop_backend.Mail.repository.MailLogRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
@@ -20,7 +23,6 @@ import org.springframework.stereotype.Service;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -154,24 +156,6 @@ public class MailServiceImpl implements MailService {
 
     @Override
     @Async("mailExecutor")
-    public void sendConcertReminderNotification(String toEmail, String recipientNickname,
-                                                List<ConcertReminderSummary> concerts) {
-        if (toEmail == null || toEmail.isBlank() || concerts == null || concerts.isEmpty()) {
-            return;
-        }
-
-        Context context = new Context();
-        context.setVariable("recipientNickname", recipientNickname);
-        context.setVariable("concerts", concerts);
-        context.setVariable("frontendUrl", frontendUrl);
-
-        String html = templateEngine.process("mail/concert-reminder-notification", context);
-        dispatch(sesMailSender, MailType.CONCERT_REMINDER, toEmail,
-                "[Loop] 내일 관람 예정 공연이 " + concerts.size() + "건 있어요", html);
-    }
-
-    @Override
-    @Async("mailExecutor")
     public void sendNewChatNotification(String toEmail, String recipientNickname, String partnerNickname, String concertTitle) {
         if (toEmail == null || toEmail.isBlank()) {
             return;
@@ -186,6 +170,66 @@ public class MailServiceImpl implements MailService {
         String html = templateEngine.process("mail/chat-new-notification", context);
         dispatch(sesMailSender, MailType.NEW_CHAT, toEmail,
                 "[Loop] 새로운 채팅이 시작됐어요", html);
+    }
+
+    // 동기 발송 - 호출하는 SetlistResultMailListener가 이미 mailExecutor에서 돈다
+    // 적중률 수치는 넣지 않는다(NO.69) - 공연 후 페이지에서 확인하게
+    @Override
+    public void sendSetlistResultNotification(String toEmail, String recipientNickname, Long concertId, String concertTitle) {
+        if (toEmail == null || toEmail.isBlank()) {
+            return;
+        }
+
+        Context context = new Context();
+        context.setVariable("recipientNickname", recipientNickname);
+        context.setVariable("concertId", concertId);
+        context.setVariable("concertTitle", concertTitle);
+        context.setVariable("frontendUrl", frontendUrl);
+
+        String html = templateEngine.process("mail/setlist-result-notification", context);
+        dispatch(sesMailSender, MailType.SETLIST_RESULT, toEmail,
+                "[Loop] " + concertTitle + " 셋리스트가 공개됐어요", html);
+    }
+
+    // 동기 발송 - 호출하는 NewConcertNotificationScheduler가 수신자마다 순서대로 부른다
+    // 한 번 실행에서 모인 공연을 메일 1통에 묶는다(NO.47)
+    @Override
+    public void sendNewConcertNotification(String toEmail, String recipientNickname, List<NewConcertSummary> concerts) {
+        if (toEmail == null || toEmail.isBlank() || concerts.isEmpty()) {
+            return;
+        }
+
+        Context context = new Context();
+        context.setVariable("recipientNickname", recipientNickname);
+        context.setVariable("concerts", concerts);
+        context.setVariable("frontendUrl", frontendUrl);
+
+        String subject = concerts.size() == 1
+                ? "[Loop] " + concerts.get(0).title() + " 공연이 새로 등록됐어요"
+                : "[Loop] 새 공연 " + concerts.size() + "개가 등록됐어요";
+        String html = templateEngine.process("mail/new-concert-notification", context);
+        dispatch(sesMailSender, MailType.NEW_CONCERT, toEmail, subject, html);
+    }
+
+    // 동기 발송 - 발송 시점을 고르는 쪽(스케줄러)이 수신자마다 순서대로 부른다
+    // 하루 전·30분 전 메일은 템플릿 하나에 문구만 다르게 넣는다
+    @Override
+    public void sendTicketAlarmNotification(String toEmail, String recipientNickname, TicketAlarmMail mail,
+                                            TicketAlarmTiming timing, String unsubscribeUrl) {
+        if (toEmail == null || toEmail.isBlank()) {
+            return;
+        }
+
+        Context context = new Context();
+        context.setVariable("recipientNickname", recipientNickname);
+        context.setVariable("headline", timing.headline(mail));
+        context.setVariable("intro", timing.intro(mail));
+        context.setVariable("mail", mail);
+        context.setVariable("unsubscribeUrl", unsubscribeUrl);
+        context.setVariable("frontendUrl", frontendUrl);
+
+        String html = templateEngine.process("mail/ticket-alarm-notification", context);
+        dispatch(sesMailSender, MailType.TICKET_ALARM, toEmail, timing.subject(mail), html);
     }
 
     @Override
@@ -216,9 +260,19 @@ public class MailServiceImpl implements MailService {
             case UNREAD_CHAT -> sendUnreadChatNotification(toEmail, "테스터",
                     List.of(new UnreadChatRoomSummary(0L, "테스트상대", 3, LocalDateTime.now())));
             case VERIFICATION -> sendVerificationCode(toEmail, "123456");
-            case CONCERT_REMINDER -> sendConcertReminderNotification(toEmail, "테스터",
-                    List.of(new ConcertReminderSummary(0L, "테스트 콘서트", "테스트 공연장", LocalDate.now().plusDays(1))));
+            case CONCERT_REMINDER -> throw new IllegalArgumentException("더 이상 발송하지 않는 메일 유형이다");
             case NEW_CHAT -> sendNewChatNotification(toEmail, "테스터", "테스트상대", "테스트 콘서트");
+            case SETLIST_RESULT -> sendSetlistResultNotification(toEmail, "테스터", 0L, "테스트 콘서트");
+            case NEW_CONCERT -> sendNewConcertNotification(toEmail, "테스터", List.of(
+                    new NewConcertSummary(0L, "테스트 콘서트", "단독 공연", "2026.12.24", "테스트 공연장"),
+                    new NewConcertSummary(0L, "테스트 페스티벌", "페스티벌", "2026.12.30 ~ 2026.12.31", "테스트 공연장")));
+            // 수신거부 링크 방식이 정해지기 전이라 알림 설정 화면으로 둔다
+            case TICKET_ALARM -> sendTicketAlarmNotification(toEmail, "테스터",
+                    new TicketAlarmMail(0L, "테스트 콘서트", "선예매", "12월 2일 (화) 오후 8:00", "오후 8:00",
+                            "2026.12.24", "테스트 공연장", List.of(
+                            new TicketVendorInfo("NOL 티켓", frontendUrl),
+                            new TicketVendorInfo("공식 팬클럽 안내", null))),
+                    TicketAlarmTiming.DAY_BEFORE, frontendUrl + "/settings/notifications");
         }
     }
 }

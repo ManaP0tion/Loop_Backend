@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loop.loop_backend.AiJob.security.AiWorkerApiKeyFilter;
 import com.loop.loop_backend.common.exception.CommonResponse;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.common.jwt.JwtAuthenticationFilter;
@@ -46,6 +47,31 @@ public class SecurityConfig {
 
     @Value("${cors.allowed-origins}")
     private String[] allowedOrigins;
+
+    @Value("${ai-worker.api-key:}")
+    private String aiWorkerApiKey;
+
+    /**
+     * AI 워커 전용(/api/internal/**): JWT 대신 X-API-Key로만 인증한다.
+     * 워커는 브라우저가 아니라 CORS가 필요 없고, 어드민 JWT로 이 API를 부를 수도 없어야 하므로 JWT 필터를 넣지 않는다.
+     * 키 필터가 인증을 넣지 않으면(키 없음·불일치·미설정) 아래 권한 검사에서 401.
+     */
+    @Bean
+    @Order(1)
+    public SecurityFilterChain aiWorkerFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/api/internal/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(authenticationEntryPoint()))
+                .authorizeHttpRequests(auth -> auth.anyRequest().hasRole(AiWorkerApiKeyFilter.ROLE))
+                .addFilterBefore(new AiWorkerApiKeyFilter(aiWorkerApiKey), UsernamePasswordAuthenticationFilter.class);
+        return http.build();
+    }
 
     /**
      * local 전용: chat-test.html 포함 /dev/** 전부 개방.
@@ -148,6 +174,7 @@ public class SecurityConfig {
                         // 아티스트/콘서트는 조회만 열고 변경(등록·수정·삭제·KOPIS 동기화)은 관리자 전용.
                         .requestMatchers(HttpMethod.GET, "/api/artists/**").permitAll()
                         .requestMatchers("/api/artists/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/concerts/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/concerts/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/concerts/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/concerts/**").hasRole("ADMIN")
