@@ -9,6 +9,7 @@ import com.loop.loop_backend.Artist.dto.ArtistProductDto;
 import com.loop.loop_backend.Artist.dto.ArtistProductRequest;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Artist.service.ArtistImageCopyService;
+import com.loop.loop_backend.Artist.service.ArtistService;
 import com.loop.loop_backend.Chat.domain.Message;
 import com.loop.loop_backend.Chat.repository.ChatRoomRepository;
 import com.loop.loop_backend.Chat.repository.MessageRepository;
@@ -103,6 +104,7 @@ public class AdminController {
     private final SanctionRecordRepository sanctionRecordRepository;
     private final InquiryRepository inquiryRepository;
     private final ArtistRepository artistRepository;
+    private final ArtistService artistService;
     private final ConcertRepository concertRepository;
     private final CompanionPostRepository companionPostRepository;
     private final MessageRepository messageRepository;
@@ -425,9 +427,8 @@ public class AdminController {
     @DeleteMapping("/artists/{id}")
     @Transactional
     public ResponseEntity<CommonResponse<Void>> deleteArtist(@PathVariable Long id) {
-        if (!artistRepository.existsById(id)) throw new BusinessException(ErrorCode.ARTIST_NOT_FOUND);
-        // Concert.artist ON DELETE CASCADE → 관련 콘서트 함께 삭제.
-        artistRepository.deleteById(id);
+        // 곡 선삭제 등 삭제 규칙은 서비스 한 곳에서 관리한다
+        artistService.deleteArtist(id);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
 

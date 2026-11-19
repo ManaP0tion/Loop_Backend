@@ -4,6 +4,7 @@ import com.loop.loop_backend.Artist.domain.Artist;
 import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.dto.ArtistResponseDto;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
+import com.loop.loop_backend.Song.Repository.SongRepository;
 import com.loop.loop_backend.infra.itunes.ItunesClient;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,7 +30,7 @@ class ArtistSearchTest {
 
     @BeforeEach
     void setUp() {
-        service = new ArtistServiceImpl(artistRepository, mock(ItunesClient.class));
+        service = new ArtistServiceImpl(artistRepository, mock(ItunesClient.class), mock(SongRepository.class));
         save("YOASOBI", "요아소비", Nationality.JP);
         save("Yuuri", "유우리", Nationality.JP);
         save("YB", "윤도현밴드", Nationality.KR);
