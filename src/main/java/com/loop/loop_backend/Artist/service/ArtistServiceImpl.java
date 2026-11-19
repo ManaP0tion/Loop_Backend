@@ -5,6 +5,7 @@ import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.dto.ArtistRequestDto;
 import com.loop.loop_backend.Artist.dto.ArtistResponseDto;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
+import com.loop.loop_backend.Song.Repository.SongRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
 import com.loop.loop_backend.infra.itunes.ItunesArtist;
@@ -23,6 +24,7 @@ public class ArtistServiceImpl implements ArtistService {
 
     private final ArtistRepository artistRepository;
     private final ItunesClient itunesClient;
+    private final SongRepository songRepository;
 
     @Override
     @Transactional
@@ -50,7 +52,10 @@ public class ArtistServiceImpl implements ArtistService {
     @Override
     @Transactional
     public void deleteArtist(Long id) {
-        artistRepository.delete(findArtistOrThrow(id));
+        Artist artist = findArtistOrThrow(id);
+        // song.artist_id FK에는 ON DELETE CASCADE가 없어 곡을 먼저 지운다. 공연·출연·관심 아티스트는 DB CASCADE로 함께 삭제된다
+        songRepository.hardDeleteAllByArtistId(id);
+        artistRepository.delete(artist);
     }
 
     @Override
