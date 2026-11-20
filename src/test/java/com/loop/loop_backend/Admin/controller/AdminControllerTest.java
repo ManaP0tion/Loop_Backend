@@ -328,7 +328,7 @@ class AdminControllerTest {
         Artist artist = givenArtist();
         artist.changeLinks(null, "https://x.com/old", "https://yuuri.jp");
         Artist ado = Artist.builder().name("Ado").nationality(Nationality.JP).build();
-        when(artistRepository.findByName("Ado")).thenReturn(Optional.of(ado));
+        when(artistRepository.findAllByName("Ado")).thenReturn(List.of(ado));
         String csv = "\uFEFFid,name,instagramUrl,xUrl,homepageUrl\n"
                 + "5,Yuuri,https://www.instagram.com/yuuri_official,,\n"   // 1: 반영, 빈 칸 유지
                 + ",Ado,,https://x.com/ado1024,\n"                            // 2: name 매칭
@@ -386,5 +386,96 @@ class AdminControllerTest {
         assertThat(artist.getImageUrl()).isEqualTo("https://img.com/y.jpg");
         assertThat(artist.getNationality()).isEqualTo(Nationality.KR);
         assertThat(artist.getBaseName()).isNull();
+    }
+
+    // 아티스트 CSV 추가 요구사항 (페스티벌 라인업 아티스트 일괄 등록):
+    // - id 없이 DB에 없는 name을 넣으면 새 아티스트로 등록된다. 모든 칸이 반영되고 KOPIS 자동 수집은 꺼진 채로 만들어진다.
+    // - 같은 파일에 같은 이름이 또 나와도 한 명만 만들어진다.
+    // - 값이 잘못된 행, 없는 id 행은 등록되지 않고 실패 행으로 알려준다.
+    // - DB에 같은 이름 아티스트가 여럿이면 어느 아티스트인지 알 수 없어 그 행만 실패하고, 나머지 행은 반영된다.
+
+    private static MockMultipartFile artistCsv(String rows) {
+        String csv = "id,name,baseName,nameKo,nameAlias,imageUrl,nationality,instagramUrl,xUrl,homepageUrl\n" + rows;
+        return new MockMultipartFile("file", "artists.csv", "text/csv", csv.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void 아티스트_CSV에_DB에_없는_이름을_넣으면_모든_칸을_담아_새로_등록한다() throws Exception {
+        MockMultipartFile file = artistCsv(
+                ",Vaundy,,바운디,バウンディ,https://img.com/v.jpg,JP,https://www.instagram.com/vaundy,https://x.com/vaundy,https://vaundy.jp\n"
+                + ",Mrs. GREEN APPLE,,,,,,,,\n");
+
+        AdminController.ArtistLinkCsvResult r = adminController.importArtistLinksCsv(file).getBody().getData();
+
+        assertThat(r.created()).isEqualTo(2);
+        assertThat(r.failedRows()).isEmpty();
+        ArgumentCaptor<Artist> saved = ArgumentCaptor.forClass(Artist.class);
+        verify(artistRepository, times(2)).save(saved.capture());
+        Artist vaundy = saved.getAllValues().get(0);
+        assertThat(vaundy.getName()).isEqualTo("Vaundy");
+        assertThat(vaundy.getNameKo()).isEqualTo("바운디");
+        assertThat(vaundy.getNameAlias()).isEqualTo("バウンディ");
+        assertThat(vaundy.getImageUrl()).isEqualTo("https://img.com/v.jpg");
+        assertThat(vaundy.getNationality()).isEqualTo(Nationality.JP);
+        assertThat(vaundy.getInstagramUrl()).isEqualTo("https://www.instagram.com/vaundy");
+        assertThat(vaundy.getXUrl()).isEqualTo("https://x.com/vaundy");
+        assertThat(vaundy.getHomepageUrl()).isEqualTo("https://vaundy.jp");
+        assertThat(vaundy.isAutoFetchConcerts()).isFalse();
+        Artist mga = saved.getAllValues().get(1);
+        assertThat(mga.getName()).isEqualTo("Mrs. GREEN APPLE");
+        assertThat(mga.getNationality()).isNull();
+    }
+
+    @Test
+    void 아티스트_CSV에_같은_새_이름이_두_번_나와도_한_명만_등록한다() throws Exception {
+        MockMultipartFile file = artistCsv(
+                ",Vaundy,,,,,,,,\n"
+                + ",Vaundy,,바운디,,,JP,,,\n");
+
+        AdminController.ArtistLinkCsvResult r = adminController.importArtistLinksCsv(file).getBody().getData();
+
+        assertThat(r.created()).isEqualTo(1);
+        assertThat(r.updated()).isEqualTo(1);
+        ArgumentCaptor<Artist> saved = ArgumentCaptor.forClass(Artist.class);
+        verify(artistRepository, times(1)).save(saved.capture());
+        assertThat(saved.getValue().getNameKo()).isEqualTo("바운디");
+        assertThat(saved.getValue().getNationality()).isEqualTo(Nationality.JP);
+    }
+
+    @Test
+    void 아티스트_CSV의_잘못된_새_행과_없는_id_행은_등록하지_않는다() throws Exception {
+        MockMultipartFile file = artistCsv(
+                ",Vaundy,,,,,NOPE,,,\n"                          // 1: 없는 국적
+                + ",Ado,,,,ftp://img.com/a.jpg,,,,\n"           // 2: http/https 아닌 이미지
+                + "," + "a".repeat(101) + ",,,,,,,,\n"           // 3: 이름 길이 초과
+                + "999,새아티스트,,,,,,,,\n"                      // 4: 없는 id - 새로 만들지 않는다
+                + ",,,,,,JP,,,\n");                              // 5: id·name 둘 다 없음
+
+        AdminController.ArtistLinkCsvResult r = adminController.importArtistLinksCsv(file).getBody().getData();
+
+        assertThat(r.created()).isZero();
+        assertThat(r.failedRows()).containsExactly(1L, 2L, 3L, 4L, 5L);
+        verify(artistRepository, never()).save(any(Artist.class));
+    }
+
+    @Test
+    void 아티스트_CSV에서_DB에_같은_이름이_여럿이면_그_행만_실패하고_나머지는_반영한다() throws Exception {
+        Artist dup1 = Artist.builder().name("SEKAI NO OWARI").build();
+        Artist dup2 = Artist.builder().name("SEKAI NO OWARI").build();
+        when(artistRepository.findAllByName("SEKAI NO OWARI")).thenReturn(List.of(dup1, dup2));
+        Artist yuuri = givenArtist();
+        MockMultipartFile file = artistCsv(
+                ",SEKAI NO OWARI,,세카이노오와리,,,,,,\n"         // 1: 어느 아티스트인지 모름
+                + "5,,,유우리,,,,,,\n"                           // 2: id 매칭 수정
+                + ",Vaundy,,,,,,,,\n");                         // 3: 새로 등록
+
+        AdminController.ArtistLinkCsvResult r = adminController.importArtistLinksCsv(file).getBody().getData();
+
+        assertThat(r.failedRows()).containsExactly(1L);
+        assertThat(r.updated()).isEqualTo(1);
+        assertThat(r.created()).isEqualTo(1);
+        assertThat(dup1.getNameKo()).isNull();
+        assertThat(dup2.getNameKo()).isNull();
+        assertThat(yuuri.getNameKo()).isEqualTo("유우리");
     }
 }

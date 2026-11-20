@@ -488,41 +488,58 @@ public class AdminController {
     private static final String[] ARTIST_CSV_HEADER = {"id", "name", "baseName", "nameKo", "nameAlias",
             "imageUrl", "nationality", "instagramUrl", "xUrl", "homepageUrl"};
 
-    // 아티스트 일괄 수정. id(없으면 name)로 매칭, 빈 칸은 기존 값 유지(CSV로 값을 지우지는 못함). 없는 열도 유지.
-    // name은 id로 매칭한 행에서만 바뀐다. 못 찾은 행·잘못된 값(URL·국적·길이) 행은 건너뛰고 행 번호로 알려준다.
+    // 아티스트 일괄 등록·수정. id(없으면 name)로 매칭, 빈 칸은 기존 값 유지(CSV로 값을 지우지는 못함). 없는 열도 유지.
+    // name은 id로 매칭한 행에서만 바뀐다. id 없이 name으로 못 찾으면 새로 등록한다(페스티벌 라인업 아티스트 일괄 추가용).
+    // 없는 id·같은 이름이 여럿인 name·잘못된 값(URL·국적·길이) 행은 건너뛰고 행 번호로 알려준다.
     @PostMapping(value = "/artists/links/csv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "아티스트 CSV 업로드",
             description = "UTF-8(BOM 허용). 헤더: id, name, baseName, nameKo, nameAlias, imageUrl, nationality(JP/KR), instagramUrl, xUrl, homepageUrl. "
-                    + "id가 비면 name으로 매칭. 빈 칸은 기존 값 유지. imageUrl·링크는 http/https만")
+                    + "id가 비면 name으로 매칭하고, 없는 name이면 새 아티스트로 등록(자동 수집 꺼짐). 빈 칸은 기존 값 유지. "
+                    + "같은 이름 아티스트가 DB에 여럿이면 그 행은 실패(id로 지정). imageUrl·링크는 http/https만")
     @Transactional
     public ResponseEntity<CommonResponse<ArtistLinkCsvResult>> importArtistLinksCsv(
             @RequestPart("file") MultipartFile file) throws IOException {
         if (file.isEmpty()) throw new BusinessException(ErrorCode.EMPTY_FILE);
-        int updated = 0, unchanged = 0;
+        int created = 0, updated = 0, unchanged = 0;
         List<Long> failedRows = new ArrayList<>();
+        // 같은 파일에 같은 이름이 또 나오면 방금 만든 아티스트를 수정한다(중복 생성 방지)
+        Map<String, Artist> createdByName = new java.util.HashMap<>();
         CSVFormat format = CSVFormat.DEFAULT.builder()
                 .setHeader().setSkipHeaderRecord(true).setTrim(true).setIgnoreEmptyLines(true).build();
         try (Reader reader = new InputStreamReader(
                 BOMInputStream.builder().setInputStream(file.getInputStream()).get(), StandardCharsets.UTF_8)) {
             for (CSVRecord r : format.parse(reader)) {
                 String id = csvColumn(r, "id"), name = csvColumn(r, "name");
-                Artist a = findArtistForCsv(id, name);
-                if (a == null) {
+                CsvMatch match = findArtistForCsv(id, name, createdByName);
+                if (match.failed()) {
                     failedRows.add(r.getRecordNumber());
                     continue;
                 }
+                Artist a = match.artist(); // null이면 새로 등록
                 try {
                     // 먼저 전부 검증해 한 칸만 잘못돼도 행 전체를 건너뛴다(일부만 반영되지 않게)
-                    String nName = id.isEmpty() ? a.getName() : csvText(name, a.getName(), 100);
-                    String nBase = csvText(csvColumn(r, "baseName"), a.getBaseName(), 100);
-                    String nKo = csvText(csvColumn(r, "nameKo"), a.getNameKo(), 200);
-                    String nAlias = csvText(csvColumn(r, "nameAlias"), a.getNameAlias(), 200);
-                    String nImage = csvUrl(csvColumn(r, "imageUrl"), a.getImageUrl());
+                    String nName = a == null || !id.isEmpty() ? csvText(name, current(a, Artist::getName), 100) : a.getName();
+                    String nBase = csvText(csvColumn(r, "baseName"), current(a, Artist::getBaseName), 100);
+                    String nKo = csvText(csvColumn(r, "nameKo"), current(a, Artist::getNameKo), 200);
+                    String nAlias = csvText(csvColumn(r, "nameAlias"), current(a, Artist::getNameAlias), 200);
+                    String nImage = csvUrl(csvColumn(r, "imageUrl"), current(a, Artist::getImageUrl));
                     String nat = csvColumn(r, "nationality");
-                    Nationality nNat = nat.isEmpty() ? a.getNationality() : Nationality.valueOf(nat);
-                    String nIg = csvUrl(csvColumn(r, "instagramUrl"), a.getInstagramUrl());
-                    String nX = csvUrl(csvColumn(r, "xUrl"), a.getXUrl());
-                    String nHome = csvUrl(csvColumn(r, "homepageUrl"), a.getHomepageUrl());
+                    Nationality nNat = nat.isEmpty() ? current(a, Artist::getNationality) : Nationality.valueOf(nat);
+                    String nIg = csvUrl(csvColumn(r, "instagramUrl"), current(a, Artist::getInstagramUrl));
+                    String nX = csvUrl(csvColumn(r, "xUrl"), current(a, Artist::getXUrl));
+                    String nHome = csvUrl(csvColumn(r, "homepageUrl"), current(a, Artist::getHomepageUrl));
+                    if (a == null) {
+                        // 어드민 단일 등록·라인업 직접 입력과 같이 KOPIS 자동 수집은 끈 채로 만든다
+                        Artist newArtist = Artist.builder()
+                                .name(nName).baseName(nBase).nameKo(nKo).nameAlias(nAlias)
+                                .imageUrl(nImage).nationality(nNat).autoFetchConcerts(false)
+                                .build();
+                        newArtist.changeLinks(nIg, nX, nHome);
+                        artistRepository.save(newArtist);
+                        createdByName.put(nName, newArtist);
+                        created++;
+                        continue;
+                    }
                     List<Object> before = Arrays.asList(a.getName(), a.getBaseName(), a.getNameKo(), a.getNameAlias(),
                             a.getImageUrl(), a.getNationality(), a.getInstagramUrl(), a.getXUrl(), a.getHomepageUrl());
                     if (before.equals(Arrays.asList(nName, nBase, nKo, nAlias, nImage, nNat, nIg, nX, nHome))) {
@@ -540,7 +557,12 @@ public class AdminController {
             // 깨진 CSV(따옴표 짝 안 맞음, 헤더 중복 등)
             throw new BusinessException(ErrorCode.INVALID_REQUEST_FORMAT);
         }
-        return ResponseEntity.ok(CommonResponse.success(new ArtistLinkCsvResult(updated, unchanged, failedRows)));
+        return ResponseEntity.ok(CommonResponse.success(new ArtistLinkCsvResult(created, updated, unchanged, failedRows)));
+    }
+
+    // 새로 만들 때는 기존 값이 없다
+    private static <T> T current(Artist a, java.util.function.Function<Artist, T> getter) {
+        return a == null ? null : getter.apply(a);
     }
 
     // 빈 칸이면 기존 값. 컬럼 길이를 넘으면 DB 오류(업로드 전체 롤백) 대신 그 행만 실패
@@ -554,15 +576,30 @@ public class AdminController {
         return value.isEmpty() ? current : WebUrls.normalize(value);
     }
 
-    private Artist findArtistForCsv(String id, String name) {
+    // CSV 행의 매칭 결과. 실패가 아니면서 artist가 null이면 새로 등록
+    private record CsvMatch(Artist artist, boolean failed) {
+        static final CsvMatch FAIL = new CsvMatch(null, true);
+        static final CsvMatch CREATE = new CsvMatch(null, false);
+
+        CsvMatch(Artist artist) {
+            this(artist, false);
+        }
+    }
+
+    private CsvMatch findArtistForCsv(String id, String name, Map<String, Artist> createdByName) {
         if (!id.isEmpty()) {
             try {
-                return artistRepository.findById(Long.valueOf(id)).orElse(null);
+                return artistRepository.findById(Long.valueOf(id)).map(CsvMatch::new).orElse(CsvMatch.FAIL);
             } catch (NumberFormatException e) {
-                return null;
+                return CsvMatch.FAIL;
             }
         }
-        return name.isEmpty() ? null : artistRepository.findByName(name).orElse(null);
+        if (name.isEmpty()) return CsvMatch.FAIL;
+        if (createdByName.containsKey(name)) return new CsvMatch(createdByName.get(name));
+        List<Artist> found = artistRepository.findAllByName(name);
+        if (found.isEmpty()) return CsvMatch.CREATE;
+        // 같은 이름이 여럿이면 어느 아티스트인지 알 수 없다 - id로 지정해야 한다
+        return found.size() == 1 ? new CsvMatch(found.get(0)) : CsvMatch.FAIL;
     }
 
     private static String csvColumn(CSVRecord r, String name) {
@@ -856,7 +893,8 @@ public class AdminController {
         }
     }
     /** updated = 반영, unchanged = 바뀐 값 없음, failedRows = 아티스트를 못 찾았거나 값이 잘못된 행 번호(헤더 제외 1부터) */
-    public record ArtistLinkCsvResult(int updated, int unchanged, List<Long> failedRows) {}
+    // created: 새로 등록한 아티스트 수, failedRows: 반영 안 된 CSV 행 번호(헤더 제외 1부터)
+    public record ArtistLinkCsvResult(int created, int updated, int unchanged, List<Long> failedRows) {}
 
     // PUT이라 공식 링크(instagramUrl·xUrl·homepageUrl)도 통째로 교체된다 - 보내지 않으면 비워진다. http/https 주소만(아니면 400).
     public record ArtistReq(String name, String baseName, String nameKo, String nameAlias,
