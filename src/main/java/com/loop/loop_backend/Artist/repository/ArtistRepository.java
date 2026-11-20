@@ -13,6 +13,8 @@ import java.util.Optional;
 
 public interface ArtistRepository extends JpaRepository<Artist, Long> {
     Optional<Artist> findByName(String name);
+    // 이름은 유일 제약이 없다(라인업 직접 입력 등으로 중복 가능). 중복 여부를 알아야 하는 곳은 이걸 쓴다
+    List<Artist> findAllByName(String name);
     List<Artist> findByAutoFetchConcertsTrue();
     // nationality <> :excluded 는 null 행을 빼므로 미입력은 따로 붙인다
     List<Artist> findByNationalityNotOrNationalityIsNull(Nationality excluded);
