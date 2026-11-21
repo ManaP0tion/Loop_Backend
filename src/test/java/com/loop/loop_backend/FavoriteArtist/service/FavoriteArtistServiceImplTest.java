@@ -302,6 +302,21 @@ class FavoriteArtistServiceImplTest {
         verify(favoriteArtistRepository).saveAll(argThat(saved -> ((List<?>) saved).size() == 1));
     }
 
+    // 관심 아티스트는 기본 프로필 필수 항목 - 수정 페이지에서 모두 비우고 저장해도 온보딩·삭제와 같은 안내를 받는다
+    @Test
+    @DisplayName("빈 목록으로 교체하면 FAVORITE_ARTIST_REQUIRED 예외를 던지고 변경하지 않는다")
+    void replaceFavoriteArtists_WithEmptyList_ThrowsRequired() {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser()));
+
+        assertThatThrownBy(() -> favoriteArtistService.replaceFavoriteArtists(USER_ID, List.of()))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FAVORITE_ARTIST_REQUIRED);
+
+        verify(favoriteArtistRepository, never()).delete(any());
+        verify(favoriteArtistRepository, never()).saveAll(anyList());
+    }
+
     @Test
     @DisplayName("서로 다른 아티스트가 5개를 초과하면 LIMIT_FAVORITE_ARTIST 예외를 던지고 변경하지 않는다")
     void replaceFavoriteArtists_WithMoreThanFive_ThrowsLimit() {

@@ -177,24 +177,29 @@ class FavoriteArtistControllerTest {
     }
 
     @Test
-    @DisplayName("artistIds가 비어 있으면 400을 반환하고 서비스는 호출되지 않는다")
-    void replaceFavoriteArtists_WithEmptyIds_Returns400() throws Exception {
+    // 빈 목록([])은 서비스가 FAVORITE_ARTIST_REQUIRED로 거절한다(FavoriteArtistServiceImplTest)
+    @DisplayName("artistIds를 보내지 않으면 400을 반환하고 서비스는 호출되지 않는다")
+    void replaceFavoriteArtists_WithoutIds_Returns400() throws Exception {
         mockMvc.perform(put("/api/users/me/artists")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"artistIds\":[]}"))
+                        .content("{}"))
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(favoriteArtistService);
     }
 
+    // 5개 초과는 중복 id를 합친 뒤 서비스가 LIMIT_FAVORITE_ARTIST(409)로 거절한다(FavoriteArtistServiceImplTest).
+    // 중복이 섞인 6개는 합치면 5개 이하일 수 있어 요청 단계에서 막지 않는다
     @Test
-    @DisplayName("artistIds가 5개를 초과하면 400을 반환하고 서비스는 호출되지 않는다")
-    void replaceFavoriteArtists_WithMoreThanFiveIds_Returns400() throws Exception {
+    @DisplayName("중복이 섞여 6개 이상인 artistIds도 서비스까지 전달된다")
+    void replaceFavoriteArtists_WithDuplicatesOverFive_ReachesService() throws Exception {
+        when(favoriteArtistService.replaceFavoriteArtists(USER_ID, List.of(1L, 1L, 1L, 1L, 1L, 1L))).thenReturn(List.of());
+
         mockMvc.perform(put("/api/users/me/artists")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"artistIds\":[1,2,3,4,5,6]}"))
-                .andExpect(status().isBadRequest());
+                        .content("{\"artistIds\":[1,1,1,1,1,1]}"))
+                .andExpect(status().isOk());
 
-        verify(favoriteArtistService, never()).replaceFavoriteArtists(any(), any());
+        verify(favoriteArtistService).replaceFavoriteArtists(USER_ID, List.of(1L, 1L, 1L, 1L, 1L, 1L));
     }
 }

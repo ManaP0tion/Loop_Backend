@@ -81,6 +81,10 @@ public class FavoriteArtistServiceImpl implements FavoriteArtistService {
     public List<FavoriteArtistResponseDto> replaceFavoriteArtists(Long userId, List<Long> artistIds) {
         User user = getUser(userId);
         Set<Long> targetIds = new LinkedHashSet<>(artistIds);
+        // 관심 아티스트는 기본 프로필 필수 항목 - 교체로도 0개로 만들 수 없다
+        if (targetIds.isEmpty()) {
+            throw new BusinessException(ErrorCode.FAVORITE_ARTIST_REQUIRED);
+        }
         if (targetIds.size() > MAX_FAVORITE_ARTIST_COUNT) {
             throw new BusinessException(ErrorCode.LIMIT_FAVORITE_ARTIST);
         }

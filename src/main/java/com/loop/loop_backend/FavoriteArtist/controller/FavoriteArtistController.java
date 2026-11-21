@@ -71,12 +71,15 @@ public class FavoriteArtistController {
     @Operation(summary = "관심 아티스트 일괄 교체", description = "보낸 artistIds 기준으로 내 관심 아티스트를 교체합니다 (1~5개). 중복 id는 하나로 처리합니다")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "교체 성공, 교체 후 관심 아티스트 목록 반환"),
-            @ApiResponse(responseCode = "400", description = "artistIds가 비어 있거나 5개 초과",
+            @ApiResponse(responseCode = "400", description = "artistIds가 비어 있음(FAVORITE_ARTIST_REQUIRED). artistIds를 보내지 않으면 INVALID_INPUT",
                     content = @Content(examples = @ExampleObject(
-                            value = "{\"success\":false,\"message\":\"입력값이 올바르지 않습니다.\",\"code\":400}"))),
+                            value = "{\"success\":false,\"message\":\"관심 아티스트를 1개 이상 등록해 주세요.\",\"code\":400}"))),
             @ApiResponse(responseCode = "404", description = "존재하지 않는 아티스트 포함",
                     content = @Content(examples = @ExampleObject(
-                            value = "{\"success\":false,\"message\":\"아티스트를 찾을 수 없습니다.\",\"code\":404}")))
+                            value = "{\"success\":false,\"message\":\"아티스트를 찾을 수 없습니다.\",\"code\":404}"))),
+            @ApiResponse(responseCode = "409", description = "중복을 합친 아티스트가 5개 초과(LIMIT_FAVORITE_ARTIST)",
+                    content = @Content(examples = @ExampleObject(
+                            value = "{\"success\":false,\"message\":\"관심 아티스트는 최대 5개까지 등록할 수 있습니다.\",\"code\":409}")))
     })
     public ResponseEntity<CommonResponse<List<FavoriteArtistResponseDto>>> replaceFavoriteArtists(
             @AuthenticationPrincipal Long userId,
