@@ -101,6 +101,13 @@ public class UserServiceImpl implements UserService {
         if (user.isOnboardingCompleted()) {
             throw new BusinessException(ErrorCode.ONBOARDING_ALREADY_COMPLETED);
         }
+        // 관심 아티스트·성격은 각자 API로 먼저 저장하고, 온보딩은 기본 프로필의 마지막 단계로 호출한다
+        if (favoriteArtistRepository.countByUser(user) == 0) {
+            throw new BusinessException(ErrorCode.FAVORITE_ARTIST_REQUIRED);
+        }
+        if (userHashtagRepository.countByUser(user) == 0) {
+            throw new BusinessException(ErrorCode.HASHTAG_REQUIRED);
+        }
 
         // 닉네임을 보내지 않으면 가입 때 받은 랜덤 닉네임을 그대로 쓴다
         if (requestDto.getNickname() != null) {

@@ -160,6 +160,25 @@ class CompanionServiceImplTest {
         assertThat(saved.getWatchStyle().name()).isEqualTo("NORMAL");
     }
 
+    // 기본 프로필(관심 아티스트·성격 포함)을 마치지 않은 사용자는 동행 프로필을 만들 수 없다.
+    @Test
+    void 온보딩을_마치지_않은_사용자는_동행_프로필을_만들_수_없다() {
+        User notOnboarded = User.builder()
+                .authProvider(AuthProvider.KAKAO)
+                .providerId("kakao-2")
+                .status(Status.ACTIVE)
+                .onboardingCompleted(false)
+                .build();
+        when(userRepository.findById(2L)).thenReturn(Optional.of(notOnboarded));
+
+        assertThatThrownBy(() -> companionService.createCompanion(2L, requestDto(10L)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.ONBOARDING_REQUIRED);
+        verify(companionPostRepository, never()).saveAndFlush(any(CompanionPost.class));
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
     @Test
     void 존재하지_않는_사용자면_USER_NOT_FOUND_예외를_던진다() {
         assertThatThrownBy(() -> companionService.createCompanion(999L, requestDto(10L)))

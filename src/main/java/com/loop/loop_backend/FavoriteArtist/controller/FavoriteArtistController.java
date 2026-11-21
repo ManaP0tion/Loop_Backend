@@ -86,7 +86,7 @@ public class FavoriteArtistController {
     }
 
     @DeleteMapping("/me/artists/{favoriteArtistId}")
-    @Operation(summary = "관심 아티스트 삭제", description = "내 관심 아티스트를 삭제합니다")
+    @Operation(summary = "관심 아티스트 삭제", description = "내 관심 아티스트를 삭제합니다. 온보딩을 마친 사용자는 마지막 1개를 지울 수 없습니다(400 FAVORITE_ARTIST_REQUIRED)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "삭제 성공"),
             @ApiResponse(responseCode = "404", description = "관심 아티스트를 찾을 수 없음",

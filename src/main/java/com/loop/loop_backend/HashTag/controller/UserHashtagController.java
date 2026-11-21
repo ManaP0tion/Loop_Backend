@@ -55,7 +55,8 @@ public class UserHashtagController {
 
     @PutMapping("/me/hashtags")
     @Operation(summary = "관심 해시태그 목록 교체",
-            description = "보낸 목록으로 내 해시태그를 통째로 교체합니다 (최대 5개). 빠진 태그는 삭제되고 []는 모두 비웁니다.\n\n" +
+            description = "보낸 목록으로 내 해시태그를 통째로 교체합니다 (최대 5개). 빠진 태그는 삭제되고 []는 모두 비웁니다. " +
+                    "단 온보딩을 마친 사용자는 성격이 필수라 []를 보내면 400(HASHTAG_REQUIRED)입니다.\n\n" +
                     "교체할 때마다 해시태그 id가 새로 발급되므로 응답의 id를 사용하세요.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "교체 성공 - 저장된 목록"),
@@ -100,7 +101,7 @@ public class UserHashtagController {
     }
 
     @DeleteMapping("/me/hashtags/{hashtagId}")
-    @Operation(summary = "관심 해시태그 삭제", description = "내 관심 해시태그를 삭제합니다")
+    @Operation(summary = "관심 해시태그 삭제", description = "내 관심 해시태그를 삭제합니다. 온보딩을 마친 사용자는 마지막 1개를 지울 수 없습니다(400 HASHTAG_REQUIRED)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "삭제 성공"),
             @ApiResponse(responseCode = "404", description = "해시태그를 찾을 수 없음",

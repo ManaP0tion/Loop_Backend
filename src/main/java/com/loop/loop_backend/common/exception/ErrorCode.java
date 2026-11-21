@@ -29,6 +29,10 @@ public enum ErrorCode {
     PASSWORD_CONFIRM_MISMATCH(400, "새 비밀번호가 일치하지 않습니다."),
     SOCIAL_LOGIN_NO_PASSWORD(400, "소셜 로그인 사용자는 비밀번호를 변경할 수 없습니다."),
     ONBOARDING_ALREADY_COMPLETED(409, "이미 온보딩을 완료했습니다."),
+    ONBOARDING_REQUIRED(403, "기본 프로필을 먼저 완성해 주세요."),
+    // 기본 프로필 필수 항목 - 온보딩 완료 때 검사하고, 완료 후에는 0개로 만들 수 없다
+    FAVORITE_ARTIST_REQUIRED(400, "관심 아티스트를 1개 이상 등록해 주세요."),
+    HASHTAG_REQUIRED(400, "성격을 1개 이상 등록해 주세요."),
     AGREEMENT_REQUIRED(400, "필수 약관에 모두 동의해야 합니다."),
     EMAIL_VERIFICATION_CODE_MISMATCH(400, "인증 코드가 올바르지 않거나 만료되었습니다."),
     EMAIL_SEND_FAILED(500, "이메일 발송에 실패했습니다."),
