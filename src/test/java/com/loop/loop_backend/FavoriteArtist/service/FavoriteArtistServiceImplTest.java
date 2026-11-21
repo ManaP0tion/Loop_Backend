@@ -193,6 +193,37 @@ class FavoriteArtistServiceImplTest {
         FavoriteArtist favoriteArtist = FavoriteArtist.builder().user(user).artist(testArtist(ARTIST_ID, "아이유")).build();
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         when(favoriteArtistRepository.findByIdAndUser(100L, user)).thenReturn(Optional.of(favoriteArtist));
+        when(favoriteArtistRepository.countByUser(user)).thenReturn(2); // 지워도 1개가 남는다
+
+        favoriteArtistService.deleteFavoriteArtist(USER_ID, 100L);
+
+        verify(favoriteArtistRepository).delete(favoriteArtist);
+    }
+
+    // 관심 아티스트는 기본 프로필 필수 항목 - 온보딩을 마친 사용자는 마지막 1개를 지울 수 없다. 온보딩 중에는 지울 수 있다.
+    @Test
+    void 온보딩을_마친_사용자는_마지막_관심_아티스트를_삭제할_수_없다() {
+        User user = testUser();
+        FavoriteArtist favoriteArtist = FavoriteArtist.builder().user(user).artist(testArtist(ARTIST_ID, "아이유")).build();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(favoriteArtistRepository.findByIdAndUser(100L, user)).thenReturn(Optional.of(favoriteArtist));
+        when(favoriteArtistRepository.countByUser(user)).thenReturn(1);
+
+        assertThatThrownBy(() -> favoriteArtistService.deleteFavoriteArtist(USER_ID, 100L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FAVORITE_ARTIST_REQUIRED);
+        verify(favoriteArtistRepository, never()).delete(any());
+    }
+
+    @Test
+    void 온보딩_중에는_마지막_관심_아티스트도_삭제할_수_있다() {
+        User user = User.builder().authProvider(AuthProvider.KAKAO).providerId("kakao-1")
+                .status(Status.ACTIVE).onboardingCompleted(false).build();
+        FavoriteArtist favoriteArtist = FavoriteArtist.builder().user(user).artist(testArtist(ARTIST_ID, "아이유")).build();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(favoriteArtistRepository.findByIdAndUser(100L, user)).thenReturn(Optional.of(favoriteArtist));
+        when(favoriteArtistRepository.countByUser(user)).thenReturn(1);
 
         favoriteArtistService.deleteFavoriteArtist(USER_ID, 100L);
 

@@ -66,6 +66,10 @@ public class UserHashtagServiceImpl implements UserHashtagService {
         if (tags.size() > MAX_HASHTAG_COUNT) {
             throw new BusinessException(ErrorCode.LIMIT_HASHTAG);
         }
+        // 성격은 기본 프로필 필수 항목 - 온보딩을 마친 뒤에는 비울 수 없다(온보딩 중에는 자유롭게)
+        if (tags.isEmpty() && user.isOnboardingCompleted()) {
+            throw new BusinessException(ErrorCode.HASHTAG_REQUIRED);
+        }
         if (new HashSet<>(tags).size() != tags.size()) {
             throw new BusinessException(ErrorCode.DUPLICATE_HASHTAG);
         }
@@ -88,6 +92,9 @@ public class UserHashtagServiceImpl implements UserHashtagService {
         User user = getUser(userId);
         UserHashtag hashtag = userHashtagRepository.findByIdAndUser(hashtagId, user)
                 .orElseThrow(() -> new BusinessException(ErrorCode.HASHTAG_NOT_FOUND));
+        if (user.isOnboardingCompleted() && userHashtagRepository.countByUser(user) <= 1) {
+            throw new BusinessException(ErrorCode.HASHTAG_REQUIRED);
+        }
         userHashtagRepository.delete(hashtag);
     }
 

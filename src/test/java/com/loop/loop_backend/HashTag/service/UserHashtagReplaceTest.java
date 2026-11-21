@@ -22,7 +22,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 // 해시태그(성격) 목록 교체 요구사항 (PUT /api/users/me/hashtags):
 // - 보낸 목록으로 통째로 교체한다. 빠진 태그는 지워지고, 기존 태그를 일부 유지해도 저장된다.
-// - []를 보내면 모두 지운다.
+// - 온보딩 중에는 []를 보내면 모두 지운다.
+// - 온보딩을 마친 사용자는 성격이 기본 프로필 필수 항목이라 []로 비울 수 없다(400 HASHTAG_REQUIRED, 기존 태그 유지).
 // - 최대 5개. 6개 이상이면 409 LIMIT_HASHTAG, 목록 안에 같은 태그가 있으면 409 DUPLICATE_HASHTAG.
 //   실패하면 기존 태그는 그대로 남는다.
 // - 다른 사용자의 태그는 건드리지 않는다.
@@ -77,13 +78,29 @@ class UserHashtagReplaceTest {
     }
 
     @Test
-    @DisplayName("빈 목록을 보내면 태그가 모두 지워진다")
+    @DisplayName("온보딩 중에 빈 목록을 보내면 태그가 모두 지워진다")
     void replace_WithEmptyList_RemovesAll() {
         // when
         service.replaceHashtags(meId, List.of());
 
         // then
         assertThat(tagsInDb(meId)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("온보딩을 마친 사용자가 빈 목록을 보내면 400이고 기존 태그는 그대로다")
+    void replace_WithEmptyListAfterOnboarding_ThrowsAndKeepsExisting() {
+        // given
+        User done = userRepository.save(User.builder()
+                .authProvider(AuthProvider.KAKAO).providerId("kakao-done").onboardingCompleted(true).build());
+        saveTags(done, "외향형");
+
+        // when & then
+        assertThatThrownBy(() -> service.replaceHashtags(done.getId(), List.of()))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.HASHTAG_REQUIRED);
+        assertThat(tagsInDb(done.getId())).containsExactly("외향형");
     }
 
     @Test

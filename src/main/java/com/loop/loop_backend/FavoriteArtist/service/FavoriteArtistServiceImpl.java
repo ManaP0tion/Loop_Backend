@@ -69,6 +69,10 @@ public class FavoriteArtistServiceImpl implements FavoriteArtistService {
         User user = getUser(userId);
         FavoriteArtist favoriteArtist = favoriteArtistRepository.findByIdAndUser(favoriteArtistId, user)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FAVORITE_ARTIST_NOT_FOUND));
+        // 관심 아티스트는 기본 프로필 필수 항목 - 온보딩을 마친 뒤에는 마지막 1개를 지울 수 없다
+        if (user.isOnboardingCompleted() && favoriteArtistRepository.countByUser(user) <= 1) {
+            throw new BusinessException(ErrorCode.FAVORITE_ARTIST_REQUIRED);
+        }
         favoriteArtistRepository.delete(favoriteArtist);
     }
 

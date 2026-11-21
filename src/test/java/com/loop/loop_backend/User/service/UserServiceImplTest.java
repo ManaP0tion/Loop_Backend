@@ -196,7 +196,9 @@ class UserServiceImplTest {
     // 요구사항: 생년월일·성별은 필수, 닉네임·프로필 이미지는 선택.
     // - 닉네임을 보내지 않으면 카카오 첫 로그인 때 받은 랜덤 닉네임을 그대로 쓴다. 보내면 중복 검사 후 바꾼다.
     // - 프로필 이미지는 업로드 API가 준 URL을 저장하고, 보내지 않으면 없음(null).
+    // - v2: 관심 아티스트·성격도 기본 프로필 필수 항목. 각자 API로 먼저 1개 이상 저장해야 온보딩이 완료된다.
 
+    // 관심 아티스트·성격을 이미 저장해 둔(온보딩 마지막 단계에 온) 신규 카카오 유저
     private User newKakaoUserWithRandomNickname() {
         User user = User.builder()
                 .authProvider(AuthProvider.KAKAO)
@@ -206,7 +208,41 @@ class UserServiceImplTest {
                 .build();
         user.assignNickname("달빛군청");
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(favoriteArtistRepository.countByUser(user)).thenReturn(1);
+        when(userHashtagRepository.countByUser(user)).thenReturn(1);
         return user;
+    }
+
+    @Test
+    @DisplayName("관심 아티스트가 없으면 온보딩이 완료되지 않는다")
+    void completeOnboarding_WithoutFavoriteArtist_Throws() throws Exception {
+        // given
+        User user = newKakaoUserWithRandomNickname();
+        when(favoriteArtistRepository.countByUser(user)).thenReturn(0);
+
+        // when & then
+        assertThatThrownBy(() -> userService.completeOnboarding(USER_ID, onboarding("""
+                {"birthDate": "2000-01-01", "gender": "FEMALE"}""")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FAVORITE_ARTIST_REQUIRED);
+        assertThat(user.isOnboardingCompleted()).isFalse();
+    }
+
+    @Test
+    @DisplayName("성격이 없으면 온보딩이 완료되지 않는다")
+    void completeOnboarding_WithoutHashtag_Throws() throws Exception {
+        // given
+        User user = newKakaoUserWithRandomNickname();
+        when(userHashtagRepository.countByUser(user)).thenReturn(0);
+
+        // when & then
+        assertThatThrownBy(() -> userService.completeOnboarding(USER_ID, onboarding("""
+                {"birthDate": "2000-01-01", "gender": "FEMALE"}""")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.HASHTAG_REQUIRED);
+        assertThat(user.isOnboardingCompleted()).isFalse();
     }
 
     private static OnboardingRequestDto onboarding(String json) throws Exception {

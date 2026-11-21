@@ -75,6 +75,10 @@ public class CompanionServiceImpl implements CompanionService {
     public void createCompanion(Long userId, CompanionRequestDto requestDto) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        // 기본 프로필(관심 아티스트·성격 포함)을 마치지 않은 유저는 동행 프로필을 만들 수 없다. 화면 이동은 프론트가 한다
+        if (!user.isOnboardingCompleted()) {
+            throw new BusinessException(ErrorCode.ONBOARDING_REQUIRED);
+        }
 
         Concert concert = concertRepository.findById(requestDto.getConcertId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONCERT_NOT_FOUND));
