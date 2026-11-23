@@ -23,7 +23,10 @@ final class SetlistRules {
     private SetlistRules() {
     }
 
-    /** 관리자가 예상 곡 수를 넣지 않은 출연 정보(셋리스트 기능 전에 만든 공연 등)에 쓰는 n */
+    /**
+     * 예상 곡 수가 비어 있는 출연 정보에 쓰는 안전망 n. 새 출연 정보는 만들 때 기본값이 저장되므로(Performance),
+     * 이 값은 그 규칙 전에 만든 공연과 관리자가 비운 헤드라이너에만 쓰인다. 지난 공연 결과가 바뀌지 않게 20으로 둔다.
+     */
     static final int DEFAULT_EXPECTED_SONG_COUNT = 20;
 
     /** 경로의 공연 소속 출연 정보. 공연이 없거나 다른 공연의 출연 정보면 404. */

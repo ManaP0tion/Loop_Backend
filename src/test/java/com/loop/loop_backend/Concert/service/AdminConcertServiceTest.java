@@ -553,6 +553,22 @@ class AdminConcertServiceTest {
     }
 
     @Test
+    @DisplayName("예상 곡 수를 비워 두고 내한 공연을 만들면 25곡으로 저장되어 어드민 화면에도 보인다")
+    void create_WithoutExpectedCount_Saves25() {
+        // when
+        AdminConcertDetailResponse created = service.create(new AdminConcertCreateRequest(
+                ConcertCategory.STAGE, "YUURI LIVE", null,
+                LocalDate.of(2026, 12, 5), LocalDate.of(2026, 12, 5), null,
+                null, List.of(yuuri.getId()), null, false, null, null, null, null, null, null));
+        flushAndClear();
+
+        // then
+        Performance solo = performanceRepository.findFirstByConcertId(created.id()).orElseThrow();
+        assertThat(solo.getExpectedSongCount()).isEqualTo(25);
+        assertThat(created.expectedSongCount()).isEqualTo(25);
+    }
+
+    @Test
     @DisplayName("내한 공연의 아티스트를 바꾸면 출연 정보는 유지되고 아티스트만 바뀐다")
     void update_WhenArtistChanged_KeepsPerformanceAndChangesArtist() {
         // given
