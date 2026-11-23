@@ -87,16 +87,29 @@ class UserServiceImplTest {
     }
 
     @Test
+    void 채팅_알림은_기본_ON이고_끌_수_있다() {
+        User user = testUser();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        assertThat(user.isChatNotificationEmail()).isTrue();
+
+        NotificationSettingsRequestDto off = new NotificationSettingsRequestDto();
+        off.setChatNotificationEmail(false);
+        userService.updateNotificationSettings(USER_ID, off);
+        assertThat(user.isChatNotificationEmail()).isFalse();
+    }
+
+    @Test
     void 새_공연_알림은_기본_OFF이고_켜고_끌_수_있으며_다른_알림_설정은_바뀌지_않는다() {
         User user = testUser();
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         assertThat(user.isNewConcertEmail()).isFalse();
+        boolean chatBefore = user.isChatNotificationEmail();
 
         NotificationSettingsRequestDto on = new NotificationSettingsRequestDto();
         on.setNewConcertEmail(true);
         assertThat(userService.updateNotificationSettings(USER_ID, on).isNewConcertEmail()).isTrue();
         assertThat(user.isSetlistResultEmail()).isTrue();
-        assertThat(user.isChatNotificationEmail()).isFalse();
+        assertThat(user.isChatNotificationEmail()).isEqualTo(chatBefore);
 
         NotificationSettingsRequestDto keep = new NotificationSettingsRequestDto();
         keep.setChatNotificationEmail(true);
