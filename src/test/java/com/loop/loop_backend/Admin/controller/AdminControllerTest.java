@@ -369,7 +369,7 @@ class AdminControllerTest {
         String csv = "id,name,baseName,nameKo,nameAlias,imageUrl,nationality,instagramUrl,xUrl,homepageUrl\n"
                 + "5,Yuuri2,,,ゆうり,https://img.com/y.jpg,KR,,,\n"               // 1: id 매칭이라 이름도 변경
                 + "5,,,,,,NOPE,,,\n"                                             // 2: 없는 국적
-                + "5,,,,,ftp://img.com/y.jpg,,,,\n"                              // 3: http/https 아닌 이미지
+                + "5,,,,,https://img.com/" + "a".repeat(500) + ",,,,\n"          // 3: 이미지 주소 500자 초과
                 + "5,," + "a".repeat(101) + ",,,,,,,\n"                          // 4: baseName 길이 초과
                 + "5,Yuuri2,,,,,,,,\n";                                          // 5: 같은 값이면 유지
         MockMultipartFile file = new MockMultipartFile("file", "artists.csv", "text/csv",
@@ -442,11 +442,32 @@ class AdminControllerTest {
         assertThat(saved.getValue().getNationality()).isEqualTo(Nationality.JP);
     }
 
+    // 이미지 주소는 링크와 달리 http/https로 시작하지 않아도 그대로 받는다(어드민 단건 등록과 같음). 링크는 여전히 http/https만.
+    @Test
+    void 아티스트_CSV의_이미지_주소는_http_https가_아니어도_등록_수정되고_링크는_그대로_검사한다() throws Exception {
+        Artist artist = givenArtist();
+        MockMultipartFile file = artistCsv(
+                "5,,,,,//cdn.example.com/yuuri.jpg,,,,\n"                     // 1: 수정 - 스킴 없는 이미지
+                + ",Vaundy,,,,ftp://img.com/v.jpg,,,,\n"                      // 2: 신규 - http/https 아닌 이미지
+                + ",Ado,,,,https://img.com/a.jpg,,ftp://x.com/ado,,\n");      // 3: 링크가 http/https 아님 → 실패
+
+        AdminController.ArtistLinkCsvResult r = adminController.importArtistLinksCsv(file).getBody().getData();
+
+        assertThat(r.updated()).isEqualTo(1);
+        assertThat(r.created()).isEqualTo(1);
+        assertThat(r.failedRows()).containsExactly(3L);
+        assertThat(artist.getImageUrl()).isEqualTo("//cdn.example.com/yuuri.jpg");
+        ArgumentCaptor<Artist> saved = ArgumentCaptor.forClass(Artist.class);
+        verify(artistRepository, times(1)).save(saved.capture());
+        assertThat(saved.getValue().getName()).isEqualTo("Vaundy");
+        assertThat(saved.getValue().getImageUrl()).isEqualTo("ftp://img.com/v.jpg");
+    }
+
     @Test
     void 아티스트_CSV의_잘못된_새_행과_없는_id_행은_등록하지_않는다() throws Exception {
         MockMultipartFile file = artistCsv(
                 ",Vaundy,,,,,NOPE,,,\n"                          // 1: 없는 국적
-                + ",Ado,,,,ftp://img.com/a.jpg,,,,\n"           // 2: http/https 아닌 이미지
+                + ",Ado,,,,https://img.com/" + "a".repeat(500) + ",,,,\n" // 2: 이미지 주소 500자 초과
                 + "," + "a".repeat(101) + ",,,,,,,,\n"           // 3: 이름 길이 초과
                 + "999,새아티스트,,,,,,,,\n"                      // 4: 없는 id - 새로 만들지 않는다
                 + ",,,,,,JP,,,\n");                              // 5: id·name 둘 다 없음
