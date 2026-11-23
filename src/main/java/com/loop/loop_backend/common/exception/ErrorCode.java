@@ -34,6 +34,8 @@ public enum ErrorCode {
     FAVORITE_ARTIST_REQUIRED(400, "관심 아티스트를 1개 이상 등록해 주세요."),
     HASHTAG_REQUIRED(400, "성격을 1개 이상 등록해 주세요."),
     AGREEMENT_REQUIRED(400, "필수 약관에 모두 동의해야 합니다."),
+    // 약관 미동의 유저가 동의 전에 쓸 수 있는 API(JwtAuthenticationFilter 허용 목록) 밖을 호출했을 때
+    TERMS_NOT_AGREED(403, "약관 동의가 필요합니다."),
     EMAIL_VERIFICATION_CODE_MISMATCH(400, "인증 코드가 올바르지 않거나 만료되었습니다."),
     EMAIL_SEND_FAILED(500, "이메일 발송에 실패했습니다."),
     EMAIL_VERIFICATION_SEND_LIMIT_EXCEEDED(429, "이메일 인증 코드 요청이 너무 많습니다. 잠시 후 다시 시도해주세요."),
