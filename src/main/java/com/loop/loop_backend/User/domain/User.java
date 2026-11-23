@@ -81,8 +81,10 @@ public class User {
     @Column(name = "concert_reminder_email", nullable = false)
     private boolean concertReminderEmail = false;
 
+    // 미확인 채팅 알림 메일. 기본 ON - 서비스 알림이라 처음부터 받게 한다.
+    // 이메일이 없으면 발송 대상에서 빠지므로(findDailyUnreadDigest) 이메일을 등록한 뒤부터 실제로 받는다
     @Column(name = "chat_notification_email", nullable = false)
-    private boolean chatNotificationEmail = false;
+    private boolean chatNotificationEmail = true;
 
     // 셋리스트 결과 메일(NO.69). 기본 ON(PRD 5-7) - 실제 발송은 투표 후 수신 동의 + 이메일 인증까지 해야 된다
     // columnDefinition: 기존 행이 있는 테이블에 컬럼을 추가할 때 true로 채우려고(ddl-auto update)
