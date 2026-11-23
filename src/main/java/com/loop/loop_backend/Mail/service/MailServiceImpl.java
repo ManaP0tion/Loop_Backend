@@ -203,12 +203,11 @@ public class MailServiceImpl implements MailService {
         context.setVariable("recipientNickname", recipientNickname);
         context.setVariable("concerts", concerts);
         context.setVariable("frontendUrl", frontendUrl);
+        // ponytail: 로그인 없이 처리되는 수신거부 페이지(토큰 링크)가 생기기 전까지 알림 설정 화면으로 보낸다
+        context.setVariable("unsubscribeUrl", frontendUrl + "/settings/notifications");
 
-        String subject = concerts.size() == 1
-                ? "[Loop] " + concerts.get(0).title() + " 공연이 새로 등록됐어요"
-                : "[Loop] 새 공연 " + concerts.size() + "개가 등록됐어요";
         String html = templateEngine.process("mail/new-concert-notification", context);
-        dispatch(sesMailSender, MailType.NEW_CONCERT, toEmail, subject, html);
+        dispatch(sesMailSender, MailType.NEW_CONCERT, toEmail, NewConcertSummary.mailSubject(concerts), html);
     }
 
     // 동기 발송 - 발송 시점을 고르는 쪽(스케줄러)이 수신자마다 순서대로 부른다
