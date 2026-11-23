@@ -490,12 +490,12 @@ public class AdminController {
 
     // 아티스트 일괄 등록·수정. id(없으면 name)로 매칭, 빈 칸은 기존 값 유지(CSV로 값을 지우지는 못함). 없는 열도 유지.
     // name은 id로 매칭한 행에서만 바뀐다. id 없이 name으로 못 찾으면 새로 등록한다(페스티벌 라인업 아티스트 일괄 추가용).
-    // 없는 id·같은 이름이 여럿인 name·잘못된 값(URL·국적·길이) 행은 건너뛰고 행 번호로 알려준다.
+    // 없는 id·같은 이름이 여럿인 name·잘못된 값(링크 URL·국적·길이) 행은 건너뛰고 행 번호로 알려준다.
     @PostMapping(value = "/artists/links/csv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "아티스트 CSV 업로드",
             description = "UTF-8(BOM 허용). 헤더: id, name, baseName, nameKo, nameAlias, imageUrl, nationality(JP/KR), instagramUrl, xUrl, homepageUrl. "
                     + "id가 비면 name으로 매칭하고, 없는 name이면 새 아티스트로 등록(자동 수집 꺼짐). 빈 칸은 기존 값 유지. "
-                    + "같은 이름 아티스트가 DB에 여럿이면 그 행은 실패(id로 지정). imageUrl·링크는 http/https만")
+                    + "같은 이름 아티스트가 DB에 여럿이면 그 행은 실패(id로 지정). 링크는 http/https만, imageUrl은 500자까지")
     @Transactional
     public ResponseEntity<CommonResponse<ArtistLinkCsvResult>> importArtistLinksCsv(
             @RequestPart("file") MultipartFile file) throws IOException {
@@ -522,7 +522,8 @@ public class AdminController {
                     String nBase = csvText(csvColumn(r, "baseName"), current(a, Artist::getBaseName), 100);
                     String nKo = csvText(csvColumn(r, "nameKo"), current(a, Artist::getNameKo), 200);
                     String nAlias = csvText(csvColumn(r, "nameAlias"), current(a, Artist::getNameAlias), 200);
-                    String nImage = csvUrl(csvColumn(r, "imageUrl"), current(a, Artist::getImageUrl));
+                    // 이미지는 링크와 달리 눌러서 열리지 않아 스킴은 보지 않는다(어드민 단건 등록과 같음). 컬럼 길이만 지킨다
+                    String nImage = csvText(csvColumn(r, "imageUrl"), current(a, Artist::getImageUrl), 500);
                     String nat = csvColumn(r, "nationality");
                     Nationality nNat = nat.isEmpty() ? current(a, Artist::getNationality) : Nationality.valueOf(nat);
                     String nIg = csvUrl(csvColumn(r, "instagramUrl"), current(a, Artist::getInstagramUrl));
