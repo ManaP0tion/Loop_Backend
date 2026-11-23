@@ -64,7 +64,16 @@ public class Performance {
     @Column(name = "display_order", nullable = false)
     private int displayOrder;
 
-    /** 예상 곡 수(n). 셋리스트 운영 기준(최대 선택 곡 수, 하이라이트 개수, 적중률 상위 n곡). null이면 기본값. */
+    /** 내한(단독) 공연 출연 정보를 만들 때 넣는 예상 곡 수. 관리자가 값을 주면 그 값으로 바뀐다. */
+    public static final int DEFAULT_SOLO_SONG_COUNT = 25;
+    /** 페스티벌 라인업 항목을 헤드라이너로 지정할 때 비어 있으면 넣는 예상 곡 수. */
+    public static final int DEFAULT_HEADLINER_SONG_COUNT = 20;
+
+    /**
+     * 예상 곡 수(n). 셋리스트 운영 기준(최대 선택 곡 수, 하이라이트 개수, 적중률 상위 n곡).
+     * 만들 때(단독)·헤드라이너 지정 때(페스티벌) 기본값을 저장해 어드민 화면과 실제 동작이 같게 한다.
+     * null은 이 규칙 전에 만든 출연 정보나 관리자가 비운 헤드라이너 - 셋리스트는 안전망 기본값(SetlistRules)을 쓴다.
+     */
     @Column(name = "expected_song_count")
     private Integer expectedSongCount;
 
@@ -91,6 +100,7 @@ public class Performance {
         p.days.add(1);
         p.headliner = true;
         p.displayOrder = 1;
+        p.expectedSongCount = DEFAULT_SOLO_SONG_COUNT;
         return p;
     }
 
@@ -128,8 +138,12 @@ public class Performance {
         return days.isEmpty();
     }
 
+    /** 헤드라이너로 지정할 때 예상 곡 수가 비어 있으면 기본값을 넣는다. 해제해도 값은 남긴다(다시 지정하면 그대로 쓴다). */
     public void changeHeadliner(boolean headliner) {
         this.headliner = headliner;
+        if (headliner && expectedSongCount == null) {
+            expectedSongCount = DEFAULT_HEADLINER_SONG_COUNT;
+        }
     }
 
     /** 단독 공연 아티스트 교체용. 페스티벌 라인업은 항목을 지우고 다시 추가한다. */

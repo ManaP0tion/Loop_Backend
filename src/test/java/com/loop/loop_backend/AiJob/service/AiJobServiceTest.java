@@ -775,6 +775,7 @@ class AiJobServiceTest {
             Artist artist = yuuri();
             Concert concert = stage();
             Performance performance = solo(concert, artist);
+            performance.changeExpectedSongCount(null); // 예상 곡 수 기본값 저장 전에 만든 공연
             Song deleted = song(artist, "旧曲", null, null, 1);
             songRepository.delete(deleted);
             em.flush();

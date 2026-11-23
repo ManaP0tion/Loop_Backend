@@ -150,7 +150,7 @@ class SetlistVoteServiceTest {
     }
 
     @Test
-    @DisplayName("예상 곡 수가 없으면 최대 선택 곡 수는 기본값 20곡이다")
+    @DisplayName("예상 곡 수가 비어 있으면(규칙 전에 만든 공연·비운 헤드라이너) 최대 선택 곡 수는 안전망 20곡이다")
     void candidates_WhenExpectedSongCountMissing_UsesDefault20() {
         // given
         Concert noCount = saveSoloConcert(true);
@@ -384,7 +384,7 @@ class SetlistVoteServiceTest {
     }
 
     @Test
-    @DisplayName("투표가 0건이면 빈 순위이고, 예상 곡 수가 없으면 n은 기본값 20이다")
+    @DisplayName("투표가 0건이면 빈 순위이고, 예상 곡 수가 비어 있으면 n은 안전망 20이다")
     void ranking_WhenNoVotesOrNoExpectedCount_ReturnsEmptyWithDefaultN() {
         // given
         Concert noCount = saveSoloConcert(true);
