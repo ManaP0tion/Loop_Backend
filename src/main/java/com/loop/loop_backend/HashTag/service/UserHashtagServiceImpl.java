@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
 
 @Service
@@ -19,7 +20,7 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class UserHashtagServiceImpl implements UserHashtagService {
 
-    private static final int MAX_HASHTAG_COUNT = 3;
+    private static final int MAX_HASHTAG_COUNT = 5;
 
     private final UserHashtagRepository userHashtagRepository;
     private final UserRepository userRepository;
@@ -59,10 +60,41 @@ public class UserHashtagServiceImpl implements UserHashtagService {
 
     @Override
     @Transactional
+    public List<HashtagResponseDto> replaceHashtags(Long userId, List<String> tags) {
+        User user = getUser(userId);
+
+        if (tags.size() > MAX_HASHTAG_COUNT) {
+            throw new BusinessException(ErrorCode.LIMIT_HASHTAG);
+        }
+        // 성격은 기본 프로필 필수 항목 - 온보딩을 마친 뒤에는 비울 수 없다(온보딩 중에는 자유롭게)
+        if (tags.isEmpty() && user.isOnboardingCompleted()) {
+            throw new BusinessException(ErrorCode.HASHTAG_REQUIRED);
+        }
+        if (new HashSet<>(tags).size() != tags.size()) {
+            throw new BusinessException(ErrorCode.DUPLICATE_HASHTAG);
+        }
+
+        // 벌크 삭제로 DELETE를 즉시 보낸다. 엔티티 단위 삭제는 flush 때 INSERT 뒤로 밀려
+        // 유지하는 태그를 다시 넣을 때 uq_user_tag 위반이 난다
+        userHashtagRepository.deleteAllInBulkByUser(user);
+
+        return userHashtagRepository.saveAll(tags.stream()
+                        .map(tag -> UserHashtag.builder().user(user).tag(tag).build())
+                        .toList())
+                .stream()
+                .map(HashtagResponseDto::from)
+                .toList();
+    }
+
+    @Override
+    @Transactional
     public void deleteHashtag(Long userId, Long hashtagId) {
         User user = getUser(userId);
         UserHashtag hashtag = userHashtagRepository.findByIdAndUser(hashtagId, user)
                 .orElseThrow(() -> new BusinessException(ErrorCode.HASHTAG_NOT_FOUND));
+        if (user.isOnboardingCompleted() && userHashtagRepository.countByUser(user) <= 1) {
+            throw new BusinessException(ErrorCode.HASHTAG_REQUIRED);
+        }
         userHashtagRepository.delete(hashtag);
     }
 

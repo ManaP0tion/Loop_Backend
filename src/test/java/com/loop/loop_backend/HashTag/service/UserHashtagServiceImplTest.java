@@ -127,10 +127,23 @@ class UserHashtagServiceImplTest {
     }
 
     @Test
-    void 이미_3개_등록된_경우_LIMIT_HASHTAG_예외를_던지고_저장하지_않는다() {
+    void 이미_4개_등록된_경우_다섯번째는_추가된다() {
         User user = testUser();
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-        when(userHashtagRepository.countByUser(user)).thenReturn(3);
+        when(userHashtagRepository.countByUser(user)).thenReturn(4);
+        when(userHashtagRepository.existsByUserAndTag(user, "새태그")).thenReturn(false);
+        when(userHashtagRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        HashtagResponseDto result = userHashtagService.addHashtag(USER_ID, "새태그");
+
+        assertThat(result.getTag()).isEqualTo("새태그");
+    }
+
+    @Test
+    void 이미_5개_등록된_경우_LIMIT_HASHTAG_예외를_던지고_저장하지_않는다() {
+        User user = testUser();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(userHashtagRepository.countByUser(user)).thenReturn(5);
 
         assertThatThrownBy(() -> userHashtagService.addHashtag(USER_ID, "새태그"))
                 .isInstanceOf(BusinessException.class)
@@ -175,6 +188,37 @@ class UserHashtagServiceImplTest {
         UserHashtag hashtag = UserHashtag.builder().user(user).tag("맛집").build();
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         when(userHashtagRepository.findByIdAndUser(10L, user)).thenReturn(Optional.of(hashtag));
+        when(userHashtagRepository.countByUser(user)).thenReturn(2); // 지워도 1개가 남는다
+
+        userHashtagService.deleteHashtag(USER_ID, 10L);
+
+        verify(userHashtagRepository).delete(hashtag);
+    }
+
+    // 성격은 기본 프로필 필수 항목 - 온보딩을 마친 사용자는 마지막 1개를 지울 수 없다. 온보딩 중에는 지울 수 있다.
+    @Test
+    void 온보딩을_마친_사용자는_마지막_해시태그를_삭제할_수_없다() {
+        User user = testUser();
+        UserHashtag hashtag = UserHashtag.builder().user(user).tag("맛집").build();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(userHashtagRepository.findByIdAndUser(10L, user)).thenReturn(Optional.of(hashtag));
+        when(userHashtagRepository.countByUser(user)).thenReturn(1);
+
+        assertThatThrownBy(() -> userHashtagService.deleteHashtag(USER_ID, 10L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.HASHTAG_REQUIRED);
+        verify(userHashtagRepository, never()).delete(any());
+    }
+
+    @Test
+    void 온보딩_중에는_마지막_해시태그도_삭제할_수_있다() {
+        User user = User.builder().authProvider(AuthProvider.KAKAO).providerId("kakao-1")
+                .status(Status.ACTIVE).onboardingCompleted(false).build();
+        UserHashtag hashtag = UserHashtag.builder().user(user).tag("맛집").build();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(userHashtagRepository.findByIdAndUser(10L, user)).thenReturn(Optional.of(hashtag));
+        when(userHashtagRepository.countByUser(user)).thenReturn(1);
 
         userHashtagService.deleteHashtag(USER_ID, 10L);
 

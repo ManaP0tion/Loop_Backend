@@ -1,19 +1,26 @@
 package com.loop.loop_backend.User.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loop.loop_backend.Setlist.repository.SetlistVoteRepository;
 import com.loop.loop_backend.Chat.service.ChatService;
 import com.loop.loop_backend.CompanionHeart.repository.CompanionHeartRepository;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
+import com.loop.loop_backend.ConcertScrap.repository.ConcertScrapRepository;
 import com.loop.loop_backend.FavoriteArtist.repository.FavoriteArtistRepository;
 import com.loop.loop_backend.HashTag.repository.UserHashtagRepository;
 import com.loop.loop_backend.Storage.service.S3StorageService;
+import com.loop.loop_backend.TicketAlarm.repository.TicketAlarmRepository;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
+import com.loop.loop_backend.User.dto.NotificationSettingsRequestDto;
+import com.loop.loop_backend.User.dto.OnboardingRequestDto;
 import com.loop.loop_backend.User.dto.TermsAgreementRequestDto;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.auth.service.RefreshTokenService;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -39,6 +46,9 @@ class UserServiceImplTest {
     @Mock FavoriteArtistRepository favoriteArtistRepository;
     @Mock CompanionPostRepository companionPostRepository;
     @Mock CompanionHeartRepository companionHeartRepository;
+    @Mock ConcertScrapRepository concertScrapRepository;
+    @Mock SetlistVoteRepository setlistVoteRepository;
+    @Mock TicketAlarmRepository ticketAlarmRepository;
     @Mock PasswordEncoder passwordEncoder;
     @Mock S3StorageService s3StorageService;
     @Mock ChatService chatService;
@@ -56,6 +66,63 @@ class UserServiceImplTest {
                 .build();
     }
 
+    // ── updateNotificationSettings ───────────────────────────────────────
+
+    @Test
+    void 셋리스트_결과_알림은_기본_ON이고_null이면_그대로_값이면_바뀐다() {
+        User user = testUser();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        assertThat(user.isSetlistResultEmail()).isTrue();
+
+        NotificationSettingsRequestDto keep = new NotificationSettingsRequestDto();
+        keep.setChatNotificationEmail(true);
+        userService.updateNotificationSettings(USER_ID, keep);
+        assertThat(user.isSetlistResultEmail()).isTrue();
+
+        NotificationSettingsRequestDto off = new NotificationSettingsRequestDto();
+        off.setSetlistResultEmail(false);
+        userService.updateNotificationSettings(USER_ID, off);
+        assertThat(user.isSetlistResultEmail()).isFalse();
+        assertThat(user.isChatNotificationEmail()).isTrue();
+    }
+
+    @Test
+    void 채팅_알림은_기본_ON이고_끌_수_있다() {
+        User user = testUser();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        assertThat(user.isChatNotificationEmail()).isTrue();
+
+        NotificationSettingsRequestDto off = new NotificationSettingsRequestDto();
+        off.setChatNotificationEmail(false);
+        userService.updateNotificationSettings(USER_ID, off);
+        assertThat(user.isChatNotificationEmail()).isFalse();
+    }
+
+    @Test
+    void 새_공연_알림은_기본_OFF이고_켜고_끌_수_있으며_다른_알림_설정은_바뀌지_않는다() {
+        User user = testUser();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        assertThat(user.isNewConcertEmail()).isFalse();
+        boolean chatBefore = user.isChatNotificationEmail();
+
+        NotificationSettingsRequestDto on = new NotificationSettingsRequestDto();
+        on.setNewConcertEmail(true);
+        assertThat(userService.updateNotificationSettings(USER_ID, on).isNewConcertEmail()).isTrue();
+        assertThat(user.isSetlistResultEmail()).isTrue();
+        assertThat(user.isChatNotificationEmail()).isEqualTo(chatBefore);
+
+        NotificationSettingsRequestDto keep = new NotificationSettingsRequestDto();
+        keep.setChatNotificationEmail(true);
+        userService.updateNotificationSettings(USER_ID, keep);
+        assertThat(user.isNewConcertEmail()).isTrue();
+
+        NotificationSettingsRequestDto off = new NotificationSettingsRequestDto();
+        off.setNewConcertEmail(false);
+        userService.updateNotificationSettings(USER_ID, off);
+        assertThat(user.isNewConcertEmail()).isFalse();
+        assertThat(user.isChatNotificationEmail()).isTrue();
+    }
+
     // ── withdrawUser ─────────────────────────────────────────────────────
 
     @Test
@@ -71,7 +138,7 @@ class UserServiceImplTest {
     }
 
     @Test
-    void 탈퇴_시점에_동행글_하트_해시태그_관심아티스트가_정리된다() {
+    void 탈퇴_시점에_동행글_하트_해시태그_관심아티스트_콘서트스크랩_셋리스트투표_예매알림이_정리된다() {
         User user = testUser();
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
 
@@ -82,6 +149,9 @@ class UserServiceImplTest {
         verify(companionPostRepository).deleteAllByUser(user);
         verify(userHashtagRepository).deleteAllByUser(user);
         verify(favoriteArtistRepository).deleteAllByUser(user);
+        verify(concertScrapRepository).deleteAllByUser(user);
+        verify(setlistVoteRepository).deleteAllByUser(user);
+        verify(ticketAlarmRepository).deleteAllByUser(user);
     }
 
     @Test
@@ -133,6 +203,127 @@ class UserServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.USER_NOT_FOUND);
+    }
+
+    // ── completeOnboarding ───────────────────────────────────────────────
+    // 요구사항: 생년월일·성별은 필수, 닉네임·프로필 이미지는 선택.
+    // - 닉네임을 보내지 않으면 카카오 첫 로그인 때 받은 랜덤 닉네임을 그대로 쓴다. 보내면 중복 검사 후 바꾼다.
+    // - 프로필 이미지는 업로드 API가 준 URL을 저장하고, 보내지 않으면 없음(null).
+    // - v2: 관심 아티스트·성격도 기본 프로필 필수 항목. 각자 API로 먼저 1개 이상 저장해야 온보딩이 완료된다.
+
+    // 관심 아티스트·성격을 이미 저장해 둔(온보딩 마지막 단계에 온) 신규 카카오 유저
+    private User newKakaoUserWithRandomNickname() {
+        User user = User.builder()
+                .authProvider(AuthProvider.KAKAO)
+                .providerId("kakao-1")
+                .status(Status.ACTIVE)
+                .onboardingCompleted(false)
+                .build();
+        user.assignNickname("달빛군청");
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(favoriteArtistRepository.countByUser(user)).thenReturn(1);
+        when(userHashtagRepository.countByUser(user)).thenReturn(1);
+        return user;
+    }
+
+    @Test
+    @DisplayName("관심 아티스트가 없으면 온보딩이 완료되지 않는다")
+    void completeOnboarding_WithoutFavoriteArtist_Throws() throws Exception {
+        // given
+        User user = newKakaoUserWithRandomNickname();
+        when(favoriteArtistRepository.countByUser(user)).thenReturn(0);
+
+        // when & then
+        assertThatThrownBy(() -> userService.completeOnboarding(USER_ID, onboarding("""
+                {"birthDate": "2000-01-01", "gender": "FEMALE"}""")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FAVORITE_ARTIST_REQUIRED);
+        assertThat(user.isOnboardingCompleted()).isFalse();
+    }
+
+    @Test
+    @DisplayName("성격이 없으면 온보딩이 완료되지 않는다")
+    void completeOnboarding_WithoutHashtag_Throws() throws Exception {
+        // given
+        User user = newKakaoUserWithRandomNickname();
+        when(userHashtagRepository.countByUser(user)).thenReturn(0);
+
+        // when & then
+        assertThatThrownBy(() -> userService.completeOnboarding(USER_ID, onboarding("""
+                {"birthDate": "2000-01-01", "gender": "FEMALE"}""")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.HASHTAG_REQUIRED);
+        assertThat(user.isOnboardingCompleted()).isFalse();
+    }
+
+    private static OnboardingRequestDto onboarding(String json) throws Exception {
+        return new ObjectMapper().findAndRegisterModules().readValue(json, OnboardingRequestDto.class);
+    }
+
+    @Test
+    @DisplayName("닉네임 없이 온보딩하면 가입 때 받은 랜덤 닉네임을 그대로 쓰고 온보딩이 완료된다")
+    void completeOnboarding_WithoutNickname_KeepsRandomNickname() throws Exception {
+        // given
+        User user = newKakaoUserWithRandomNickname();
+
+        // when
+        userService.completeOnboarding(USER_ID, onboarding("""
+                {"birthDate": "2000-01-01", "gender": "FEMALE"}"""));
+
+        // then
+        assertThat(user.getNickname()).isEqualTo("달빛군청");
+        assertThat(user.isOnboardingCompleted()).isTrue();
+        assertThat(user.getProfileImageUrl()).isNull();
+    }
+
+    @Test
+    @DisplayName("닉네임과 프로필 이미지를 보내면 그 값으로 온보딩이 완료된다")
+    void completeOnboarding_WithNicknameAndImage_SavesBoth() throws Exception {
+        // given
+        User user = newKakaoUserWithRandomNickname();
+        when(userRepository.existsByNickname("유우리팬")).thenReturn(false);
+
+        // when
+        userService.completeOnboarding(USER_ID, onboarding("""
+                {"nickname": "유우리팬", "birthDate": "2000-01-01", "gender": "FEMALE",
+                 "profileImageUrl": "https://cdn.loop.io.kr/profiles/1/a.png"}"""));
+
+        // then
+        assertThat(user.getNickname()).isEqualTo("유우리팬");
+        assertThat(user.getProfileImageUrl()).isEqualTo("https://cdn.loop.io.kr/profiles/1/a.png");
+    }
+
+    @Test
+    @DisplayName("다른 사용자가 쓰는 닉네임으로 온보딩하면 409이고 랜덤 닉네임은 그대로다")
+    void completeOnboarding_WithTakenNickname_ThrowsDuplicate() throws Exception {
+        // given
+        User user = newKakaoUserWithRandomNickname();
+        when(userRepository.existsByNickname("이미있음")).thenReturn(true);
+
+        // when & then
+        assertThatThrownBy(() -> userService.completeOnboarding(USER_ID, onboarding("""
+                {"nickname": "이미있음", "birthDate": "2000-01-01", "gender": "FEMALE"}""")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.DUPLICATE_NICKNAME);
+        assertThat(user.getNickname()).isEqualTo("달빛군청");
+        assertThat(user.isOnboardingCompleted()).isFalse();
+    }
+
+    @Test
+    @DisplayName("프로필 이미지를 빈 문자열로 보내면 없음(null)으로 저장된다")
+    void completeOnboarding_WithBlankImage_SavesNull() throws Exception {
+        // given
+        User user = newKakaoUserWithRandomNickname();
+
+        // when
+        userService.completeOnboarding(USER_ID, onboarding("""
+                {"birthDate": "2000-01-01", "gender": "FEMALE", "profileImageUrl": ""}"""));
+
+        // then
+        assertThat(user.getProfileImageUrl()).isNull();
     }
 
     // ── agreeToTerms ──────────────────────────────────────────────────────

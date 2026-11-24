@@ -20,12 +20,14 @@ import com.loop.loop_backend.CompanionPost.domain.CompanionPost;
 import com.loop.loop_backend.CompanionPost.repository.CompanionPostRepository;
 import com.loop.loop_backend.Mail.service.MailService;
 import com.loop.loop_backend.Report.repository.ReportRepository;
+import com.loop.loop_backend.Storage.service.S3StorageService;
 import com.loop.loop_backend.User.domain.AuthProvider;
 import com.loop.loop_backend.User.domain.Status;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.User.repository.UserRepository;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.ErrorCode;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,10 +40,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -58,6 +62,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -93,6 +99,9 @@ class ChatServiceImplTest {
     // EntityManager는 여전히 목으로도 안 만듦: 재입장 케이스(기존 방 재사용)는 createDirectRoom()을
     // 안 타서 em을 전혀 안 쓴다 — em이 필요한 건 "방을 새로 만드는" 경로뿐이고 그건 이번 테스트 대상이 아님.
     @Mock TransactionTemplate transactionTemplate;
+    // 이미지 전송 테스트용 - 업로드 결과(S3 key)와 presigned URL만 흉내 낸다
+    @Mock S3StorageService s3StorageService;
+    @Mock EntityManager em;
     @InjectMocks ChatServiceImpl chatService;
 
     // ── 인메모리 "DB" ────────────────────────────────────────────────────────
@@ -621,5 +630,130 @@ class ChatServiceImplTest {
         List<String> visibleToOther = chatService.getMessages(100L, 2L, Pageable.unpaged())
                 .getMessages().getContent().stream().map(ChatMessageDto::getContent).toList();
         assertThat(visibleToOther).contains("나가기전_대화");
+    }
+
+    // ── 이미지 여러 장 전송: 1~5장, 장마다 메시지 1개, 한 번에 보낸 것끼리 같은 묶음 id ──────────
+
+    private void imageChatRoom() {
+        User sender = user(1L, "보낸사람");
+        User other = user(2L, "상대방");
+        ChatRoom room = room(100L, ChatRoomType.DIRECT);
+        participant(room, sender, ParticipantStatus.ACTIVE);
+        participant(room, other, ParticipantStatus.ACTIVE);
+        when(em.getReference(ChatRoom.class, 100L)).thenReturn(room);
+        when(em.getReference(User.class, 1L)).thenReturn(sender);
+        AtomicLong uploaded = new AtomicLong();
+        when(s3StorageService.uploadPrivate(any(), anyLong(), any()))
+                .thenAnswer(inv -> "chat/100/1/img-" + uploaded.incrementAndGet());
+        when(s3StorageService.generatePresignedGetUrl(any(), any()))
+                .thenAnswer(inv -> "https://signed/" + inv.getArgument(0, String.class));
+    }
+
+    private List<MultipartFile> images(int count) {
+        List<MultipartFile> files = new ArrayList<>();
+        for (int i = 1; i <= count; i++) {
+            files.add(new MockMultipartFile("images", "photo" + i + ".png", "image/png", new byte[]{1}));
+        }
+        return files;
+    }
+
+    @Test
+    void 이미지_세_장을_보내면_보낸_순서대로_IMAGE_메시지_세_개가_같은_묶음으로_저장되고_전송된다() {
+        imageChatRoom();
+
+        List<ChatMessageDto> result = chatService.saveImageMessages(100L, 1L, images(3));
+
+        assertThat(result).hasSize(3);
+        assertThat(result).extracting(ChatMessageDto::getType).containsOnly(ChatMessageDto.MessageType.IMAGE);
+        assertThat(result).extracting(ChatMessageDto::getContent).containsExactly(
+                "https://signed/chat/100/1/img-1", "https://signed/chat/100/1/img-2", "https://signed/chat/100/1/img-3");
+        assertThat(result).extracting(ChatMessageDto::getImageGroupId).doesNotContainNull().containsOnly(result.get(0).getImageGroupId());
+        assertThat(messageTable).hasSize(3).allMatch(m -> m.getType() == MessageType.IMAGE);
+        verify(messagingTemplate, times(3)).convertAndSend(eq("/sub/chat/room/100"), any(Object.class));
+    }
+
+    @Test
+    void 따로_보낸_두_묶음은_묶음_id가_다르다() {
+        imageChatRoom();
+
+        String first = chatService.saveImageMessages(100L, 1L, images(2)).get(0).getImageGroupId();
+        String second = chatService.saveImageMessages(100L, 1L, images(1)).get(0).getImageGroupId();
+
+        assertThat(first).isNotEqualTo(second);
+    }
+
+    @Test
+    void 이미지는_다섯_장까지_보낼_수_있다() {
+        imageChatRoom();
+
+        assertThat(chatService.saveImageMessages(100L, 1L, images(5))).hasSize(5);
+    }
+
+    @Test
+    void 이미지가_없거나_여섯_장_이상이면_거부되고_아무것도_올리거나_저장하지_않는다() {
+        imageChatRoom();
+
+        for (List<MultipartFile> files : List.of(images(0), images(6))) {
+            assertThatThrownBy(() -> chatService.saveImageMessages(100L, 1L, files))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.CHAT_IMAGE_COUNT_INVALID);
+        }
+        verify(s3StorageService, never()).uploadPrivate(any(), anyLong(), any());
+        assertThat(messageTable).isEmpty();
+        verify(messagingTemplate, never()).convertAndSend(any(String.class), any(Object.class));
+    }
+
+    @Test
+    void 중간_이미지_업로드가_실패하면_메시지가_하나도_저장되지_않고_전송도_되지_않는다() {
+        imageChatRoom();
+        when(s3StorageService.uploadPrivate(any(), anyLong(), any()))
+                .thenReturn("chat/100/1/img-1")
+                .thenThrow(new BusinessException(ErrorCode.FILE_UPLOAD_FAILED));
+
+        assertThatThrownBy(() -> chatService.saveImageMessages(100L, 1L, images(3)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FILE_UPLOAD_FAILED);
+        assertThat(messageTable).isEmpty();
+        verify(messagingTemplate, never()).convertAndSend(any(String.class), any(Object.class));
+    }
+
+    @Test
+    void 참여자가_아니면_이미지를_보낼_수_없다() {
+        imageChatRoom();
+        user(3L, "외부인");
+
+        assertThatThrownBy(() -> chatService.saveImageMessages(100L, 3L, images(1)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_CHAT_PARTICIPANT);
+        verify(s3StorageService, never()).uploadPrivate(any(), anyLong(), any());
+    }
+
+    @Test
+    void 차단_관계인_방에는_이미지를_보낼_수_없다() {
+        imageChatRoom();
+        when(blockRepository.existsBlockBetween(eq(1L), any())).thenReturn(true);
+
+        assertThatThrownBy(() -> chatService.saveImageMessages(100L, 1L, images(1)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.BLOCKED_USER);
+        verify(s3StorageService, never()).uploadPrivate(any(), anyLong(), any());
+    }
+
+    @Test
+    void 메시지_목록에서_이미지는_묶음_id가_오고_텍스트는_null이다() {
+        imageChatRoom();
+        seedMessage(room(100L, ChatRoomType.DIRECT), userTable.get(1L), "텍스트");
+        String groupId = chatService.saveImageMessages(100L, 1L, images(2)).get(0).getImageGroupId();
+
+        List<ChatMessageDto> messages = chatService.getMessages(100L, 2L, Pageable.unpaged()).getMessages().getContent();
+
+        assertThat(messages).filteredOn(m -> m.getType() == ChatMessageDto.MessageType.IMAGE)
+                .hasSize(2).extracting(ChatMessageDto::getImageGroupId).containsOnly(groupId);
+        assertThat(messages).filteredOn(m -> m.getType() == ChatMessageDto.MessageType.TALK)
+                .singleElement().extracting(ChatMessageDto::getImageGroupId).isNull();
     }
 }

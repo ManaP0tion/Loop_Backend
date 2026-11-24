@@ -29,14 +29,20 @@ public enum ErrorCode {
     PASSWORD_CONFIRM_MISMATCH(400, "새 비밀번호가 일치하지 않습니다."),
     SOCIAL_LOGIN_NO_PASSWORD(400, "소셜 로그인 사용자는 비밀번호를 변경할 수 없습니다."),
     ONBOARDING_ALREADY_COMPLETED(409, "이미 온보딩을 완료했습니다."),
+    ONBOARDING_REQUIRED(403, "기본 프로필을 먼저 완성해 주세요."),
+    // 기본 프로필 필수 항목 - 온보딩 완료 때 검사하고, 완료 후에는 0개로 만들 수 없다
+    FAVORITE_ARTIST_REQUIRED(400, "관심 아티스트를 1개 이상 등록해 주세요."),
+    HASHTAG_REQUIRED(400, "성격을 1개 이상 등록해 주세요."),
     AGREEMENT_REQUIRED(400, "필수 약관에 모두 동의해야 합니다."),
+    // 약관 미동의 유저가 동의 전에 쓸 수 있는 API(JwtAuthenticationFilter 허용 목록) 밖을 호출했을 때
+    TERMS_NOT_AGREED(403, "약관 동의가 필요합니다."),
     EMAIL_VERIFICATION_CODE_MISMATCH(400, "인증 코드가 올바르지 않거나 만료되었습니다."),
     EMAIL_SEND_FAILED(500, "이메일 발송에 실패했습니다."),
     EMAIL_VERIFICATION_SEND_LIMIT_EXCEEDED(429, "이메일 인증 코드 요청이 너무 많습니다. 잠시 후 다시 시도해주세요."),
 
     // Hashtag
     DUPLICATE_HASHTAG(409,"이미 사용중인 해시태그입니다."),
-    LIMIT_HASHTAG(409, "해시태그는 최대 3개까지 등록할 수 있습니다."),
+    LIMIT_HASHTAG(409, "해시태그는 최대 5개까지 등록할 수 있습니다."),
     HASHTAG_NOT_FOUND(404, "해시태그를 찾을 수 없습니다."),
 
     //auth
@@ -50,16 +56,63 @@ public enum ErrorCode {
     // Artist 도메인
     ARTIST_NOT_FOUND(404, "아티스트를 찾을 수 없습니다."),
     DUPLICATE_FAVORITE_ARTIST(409, "이미 등록된 관심 아티스트입니다."),
-    LIMIT_FAVORITE_ARTIST(409, "관심 아티스트는 최대 3개까지 등록할 수 있습니다."),
+    LIMIT_FAVORITE_ARTIST(409, "관심 아티스트는 최대 5개까지 등록할 수 있습니다."),
     FAVORITE_ARTIST_NOT_FOUND(404, "관심 아티스트를 찾을 수 없습니다."),
+
+    // Song 도메인 / iTunes
+    SONG_NOT_FOUND(404, "곡을 찾을 수 없습니다."),
+    ARTIST_NOT_LINKED(409, "iTunes에 연결되지 않은 아티스트입니다."),
+    SONG_CSV_INVALID_PREVIEW_URL(400, "미리듣기 URL은 iTunes 미리듣기 주소(https://audio-ssl.itunes.apple.com/...)만 넣을 수 있습니다."),
+    SONG_CSV_NO_MATCH(400, "CSV에서 이 아티스트의 곡을 하나도 찾지 못해 삭제하지 않았습니다. 다른 아티스트의 파일이 아닌지 확인해 주세요."),
+    ITUNES_ARTIST_NOT_FOUND(404, "iTunes 아티스트를 찾을 수 없습니다."),
+    ITUNES_FETCH_FAILED(502, "iTunes 연동 중 오류가 발생했습니다."),
 
     // Concert 도메인
     CONCERT_NOT_FOUND(404, "콘서트를 찾을 수 없습니다."),
+    CONCERT_NOT_OPEN(403, "오픈 예정인 공연입니다."),
+    CONCERT_IMPORT_NOT_FOUND(404, "수집된 공연 정보를 찾을 수 없습니다."),
+    IMPORT_ALREADY_PROCESSED(409, "이미 승인 또는 거절 처리된 공연입니다."),
+    IMPORT_NOT_DELETED(409, "삭제된 공연만 복원할 수 있습니다."),
+    KOPIS_SYNC_ALREADY_RUNNING(409, "KOPIS 동기화가 이미 실행 중입니다. 끝난 뒤 다시 시도해 주세요."),
+    KOPIS_UNAVAILABLE(502, "KOPIS 조회에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+    KOPIS_PERFORMANCE_NOT_FOUND(404, "KOPIS에서 공연을 찾을 수 없습니다."),
+    CONCERT_ALREADY_REGISTERED(409, "이미 등록된 공연입니다."),
+    IMAGE_COPY_ALREADY_RUNNING(409, "이미지 복사가 이미 실행 중입니다. 끝난 뒤 다시 시도해 주세요."),
+    ITUNES_AUTO_LINK_ALREADY_RUNNING(409, "iTunes 자동 연결이 이미 실행 중입니다. 끝난 뒤 다시 시도해 주세요."),
+    SONG_FETCH_ALL_ALREADY_RUNNING(409, "iTunes 자동 연결 또는 곡 일괄 불러오기가 이미 실행 중입니다. 끝난 뒤 다시 시도해 주세요."),
+    VENUE_NOT_FOUND(404, "공연장을 찾을 수 없습니다."),
+
+    // TicketAlarm 도메인
+    TICKET_SCHEDULE_NOT_FOUND(400, "예매 일정이 없어 알림을 켤 수 없습니다."),
+
+    // Lineup 도메인
+    LINEUP_NOT_FOUND(404, "라인업 항목을 찾을 수 없습니다."),
+    DUPLICATE_LINEUP(409, "이미 같은 DAY 라인업에 있는 아티스트입니다."),
+    PERFORMANCE_NOT_FOUND(404, "출연 정보를 찾을 수 없습니다."),
+    PERFORMANCE_HAS_SETLIST_DATA(409, "셋리스트나 투표가 있는 출연 정보는 지우거나 헤드라이너를 해제할 수 없습니다."),
+
+    // Setlist 도메인
+    SETLIST_NOT_FOUND(404, "셋리스트를 찾을 수 없습니다."),
+    SETLIST_VOTE_CLOSED(409, "예상 셋리스트 투표가 마감되었습니다."),
+    SETLIST_VOTE_NOT_FOUND(404, "예상 셋리스트 투표 내역이 없습니다."),
+
+    // AiJob 도메인
+    AI_JOB_NOT_FOUND(404, "AI 작업을 찾을 수 없습니다."),
+    AI_JOB_NOT_ACCEPTED(409, "이 워커의 현재 작업이 아니거나 이미 끝난 작업입니다."),
+    AI_JOB_ALREADY_FINISHED(409, "이미 끝난 작업입니다."),
+    AI_JOB_UNSUPPORTED_TYPE(400, "아직 지원하지 않는 AI 작업입니다."),
+    AI_JOB_FESTIVAL_ONLY(400, "페스티벌에만 요청할 수 있는 AI 작업입니다."),
+    AI_JOB_START_DATE_REQUIRED(400, "공연 시작일이 있어야 요청할 수 있는 AI 작업입니다."),
+    AI_JOB_PERFORMANCE_REQUIRED(400, "셋리스트는 출연 정보(performanceId)를 지정해야 합니다."),
+    AI_JOB_PERFORMANCE_NOT_IN_CONCERT(400, "이 공연의 출연 정보가 아닙니다."),
+    AI_JOB_HEADLINER_ONLY(400, "페스티벌 셋리스트는 헤드라이너에만 요청할 수 있습니다."),
+    AI_JOB_FEEDBACK_NOT_DONE(409, "결과가 있는(DONE) 작업에만 처리 결과를 남길 수 있습니다."),
 
     // CompanionPost 도메인
     COMPANION_POST_NOT_FOUND(404, "동행 모집글을 찾을 수 없습니다."),
     COMPANION_POST_ALREADY_CLOSED(409, "이미 마감된 모집글입니다."),
     COMPANION_POST_ALREADY_EXISTS(409, "이미 해당 콘서트에 동행 프로필이 존재합니다."),
+    COMPANION_NOT_OPEN(409, "동행 모집 중인 공연이 아닙니다."),
     SELF_CHAT_NOT_ALLOWED(400, "본인 게시글에는 채팅 신청을 할 수 없습니다."),
     SELF_HEART_NOT_ALLOWED(400, "본인 게시글에는 하트를 누를 수 없습니다."),
 
@@ -70,6 +123,7 @@ public enum ErrorCode {
     ALREADY_LEFT_CHAT(400, "이미 나간 채팅방입니다."),
     CHAT_ROOM_ACCESS_DENIED(403, "해당 채팅방에 접근할 권한이 없습니다."),
     MESSAGE_CONTENT_INVALID(400, "메시지 내용이 올바르지 않습니다."),
+    CHAT_IMAGE_COUNT_INVALID(400, "이미지는 1~5장까지 보낼 수 있습니다."),
     OTHER_USER_WITHDRAWN(410, "상대방이 탈퇴하여 메시지를 전송할 수 없습니다."),
     OTHER_USER_LEFT(410, "상대가 채팅방을 나가 메시지를 전송할 수 없습니다."),
 

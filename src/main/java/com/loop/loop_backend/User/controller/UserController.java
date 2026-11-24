@@ -106,7 +106,12 @@ public class UserController {
     }
 
     @PatchMapping("/me/onboarding")
-    @Operation(summary = "온보딩", description = "로그인한 본인의 생년월일, 성별을 입력받아 온보딩을 완료합니다")
+    @Operation(summary = "온보딩", description = "로그인한 본인의 생년월일, 성별(필수)과 닉네임, 프로필 이미지(선택)를 받아 온보딩을 완료합니다.\n\n" +
+            "**기본 프로필의 마지막 단계로 호출한다.** 관심 아티스트(PUT /api/users/me/artists)와 성격(PUT /api/users/me/hashtags)을 " +
+            "먼저 1개 이상 저장해야 하며, 없으면 400(FAVORITE_ARTIST_REQUIRED / HASHTAG_REQUIRED)이고 온보딩은 완료되지 않는다. " +
+            "onboardingCompleted가 false인 사용자는 동행 프로필을 만들 수 없다(403).\n\n" +
+            "- nickname: 보내지 않으면 카카오 첫 로그인 때 받은 랜덤 닉네임을 그대로 쓴다. 보내면 8자 이하·특수문자 불가·중복 불가\n" +
+            "- profileImageUrl: POST /api/users/me/profile-image가 돌려준 URL. 없으면 null")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "온보딩 완료"),
             @ApiResponse(responseCode = "400", description = "유효성 검사 실패",
@@ -145,7 +150,7 @@ public class UserController {
     }
 
     @PatchMapping("/me/notifications")
-    @Operation(summary = "이메일 알림 설정", description = "공연 하루전 리마인더 / 미확인 채팅 다이제스트 이메일 수신 여부를 on/off 합니다. null 필드는 변경되지 않습니다.")
+    @Operation(summary = "이메일 알림 설정", description = "공연 하루전 리마인더 / 미확인 채팅 다이제스트 / 예상 셋리스트 결과 / 새 공연 알림 이메일 수신 여부를 on/off 합니다. null 필드는 변경되지 않습니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "설정 변경 성공"),
             @ApiResponse(responseCode = "404", description = "사용자 없음",

@@ -1,5 +1,18 @@
+# 개발 서버(dev 브랜치) 전용 오버라이드. 서버 안 MySQL 컨테이너를 함께 띄운다 (base 파일에서는 prod 프로필로 꺼져 있음)
 services:
   spring:
     build:
       context: .
       dockerfile: Dockerfile.prod
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  mysql:
+    profiles: []
+
+  nginx:
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt

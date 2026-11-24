@@ -2,6 +2,7 @@ package com.loop.loop_backend.common.jwt;
 
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.loop.loop_backend.User.domain.Role;
 import com.loop.loop_backend.User.domain.User;
 import com.loop.loop_backend.common.exception.BusinessException;
 import com.loop.loop_backend.common.exception.CommonResponse;
@@ -48,6 +49,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
+            // 약관 미동의 유저는 동의 시트에 필요한 API만 쓸 수 있다. 관리자는 어드민 콘솔이 막히지 않게 제외
+            if (authenticated.isPresent() && !authenticated.get().isAgreementsCompleted()
+                    && authenticated.get().getRole() != Role.ADMIN && !allowedBeforeAgreement(request)) {
+                writeError(response, ErrorCode.TERMS_NOT_AGREED);
+                return;
+            }
+
             authenticated.ifPresent(user -> {
                 var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
                 SecurityContextHolder.getContext().setAuthentication(
@@ -60,6 +68,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // 스레드 재사용(Tomcat 요청 스레드) 시 다음 요청에 이전 userId가 새어나가지 않도록 항상 정리.
             MDC.clear();
         }
+    }
+
+    // 약관 동의 전 허용 목록. 막는 목록이 아니라 허용 목록이라 새 API는 자동으로 막힌다.
+    // - /api/auth/**: 로그인·토큰 재발급·로그아웃 (토큰을 받거나 버리는 API)
+    // - 내 정보 조회(시트를 띄울지 판단), 약관 동의, 탈퇴
+    private static final List<String[]> ALLOWED_BEFORE_AGREEMENT = List.of(
+            new String[]{"GET", "/api/users/me"},
+            new String[]{"PATCH", "/api/users/me/agreements"},
+            new String[]{"DELETE", "/api/users/me"});
+
+    private static boolean allowedBeforeAgreement(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        if (path.startsWith("/api/auth/")) return true;
+        return ALLOWED_BEFORE_AGREEMENT.stream()
+                .anyMatch(e -> e[0].equals(request.getMethod()) && e[1].equals(path));
     }
 
     private void writeError(HttpServletResponse response, ErrorCode errorCode) throws IOException {

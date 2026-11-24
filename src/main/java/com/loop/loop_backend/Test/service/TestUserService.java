@@ -60,6 +60,8 @@ public class TestUserService {
                 .role(asAdmin ? Role.ADMIN : Role.USER)
                 .build();
         user.completeOnboarding(finalNickname, null, null);
+        // 약관 미동의 유저는 JWT 필터가 대부분의 API를 막으므로 테스트 유저는 필수 약관에 동의한 상태로 만든다
+        user.agreeToTerms(true, true, true, false);
         user.assignEmailCredentials(loginId, passwordEncoder.encode(plainPassword));
 
         return new Created(userRepository.save(user), loginId, plainPassword);
