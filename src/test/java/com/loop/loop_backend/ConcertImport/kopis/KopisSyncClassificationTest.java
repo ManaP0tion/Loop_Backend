@@ -26,7 +26,7 @@ import static org.mockito.Mockito.*;
 //   페스티벌 표시어와 함께 "[일본" 표시 또는 등록 J-POP 아티스트가 제목에 있으면 일본 페스티벌이다.
 // - 제목으로 못 찾았을 때는 일본 신호가 있는 공연만 상세 API로 출연진을 확인한다 - 신호가 없으면 호출하지 않는다.
 // - 재수집 시 검토 전(PENDING) 건은 최신값으로 갱신, 이미 처리된 건은 건드리지 않는다.
-// - V2는 일본 아티스트(국적 JP) 공연만 수집한다 - 국내(KR)·국적 미입력 아티스트는 자동 수집이 켜져 있어도 매칭 대상이 아니다.
+// - V2는 일본 아티스트(국적 JP) 공연만 수집한다 - 국내(KR)·해외(OVERSEAS)·국적 미입력 아티스트는 자동 수집이 켜져 있어도 매칭 대상이 아니다.
 //
 // KOPIS 클라이언트만 가짜로 두고 리포지토리는 실제 DB를 쓴다 - 저장을 누가 하든 "검토 큐에 남은 결과"만 본다.
 @DataJpaTest
@@ -275,6 +275,16 @@ class KopisSyncClassificationTest {
         domesticArtist("Nell", "넬");
 
         syncWith(perf("PF1", "Nell 단독 콘서트"));
+
+        assertThat(imports()).isEmpty();
+    }
+
+    @Test
+    void 해외_아티스트는_자동_수집이_켜져_있어도_제목에_있는_공연을_수집하지_않는다() {
+        artistRepository.save(Artist.builder().name("Coldplay").autoFetchConcerts(true)
+                .nationality(Nationality.OVERSEAS).build());
+
+        syncWith(perf("PF1", "Coldplay MUSIC OF THE SPHERES WORLD TOUR"));
 
         assertThat(imports()).isEmpty();
     }

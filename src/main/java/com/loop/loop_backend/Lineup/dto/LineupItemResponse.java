@@ -15,7 +15,7 @@ public record LineupItemResponse(
         @Schema(description = "아티스트 이름", requiredMode = Schema.RequiredMode.REQUIRED) String name,
         @Schema(description = "아티스트 한글 이름", types = {"string", "null"}) String nameKo,
         @Schema(description = "아티스트 이미지 URL", types = {"string", "null"}) String imageUrl,
-        @Schema(description = "아티스트 국적(JP 일본, KR 국내). 미입력이면 null", example = "JP",
+        @Schema(description = "아티스트 국적(JP 일본, KR 국내, OVERSEAS 해외). 미입력이면 null", example = "JP",
                 types = {"string", "null"}) Nationality nationality,
         @Schema(description = "출연 DAY 번호 목록(1부터, 오름차순). 같은 아티스트가 여러 DAY에 나와도 항목은 하나다",
                 example = "[2, 3]", requiredMode = Schema.RequiredMode.REQUIRED) List<Integer> days,

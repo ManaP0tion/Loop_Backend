@@ -493,7 +493,7 @@ public class AdminController {
     // 없는 id·같은 이름이 여럿인 name·잘못된 값(링크 URL·국적·길이) 행은 건너뛰고 행 번호로 알려준다.
     @PostMapping(value = "/artists/links/csv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "아티스트 CSV 업로드",
-            description = "UTF-8(BOM 허용). 헤더: id, name, baseName, nameKo, nameAlias, imageUrl, nationality(JP/KR), instagramUrl, xUrl, homepageUrl. "
+            description = "UTF-8(BOM 허용). 헤더: id, name, baseName, nameKo, nameAlias, imageUrl, nationality(JP/KR/OVERSEAS), instagramUrl, xUrl, homepageUrl. "
                     + "id가 비면 name으로 매칭하고, 없는 name이면 새 아티스트로 등록(자동 수집 꺼짐). 빈 칸은 기존 값 유지. "
                     + "같은 이름 아티스트가 DB에 여럿이면 그 행은 실패(id로 지정). 링크는 http/https만, imageUrl은 500자까지")
     @Transactional
@@ -900,7 +900,7 @@ public class AdminController {
     // PUT이라 공식 링크(instagramUrl·xUrl·homepageUrl)도 통째로 교체된다 - 보내지 않으면 비워진다. http/https 주소만(아니면 400).
     public record ArtistReq(String name, String baseName, String nameKo, String nameAlias,
                             String imageUrl,
-                            @Schema(description = "국적(JP 일본, KR 국내). 비우거나 보내지 않으면 null(PUT이라 기존 값도 지워진다)",
+                            @Schema(description = "국적(JP 일본, KR 국내, OVERSEAS 해외). 비우거나 보내지 않으면 null(PUT이라 기존 값도 지워진다)",
                                     example = "JP", types = {"string", "null"})
                             Nationality nationality,
                             @Schema(description = "공식 인스타그램 URL. 비우거나 보내지 않으면 삭제",

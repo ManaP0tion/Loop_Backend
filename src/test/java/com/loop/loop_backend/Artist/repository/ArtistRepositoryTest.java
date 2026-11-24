@@ -11,8 +11,8 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import static org.assertj.core.api.Assertions.assertThat;
 
 // 아티스트 국적 요구사항:
-// - 국적은 JP(일본) / KR(국내). 입력하지 않으면 국적 없이(null) 저장된다.
-// - KOPIS 직접 등록 추천 대상은 국내(KR)를 뺀 아티스트 전체다 - 국적을 아직 입력하지 않은 아티스트도 포함한다.
+// - 국적은 JP(일본) / KR(국내) / OVERSEAS(해외). 입력하지 않으면 국적 없이(null) 저장된다.
+// - KOPIS 직접 등록 추천 대상은 국내(KR)를 뺀 아티스트 전체다 - 해외와 국적을 아직 입력하지 않은 아티스트도 포함한다.
 @DataJpaTest
 class ArtistRepositoryTest {
 
