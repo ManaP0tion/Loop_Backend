@@ -31,7 +31,7 @@ public record LineupAddRequest(
         @Schema(description = "직접 입력: 아티스트 이미지 URL(이미지 업로드 API로 받은 값). 없으면 null", types = {"string", "null"})
         String imageUrl,
 
-        @Schema(description = "직접 입력: 아티스트 국적(JP 일본, KR 국내). 없으면 null",
+        @Schema(description = "직접 입력: 아티스트 국적(JP 일본, KR 국내, OVERSEAS 해외). 없으면 null",
                 example = "JP", types = {"string", "null"})
         Nationality nationality
 ) {

@@ -9,7 +9,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum Nationality {
     JP("일본"),
-    KR("국내");
+    KR("국내"),
+    OVERSEAS("해외"); // 일본·국내가 아닌 해외 아티스트. 국적을 모르면 이 값이 아니라 null
 
     private final String displayName;
 }

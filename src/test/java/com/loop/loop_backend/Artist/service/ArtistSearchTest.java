@@ -34,6 +34,7 @@ class ArtistSearchTest {
         save("YOASOBI", "요아소비", Nationality.JP);
         save("Yuuri", "유우리", Nationality.JP);
         save("YB", "윤도현밴드", Nationality.KR);
+        save("Yungblud", "영블러드", Nationality.OVERSEAS);
         save("Vaundy", "바운디", null);
         em.flush();
         em.clear();
@@ -50,8 +51,8 @@ class ArtistSearchTest {
     @Test
     @DisplayName("검색어도 국적도 없으면 전체 아티스트가 나온다")
     void search_WithNothing_ReturnsAll() {
-        assertThat(names(null, null)).containsExactlyInAnyOrder("YOASOBI", "Yuuri", "YB", "Vaundy");
-        assertThat(names("  ", null)).containsExactlyInAnyOrder("YOASOBI", "Yuuri", "YB", "Vaundy");
+        assertThat(names(null, null)).containsExactlyInAnyOrder("YOASOBI", "Yuuri", "YB", "Yungblud", "Vaundy");
+        assertThat(names("  ", null)).containsExactlyInAnyOrder("YOASOBI", "Yuuri", "YB", "Yungblud", "Vaundy");
     }
 
     @Test
@@ -59,12 +60,13 @@ class ArtistSearchTest {
     void search_WithNationalityOnly_ReturnsThatNationality() {
         assertThat(names(null, Nationality.JP)).containsExactlyInAnyOrder("YOASOBI", "Yuuri");
         assertThat(names(null, Nationality.KR)).containsExactly("YB");
+        assertThat(names(null, Nationality.OVERSEAS)).containsExactly("Yungblud");
     }
 
     @Test
     @DisplayName("검색어만 주면 이름(한국어 포함)에서 대소문자 없이 부분 일치로 찾는다")
     void search_WithQueryOnly_MatchesNames() {
-        assertThat(names("y", null)).containsExactlyInAnyOrder("YOASOBI", "Yuuri", "YB", "Vaundy");
+        assertThat(names("y", null)).containsExactlyInAnyOrder("YOASOBI", "Yuuri", "YB", "Yungblud", "Vaundy");
         assertThat(names("유우리", null)).containsExactly("Yuuri");
     }
 
