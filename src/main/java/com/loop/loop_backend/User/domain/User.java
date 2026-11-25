@@ -97,8 +97,8 @@ public class User {
     private boolean newConcertEmail = false;
 
     // 약관 동의 (첫 로그인 시 저장) - 나이/이용약관/개인정보 수집은 필수, 프로필 정보 수집은 선택
-    @Column(name = "age19_agreed", nullable = false)
-    private boolean age19Agreed;
+    @Column(name = "age14_agreed", nullable = false)
+    private boolean age14Agreed;
     @Column(name = "terms_agreed", nullable = false)
     private boolean termsAgreed;
     @Column(name = "privacy_agreed", nullable = false)
@@ -174,13 +174,13 @@ public class User {
         return email != null;
     }
 
-    // 필수 항목(age19/terms/privacy) 검증은 서비스 계층에서 하고, 여기선 값 반영만 한다
-    public void agreeToTerms(boolean age19Agreed, boolean termsAgreed, boolean privacyAgreed, boolean profileInfoAgreed) {
-        this.age19Agreed = age19Agreed;
+    // 필수 항목(age14/terms/privacy) 검증은 서비스 계층에서 하고, 여기선 값 반영만 한다
+    public void agreeToTerms(boolean age14Agreed, boolean termsAgreed, boolean privacyAgreed, boolean profileInfoAgreed) {
+        this.age14Agreed = age14Agreed;
         this.termsAgreed = termsAgreed;
         this.privacyAgreed = privacyAgreed;
         this.profileInfoAgreed = profileInfoAgreed;
-        this.agreementsCompleted = age19Agreed && termsAgreed && privacyAgreed;
+        this.agreementsCompleted = age14Agreed && termsAgreed && privacyAgreed;
         this.agreedAt = LocalDateTime.now();
     }
 
@@ -223,7 +223,7 @@ public class User {
         this.nickname = null;
         this.birthDate = null;
         this.gender = null;
-        this.age19Agreed = false;
+        this.age14Agreed = false;
         this.termsAgreed = false;
         this.privacyAgreed = false;
         this.profileInfoAgreed = false;
