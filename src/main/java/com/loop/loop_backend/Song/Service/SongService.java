@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Song.Service;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Song.DTO.*;
 import com.loop.loop_backend.Song.Repository.SongRepository;
@@ -82,8 +83,8 @@ public class SongService {
     }
 
     /**
-     * iTunes(JP)에서 곡을 불러와 trackId 기준 upsert.
-     * JP 스토어 응답 순서 = sortOrder, US 스토어 곡명 = 로마자(영문 번역 제목이 섞임, 참고값).
+     * iTunes(JP, 국내 아티스트는 KR)에서 곡을 불러와 trackId 기준 upsert.
+     * 원문 스토어 응답 순서 = sortOrder, US 스토어 곡명 = 로마자(영문 번역 제목이 섞임, 참고값).
      * 기존 곡의 titleKo는 유지, 로마자는 비어 있을 때만 채움, 소프트 삭제 곡은 skip.
      * iTunes는 같은 곡을 싱글/앨범/라이브마다 다른 trackId로 주므로, 원문 제목이 완전히 같으면 처음 나온 것만 저장.
      */
@@ -92,7 +93,8 @@ public class SongService {
         Artist artist = findArtistOrThrow(artistId);
         if (artist.getItunesArtistId() == null) throw new BusinessException(ErrorCode.ARTIST_NOT_LINKED);
 
-        List<ItunesTrack> jaTracks = itunesClient.fetchTracks(artist.getItunesArtistId(), ItunesClient.COUNTRY_JP);
+        String country = artist.getNationality() == Nationality.KR ? ItunesClient.COUNTRY_KR : ItunesClient.COUNTRY_JP;
+        List<ItunesTrack> jaTracks = itunesClient.fetchTracks(artist.getItunesArtistId(), country);
         Map<Long, String> romanized = itunesClient.fetchTracks(artist.getItunesArtistId(), ItunesClient.COUNTRY_US)
                 .stream()
                 .collect(Collectors.toMap(ItunesTrack::trackId, ItunesTrack::trackName, (a, b) -> a));
