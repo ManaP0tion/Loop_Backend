@@ -29,6 +29,8 @@ public class ItunesClient {
     private static final String LOOKUP_URL = "https://itunes.apple.com/lookup";
     // 곡명 원문은 JP 스토어. JP 스토어는 lang=en_us를 줘도 원문을 그대로 줘서,
     // 영문/로마자 곡명은 US 스토어에서 받는다 (trackId는 스토어 간 동일)
+    // 국내 아티스트는 KR 스토어가 한글 원문을 준다 (JP 스토어는 영문 표기로 줌)
+    public static final String COUNTRY_KR = "KR";
     public static final String COUNTRY_JP = "JP";
     public static final String COUNTRY_US = "US";
     private static final String LANG_JA = "ja_jp";

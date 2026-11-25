@@ -1,6 +1,7 @@
 package com.loop.loop_backend.Song.Service;
 
 import com.loop.loop_backend.Artist.domain.Artist;
+import com.loop.loop_backend.Artist.domain.Nationality;
 import com.loop.loop_backend.Artist.repository.ArtistRepository;
 import com.loop.loop_backend.Song.DTO.CsvImportResult;
 import com.loop.loop_backend.Song.DTO.SongFetchResult;
@@ -118,6 +119,24 @@ class SongServiceTest {
         // then
         assertThat(em.createQuery("select s.previewUrl from Song s", String.class).getResultList())
                 .containsExactly("https://audio/new.m4a");
+    }
+
+    @Test
+    @DisplayName("국내 아티스트는 KR 스토어 곡명을 원문으로, US 스토어 곡명을 로마자로 저장한다")
+    void fetchSongs_KoreanArtist_UsesKrStoreAsOriginal() {
+        // given
+        Artist artist = artistRepository.save(Artist.builder().name("IU").nationality(Nationality.KR).build());
+        artist.linkItunes(200L, "https://music.apple.com/kr/artist/200", "IU");
+        given(itunesClient.fetchTracks(eq(200L), eq(ItunesClient.COUNTRY_KR))).willReturn(List.of(track(1L, "밤편지", null)));
+        given(itunesClient.fetchTracks(eq(200L), eq(ItunesClient.COUNTRY_US))).willReturn(List.of(track(1L, "Through the Night", null)));
+
+        // when
+        songService.fetchSongs(artist.getId());
+
+        // then
+        SongResponse song = songService.getSongs(artist.getId()).get(0);
+        assertThat(song.titleOriginal()).isEqualTo("밤편지");
+        assertThat(song.titleRomanized()).isEqualTo("Through the Night");
     }
 
     @Test
