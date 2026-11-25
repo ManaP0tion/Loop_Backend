@@ -340,7 +340,7 @@ class UserServiceImplTest {
     }
 
     @Test
-    void 나이_동의가_false면_AGREEMENT_REQUIRED_예외를_던진다() {
+    void 만_14세_이상_동의가_false면_AGREEMENT_REQUIRED_예외를_던진다() {
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser()));
 
         assertThatThrownBy(() -> userService.agreeToTerms(USER_ID, new TermsAgreementRequestDto(false, true, true, true)))

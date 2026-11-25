@@ -37,7 +37,7 @@ class UserTest {
 
         user.agreeToTerms(true, true, true, false);
 
-        assertThat(user.isAge19Agreed()).isTrue();
+        assertThat(user.isAge14Agreed()).isTrue();
         assertThat(user.isTermsAgreed()).isTrue();
         assertThat(user.isPrivacyAgreed()).isTrue();
         assertThat(user.isProfileInfoAgreed()).isFalse();
@@ -62,7 +62,7 @@ class UserTest {
 
         user.reactivate();
 
-        assertThat(user.isAge19Agreed()).isFalse();
+        assertThat(user.isAge14Agreed()).isFalse();
         assertThat(user.isTermsAgreed()).isFalse();
         assertThat(user.isPrivacyAgreed()).isFalse();
         assertThat(user.isProfileInfoAgreed()).isFalse();

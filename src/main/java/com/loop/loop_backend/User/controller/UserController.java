@@ -132,7 +132,7 @@ public class UserController {
 
     @PatchMapping("/me/agreements")
     @Operation(summary = "약관 동의", description = "첫 로그인 시 약관 동의 여부를 저장합니다. " +
-            "만 19세 이상/이용약관/개인정보 수집동의는 필수이고, 프로필 정보 수집동의는 선택입니다. " +
+            "만 14세 이상/이용약관/개인정보 수집동의는 필수이고, 프로필 정보 수집동의는 선택입니다. " +
             "필수 항목 중 하나라도 false면 저장되지 않습니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "동의 저장 성공"),

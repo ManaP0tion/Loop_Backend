@@ -123,11 +123,11 @@ public class UserServiceImpl implements UserService {
     public UserResponseDto agreeToTerms(Long id, TermsAgreementRequestDto requestDto) {
         User user = findUserOrThrow(id);
 
-        if (!requestDto.isAge19Agreed() || !requestDto.isTermsAgreed() || !requestDto.isPrivacyAgreed()) {
+        if (!requestDto.isAge14Agreed() || !requestDto.isTermsAgreed() || !requestDto.isPrivacyAgreed()) {
             throw new BusinessException(ErrorCode.AGREEMENT_REQUIRED);
         }
 
-        user.agreeToTerms(requestDto.isAge19Agreed(), requestDto.isTermsAgreed(),
+        user.agreeToTerms(requestDto.isAge14Agreed(), requestDto.isTermsAgreed(),
                 requestDto.isPrivacyAgreed(), requestDto.isProfileInfoAgreed());
         return toResponseDto(user);
     }
