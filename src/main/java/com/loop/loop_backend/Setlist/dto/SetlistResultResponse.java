@@ -66,13 +66,15 @@ public record SetlistResultResponse(
             @Schema(description = "원제", requiredMode = Schema.RequiredMode.REQUIRED) String titleOriginal,
             @Schema(description = "한글 곡명", types = {"string", "null"}) String titleKo,
             @Schema(description = "앨범아트 URL", types = {"string", "null"}) String albumArtUrl,
+            @Schema(description = "30초 미리듣기 음원 URL(.m4a, Apple CDN). 앱에서 바로 재생한다. null이면 재생 버튼 숨김",
+                    types = {"string", "null"}) String previewUrl,
             @Schema(description = "팬 예상 곡(득표 상위 n곡) - 배경 표시", requiredMode = Schema.RequiredMode.REQUIRED) boolean fanPredicted,
             @Schema(description = "내 예상 곡 - 체크 표시(비로그인·미투표면 false)", requiredMode = Schema.RequiredMode.REQUIRED) boolean mine,
             @Schema(description = "아무도 예상하지 못한 곡(득표 0)", requiredMode = Schema.RequiredMode.REQUIRED) boolean unexpected,
             @Schema(description = "곡 데이터에서 삭제된 곡(결과에는 그대로 남는다)", requiredMode = Schema.RequiredMode.REQUIRED) boolean deleted
     ) {
         public static ResultSong of(int position, SetlistSong song, boolean fanPredicted, boolean mine, boolean unexpected) {
-            return new ResultSong(position, song.songId(), song.titleOriginal(), song.titleKo(), song.albumArtUrl(),
+            return new ResultSong(position, song.songId(), song.titleOriginal(), song.titleKo(), song.albumArtUrl(), song.previewUrl(),
                     fanPredicted, mine, unexpected, song.deleted());
         }
     }
@@ -83,13 +85,15 @@ public record SetlistResultResponse(
             @Schema(description = "원제", requiredMode = Schema.RequiredMode.REQUIRED) String titleOriginal,
             @Schema(description = "한글 곡명", types = {"string", "null"}) String titleKo,
             @Schema(description = "앨범아트 URL", types = {"string", "null"}) String albumArtUrl,
+            @Schema(description = "30초 미리듣기 음원 URL(.m4a, Apple CDN). 앱에서 바로 재생한다. null이면 재생 버튼 숨김",
+                    types = {"string", "null"}) String previewUrl,
             @Schema(description = "득표 수", requiredMode = Schema.RequiredMode.REQUIRED) long votes,
             @Schema(description = "팬 예상 곡(득표 상위 n곡)", requiredMode = Schema.RequiredMode.REQUIRED) boolean fanPredicted,
             @Schema(description = "내가 고른 곡", requiredMode = Schema.RequiredMode.REQUIRED) boolean mine,
             @Schema(description = "곡 데이터에서 삭제된 곡(결과에는 그대로 남는다)", requiredMode = Schema.RequiredMode.REQUIRED) boolean deleted
     ) {
         public static MissedSong of(SetlistSong song, long votes, boolean fanPredicted, boolean mine) {
-            return new MissedSong(song.songId(), song.titleOriginal(), song.titleKo(), song.albumArtUrl(),
+            return new MissedSong(song.songId(), song.titleOriginal(), song.titleKo(), song.albumArtUrl(), song.previewUrl(),
                     votes, fanPredicted, mine, song.deleted());
         }
     }

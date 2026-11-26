@@ -180,6 +180,31 @@ class SetlistResultServiceTest {
     }
 
     @Test
+    @DisplayName("실제 셋리스트 곡과 나오지 않은 예상 곡에 그 곡의 미리듣기 URL을 담고, 미리듣기가 없는 곡은 null이다")
+    void result_Songs_IncludePreviewUrl() {
+        // given
+        Song withPreview = songRepository.save(Song.builder().artist(yuuri).titleOriginal("かくれんぼ").sortOrder(5)
+                .previewUrl("https://audio-ssl.itunes.apple.com/preview-1.m4a").build());
+        Song missedWithPreview = songRepository.save(Song.builder().artist(yuuri).titleOriginal("恋人じゃなくなった日").sortOrder(6)
+                .previewUrl("https://audio-ssl.itunes.apple.com/preview-2.m4a").build());
+        vote(me, withPreview, missedWithPreview, s2);
+        actual(withPreview, s1);
+
+        // when
+        SetlistResultResponse res = result(me.getId());
+
+        // then
+        assertThat(res.songs()).extracting(ResultSong::titleOriginal, ResultSong::previewUrl)
+                .containsExactly(
+                        tuple("かくれんぼ", "https://audio-ssl.itunes.apple.com/preview-1.m4a"),
+                        tuple("ドライフラワー", null));
+        assertThat(res.missedSongs()).extracting(MissedSong::titleOriginal, MissedSong::previewUrl)
+                .containsExactlyInAnyOrder(
+                        tuple("恋人じゃなくなった日", "https://audio-ssl.itunes.apple.com/preview-2.m4a"),
+                        tuple("ベテルギウス", null));
+    }
+
+    @Test
     @DisplayName("비로그인이거나 투표하지 않았으면 내 적중률 없이 팬 기준만 준다")
     void result_WhenAnonymousOrNotVoted_ReturnsFanBasedOnly() {
         // given
