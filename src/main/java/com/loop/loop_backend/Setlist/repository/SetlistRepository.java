@@ -42,7 +42,7 @@ public interface SetlistRepository extends JpaRepository<Setlist, Long> {
 
     // 셋리스트 곡 목록(공연 순서). Song의 @SQLRestriction을 거치지 않으려고 네이티브로 읽는다 - 삭제된 곡도 셋리스트에는 남는다(F-2)
     @Query(value = """
-            select ss.setlist_id, s.id, s.title_original, s.title_ko, s.album_art_url,
+            select ss.setlist_id, s.id, s.title_original, s.title_ko, s.album_art_url, s.preview_url,
                    case when s.deleted_at is null then 0 else 1 end
             from setlist_songs ss join song s on s.id = ss.song_id
             where ss.setlist_id in (:setlistIds)
@@ -62,7 +62,7 @@ public interface SetlistRepository extends JpaRepository<Setlist, Long> {
 
     // 공연 후 결과의 미출현 곡 표기 - 투표한 곡이 나중에 삭제돼도 이름을 보여 준다
     @Query(value = """
-            select s.id, s.title_original, s.title_ko, s.album_art_url,
+            select s.id, s.title_original, s.title_ko, s.album_art_url, s.preview_url,
                    case when s.deleted_at is null then 0 else 1 end
             from song s
             where s.id in (:songIds)

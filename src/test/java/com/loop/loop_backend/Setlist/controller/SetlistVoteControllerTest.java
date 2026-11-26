@@ -137,8 +137,9 @@ class SetlistVoteControllerTest {
         when(resultService.result(1L, PERFORMANCE_ID, USER_ID)).thenReturn(new SetlistResultResponse(true, 31,
                 new SetlistResultResponse.HitRate(1, 3, 33, HitGrade.LOW), 48,
                 new SetlistResultResponse.HitRate(2, 3, 67, HitGrade.MID), 12,
-                List.of(new SetlistResultResponse.ResultSong(1, 12L, "ドライフラワー", "드라이플라워", "https://img/a.jpg", true, true, false, false)),
-                List.of(new SetlistResultResponse.MissedSong(7L, "いかないで", null, null, 20, true, false, true))));
+                List.of(new SetlistResultResponse.ResultSong(1, 12L, "ドライフラワー", "드라이플라워", "https://img/a.jpg",
+                        "https://audio/a.m4a", true, true, false, false)),
+                List.of(new SetlistResultResponse.MissedSong(7L, "いかないで", null, null, "https://audio/b.m4a", 20, true, false, true))));
 
         mockMvc.perform(get("/api/concerts/{concertId}/performances/{performanceId}/setlist/result", 1L, PERFORMANCE_ID))
                 .andExpect(status().isOk())
@@ -155,7 +156,9 @@ class SetlistVoteControllerTest {
                 .andExpect(jsonPath("$.data.songs[0].fanPredicted").value(true))
                 .andExpect(jsonPath("$.data.songs[0].mine").value(true))
                 .andExpect(jsonPath("$.data.songs[0].unexpected").value(false))
+                .andExpect(jsonPath("$.data.songs[0].previewUrl").value("https://audio/a.m4a"))
                 .andExpect(jsonPath("$.data.missedSongs[0].songId").value(7))
+                .andExpect(jsonPath("$.data.missedSongs[0].previewUrl").value("https://audio/b.m4a"))
                 .andExpect(jsonPath("$.data.missedSongs[0].votes").value(20))
                 .andExpect(jsonPath("$.data.missedSongs[0].fanPredicted").value(true))
                 .andExpect(jsonPath("$.data.missedSongs[0].deleted").value(true));
