@@ -105,6 +105,7 @@ public class SongService {
         Map<String, Song> existingByTitle = activeSongs.stream()
                 .collect(Collectors.toMap(Song::getTitleOriginal, Function.identity(), (a, b) -> a));
         Set<Long> deleted = new HashSet<>(songRepository.findDeletedTrackIds(artistId));
+        Set<String> deletedTitles = new HashSet<>(songRepository.findDeletedTitles(artistId));
 
         int created = 0, updated = 0, skipped = 0, duplicated = 0, order = 0;
         Set<String> seenTitles = new HashSet<>();
@@ -116,7 +117,10 @@ public class SongService {
                 continue;
             }
             order++;
-            if (deleted.contains(t.trackId())) {
+            // trackId가 달라도 같은 제목 곡이 이미 있으면 그 곡을 갱신 (대표 버전이 바뀌어도 중복 생성 안 함)
+            Song song = existing.getOrDefault(t.trackId(), existingByTitle.get(t.trackName()));
+            // 같은 제목의 활성 곡이 없으면 삭제된 제목도 skip (대표 버전이 바뀌어 trackId가 달라진 삭제 곡)
+            if (deleted.contains(t.trackId()) || (song == null && deletedTitles.contains(t.trackName()))) {
                 skipped++;
                 continue;
             }
@@ -124,10 +128,8 @@ public class SongService {
             // US 스토어에도 원문 그대로인 곡(TAIDADA 등)은 로마자 없음으로 취급
             String rom = romanized.get(t.trackId());
             if (t.trackName().equals(rom)) rom = null;
-            // trackId가 달라도 같은 제목 곡이 이미 있으면 그 곡을 갱신 (대표 버전이 바뀌어도 중복 생성 안 함)
-            Song song = existing.getOrDefault(t.trackId(), existingByTitle.get(t.trackName()));
             if (song != null) {
-                song.updateFromItunes(t.trackName(), rom, art, t.previewUrl(), order);
+                song.updateFromItunes(t.trackId(), t.trackName(), rom, art, t.previewUrl(), order);
                 renumbered.add(song.getId());
                 updated++;
             } else {

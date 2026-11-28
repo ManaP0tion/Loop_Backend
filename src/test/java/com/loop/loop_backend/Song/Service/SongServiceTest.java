@@ -236,4 +236,50 @@ class SongServiceTest {
                 .isInstanceOf(com.loop.loop_backend.common.exception.BusinessException.class);
         assertThat(songService.getSongs(artist.getId())).hasSize(1);
     }
+
+    @Test
+    @DisplayName("대표 버전이 바뀌어 곡명으로 매칭된 곡은 trackId가 갱신되고, 삭제 후 재불러오기에서 되살아나지 않는다")
+    void fetchSongs_WhenMatchedByTitleThenDeleted_DoesNotRecreate() {
+        // given: 싱글 버전(1)으로 불러온 뒤 대표 버전이 앨범 버전(9)으로 바뀜
+        Artist artist = artistRepository.save(Artist.builder().name("YOASOBI").build());
+        artist.linkItunes(100L, "https://music.apple.com/jp/artist/100", "YOASOBI");
+        given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.COUNTRY_JP))).willReturn(List.of(track(1L, "夜に駆ける", null)));
+        songService.fetchSongs(artist.getId());
+        given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.COUNTRY_JP))).willReturn(List.of(track(9L, "夜に駆ける", null)));
+        songService.fetchSongs(artist.getId());
+        SongResponse song = songService.getSongs(artist.getId()).get(0);
+        assertThat(song.trackId()).isEqualTo(9L);
+
+        // when
+        songService.deleteSong(song.id());
+        em.flush();
+        em.clear();
+        SongFetchResult result = songService.fetchSongs(artist.getId());
+
+        // then
+        assertThat(result).isEqualTo(new SongFetchResult(0, 0, 1, 0));
+        assertThat(songService.getSongs(artist.getId())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("trackId 없이 삭제된 곡(수동 추가 곡 등)과 원문 제목이 같은 iTunes 곡은 재불러오기에서 되살아나지 않는다")
+    void fetchSongs_WhenDeletedSongHasSameTitle_SkipsTrack() {
+        // given: 수동 추가 곡을 삭제 (trackId 없음)
+        Artist artist = artistRepository.save(Artist.builder().name("YOASOBI").build());
+        artist.linkItunes(100L, "https://music.apple.com/jp/artist/100", "YOASOBI");
+        Long manual = songService.createSong(artist.getId(),
+                new com.loop.loop_backend.Song.DTO.SongCreateRequest("群青", null, null, null)).id();
+        songService.deleteSong(manual);
+        em.flush();
+        em.clear();
+        given(itunesClient.fetchTracks(eq(100L), eq(ItunesClient.COUNTRY_JP))).willReturn(List.of(
+                track(2L, "群青", null), track(3L, "アイドル", null)));
+
+        // when
+        SongFetchResult result = songService.fetchSongs(artist.getId());
+
+        // then
+        assertThat(result).isEqualTo(new SongFetchResult(1, 0, 1, 0));
+        assertThat(songService.getSongs(artist.getId())).extracting(SongResponse::titleOriginal).containsExactly("アイドル");
+    }
 }
