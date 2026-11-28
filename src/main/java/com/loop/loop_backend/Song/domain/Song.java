@@ -68,8 +68,10 @@ public class Song {
     }
 
     // iTunes 재불러오기: titleKo는 관리자가 입력한 값이라 덮어쓰지 않는다. 로마자는 비어 있을 때만 채운다 (수동 보정값 보존)
-    public void updateFromItunes(String titleOriginal, String titleRomanized,
+    // trackId는 곡명으로 매칭된 경우를 위해 현재 대표 버전으로 맞춘다 - 삭제 후 재불러오기 skip 판정이 trackId 기준이라서
+    public void updateFromItunes(Long trackId, String titleOriginal, String titleRomanized,
                                  String albumArtUrl, String previewUrl, Integer sortOrder) {
+        this.trackId = trackId;
         this.titleOriginal = titleOriginal;
         if (this.titleRomanized == null) this.titleRomanized = titleRomanized;
         this.albumArtUrl = albumArtUrl;

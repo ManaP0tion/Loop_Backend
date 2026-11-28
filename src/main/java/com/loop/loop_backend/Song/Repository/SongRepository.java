@@ -20,6 +20,10 @@ public interface SongRepository extends JpaRepository<Song, Long> {
             "AND deleted_at IS NOT NULL AND track_id IS NOT NULL", nativeQuery = true)
     List<Long> findDeletedTrackIds(@Param("artistId") Long artistId);
 
+    // 곡명 매칭으로 예전 trackId를 가진 채 삭제된 곡·수동 추가 곡(trackId 없음)은 trackId로 못 걸러서 원문 제목으로도 skip한다
+    @Query(value = "SELECT title_original FROM song WHERE artist_id = :artistId AND deleted_at IS NOT NULL", nativeQuery = true)
+    List<String> findDeletedTitles(@Param("artistId") Long artistId);
+
     // 아티스트 삭제 전용. 소프트 삭제된 곡도 artist_id FK를 잡고 있어 @SQLDelete를 우회해 물리 삭제한다
     @Modifying(flushAutomatically = true)
     @Query(value = "DELETE FROM song WHERE artist_id = :artistId", nativeQuery = true)
